@@ -15,9 +15,9 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 
-use futures::Future;
+use futures::{Future, Stream};
 use failure::{Error, ResultExt};
-use jsonrpc_core_client::{/*transports::http*/RpcError};
+use jsonrpc_core_client::{/*transports::http*/RpcError, TypedSubscriptionStream};
 use jsonrpc_pubsub::{Subscriber};
 use sr_primitives::generic::{SignedBlock};
 use node_primitives::{Hash, Header, Block}; // Block == Block<Header, UncheckedExtrinsic>
@@ -43,7 +43,7 @@ use crate::error::ErrorKind;
     }))
 */
 
-fn query_block(client: ChainClient<Hash, Hash, Header, SignedBlock<Block>>, block_num: u64)
+pub fn query_block(client: ChainClient<Hash, Hash, Header, SignedBlock<Block>>, block_num: u64)
     -> impl Future<Item = SignedBlock<Block>, Error = RpcError>
 {
     client.
@@ -54,20 +54,19 @@ fn query_block(client: ChainClient<Hash, Hash, Header, SignedBlock<Block>>, bloc
         .map(|b| { b.ok_or(RpcError::Other(ErrorKind::ValueNotPresent.into())) })
         .and_then(|b| { b })
 }
-
 // useless function
-fn subscribe_heads(client: ChainClient<Hash, Hash, Header, SignedBlock<Block>>) {
-    client.subscribe_new_head();
+pub fn subscribe_heads(client: ChainClient<Hash, Hash, Header, SignedBlock<Block>>) -> impl Future<Item = TypedSubscriptionStream<Header>, Error = RpcError>
+{
+    client.subscribe_new_heads()
 }
 
-fn subscribe_finalized_heads(client: ChainClient<Hash, Hash, Header, SignedBlock<Block>>) {
-    client.subscribe_finalized_heads();
+pub fn subscribe_finalized_heads(client: ChainClient<Hash, Hash, Header, SignedBlock<Block>>) -> impl Future<Item = TypedSubscriptionStream<Header>, Error = RpcError> {
+    client.subscribe_finalized_heads()
 }
 
 fn unsubscribe_finalized_heads() {
     unimplemented!();
 }
-
 #[cfg(test)]
 mod tests {
 
