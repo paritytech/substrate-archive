@@ -1,0 +1,16 @@
+[package]
+name = "polkadot-archive"
+version = "0.1.0"
+authors = ["Andrew Plaza <aplaza@liquidthink.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+substrate-archive = { path = "../" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives" }
+node-primitives = { git = "https://github.com/paritytech/substrate/", package = "node-primitives"}
+sr-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives" }
+node-runtime = { git = "https://github.com/paritytech/substrate", package = "node-runtime" }
+srml-system = { git = "https://github.com/paritytech/substrate", package = "srml-system" }
+srml-balances = { git = "https://github.com/paritytech/substrate", package = "srml-balances" }

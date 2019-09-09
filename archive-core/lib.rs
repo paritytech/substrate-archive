@@ -20,9 +20,11 @@ mod types;
 mod error;
 use futures::{sync::mpsc, stream::Stream, future::{self, Future}};
 use tokio::util::StreamExt;
+pub use substrate_subxt::srml::system::System;
+use sr_primitives::traits::Block;
 
-fn main() {
-    let  (mut rt, client) = rpc::client();
+pub fn run<T: System + Block>() {
+    let  (mut rt, client) = rpc::client::<T>();
     let (sender, receiver) = mpsc::unbounded();
     rt.spawn(rpc::subscribe_new_heads(client.clone(), sender.clone()).map_err(|e| println!("{:?}", e)));
     rt.spawn(rpc::subscribe_finalized_blocks(client.clone(), sender.clone()).map_err(|e| println!("{:?}", e)));
@@ -30,5 +32,4 @@ fn main() {
         println!("item: {}, {:?}", i, data);
         future::ok(())
     }));
-
 }
