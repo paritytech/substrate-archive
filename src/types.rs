@@ -14,14 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-pub mod rpc;
-mod error;
+/// The type of data this entry contains
+#[derive(Debug, PartialEq, Eq)]
+pub enum DataEntryType {
+    FinalizedBlock,
+    NewHead
+}
 
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+/// Sent from Substrate API to be committed into the Database
+#[derive(Debug, PartialEq, Eq)]
+pub struct Data {
+    pub info: DataEntryType,
 }
