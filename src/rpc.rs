@@ -72,7 +72,7 @@ type Address = <<Runtime as System>::Lookup as StaticLookup>::Source;
 type Balance = <Runtime as Balances>::Balance;
 
 
-// temporary function to get a Substrate Client and TokioRuntime
+// temporary util function to get a Substrate Client and TokioRuntime
 pub fn client() -> (TokioRuntime, Client<Runtime>) {
     let mut rt = TokioRuntime::new().unwrap();
     let client_future = ClientBuilder::<Runtime>::new().build();
@@ -113,8 +113,8 @@ pub fn subscribe_finalized_blocks(client: Client<Runtime>, sender: mpsc::Unbound
         .and_then(|stream| {
             stream.for_each(move |_head| {
                 sender.unbounded_send(Data {
-                    info: DataEntryType::NewHead
-                }).unwrap();
+                    info: DataEntryType::FinalizedBlock
+                }).map_err(|e| println!("{:?}", e)).unwrap();
                 futures::future::ok(())
             }).map_err(|e| substrate_subxt::Error::Rpc(e))
         })

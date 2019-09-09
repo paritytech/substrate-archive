@@ -19,16 +19,16 @@ mod rpc;
 mod types;
 mod error;
 use futures::{sync::mpsc, stream::Stream, future::{self, Future}};
+use tokio::util::StreamExt;
 
 fn main() {
     let  (mut rt, client) = rpc::client();
     let (sender, receiver) = mpsc::unbounded();
     rt.spawn(rpc::subscribe_new_heads(client.clone(), sender.clone()).map_err(|e| println!("{:?}", e)));
     rt.spawn(rpc::subscribe_finalized_blocks(client.clone(), sender.clone()).map_err(|e| println!("{:?}", e)));
-    let data = receiver.for_each(|x| {
-        println!("{:?}", x);
+    tokio::run(receiver.enumerate().for_each(|(i, data)| {
+        println!("item: {}, {:?}", i, data);
         future::ok(())
-    });
-    tokio::run(data);
+    }));
 
 }
