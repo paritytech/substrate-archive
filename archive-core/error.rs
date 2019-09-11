@@ -14,50 +14,64 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use failure::{Context, Fail, Backtrace};
+use failure::{Fail, Error as FailError};
 use std::fmt::Display;
+use substrate_subxt::Error as SubxtError;
+use futures::sync::mpsc::SendError;
+use jsonrpc_core_client::RpcError as JsonRpcError;
 
-#[derive(Debug)]
-struct ArchiveError {
-    inner: Context<ErrorKind>
+use crate::types::Data;
+
+#[derive(Debug, Fail)]
+pub enum Error {
+    /// An error originating from Subxt
+    /// Data Provided is the error message of the underlying error
+    #[fail(display = "Subxt: {}", _0)]
+    Subxt(String),
+    #[fail(display = "Could not send to parent process {}", _0)]
+    Send(String),
+    #[fail(display = "RPC Error: {}", _0)]
+    Rpc(#[fail(cause)] JsonRpcError)
+
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Fail)]
-pub enum ErrorKind {
-    // this is a shit error message
-    #[fail(display = "Value not found during execution of the RPC")]
-    ValueNotPresent
-}
-
-impl Fail for ArchiveError {
-    fn cause(&self) -> Option<&Fail> {
-        self.inner.cause()
-    }
-    fn backtrace(&self) -> Option<&Backtrace> {
-        self.inner.backtrace()
-    }
-}
-
-impl Display for ArchiveError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        Display::fmt(&self.inner, f)
-    }
-}
-
-impl ArchiveError {
-    pub fn kind(&self) -> ErrorKind {
-        *self.inner.get_context()
+impl From<SubxtError> for Error {
+    fn from(err: SubxtError) -> Error {
+        match err {
+            SubxtError::Codec(e) => Error::Subxt(e.to_string()),
+            SubxtError::Io(e) => Error::Subxt(e.to_string()),
+            SubxtError::Rpc(e) => Error::Subxt(e.to_string()),
+            SubxtError::SecretString(e) => Error::Subxt(format!("{:?}", e)),
+            SubxtError::Metadata(e) => Error::Subxt(format!("{:?}", e)),
+            SubxtError::Other(s) => Error::Subxt(s),
+        }
     }
 }
 
-impl From<ErrorKind> for ArchiveError {
-    fn from(kind: ErrorKind) -> ArchiveError {
-        ArchiveError { inner: Context::new(kind) }
+impl<T> From<SendError<T>> for Error {
+    fn from(err: SendError<T>) -> Error {
+        Error::Send(err.to_string())
     }
 }
 
-impl From<Context<ErrorKind>> for ArchiveError {
-    fn from(inner: Context<ErrorKind>) -> ArchiveError {
-        ArchiveError { inner: inner }
+impl From<JsonRpcError> for Error {
+    fn from(err: JsonRpcError) -> Error {
+        Error::Rpc(err)
     }
 }
+/*
+impl Error {
+
+    // TODO: Possibly separate these out or try to preserve original error type, or implement std::Error on Subxt's error type
+    pub(crate) fn subxt(&self, err: SubxtError) -> Error {
+        match err {
+            SubxtError::Codec(e) => Error::from(ErrorKind::Subxt(e.to_string())),
+            SubxtError::Io(e) => Error::from(ErrorKind::Subxt(e.to_string())),
+            SubxtError::Rpc(e) => Error::from(ErrorKind::Subxt(e.to_string())),
+            SubxtError::SecretString(e) => Error::from(ErrorKind::Subxt(format!("{:?}", e))),
+            SubxtError::Metadata(e) => Error::from(ErrorKind::Subxt(format!("{:?}", e))),
+            SubxtError::Other(s) => Error::from(ErrorKind::Subxt(s)),
+        }
+    }
+}
+*/

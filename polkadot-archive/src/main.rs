@@ -19,15 +19,16 @@
 use substrate_subxt::srml::{balances::Balances, contracts::Contracts, system::System};
 use sr_primitives::OpaqueExtrinsic as UncheckedExtrinsic;
 use sr_primitives::generic::{Era, SignedBlock /* Header */};
-use sr_primitives::traits::{StaticLookup, Block as BlockT/* BlakeTwo256 */ };
+use sr_primitives::traits::{StaticLookup/* BlakeTwo256 */ };
 use node_primitives::{Hash, Header, Block}; // Block == Block<Header, UncheckedExtrinsic>
 
 
 
 fn main() {
-    substrate_archive::run<Runtime>();
+    substrate_archive::run::<Runtime>();
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Runtime;
 
 impl System for Runtime {
@@ -58,12 +59,6 @@ impl System for Runtime {
             srml_balances::TakeFees::<node_runtime::Runtime>::from(0),
         )
     }
-}
-
-impl BlockT for Runtime {
-    type Extrinsic = UncheckedExtrinsic;
-    // type Header = Self::Header;
-    type Hash = Self::Hash;
 }
 
 impl Balances for Runtime {
