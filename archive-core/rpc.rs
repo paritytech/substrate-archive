@@ -19,6 +19,14 @@ use tokio::runtime::Runtime;
 use tokio::util::StreamExt;
 use failure::{Error as FailError};
 use substrate_subxt::{Client, ClientBuilder, srml::system::System};
+use substrate_rpc_api::{
+    // author::AuthorClient,
+    chain::{
+        number::NumberOrHex,
+        // ChainClient,
+    },
+    // state::StateClient,
+};
 
 use crate::types::{Data, Payload};
 use crate::error::{Error as ArchiveError};
@@ -44,16 +52,21 @@ pub fn run<T: System + std::fmt::Debug + 'static>() {
     }));
 }
 
+type BlockNumber<T> = NumberOrHex<<T as System>::BlockNumber>;
+
+/// Communicate with Substrate node via RPC
 pub struct Rpc<T: System> {
     client: Client<T>
 }
 
 impl<T> Rpc<T> where T: System + 'static {
 
+    /// instantiate new client
     pub fn new(client: Client<T>) -> Self {
         Self { client }
     }
 
+    /// send all new headers back to main thread
     pub fn subscribe_new_heads(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
     {
         self.client.subscribe_blocks()
@@ -67,6 +80,7 @@ impl<T> Rpc<T> where T: System + 'static {
             })
     }
 
+    /// send all finalized headers back to main thread
     pub fn subscribe_finalized_blocks(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
     {
         self.client.subscribe_finalized_blocks()
@@ -80,6 +94,7 @@ impl<T> Rpc<T> where T: System + 'static {
             })
     }
 
+    /// send all substrate events back to main thread
     pub fn subscribe_events(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
     {
         self.client.subscribe_events()
@@ -93,12 +108,15 @@ impl<T> Rpc<T> where T: System + 'static {
             })
     }
 
-    /*
-    fn query_block<T: System + 'static>(client: Client<T>, sender: mpsc::UnboundedSender<Data<T>>, head: T::Header) -> impl Future<Item = (), Error = substrate_subxt::Error>
+    fn query_block<T: System + 'static>(&self, hash: , sender: mpsc::UnboundedSender<Data<T>>, head: T::Header)
+                                        -> impl Future<Item = (), Error = ArchiveError>
     {
-        unimplemented!()
+        self.client.block()
+                   .map_err(|e| ArchiveError::from(e))
+                   .and_then(|blk| {
+
+                   })
     }
-    */
 
 
     fn unsubscribe_finalized_heads() {
@@ -108,7 +126,6 @@ impl<T> Rpc<T> where T: System + 'static {
     fn unsubscribe_new_heads() {
         unimplemented!();
     }
-
 }
 
 #[cfg(test)]
