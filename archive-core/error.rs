@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use failure::{Fail, Error as FailError};
-use std::fmt::Display;
+use failure::Fail;
 use substrate_subxt::Error as SubxtError;
 use futures::sync::mpsc::SendError;
 use jsonrpc_core_client::RpcError as JsonRpcError;

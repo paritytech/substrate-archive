@@ -17,7 +17,7 @@
 use futures::{Future, Stream, sync::mpsc, future};
 use tokio::runtime::Runtime;
 use tokio::util::StreamExt;
-use failure::{Error as FailError, ResultExt};
+use failure::{Error as FailError};
 use substrate_subxt::{Client, ClientBuilder, srml::system::System};
 
 use crate::types::{Data, Payload};
@@ -34,68 +34,81 @@ fn client<T: System + 'static>() -> (Runtime, Client<T>) {
 pub fn run<T: System + std::fmt::Debug + 'static>() {
     let  (mut rt, client) = client::<T>();
     let (sender, receiver) = mpsc::unbounded();
-    // rt.spawn(subscribe_new_heads(client.clone(), sender.clone()).map_err(|e| println!("{:?}", e)));
-    // rt.spawn(subscribe_finalized_blocks(client.clone(), sender.clone()).map_err(|e| println!("{:?}", e)));
-    rt.spawn(subscribe_events(client.clone(), sender.clone()).map_err(|e| println!("{:?}", e)));
+    let rpc = Rpc::new(client);
+    rt.spawn(rpc.subscribe_new_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
+    rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
+    rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
     tokio::run(receiver.enumerate().for_each(|(i, data)| {
         println!("item: {}, {:?}", i, data);
         future::ok(())
     }));
 }
 
-fn subscribe_new_heads<T: System + 'static>(client: Client<T>, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
-{
-    client.subscribe_blocks()
-        .map_err(|e| ArchiveError::from(e))
-        .and_then(|stream| {
-            stream.map_err(|e| e.into()).for_each(move |head| {
-                sender.unbounded_send(Data {
-                    payload: Payload::Header(head)
-                }).map_err(|e| ArchiveError::from(e))
+pub struct Rpc<T: System> {
+    client: Client<T>
+}
+
+impl<T> Rpc<T> where T: System + 'static {
+
+    pub fn new(client: Client<T>) -> Self {
+        Self { client }
+    }
+
+    pub fn subscribe_new_heads(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
+    {
+        self.client.subscribe_blocks()
+            .map_err(|e| ArchiveError::from(e))
+            .and_then(|stream| {
+                stream.map_err(|e| e.into()).for_each(move |head| {
+                    sender.unbounded_send(Data {
+                        payload: Payload::Header(head)
+                    }).map_err(|e| ArchiveError::from(e))
+                })
             })
-        })
-}
+    }
 
-fn subscribe_finalized_blocks<T: System + 'static>(client: Client<T>, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
-{
-    client.subscribe_finalized_blocks()
-        .map_err(|e| ArchiveError::from(e))
-        .and_then(|stream| {
-            stream.map_err(|e| e.into()).for_each(move |head| {
-                sender.unbounded_send(Data {
-                    payload: Payload::FinalizedHead(head)
-                }).map_err(|e| ArchiveError::from(e))
+    pub fn subscribe_finalized_blocks(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
+    {
+        self.client.subscribe_finalized_blocks()
+            .map_err(|e| ArchiveError::from(e))
+            .and_then(|stream| {
+                stream.map_err(|e| e.into()).for_each(move |head| {
+                    sender.unbounded_send(Data {
+                        payload: Payload::FinalizedHead(head)
+                    }).map_err(|e| ArchiveError::from(e))
+                })
             })
-        })
-}
+    }
 
-fn subscribe_events<T: System + 'static>(client: Client<T>, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
-{
-    client.subscribe_events()
-        .map_err(|e| ArchiveError::from(e))
-        .and_then(|stream| {
-            stream.map_err(|e| e.into()).for_each(move |storage_change| {
-                sender.unbounded_send(Data {
-                    payload: Payload::Event(storage_change),
-                }).map_err(|e| ArchiveError::from(e))
+    pub fn subscribe_events(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
+    {
+        self.client.subscribe_events()
+            .map_err(|e| ArchiveError::from(e))
+            .and_then(|stream| {
+                stream.map_err(|e| e.into()).for_each(move |storage_change| {
+                    sender.unbounded_send(Data {
+                        payload: Payload::Event(storage_change),
+                    }).map_err(|e| ArchiveError::from(e))
+                })
             })
-        })
-}
+    }
 
-/*
-fn query_block<T: System + 'static>(client: Client<T>, sender: mpsc::UnboundedSender<Data<T>>, head: T::Header) -> impl Future<Item = (), Error = substrate_subxt::Error>
-{
-    unimplemented!()
-}
-*/
+    /*
+    fn query_block<T: System + 'static>(client: Client<T>, sender: mpsc::UnboundedSender<Data<T>>, head: T::Header) -> impl Future<Item = (), Error = substrate_subxt::Error>
+    {
+        unimplemented!()
+    }
+    */
 
 
-fn unsubscribe_finalized_heads() {
-    unimplemented!();
-}
+    fn unsubscribe_finalized_heads() {
+        unimplemented!();
+    }
 
-fn unsubscribe_new_heads() {
-    unimplemented!();
+    fn unsubscribe_new_heads() {
+        unimplemented!();
+    }
+
 }
 
 #[cfg(test)]
