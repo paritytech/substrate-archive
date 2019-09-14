@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 substrate-archive = { path = "../" }
-substrate-subxt = { git = "https://github.com/insipx/substrate-subxt", branch = "master" }
+substrate-subxt = { path = "../../substrate-subxt" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives" }
 node-primitives = { git = "https://github.com/paritytech/substrate/", package = "node-primitives"}
 sr-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives" }

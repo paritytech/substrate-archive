@@ -15,18 +15,21 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use substrate_subxt::srml::system::System;
-use sr_primitives::OpaqueExtrinsic as UncheckedExtrinsic;
-use sr_primitives::generic::{Block as BlockT, SignedBlock};
+use runtime_primitives::OpaqueExtrinsic as UncheckedExtrinsic;
+use runtime_primitives::generic::{Block as BlockT, SignedBlock};
 use substrate_primitives::storage::StorageChangeSet;
+use substrate_rpc_primitives::number::NumberOrHex;
 
 
-type Block<T> = SignedBlock<BlockT<<T as System>::Header, UncheckedExtrinsic>>;
+pub type Block<T> = SignedBlock<BlockT<<T as System>::Header, UncheckedExtrinsic>>;
+pub type BlockNumber<T> = NumberOrHex<<T as System>::BlockNumber>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Payload<T: System> {
     FinalizedHead(T::Header),
-    BlockNumber(T::BlockNumber),
     Header(T::Header),
+    BlockNumber(T::BlockNumber),
+    Hash(T::Hash),
     Block(Block<T>),
     Event(StorageChangeSet<T::Hash>),
     None,
