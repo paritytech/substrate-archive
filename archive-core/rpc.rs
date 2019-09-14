@@ -48,13 +48,10 @@ where T: System + std::fmt::Debug + 'static
                 println!("item: {}, {:?}", i, data);
             },
             Payload::Header(header) => {
-
-                println!("I can spawn SOMETHING");
                 tokio::spawn(
-                    rpc.block_hash(Some(NumberOrHex::Number(*header.number())), sender.clone())
-                       .map_err(|e| println!("{:?}", e))
-                ).unwrap();
-
+                    rpc.block(header.hash(), sender.clone())
+                        .map_err(|e| println!("{:?}", e))
+                );
                 println!("item: {}, {:?}", i, data);
                 println!("Header");
             }
@@ -74,10 +71,6 @@ where T: System + std::fmt::Debug + 'static
             },
             Payload::Hash(hash) => {
                 println!("HASH: {:?}", hash);
-                tokio::spawn(
-                    rpc.block(*hash, sender.clone())
-                        .map_err(|e| println!("{:?}", e))
-                );
             }
             _ => {
                 println!("not handled");
