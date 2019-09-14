@@ -27,11 +27,11 @@ use crate::types::{Data, Payload, BlockNumber, Block};
 use crate::error::{Error as ArchiveError};
 
 // temporary util function to get a Substrate Client and Runtime
-fn client<T: System + 'static>() -> (Runtime, Client<T>) {
-    let mut rt = Runtime::new().unwrap();
+fn client<T: System + 'static>() -> Result<(Runtime, Client<T>), ArchiveError> {
+    let mut rt = Runtime::new()?;
     let client_future = ClientBuilder::<T>::new().build();
-    let client = rt.block_on(client_future).unwrap();
-    (rt, client)
+    let client = rt.block_on(client_future)?;
+    Ok((rt, client))
 }
 
 fn handle_data<T>(receiver: mpsc::UnboundedReceiver<Data<T>>,
@@ -80,14 +80,15 @@ where T: System + std::fmt::Debug + 'static
     })
 }
 
-pub fn run<T: System + std::fmt::Debug + 'static>() {
-    let  (mut rt, client) = client::<T>();
+pub fn run<T: System + std::fmt::Debug + 'static>() -> Result<(), ArchiveError>{
+    let  (mut rt, client) = client::<T>()?;
     let (sender, receiver) = mpsc::unbounded();
     let rpc = Rpc::new(client);
     rt.spawn(rpc.subscribe_new_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
     rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
     rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
     tokio::run(handle_data(receiver, rpc, sender));
+    Ok(())
 }
 
 /// Communicate with Substrate node via RPC
@@ -160,19 +161,6 @@ impl<T> Rpc<T> where T: System + 'static {
                     Ok(()) // TODO Error out
                 }
             })
-            /*.and_then(move |h| { self.client.block(h) })
-            .map_err(Into::into)
-            .and_then(move |block| {
-                if let Some(b) = block {
-                    sender.unbounded_send(Data {
-                        payload: Payload::Block(b)
-                }).map_err(|e| ArchiveError::from(e))
-                } else {
-                    info!("No block exists!");
-                    Ok(())
-                }
-            })
-            */
     }
 
     fn block(&self, hash: T::Hash, sender: mpsc::UnboundedSender<Data<T>>)

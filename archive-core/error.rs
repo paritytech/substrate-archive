@@ -18,6 +18,7 @@ use failure::Fail;
 use substrate_subxt::Error as SubxtError;
 use futures::sync::mpsc::SendError;
 use jsonrpc_core_client::RpcError as JsonRpcError;
+use std::io::Error as IoError;
 
 use crate::types::Data;
 
@@ -30,8 +31,17 @@ pub enum Error {
     #[fail(display = "Could not send to parent process {}", _0)]
     Send(String),
     #[fail(display = "RPC Error: {}", _0)]
-    Rpc(#[fail(cause)] JsonRpcError)
+    Rpc(#[fail(cause)] JsonRpcError),
+    #[fail(display = "Io: {}", _0)]
+    Io(#[fail(cause)] IoError),
 
+}
+
+
+impl From<IoError> for Error {
+    fn from(err: IoError) -> Error {
+        Error::Io(err)
+    }
 }
 
 impl From<SubxtError> for Error {

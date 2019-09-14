@@ -18,5 +18,9 @@
 mod rpc;
 mod types;
 mod error;
-pub use substrate_subxt::{Client, ClientBuilder, srml::system::System};
 pub use rpc::run;
+
+
+pub mod srml {
+    pub use substrate_subxt::srml::{system::System, balances::Balances, contracts::Contracts};
+}

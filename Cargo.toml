@@ -20,9 +20,7 @@ tokio = "0.1"
 failure = "0.1"
 substrate-subxt = { path = "../substrate-subxt" }
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api" }
-
 substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives" }
-
 substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives" }
 runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives" }
 jsonrpc-core-client = { version = "13.0", features = ["ws"] }

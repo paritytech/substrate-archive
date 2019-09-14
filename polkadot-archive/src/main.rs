@@ -16,29 +16,29 @@
 
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
-use substrate_subxt::srml::{balances::Balances, contracts::Contracts, system::System};
-use sr_primitives::OpaqueExtrinsic as UncheckedExtrinsic;
-use sr_primitives::generic::{Era, SignedBlock /* Header */};
-use sr_primitives::traits::{StaticLookup/* BlakeTwo256 */ };
-use node_primitives::{Hash, Header, Block}; // Block == Block<Header, UncheckedExtrinsic>
+use failure::Error;
+use substrate_archive::{
+    srml::{Balances, Contracts, System},
+};
+use sr_primitives::{generic::Era, traits::StaticLookup};
 
-
-
-fn main() {
-    substrate_archive::run::<Runtime>();
+fn main() -> Result<(), Error> {
+    substrate_archive::run::<Runtime>().map_err(Into::into)
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Runtime;
 
 impl System for Runtime {
+    #[allow(dead_code)]
     type Index = <node_runtime::Runtime as srml_system::Trait>::Index;
     type BlockNumber = <node_runtime::Runtime as srml_system::Trait>::BlockNumber;
     type Hash = <node_runtime::Runtime as srml_system::Trait>::Hash;
     type Hashing = <node_runtime::Runtime as srml_system::Trait>::Hashing;
+    #[allow(dead_code)]
     type AccountId = <node_runtime::Runtime as srml_system::Trait>::AccountId;
     type Lookup = <node_runtime::Runtime as srml_system::Trait>::Lookup;
-    type Header = <node_runtime::Runtime as srml_system::Trait>::Header; // same as DOT
+    type Header = <node_runtime::Runtime as srml_system::Trait>::Header;
     type Event = <node_runtime::Runtime as srml_system::Trait>::Event;
 
     type SignedExtra = (
@@ -67,7 +67,11 @@ impl Balances for Runtime {
 
 impl Contracts for Runtime {}
 
+#[allow(dead_code)]
 type Index = <Runtime as System>::Index;
+#[allow(dead_code)]
 type AccountId = <Runtime as System>::AccountId;
+#[allow(dead_code)]
 type Address = <<Runtime as System>::Lookup as StaticLookup>::Source;
+#[allow(dead_code)]
 type Balance = <Runtime as Balances>::Balance;
