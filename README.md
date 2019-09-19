@@ -9,3 +9,8 @@ As of now,`Runtime` is used throughout as a concrete type. Eventually, this will
 
 ## Required External Dependencies
 - PostgreSQ
+
+### Developing
+`sudo apt-get install postgresql postgresql-contrib libpq-dev`
+`cargo install diesel_cli --no-default-features --features postgres`
+
