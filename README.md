@@ -11,6 +11,9 @@ As of now,`Runtime` is used throughout as a concrete type. Eventually, this will
 - PostgreSQ
 
 ### Developing
-`sudo apt-get install postgresql postgresql-contrib libpq-dev`
-`cargo install diesel_cli --no-default-features --features postgres`
+Init script should install all dependencies and setup a default database user for you. Just make sure to change the password of user `archive` via psql
+
+Required Dependencies:
+Ubuntu: `postgresql`, `postgresql-contrib`, `libpq-dev`
+Rust: `diesel_cli`
 
