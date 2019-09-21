@@ -1,3 +1,19 @@
+// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// This file is part of substrate-archive.
+
+// substrate-archive is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// substrate-archive is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
+
 //! Database Type Models for Substrate/SubstrateChain/Polkadot Types
 
 use primitive_types::{H256 as SubstrateH256, H512 as SubstrateH512};
@@ -70,8 +86,9 @@ pub struct SignedExtrinsics {
 /// Accounts  on thechain
 #[derive(Queryable, PartialEq, Debug)]
 pub struct Accounts {
+    // TODO: Use b58 addr format or assign trait..overall make generic
     /// Address of the account (So far only ed/sr) Primary key
-    address: H256,
+    address: Vec<u8>,
     /// Free balance of the account
     free_balance: usize,
     /// Reserved balanced
@@ -162,5 +179,13 @@ where
 // Can Either :
 // Make Generic over System::Type
 //    Therefore, make the external program implement Queryable on types (IE: polkadot-archive)
+//
 // Use Diesel types instead of Parity Types -- convert to other types somewhere else along the way
+//
 // Use concrete primitives -- requires assumptions -- OK for mvp?
+//
+// OR just don't use any types at all and encode everything as a Vec<u8>.
+// This loses some meaning for the type, but it is the easiest and fastest way to implement a form of
+// generalization of chains
+// it just leaves the type conversions up to the end user
+// which isn't the most ergonomic thing
