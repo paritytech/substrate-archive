@@ -15,15 +15,13 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use log::*;
-use futures::{Future, Stream, sync::mpsc, future, lazy};
-use tokio::runtime::{self, Runtime};
+use futures::{Future, Stream, sync::mpsc, future};
+use tokio::runtime::Runtime;
 use tokio::util::StreamExt;
-use failure::{Error as FailError};
 use substrate_subxt::{Client, ClientBuilder, srml::system::System};
-use substrate_rpc_primitives::number::NumberOrHex;
 use runtime_primitives::traits::Header;
 
-use crate::types::{Data, Payload, BlockNumber, Block};
+use crate::types::{Data, Payload, BlockNumber};
 use crate::error::{Error as ArchiveError};
 
 // temporary util function to get a Substrate Client and Runtime

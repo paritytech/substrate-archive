@@ -18,7 +18,10 @@ env_logger = "0.6"
 futures = "0.1"
 tokio = "0.1"
 failure = "0.1"
-diesel = { version = "1.4", features = ["postgres"] }
+diesel = { version = "1.4", features = ["postgres", "chrono"] }
+chrono = "0.4.9"
+primitive-types = { version = "0.5" }
+dotenv = "0.14.1"
 substrate-subxt = { git = "https://github.com/paritytech/substrate-subxt" }
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api" }
 substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives" }

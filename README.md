@@ -12,7 +12,10 @@ The (so far experimental) schema for the PostgreSQL database is described in the
 ### Developing
 Init script should install all dependencies and setup a default database user for you. Just make sure to change the password of user `archive` via psql in a production or security-sensitive environment.
 
+
 Required Dependencies:
 Ubuntu: `postgresql`, `postgresql-contrib`, `libpq-dev`
 Rust: `diesel_cli`
 
+
+To create all tables, use the command `diesel migration run`
