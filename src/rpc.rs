@@ -23,6 +23,7 @@ use runtime_primitives::traits::Header;
 
 use crate::types::{Data, Payload, BlockNumber};
 use crate::error::{Error as ArchiveError};
+use crate::database::Database;
 
 // temporary util function to get a Substrate Client and Runtime
 fn client<T: System + 'static>() -> Result<(Runtime, Client<T>), ArchiveError> {
@@ -34,46 +35,21 @@ fn client<T: System + 'static>() -> Result<(Runtime, Client<T>), ArchiveError> {
 
 fn handle_data<T>(receiver: mpsc::UnboundedReceiver<Data<T>>,
                   rpc: Rpc<T>,
-                  sender: mpsc::UnboundedSender<Data<T>>
+                  sender: mpsc::UnboundedSender<Data<T>>,
+                  _db: Database
 ) -> impl Future<Item = (), Error = ()> + 'static
 where T: System + std::fmt::Debug + 'static
 {
-    println!("Spawning Receiver");
+    // spawn a getter for blocks if not there
+    // else insert the value into the database
     receiver.enumerate().for_each(move |(i, data)| {
-        match &data.payload {
-            Payload::FinalizedHead(header) => {
-                println!("Finalized Header");
-                println!("item: {}, {:?}", i, data);
-            },
-            Payload::Header(header) => {
-                tokio::spawn(
-                    rpc.block(header.hash(), sender.clone())
-                        .map_err(|e| println!("{:?}", e))
-                );
-                println!("item: {}, {:?}", i, data);
-                println!("Header");
-            }
-            Payload::BlockNumber(number) => {
-                println!("Block Number");
-
-                println!("item: {}, {:?}", i, data);
-            },
-            Payload::Block(block) => {
-                println!("GOT A Block");
-                println!("item: {}, {:?}", i, data);
-            },
-            Payload::Event(event) => {
-                println!("Event");
-
-                println!("item: {}, {:?}", i, data);
-            },
-            Payload::Hash(hash) => {
-                println!("HASH: {:?}", hash);
-            }
-            _ => {
-                println!("not handled");
-            }
-        };
+        if let Payload::Header(header) = &data.payload {
+            tokio::spawn(
+                rpc.block(header.hash(), sender.clone())
+                   .map_err(|e| println!("{:?}", e))
+            );
+        }
+        // insert into database
         future::ok(())
     })
 }
@@ -82,10 +58,11 @@ pub fn run<T: System + std::fmt::Debug + 'static>() -> Result<(), ArchiveError>{
     let  (mut rt, client) = client::<T>()?;
     let (sender, receiver) = mpsc::unbounded();
     let rpc = Rpc::new(client);
+    let db = Database::new();
     rt.spawn(rpc.subscribe_new_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
     rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
     rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
-    tokio::run(handle_data(receiver, rpc, sender));
+    tokio::run(handle_data(receiver, rpc, sender, db));
     Ok(())
 }
 

@@ -19,16 +19,56 @@
 pub mod models;
 pub mod schema;
 use tokio::runtime::Runtime;
+use substrate_subxt::srml::system::System;
+use diesel::{
+    prelude::*,
+    pg::PgConnection,
+};
+use dotenv::dotenv;
+use std::env;
+
 use crate::error::Error as ArchiveError;
+use crate::types::{Data, Payload};
 
 /// Database object containing a postgreSQL connection and a runtime for asynchronous updating
 pub struct Database {
-    runtime: Runtime
+    connection: PgConnection
 }
 
 impl Database {
-    /// Creates the tables needed for the archive node
-    fn spawn_tables() -> Result<(), ArchiveError> {
-        Ok(())
+
+    /// Connect to the database
+    pub fn new() -> Self {
+        dotenv().ok();
+
+        let database_url = env::var("DATABASE_URL")
+            .expect("DATABASE_URL must be set; qed");
+        let connection = PgConnection::establish(&database_url)
+            .expect(&format!("Error connecting to {}", database_url));
+
+        Self { connection }
+    }
+
+    pub fn insert<T>(data: &Data<T>) where T: System {
+        match &data.payload {
+            Payload::FinalizedHead(header) => {
+                println!("Header");
+            }
+            Payload::BlockNumber(number) => {
+                println!("Block Number");
+            },
+            Payload::Block(block) => {
+                println!("GOT A Block");
+            },
+            Payload::Event(event) => {
+                println!("Event");
+            },
+            Payload::Hash(hash) => {
+                println!("HASH: {:?}", hash);
+            }
+            _ => {
+                println!("not handled");
+            }
+        }
     }
 }
