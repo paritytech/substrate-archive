@@ -1,3 +1,16 @@
+table! {
+    accounts (address) {
+        address -> Bytea,
+        free_balance -> Int4,
+        reserved_balance -> Int4,
+        account_index -> Bytea,
+        nonce -> Int4,
+        create_hash -> Bytea,
+        created -> Int4,
+        updated -> Int4,
+        active -> Bool,
+    }
+}
 
 table! {
     blocks (hash) {
@@ -37,10 +50,12 @@ table! {
     }
 }
 
+joinable!(accounts -> blocks (create_hash));
 joinable!(inherants -> blocks (hash));
 joinable!(signed_extrinsics -> blocks (hash));
 
 allow_tables_to_appear_in_same_query!(
+    accounts,
     blocks,
     inherants,
     signed_extrinsics,

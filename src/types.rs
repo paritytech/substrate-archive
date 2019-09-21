@@ -32,7 +32,6 @@ pub enum Payload<T: System> {
     Hash(T::Hash),
     Block(Block<T>),
     Event(StorageChangeSet<T::Hash>),
-    None,
 }
 
 /// Sent from Substrate API to be committed into the Database
