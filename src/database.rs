@@ -24,11 +24,13 @@ use diesel::{
     prelude::*,
     pg::PgConnection,
 };
+use runtime_primitives::traits::{Block, Header};
 use dotenv::dotenv;
 use std::env;
 
 use crate::error::Error as ArchiveError;
 use crate::types::{Data, Payload};
+use self::models::{Blocks, /* Accounts, */ Inherants, SignedExtrinsics};
 
 /// Database object containing a postgreSQL connection and a runtime for asynchronous updating
 pub struct Database {
@@ -49,16 +51,26 @@ impl Database {
         Self { connection }
     }
 
-    pub fn insert<T>(data: &Data<T>) where T: System {
+    pub fn insert<T>(&self, data: &Data<T>) where T: System {
+        use self::schema::{accounts, blocks, inherants};
+
         match &data.payload {
             Payload::FinalizedHead(header) => {
-                println!("Header");
+                println!("Got a header")
             }
-            Payload::BlockNumber(number) => {
-                println!("Block Number");
-            },
             Payload::Block(block) => {
-                println!("GOT A Block");
+                let block = Blocks {
+                    parent_hash: block.block.header.parent_hash().into(),
+                    hash: block.block.hash().into(),
+                    block: block.block.header.number().into(),
+                    state_root: block.block.header.state_root().into(),
+                    extrinsics_root: block.block.header.extrinsics_root().into(),
+                    time: None
+                };
+                diesel::insert_into(blocks::table)
+                    .values(block)
+                    .get_result(&self.connection)
+                    .expect("ERROR saving block");
             },
             Payload::Event(event) => {
                 println!("Event");

@@ -36,7 +36,7 @@ fn client<T: System + 'static>() -> Result<(Runtime, Client<T>), ArchiveError> {
 fn handle_data<T>(receiver: mpsc::UnboundedReceiver<Data<T>>,
                   rpc: Rpc<T>,
                   sender: mpsc::UnboundedSender<Data<T>>,
-                  _db: Database
+                  db: Database
 ) -> impl Future<Item = (), Error = ()> + 'static
 where T: System + std::fmt::Debug + 'static
 {
@@ -49,7 +49,7 @@ where T: System + std::fmt::Debug + 'static
                    .map_err(|e| println!("{:?}", e))
             );
         }
-        // insert into database
+        db.insert(&data);
         future::ok(())
     })
 }

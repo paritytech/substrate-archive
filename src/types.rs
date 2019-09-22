@@ -28,7 +28,6 @@ pub type BlockNumber<T> = NumberOrHex<<T as System>::BlockNumber>;
 pub enum Payload<T: System> {
     FinalizedHead(T::Header),
     Header(T::Header),
-    BlockNumber(T::BlockNumber),
     Hash(T::Hash),
     Block(Block<T>),
     Event(StorageChangeSet<T::Hash>),
