@@ -18,13 +18,15 @@ env_logger = "0.6"
 futures = "0.1"
 tokio = "0.1"
 failure = "0.1"
-diesel = { version = "1.4", features = ["postgres", "chrono"] }
+diesel = { version = "1.4", features = ["postgres", "chrono", "numeric"] }
 chrono = "0.4.9"
 primitive-types = { version = "0.5" }
 dotenv = "0.14.1"
+byteorder = "1.3.2"
+codec = { package = "parity-scale-codec", version = "1.0.0" }
+jsonrpc-core-client = { version = "13.0", features = ["ws"] }
 substrate-subxt = { git = "https://github.com/paritytech/substrate-subxt" }
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api" }
 substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives" }
 runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives" }
-jsonrpc-core-client = { version = "13.0", features = ["ws"] }

@@ -23,5 +23,5 @@ pub use rpc::run;
 
 
 pub mod srml {
-    pub use substrate_subxt::srml::{system::System, balances::Balances, contracts::Contracts};
+    pub use substrate_subxt::srml::{balances::Balances, contracts::Contracts, system::System};
 }

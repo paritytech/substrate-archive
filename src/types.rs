@@ -24,17 +24,12 @@ use substrate_rpc_primitives::number::NumberOrHex;
 pub type Block<T> = SignedBlock<BlockT<<T as System>::Header, UncheckedExtrinsic>>;
 pub type BlockNumber<T> = NumberOrHex<<T as System>::BlockNumber>;
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum Payload<T: System> {
-    FinalizedHead(T::Header),
-    Header(T::Header),
-    Hash(T::Hash),
-    Block(Block<T>),
-    Event(StorageChangeSet<T::Hash>),
-}
-
 /// Sent from Substrate API to be committed into the Database
 #[derive(Debug, PartialEq, Eq)]
-pub struct Data<T: System> {
-    pub payload: Payload<T>
+pub enum Data<T: System> {
+    FinalizedHead(T::Header),
+    Header(T::Header),
+    // Hash(T::Hash),
+    Block(Block<T>),
+    Event(StorageChangeSet<T::Hash>),
 }

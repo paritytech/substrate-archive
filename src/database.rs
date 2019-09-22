@@ -18,19 +18,20 @@
 
 pub mod models;
 pub mod schema;
-use tokio::runtime::Runtime;
 use substrate_subxt::srml::system::System;
 use diesel::{
     prelude::*,
     pg::PgConnection,
 };
-use runtime_primitives::traits::{Block, Header};
+use codec::Encode;
+use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 use std::env;
 
-use crate::error::Error as ArchiveError;
-use crate::types::{Data, Payload};
-use self::models::{Blocks, /* Accounts, */ Inherants, SignedExtrinsics};
+// use crate::error::Error as ArchiveError;
+use crate::types::Data;
+use self::models::{InsertBlock, Blocks};
+use self::schema::blocks;
 
 /// Database object containing a postgreSQL connection and a runtime for asynchronous updating
 pub struct Database {
@@ -52,32 +53,42 @@ impl Database {
     }
 
     pub fn insert<T>(&self, data: &Data<T>) where T: System {
-        use self::schema::{accounts, blocks, inherants};
-
-        match &data.payload {
-            Payload::FinalizedHead(header) => {
+        match &data {
+            Data::FinalizedHead(_header) => {
                 println!("Got a header")
             }
-            Payload::Block(block) => {
-                let block = Blocks {
-                    parent_hash: block.block.header.parent_hash().into(),
-                    hash: block.block.hash().into(),
-                    block: block.block.header.number().into(),
-                    state_root: block.block.header.state_root().into(),
-                    extrinsics_root: block.block.header.extrinsics_root().into(),
+            Data::Block(block) => {
+                let block = &block.block.header;
+                /*
+                let block = InsertBlock {
+                    parent_hash: block.parent_hash().as_ref(),
+                    hash: block.hash().as_ref(),
+                    block: block.number().encode().as_slice(),
+                    state_root: block.state_root().as_ref(),
+                    extrinsics_root: block.extrinsics_root().as_ref(),
                     time: None
                 };
+                */
                 diesel::insert_into(blocks::table)
-                    .values(block)
-                    .get_result(&self.connection)
+                    .values( InsertBlock {
+                        parent_hash: block.parent_hash().as_ref(),
+                        hash: block.hash().as_ref(),
+                        block: block.number().encode().as_slice(),
+                        state_root: block.state_root().as_ref(),
+                        extrinsics_root: block.extrinsics_root().as_ref(),
+                        time: None
+                    })
+                    .get_result::<Blocks>(&self.connection)
                     .expect("ERROR saving block");
+                println!("Block");
+
             },
-            Payload::Event(event) => {
+            Data::Event(_event) => {
                 println!("Event");
             },
-            Payload::Hash(hash) => {
+            /*Data::Hash(hash) => {
                 println!("HASH: {:?}", hash);
-            }
+            }*/
             _ => {
                 println!("not handled");
             }

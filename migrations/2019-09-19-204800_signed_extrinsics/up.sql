@@ -1,6 +1,6 @@
 CREATE TABLE signed_extrinsics (
   transaction_hash bytea PRIMARY KEY,
-  block int NOT NULL,
+  block bytea NOT NULL,
   hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE RESTRICT,
   from_addr bytea NOT NULL,
   to_addr bytea,

@@ -17,12 +17,34 @@
 //! Database Type Models for Substrate/SubstrateChain/Polkadot Types
 
 use primitive_types::{H256 as SubstrateH256, H512 as SubstrateH512};
-use diesel::sql_types::Binary;
+// use codec::Decode;
+use diesel::sql_types::{Binary};
+use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
-// use super::schema::{blocks, inherants, signed_extrinsics};
+use diesel::Queryable;
 use chrono::NaiveDateTime;
+
+use super::schema::{blocks /*, inherants, signed_extrinsics*/};
+
 // TODO: Make generic
-type DB = diesel::pg::Pg;
+
+/// Inserting a block
+/// everything serialized as raw bytes
+/// if not originally a hash (bytes from hashes are extracted with as_ref())
+/// it is encoded with parity_scale_codec (u32/etc)
+/// to make up for PostgreSQL's lack of an unsigned data type
+#[derive(Insertable)]
+#[table_name="blocks"]
+pub struct InsertBlock<'a> {
+    pub parent_hash: &'a [u8],
+    pub hash: &'a [u8],
+    pub block: &'a [u8],
+    pub state_root: &'a [u8],
+    pub extrinsics_root: &'a [u8],
+    pub time: Option<NaiveDateTime>
+}
+
+type EncodedUint = Vec<u8>;
 
 /// The table for accounts
 #[derive(Queryable, PartialEq, Debug)]
@@ -32,7 +54,7 @@ pub struct Blocks {
     /// Hash of this block
     hash: H256,
     /// The block number
-    block: usize,
+    block: EncodedUint,
     /// root of the state trie
     state_root: H256,
     /// root of the extrinsics trie
@@ -49,7 +71,7 @@ pub struct Inherants {
     /// Hash of the block this inherant was created in, foreign key
     hash: H256,
     /// Block number of the block this inherant was created in
-    block: usize,
+    block: EncodedUint,
     /// Module the inherant called
     module: String,
     /// Call within the module inherant used
@@ -66,7 +88,7 @@ pub struct SignedExtrinsics {
     /// Hash of the transaction, primary key
     transaction_hash: H256,
     /// the block this transaction was created in
-    block: usize,
+    block: EncodedUint,
     /// the account that originated this transaction
     from_addr: H256,
     /// the account that is receiving this transaction, if any
@@ -88,32 +110,44 @@ pub struct SignedExtrinsics {
 pub struct Accounts {
     // TODO: Use b58 addr format or assign trait..overall make generic
     /// Address of the account (So far only ed/sr) Primary key
-    address: Vec<u8>,
+    address: EncodedUint,
     /// Free balance of the account
     free_balance: usize,
     /// Reserved balanced
     reserved_balance: usize,
     /// Index of the account within the block it originated in
-    account_index: Vec<u8>,
+    account_index: EncodedUint,
     /// nonce of the account
     nonce: usize,
     /// the block that this account was created in, Foreign key
     create_hash: H256,
     /// Block number that this account was created in
-    created: usize,
+    created: EncodedUint,
     /// Block that this account was last updated
-    updated: usize,
+    updated: EncodedUint,
     /// whether this account is active
     active: bool
 }
 
 
 /// NewType for custom Queryable trait on Substrates H256 type
-#[derive(PartialEq, Debug)]
+#[derive(FromSqlRow, PartialEq, Debug)]
 pub struct H256(SubstrateH256);
 
+/*
+impl Queryable<Binary, DB> for H256 {
+    type Row = Binary;
+
+    fn build(row: Self::Row) -> Self {
+        let vec: Vec<u8> = row::from_sql();
+        H256(Substrate::H256::from_slice(vec.as_slice()))
+    }
+}
+*/
+
+
 /// NewType for custom Queryable trait on Substrates H512 type
-#[derive(PartialEq, Debug)]
+#[derive(FromSqlRow, PartialEq, Debug)]
 pub struct H512(SubstrateH512);
 
 impl H512 {
@@ -137,7 +171,7 @@ impl From<SubstrateH512> for H512 {
 
 impl<DB> FromSql<Binary, DB> for H512
 where
-    DB: diesel::backend::Backend,
+    DB: Backend,
     *const [u8]: FromSql<Binary, DB>
 {
     fn from_sql(bytes: Option<&DB::RawValue>) -> deserialize::Result<Self> {
@@ -145,6 +179,17 @@ where
         Ok(H512(SubstrateH512::from_slice(vec.as_slice())))
     }
 }
+/*
+impl<DB> FromSql<Binary, DB> for EncodedUint
+where
+    DB: Backend,
+    *const [u8]: FromSql<Binary, DB>
+{
+    fn from_sql(bytes: Option<&DB::RawValue>) -> deserialize::Result<Self> {
+        Vec::from_sql(bytes)?
+    }
+}
+*/
 
 impl H256 {
     /// Get the H256 back into substrate type
@@ -167,7 +212,7 @@ impl From<SubstrateH256> for H256 {
 
 impl<DB> FromSql<Binary, DB> for H256
 where
-    DB: diesel::backend::Backend,
+    DB: Backend,
     *const [u8]: FromSql<Binary, DB>
 {
     fn from_sql(bytes: Option<&DB::RawValue>) -> deserialize::Result<Self> {

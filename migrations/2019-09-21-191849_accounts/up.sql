@@ -6,8 +6,8 @@ CREATE TABLE accounts (
   nonce int NOT NULL,
   -- hash of block that the account was created in
   create_hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE RESTRICT,
-  created int NOT NULL,
-  updated int NOT NULL,
+  created bytea NOT NULL,
+  updated bytea NOT NULL,
   active bool NOT NULL
 );
 

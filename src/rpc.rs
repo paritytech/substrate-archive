@@ -17,11 +17,10 @@
 use log::*;
 use futures::{Future, Stream, sync::mpsc, future};
 use tokio::runtime::Runtime;
-use tokio::util::StreamExt;
 use substrate_subxt::{Client, ClientBuilder, srml::system::System};
 use runtime_primitives::traits::Header;
 
-use crate::types::{Data, Payload, BlockNumber};
+use crate::types::Data;
 use crate::error::{Error as ArchiveError};
 use crate::database::Database;
 
@@ -42,8 +41,8 @@ where T: System + std::fmt::Debug + 'static
 {
     // spawn a getter for blocks if not there
     // else insert the value into the database
-    receiver.enumerate().for_each(move |(i, data)| {
-        if let Payload::Header(header) = &data.payload {
+    receiver.for_each(move |data| {
+        if let Data::Header(header) = &data {
             tokio::spawn(
                 rpc.block(header.hash(), sender.clone())
                    .map_err(|e| println!("{:?}", e))
@@ -85,9 +84,9 @@ impl<T> Rpc<T> where T: System + 'static {
             .map_err(|e| ArchiveError::from(e))
             .and_then(|stream| {
                 stream.map_err(|e| e.into()).for_each(move |head| {
-                    sender.unbounded_send(Data {
-                        payload: Payload::Header(head)
-                    }).map_err(|e| ArchiveError::from(e))
+                    sender
+                        .unbounded_send(Data::Header(head))
+                        .map_err(|e| ArchiveError::from(e))
                 })
             })
     }
@@ -99,9 +98,9 @@ impl<T> Rpc<T> where T: System + 'static {
             .map_err(|e| ArchiveError::from(e))
             .and_then(|stream| {
                 stream.map_err(|e| e.into()).for_each(move |head| {
-                    sender.unbounded_send(Data {
-                        payload: Payload::FinalizedHead(head)
-                    }).map_err(|e| ArchiveError::from(e))
+                    sender
+                        .unbounded_send(Data::FinalizedHead(head))
+                        .map_err(|e| ArchiveError::from(e))
                 })
             })
     }
@@ -113,13 +112,13 @@ impl<T> Rpc<T> where T: System + 'static {
             .map_err(|e| ArchiveError::from(e))
             .and_then(|stream| {
                 stream.map_err(|e| e.into()).for_each(move |storage_change| {
-                    sender.unbounded_send(Data {
-                        payload: Payload::Event(storage_change),
-                    }).map_err(|e| ArchiveError::from(e))
+                    sender
+                        .unbounded_send(Data::Event(storage_change))
+                        .map_err(|e| ArchiveError::from(e))
                 })
             })
     }
-
+/*
     fn block_hash(&self, block_number: Option<BlockNumber<T>>, sender: mpsc::UnboundedSender<Data<T>>)
              -> impl Future<Item = (), Error = ArchiveError>
     {
@@ -128,16 +127,16 @@ impl<T> Rpc<T> where T: System + 'static {
             .map_err(Into::into)
             .and_then(move |hash| {
                 if let Some(h) = hash {
-                    sender.unbounded_send(Data {
-                        payload: Payload::Hash(h)
-                    }).map_err(|e| ArchiveError::from(e))
+                    sender
+                        .unbounded_send(Data::Hash(h))
+                        .map_err(|e| ArchiveError::from(e))
                 } else {
                     info!("No Hash Exists!");
                     Ok(()) // TODO Error out
                 }
             })
     }
-
+*/
     fn block(&self, hash: T::Hash, sender: mpsc::UnboundedSender<Data<T>>)
              -> impl Future<Item = (), Error = ArchiveError>
     {
@@ -146,9 +145,9 @@ impl<T> Rpc<T> where T: System + 'static {
             .map_err(Into::into)
             .and_then(move |block| {
                 if let Some(b) = block {
-                    sender.unbounded_send(Data {
-                        payload: Payload::Block(b)
-                    }).map_err(|e| ArchiveError::from(e))
+                    sender
+                        .unbounded_send(Data::Block(b))
+                        .map_err(|e| ArchiveError::from(e))
                 } else {
                     info!("No block exists! (somehow)");
                     Ok(()) // TODO: error Out

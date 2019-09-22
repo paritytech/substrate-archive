@@ -1,20 +1,3 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
-// This file is part of substrate-archive.
-
-// substrate-archive is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// substrate-archive is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
-
-
 table! {
     accounts (address) {
         address -> Bytea,
@@ -23,8 +6,8 @@ table! {
         account_index -> Bytea,
         nonce -> Int4,
         create_hash -> Bytea,
-        created -> Int4,
-        updated -> Int4,
+        created -> Bytea,
+        updated -> Bytea,
         active -> Bool,
     }
 }
@@ -33,7 +16,7 @@ table! {
     blocks (hash) {
         parent_hash -> Bytea,
         hash -> Bytea,
-        block -> Int4,
+        block -> Bytea,
         state_root -> Bytea,
         extrinsics_root -> Bytea,
         time -> Nullable<Timestamp>,
@@ -44,7 +27,7 @@ table! {
     inherants (id) {
         id -> Int4,
         hash -> Bytea,
-        block -> Int4,
+        block -> Bytea,
         module -> Varchar,
         call -> Varchar,
         success -> Bool,
@@ -55,7 +38,7 @@ table! {
 table! {
     signed_extrinsics (transaction_hash) {
         transaction_hash -> Bytea,
-        block -> Int4,
+        block -> Bytea,
         hash -> Bytea,
         from_addr -> Bytea,
         to_addr -> Nullable<Bytea>,
