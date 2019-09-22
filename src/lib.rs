@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-
+#[macro_use] extern crate diesel;
 mod rpc;
 mod types;
 mod error;
+mod database;
 pub use rpc::run;
 
 
 pub mod srml {
-    pub use substrate_subxt::srml::{system::System, balances::Balances, contracts::Contracts};
+    pub use substrate_subxt::srml::{balances::Balances, contracts::Contracts, system::System};
 }

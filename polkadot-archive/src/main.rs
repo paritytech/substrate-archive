@@ -20,6 +20,7 @@ use failure::Error;
 use substrate_archive::{
     srml::{Balances, Contracts, System},
 };
+use diesel::Queryable;
 use sr_primitives::{generic::Era, traits::StaticLookup};
 
 fn main() -> Result<(), Error> {

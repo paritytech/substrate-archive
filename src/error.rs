@@ -20,8 +20,6 @@ use futures::sync::mpsc::SendError;
 use jsonrpc_core_client::RpcError as JsonRpcError;
 use std::io::Error as IoError;
 
-use crate::types::Data;
-
 #[derive(Debug, Fail)]
 pub enum Error {
     /// An error originating from Subxt
