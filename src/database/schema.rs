@@ -1,13 +1,13 @@
 table! {
     accounts (address) {
         address -> Bytea,
-        free_balance -> Int4,
-        reserved_balance -> Int4,
+        free_balance -> Int8,
+        reserved_balance -> Int8,
         account_index -> Bytea,
         nonce -> Int4,
         create_hash -> Bytea,
-        created -> Bytea,
-        updated -> Bytea,
+        created -> Int8,
+        updated -> Int8,
         active -> Bool,
     }
 }
@@ -16,7 +16,7 @@ table! {
     blocks (hash) {
         parent_hash -> Bytea,
         hash -> Bytea,
-        block -> Bytea,
+        block -> Int8,
         state_root -> Bytea,
         extrinsics_root -> Bytea,
         time -> Nullable<Timestamp>,
@@ -27,7 +27,7 @@ table! {
     inherants (id) {
         id -> Int4,
         hash -> Bytea,
-        block -> Bytea,
+        block -> Int8,
         module -> Varchar,
         call -> Varchar,
         success -> Bool,
@@ -38,7 +38,7 @@ table! {
 table! {
     signed_extrinsics (transaction_hash) {
         transaction_hash -> Bytea,
-        block -> Bytea,
+        block -> Int8,
         hash -> Bytea,
         from_addr -> Bytea,
         to_addr -> Nullable<Bytea>,

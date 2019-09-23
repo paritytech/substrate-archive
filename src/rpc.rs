@@ -118,25 +118,7 @@ impl<T> Rpc<T> where T: System + 'static {
                 })
             })
     }
-/*
-    fn block_hash(&self, block_number: Option<BlockNumber<T>>, sender: mpsc::UnboundedSender<Data<T>>)
-             -> impl Future<Item = (), Error = ArchiveError>
-    {
-        self.client
-            .block_hash(block_number)
-            .map_err(Into::into)
-            .and_then(move |hash| {
-                if let Some(h) = hash {
-                    sender
-                        .unbounded_send(Data::Hash(h))
-                        .map_err(|e| ArchiveError::from(e))
-                } else {
-                    info!("No Hash Exists!");
-                    Ok(()) // TODO Error out
-                }
-            })
-    }
-*/
+
     fn block(&self, hash: T::Hash, sender: mpsc::UnboundedSender<Data<T>>)
              -> impl Future<Item = (), Error = ArchiveError>
     {
