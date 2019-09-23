@@ -24,7 +24,7 @@ table! {
 }
 
 table! {
-    inherants (id) {
+    inherents (id) {
         id -> Int4,
         hash -> Bytea,
         block -> Int8,
@@ -51,12 +51,12 @@ table! {
 }
 
 joinable!(accounts -> blocks (create_hash));
-joinable!(inherants -> blocks (hash));
+joinable!(inherents -> blocks (hash));
 joinable!(signed_extrinsics -> blocks (hash));
 
 allow_tables_to_appear_in_same_query!(
     accounts,
     blocks,
-    inherants,
+    inherents,
     signed_extrinsics,
 );

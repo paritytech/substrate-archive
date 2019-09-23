@@ -15,43 +15,27 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use failure::Fail;
-use substrate_subxt::Error as SubxtError;
 use futures::sync::mpsc::SendError;
 use jsonrpc_core_client::RpcError as JsonRpcError;
 use std::io::Error as IoError;
+use url::ParseError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
-    /// An error originating from Subxt
-    /// Data Provided is the error message of the underlying error
-    #[fail(display = "Subxt: {}", _0)]
-    Subxt(String),
     #[fail(display = "Could not send to parent process {}", _0)]
     Send(String),
     #[fail(display = "RPC Error: {}", _0)]
     Rpc(#[fail(cause)] JsonRpcError),
     #[fail(display = "Io: {}", _0)]
     Io(#[fail(cause)] IoError),
+    #[fail(display = "Parse: {}", _0)]
+    Parse(#[fail(cause)] ParseError),
 
 }
-
 
 impl From<IoError> for Error {
     fn from(err: IoError) -> Error {
         Error::Io(err)
-    }
-}
-
-impl From<SubxtError> for Error {
-    fn from(err: SubxtError) -> Error {
-        match err {
-            SubxtError::Codec(e) => Error::Subxt(e.to_string()),
-            SubxtError::Io(e) => Error::Subxt(e.to_string()),
-            SubxtError::Rpc(e) => Error::Subxt(e.to_string()),
-            SubxtError::SecretString(e) => Error::Subxt(format!("{:?}", e)),
-            SubxtError::Metadata(e) => Error::Subxt(format!("{:?}", e)),
-            SubxtError::Other(s) => Error::Subxt(s),
-        }
     }
 }
 
@@ -66,19 +50,9 @@ impl From<JsonRpcError> for Error {
         Error::Rpc(err)
     }
 }
-/*
-impl Error {
 
-    // TODO: Possibly separate these out or try to preserve original error type, or implement std::Error on Subxt's error type
-    pub(crate) fn subxt(&self, err: SubxtError) -> Error {
-        match err {
-            SubxtError::Codec(e) => Error::from(ErrorKind::Subxt(e.to_string())),
-            SubxtError::Io(e) => Error::from(ErrorKind::Subxt(e.to_string())),
-            SubxtError::Rpc(e) => Error::from(ErrorKind::Subxt(e.to_string())),
-            SubxtError::SecretString(e) => Error::from(ErrorKind::Subxt(format!("{:?}", e))),
-            SubxtError::Metadata(e) => Error::from(ErrorKind::Subxt(format!("{:?}", e))),
-            SubxtError::Other(s) => Error::from(ErrorKind::Subxt(s)),
-        }
+impl From<ParseError> for Error {
+    fn from(err: ParseError) -> Error {
+        Error::Parse(err)
     }
 }
-*/

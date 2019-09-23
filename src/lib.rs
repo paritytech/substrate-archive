@@ -21,7 +21,4 @@ mod error;
 mod database;
 pub use rpc::run;
 
-
-pub mod srml {
-    pub use substrate_subxt::srml::{balances::Balances, contracts::Contracts, system::System};
-}
+pub use types::System;

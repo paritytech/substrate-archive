@@ -22,9 +22,11 @@ use diesel::sql_types::{Binary};
 use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
 use diesel::Queryable;
+use diesel::sql_types::BigInt;
 use chrono::NaiveDateTime;
 
-use super::schema::{blocks /*, inherants, signed_extrinsics*/};
+use super::schema::{blocks, inherents, signed_extrinsics, accounts};
+use crate::types::System;
 
 // TODO: Make generic
 
@@ -38,13 +40,53 @@ use super::schema::{blocks /*, inherants, signed_extrinsics*/};
 pub struct InsertBlock<'a> {
     pub parent_hash: &'a [u8],
     pub hash: &'a [u8],
-    pub block: &'a [u8],
+    pub block: &'a i64,
     pub state_root: &'a [u8],
     pub extrinsics_root: &'a [u8],
     pub time: Option<NaiveDateTime>
 }
 
-type EncodedUint = Vec<u8>;
+#[derive(Insertable)]
+#[table_name="inherents"]
+pub struct InsertInherent<'a> {
+    pub hash: &'a [u8],
+    pub block: &'a i64,
+    pub module: &'a str,
+    pub call: &'a str,
+    pub success: &'a bool,
+    pub in_index: &'a i32,
+}
+
+#[derive(Insertable)]
+#[table_name="signed_extrinsics"]
+pub struct InsertTransaction<'a> {
+    transaction_hash: &'a [u8],
+    block: &'a i64,
+    hash: &'a [u8],
+    from_addr: &'a [u8],
+    to_addr: Option<&'a [u8]>,
+    call: &'a str,
+    success: &'a bool,
+    nonce: &'a i32,
+    tx_index: &'a i32,
+    signature: &'a [u8]
+}
+
+#[derive(Insertable)]
+#[table_name="accounts"]
+pub struct InsertAccount<'a> {
+    address: &'a [u8],
+    free_balance: &'a i64,
+    reserved_balance: &'a i64,
+    account_index: &'a [u8],
+    nonce: &'a i32,
+    create_hash: &'a [u8],
+    created: &'a i64,
+    updated: &'a i64,
+    active: &'a bool
+}
+
+type EncodedData = Vec<u8>;
 
 /// The table for accounts
 #[derive(Queryable, PartialEq, Debug)]
@@ -54,7 +96,7 @@ pub struct Blocks {
     /// Hash of this block
     hash: H256,
     /// The block number
-    block: EncodedUint,
+    block: i64,
     /// root of the state trie
     state_root: H256,
     /// root of the extrinsics trie
@@ -63,15 +105,15 @@ pub struct Blocks {
     time: Option<NaiveDateTime>
 }
 
-/// Inherants (not signed) extrinsics
+/// Inherents (not signed) extrinsics
 #[derive(Queryable, PartialEq, Debug)]
-pub struct Inherants {
+pub struct Inherents {
     /// PostgreSQL Generated ID/Primary Key (No meaning within substrate/chains)
     id: usize,
     /// Hash of the block this inherant was created in, foreign key
     hash: H256,
     /// Block number of the block this inherant was created in
-    block: EncodedUint,
+    block: i64,
     /// Module the inherant called
     module: String,
     /// Call within the module inherant used
@@ -88,7 +130,7 @@ pub struct SignedExtrinsics {
     /// Hash of the transaction, primary key
     transaction_hash: H256,
     /// the block this transaction was created in
-    block: EncodedUint,
+    block: i64,
     /// the account that originated this transaction
     from_addr: H256,
     /// the account that is receiving this transaction, if any
@@ -110,21 +152,21 @@ pub struct SignedExtrinsics {
 pub struct Accounts {
     // TODO: Use b58 addr format or assign trait..overall make generic
     /// Address of the account (So far only ed/sr) Primary key
-    address: EncodedUint,
+    address: EncodedData,
     /// Free balance of the account
     free_balance: usize,
     /// Reserved balanced
     reserved_balance: usize,
     /// Index of the account within the block it originated in
-    account_index: EncodedUint,
+    account_index: i64,
     /// nonce of the account
     nonce: usize,
     /// the block that this account was created in, Foreign key
     create_hash: H256,
     /// Block number that this account was created in
-    created: EncodedUint,
+    created: i64,
     /// Block that this account was last updated
-    updated: EncodedUint,
+    updated: i64,
     /// whether this account is active
     active: bool
 }
