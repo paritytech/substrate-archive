@@ -1,4 +1,4 @@
-CREATE TABLE inherants (
+CREATE TABLE inherents (
   -- a PostgreSQL-specific id. Does not exist on-chain
   id SERIAL PRIMARY KEY,
   hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE RESTRICT,
