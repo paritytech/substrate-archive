@@ -17,20 +17,21 @@
 use log::*;
 use futures::{Future, Stream, sync::mpsc, future};
 use tokio::runtime::Runtime;
-use substrate_subxt::{Client, ClientBuilder, srml::system::System};
+use jsonrpc_core_client::{RpcChannel, transports::ws};
 use runtime_primitives::traits::Header;
+use serde::de::DeserializeOwned;
+use substrate_rpc_api::{
+    author::AuthorClient,
+    chain::{
+        ChainClient,
+    },
+    state::StateClient,
+};
 
-use crate::types::Data;
+use crate::types::{Data, System, Block};
 use crate::error::{Error as ArchiveError};
 use crate::database::Database;
 
-// temporary util function to get a Substrate Client and Runtime
-fn client<T: System + 'static>() -> Result<(Runtime, Client<T>), ArchiveError> {
-    let mut rt = Runtime::new()?;
-    let client_future = ClientBuilder::<T>::new().build();
-    let client = rt.block_on(client_future)?;
-    Ok((rt, client))
-}
 
 fn handle_data<T>(receiver: mpsc::UnboundedReceiver<Data<T>>,
                   rpc: Rpc<T>,
@@ -42,45 +43,62 @@ where T: System + std::fmt::Debug + 'static
     // spawn a getter for blocks if not there
     // else insert the value into the database
     receiver.for_each(move |data| {
-        if let Data::Header(header) = &data {
-            tokio::spawn(
-                rpc.block(header.hash(), sender.clone())
-                   .map_err(|e| println!("{:?}", e))
-            );
-        }
+        match &data {
+            Data::Header(header) | Data::FinalizedHead(header) => {
+                tokio::spawn(
+                    rpc.block(header.hash(), sender.clone())
+                       .map_err(|e| println!("{:?}", e))
+                );
+            },
+            _ => {}
+        };
         db.insert(&data);
         future::ok(())
     })
 }
 
 pub fn run<T: System + std::fmt::Debug + 'static>() -> Result<(), ArchiveError>{
-    let  (mut rt, client) = client::<T>()?;
     let (sender, receiver) = mpsc::unbounded();
-    let rpc = Rpc::new(client);
+    let mut rt = Runtime::new()?;
+    let rpc = Rpc::<T>::new(&mut rt, &url::Url::parse("ws://127.0.0.1:9944")?)?;
     let db = Database::new();
     rt.spawn(rpc.subscribe_new_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
     rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
-    rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
+    // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
     tokio::run(handle_data(receiver, rpc, sender, db));
     Ok(())
 }
 
+
+
+impl<T: System> From<RpcChannel> for Rpc<T> {
+    fn from(channel: RpcChannel) -> Self {
+        Self {
+            state: channel.clone().into(),
+            chain: channel.clone().into(),
+            author: channel.into(),
+        }
+    }
+}
+
 /// Communicate with Substrate node via RPC
 pub struct Rpc<T: System> {
-    client: Client<T>
+    state: StateClient<T::Hash>,
+    chain: ChainClient<T::BlockNumber, T::Hash, <T as System>::Header, Block<T>>,
+    author: AuthorClient<T::Hash, T::Hash>,
 }
 
 impl<T> Rpc<T> where T: System + 'static {
 
     /// instantiate new client
-    pub fn new(client: Client<T>) -> Self {
-        Self { client }
+    pub fn new(rt: &mut Runtime, url: &url::Url) -> Result<Self, ArchiveError> {
+        rt.block_on(ws::connect(url).map_err(Into::into))
     }
 
     /// send all new headers back to main thread
     pub fn subscribe_new_heads(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
     {
-        self.client.subscribe_blocks()
+        self.chain.subscribe_new_heads()
             .map_err(|e| ArchiveError::from(e))
             .and_then(|stream| {
                 stream.map_err(|e| e.into()).for_each(move |head| {
@@ -94,7 +112,7 @@ impl<T> Rpc<T> where T: System + 'static {
     /// send all finalized headers back to main thread
     pub fn subscribe_finalized_blocks(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
     {
-        self.client.subscribe_finalized_blocks()
+        self.chain.subscribe_finalized_heads()
             .map_err(|e| ArchiveError::from(e))
             .and_then(|stream| {
                 stream.map_err(|e| e.into()).for_each(move |head| {
@@ -104,11 +122,11 @@ impl<T> Rpc<T> where T: System + 'static {
                 })
             })
     }
-
+/*
     /// send all substrate events back to main thread
     pub fn subscribe_events(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
     {
-        self.client.subscribe_events()
+        self.chain.subscribe_events()
             .map_err(|e| ArchiveError::from(e))
             .and_then(|stream| {
                 stream.map_err(|e| e.into()).for_each(move |storage_change| {
@@ -118,29 +136,12 @@ impl<T> Rpc<T> where T: System + 'static {
                 })
             })
     }
-/*
-    fn block_hash(&self, block_number: Option<BlockNumber<T>>, sender: mpsc::UnboundedSender<Data<T>>)
-             -> impl Future<Item = (), Error = ArchiveError>
-    {
-        self.client
-            .block_hash(block_number)
-            .map_err(Into::into)
-            .and_then(move |hash| {
-                if let Some(h) = hash {
-                    sender
-                        .unbounded_send(Data::Hash(h))
-                        .map_err(|e| ArchiveError::from(e))
-                } else {
-                    info!("No Hash Exists!");
-                    Ok(()) // TODO Error out
-                }
-            })
-    }
 */
+
     fn block(&self, hash: T::Hash, sender: mpsc::UnboundedSender<Data<T>>)
              -> impl Future<Item = (), Error = ArchiveError>
     {
-        self.client
+        self.chain
             .block(Some(hash))
             .map_err(Into::into)
             .and_then(move |block| {

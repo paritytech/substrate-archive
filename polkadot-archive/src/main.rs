@@ -17,9 +17,7 @@
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
 use failure::Error;
-use substrate_archive::{
-    srml::{Balances, Contracts, System},
-};
+use substrate_archive::{ System };
 use diesel::Queryable;
 use sr_primitives::{generic::Era, traits::StaticLookup};
 
@@ -61,18 +59,26 @@ impl System for Runtime {
         )
     }
 }
+/*
+impl From<<node_runtime::Runtime as srml_system::Trait>::BlockNumber> for i64 {
+    fn from(block: <node_runtime::Runtime as srml_system::Trait>::BlockNumber ) -> i64 {
+        i64::from(block)
+    }
+}
+*/
 
+/*
 impl Balances for Runtime {
     type Balance = <node_runtime::Runtime as srml_balances::Trait>::Balance;
 }
-
 impl Contracts for Runtime {}
+ */
 
 #[allow(dead_code)]
 type Index = <Runtime as System>::Index;
 #[allow(dead_code)]
 type AccountId = <Runtime as System>::AccountId;
-#[allow(dead_code)]
-type Address = <<Runtime as System>::Lookup as StaticLookup>::Source;
-#[allow(dead_code)]
-type Balance = <Runtime as Balances>::Balance;
+// #[allow(dead_code)]
+// type Address = <<Runtime as System>::Lookup as StaticLookup>::Source;
+// #[allow(dead_code)]
+// type Balance = <Runtime as Balances>::Balance;

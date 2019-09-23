@@ -18,18 +18,22 @@
 
 pub mod models;
 pub mod schema;
-use substrate_subxt::srml::system::System;
+// use substrate_subxt::srml::system::System;
 use diesel::{
     prelude::*,
     pg::PgConnection,
+    serialize::ToSql,
+    expression::AsExpression,
+    sql_types::BigInt
 };
-use codec::Encode;
+use codec::{Encode, Compact};
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 use std::env;
+use std::convert::TryFrom;
 
 // use crate::error::Error as ArchiveError;
-use crate::types::Data;
+use crate::types::{Data, System};
 use self::models::{InsertBlock, Blocks};
 use self::schema::blocks;
 
@@ -52,28 +56,21 @@ impl Database {
         Self { connection }
     }
 
-    pub fn insert<T>(&self, data: &Data<T>) where T: System {
+    pub fn insert<T>(&self, data: &Data<T>)
+    where
+        T: System,
+    {
         match &data {
             Data::FinalizedHead(_header) => {
                 println!("Got a header")
             }
             Data::Block(block) => {
                 let block = &block.block.header;
-                /*
-                let block = InsertBlock {
-                    parent_hash: block.parent_hash().as_ref(),
-                    hash: block.hash().as_ref(),
-                    block: block.number().encode().as_slice(),
-                    state_root: block.state_root().as_ref(),
-                    extrinsics_root: block.extrinsics_root().as_ref(),
-                    time: None
-                };
-                */
                 diesel::insert_into(blocks::table)
                     .values( InsertBlock {
                         parent_hash: block.parent_hash().as_ref(),
                         hash: block.hash().as_ref(),
-                        block: block.number().encode().as_slice(),
+                        block: &(*block.number()).into(),
                         state_root: block.state_root().as_ref(),
                         extrinsics_root: block.extrinsics_root().as_ref(),
                         time: None

@@ -2,16 +2,15 @@
 ## Currently Under Development! (Or, Use at your own Risk)
 
 Run this alongside the substrate client to sync *all* historical TxData. Allows
-you to run queries on a PostgreSQL (Kafka?) database.
+you to run queries on a PostgreSQL database.
 
 The (so far experimental) schema for the PostgreSQL database is described in the Pdf File at the root of this directory
 
 ## Required External Dependencies
-- PostgreSQ
+- PostgreSQL
 
 ### Developing
-Init script should install all dependencies and setup a default database user for you. Just make sure to change the password of user `archive` via psql in a production or security-sensitive environment.
-
+Init script (`./scripts/init.sh`) should install all dependencies and setup a default database user for you. Just make sure to change the password of user `archive` via psql in a production or security-sensitive environment.  
 
 Required Dependencies:
 Ubuntu: `postgresql`, `postgresql-contrib`, `libpq-dev`
@@ -19,3 +18,10 @@ Rust: `diesel_cli`
 
 
 To create all tables, use the command `diesel migration run`
+
+##### Current Flaws
+- Use of a i64 data type for the Block Number in PostgreSQL database
+	- this forces the BlockNumber trait to a infallible conversion of whatever type they use
+	- is OK as long as the blockchain uses a u32 or lower
+	- otherwise not. Maybe switch to TryFrom. Other Solutions will be explored
+
