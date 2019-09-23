@@ -59,16 +59,7 @@ impl Database {
             }
             Data::Block(block) => {
                 let block = &block.block.header;
-                /*
-                let block = InsertBlock {
-                    parent_hash: block.parent_hash().as_ref(),
-                    hash: block.hash().as_ref(),
-                    block: block.number().encode().as_slice(),
-                    state_root: block.state_root().as_ref(),
-                    extrinsics_root: block.extrinsics_root().as_ref(),
-                    time: None
-                };
-                */
+                number = block.number();
                 diesel::insert_into(blocks::table)
                     .values( InsertBlock {
                         parent_hash: block.parent_hash().as_ref(),
