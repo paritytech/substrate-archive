@@ -56,11 +56,11 @@ install() {
 	# echo "[WARNING] change the password of user 'archive'. default password being used..."
 	printf "If you would rather configure the database yourself, all settings \n\
 	are stored in .env file in the root directory and init.sql\n\n"
-
+	cp init.sql /tmp/init.sql
 	while true; do
 	    read -p "Do you wish to proceed? [Y\\n] " yn
 	    case $yn in
-		[Yy]* ) sudo -u postgres psql -f init.sql; break;;
+		[Yy]* ) sudo -i -u postgres psql -f /tmp/init.sql; break;;
 		[Nn]* ) exit;;
 		* ) echo "Please answer yes or no.";;
 	    esac
