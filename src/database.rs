@@ -18,24 +18,19 @@
 
 pub mod models;
 pub mod schema;
-// use substrate_subxt::srml::system::System;
-use diesel::{
-    prelude::*,
-    pg::PgConnection,
-    serialize::ToSql,
-    expression::AsExpression,
-    sql_types::BigInt
-};
-use codec::{Encode, Compact};
+
+use runtime_primitives::{traits::Block, generic::UncheckedExtrinsic};
+use diesel::{prelude::*, pg::PgConnection};
+use codec::{Encode, Decode};
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 use std::env;
-use std::convert::TryFrom;
 
 // use crate::error::Error as ArchiveError;
-use crate::types::{Data, System};
+use crate::types::{Data, System, BasicExtrinsic};
 use self::models::{InsertBlock, Blocks};
 use self::schema::blocks;
+
 
 /// Database object containing a postgreSQL connection and a runtime for asynchronous updating
 pub struct Database {
@@ -62,33 +57,56 @@ impl Database {
     {
         match &data {
             Data::FinalizedHead(_header) => {
-                println!("Got a header")
             }
             Data::Block(block) => {
-                let block = &block.block.header;
+                println!("Arrived");
+                let header = &block.block.header;
+                let extrinsics = block.block.extrinsics();
+                println!("HASH: {:X?}", header.hash().as_ref());
+                for e in extrinsics.iter() {
+                    let encoded = e.encode();
+                    let decoded: Result<BasicExtrinsic<T>, _> = UncheckedExtrinsic::decode(&mut encoded.as_slice());
+                    match decoded {
+                        Err(e) => {
+                            println!("{:?}", e);
+                        },
+                        Ok(v) => {
+                           println!("{:?}", v);
+                        }
+                    };
+                    println!("{:?}", e);
+                }
                 diesel::insert_into(blocks::table)
                     .values( InsertBlock {
-                        parent_hash: block.parent_hash().as_ref(),
-                        hash: block.hash().as_ref(),
-                        block: &(*block.number()).into(),
-                        state_root: block.state_root().as_ref(),
-                        extrinsics_root: block.extrinsics_root().as_ref(),
+                        parent_hash: header.parent_hash().as_ref(),
+                        hash: header.hash().as_ref(),
+                        block: &(*header.number()).into(),
+                        state_root: header.state_root().as_ref(),
+                        extrinsics_root: header.extrinsics_root().as_ref(),
                         time: None
                     })
                     .get_result::<Blocks>(&self.connection)
                     .expect("ERROR saving block");
-                println!("Block");
 
             },
             Data::Event(_event) => {
-                println!("Event");
             },
             /*Data::Hash(hash) => {
                 println!("HASH: {:?}", hash);
             }*/
             _ => {
-                println!("not handled");
             }
         }
     }
 }
+
+/*
+// TODO: Optimize
+#[derive(Debug, Clone, PartialEq)]
+pub struct Extrinsic {
+    address: Vec<u8>,
+    index: Option<Vec<u8>>,
+    call: Option<Vec<u8>>,
+    signature: Option<Vec<u8>>
+}
+*/

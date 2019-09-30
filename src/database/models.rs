@@ -22,11 +22,9 @@ use diesel::sql_types::{Binary};
 use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
 use diesel::Queryable;
-use diesel::sql_types::BigInt;
 use chrono::NaiveDateTime;
 
 use super::schema::{blocks, inherents, signed_extrinsics, accounts};
-use crate::types::System;
 
 // TODO: Make generic
 
