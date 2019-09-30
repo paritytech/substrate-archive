@@ -59,7 +59,7 @@ where T: System + std::fmt::Debug + 'static
 pub fn run<T: System + std::fmt::Debug + 'static>() -> Result<(), ArchiveError>{
     let (sender, receiver) = mpsc::unbounded();
     let mut rt = Runtime::new()?;
-    let rpc = Rpc::<T>::new(&mut rt, &url::Url::parse("ws://127.0.0.1:9944")?)?;
+    let rpc = Rpc::<T>::new(&mut rt, &url::Url::parse("ws://127.0.0.1:9966")?)?;
     let db = Database::new();
     rt.spawn(rpc.subscribe_new_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
     rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));

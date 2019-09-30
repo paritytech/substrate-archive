@@ -10,10 +10,10 @@ edition = "2018"
 failure = "0.1"
 substrate-archive = { path = "../" }
 system = { git = "https://github.com/paritytech/substrate/", package = "srml-system" }
-node-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime" }
+# node-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime" }
 
-sr-primitives = { git = "https://github.com/paritytech/substrate", package = "sr-primitives" }
-srml-balances = { git = "https://github.com/paritytech/substrate", package = "srml-balances" }
+# sr-primitives = { git = "https://github.com/paritytech/substrate", package = "sr-primitives" }
+# srml-balances = { git = "https://github.com/paritytech/substrate", package = "srml-balances" }
 
 
 substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives" }
