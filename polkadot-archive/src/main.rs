@@ -20,15 +20,16 @@ use failure::Error;
 use substrate_archive::{ System };
 use diesel::Queryable;
 use sr_primitives::{generic::Era, traits::StaticLookup};
-
 fn main() -> Result<(), Error> {
     substrate_archive::run::<Runtime>().map_err(Into::into)
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Runtime;
-
+// <Indices as StaticLookup>::Source
 impl System for Runtime {
+    // type Call = <node_runtime::Runtime as srml_system::Trait>::Call;
+    type Call = Vec<u8>;
     #[allow(dead_code)]
     type Index = <node_runtime::Runtime as srml_system::Trait>::Index;
     type BlockNumber = <node_runtime::Runtime as srml_system::Trait>::BlockNumber;
@@ -76,9 +77,6 @@ impl Contracts for Runtime {}
 
 #[allow(dead_code)]
 type Index = <Runtime as System>::Index;
-#[allow(dead_code)]
-type AccountId = <Runtime as System>::AccountId;
-// #[allow(dead_code)]
-// type Address = <<Runtime as System>::Lookup as StaticLookup>::Source;
+// type AccountId = <Runtime as System>::AccountId;
 // #[allow(dead_code)]
 // type Balance = <Runtime as Balances>::Balance;

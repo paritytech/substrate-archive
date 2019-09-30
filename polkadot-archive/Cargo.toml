@@ -9,9 +9,17 @@ edition = "2018"
 [dependencies]
 failure = "0.1"
 substrate-archive = { path = "../" }
+system = { git = "https://github.com/paritytech/substrate/", package = "srml-system" }
+node-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime" }
+
+sr-primitives = { git = "https://github.com/paritytech/substrate", package = "sr-primitives" }
+srml-balances = { git = "https://github.com/paritytech/substrate", package = "srml-balances" }
+
+
 substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives" }
 sr-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives" }
 node-runtime = {  git = "https://github.com/paritytech/substrate/", package = "node-runtime" }
 srml-system = { git = "https://github.com/paritytech/substrate/", package = "srml-system" }
 srml-balances = { git = "https://github.com/paritytech/substrate", package = "srml-balances" }
 diesel = { version = "1.4", features = ["postgres"] }
+serde_json = "1.0.40"

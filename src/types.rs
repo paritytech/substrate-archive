@@ -14,39 +14,42 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use runtime_primitives::OpaqueExtrinsic as UncheckedExtrinsic;
-use runtime_primitives::generic::{Block as BlockT, SignedBlock};
 use substrate_primitives::storage::StorageChangeSet;
-use substrate_rpc_primitives::number::NumberOrHex;
 use serde::de::DeserializeOwned;
 use srml_system::Event;
-use diesel::prelude::Insertable;
-use diesel::Expression;
-use diesel::expression::{AsExpression, IntoSql};
-use diesel::serialize::ToSql;
-use diesel::pg::Pg;
-use diesel::sql_types::BigInt;
-
-use runtime_primitives::traits::{
-    Bounded,
-    CheckEqual,
-    Hash,
-    Header,
-    MaybeDisplay,
-    MaybeSerializeDebug,
-    MaybeSerializeDebugButNotDeserialize,
-    Member,
-    SignedExtension,
-    SimpleArithmetic,
-    SimpleBitOps,
-    StaticLookup,
+use codec::{Encode, Decode};
+use runtime_primitives::{
+    OpaqueExtrinsic,
+    AnySignature,
+    generic::{
+        UncheckedExtrinsic,
+        Block as BlockT,
+        SignedBlock
+    },
+    traits::{
+        Bounded,
+        CheckEqual,
+        Hash,
+        Header,
+        MaybeDisplay,
+        MaybeSerializeDebug,
+        MaybeSerializeDebugButNotDeserialize,
+        Member,
+        SignedExtension,
+        SimpleArithmetic,
+        SimpleBitOps,
+        StaticLookup,
+    },
 };
-
 use runtime_support::Parameter;
+/// Format for describing accounts
+pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
+/// Basic Extrinsic Type. Does not contain an ERA
+pub type BasicExtrinsic<T> = UncheckedExtrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra >;
+/// A block with OpaqueExtrinsic as extrinsic type
+pub type Block<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
 
-
-pub type Block<T> = SignedBlock<BlockT<<T as System>::Header, UncheckedExtrinsic>>;
-pub type BlockNumber<T> = NumberOrHex<<T as System>::BlockNumber>;
+// pub type BlockNumber<T> = NumberOrHex<<T as System>::BlockNumber>;
 
 /// Sent from Substrate API to be committed into the Database
 #[derive(Debug, PartialEq, Eq)]
@@ -57,14 +60,15 @@ pub enum Data<T: System> {
     Block(Block<T>),
     Event(StorageChangeSet<T::Hash>),
 }
-/*
-pub trait Convert {
-    fn into_i64(&self) -> i64;
-}
-*/
 
 /// The subset of the `srml_system::Trait` that a client must implement.
 pub trait System {
+    type Call: Encode
+        + Decode
+        + PartialEq
+        + Eq
+        + Clone
+        + std::fmt::Debug;
     /// Account index (aka nonce) type. This stores the number of previous
     /// transactions associated with a sender account.
     type Index: Parameter

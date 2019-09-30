@@ -19,7 +19,6 @@ use futures::{Future, Stream, sync::mpsc, future};
 use tokio::runtime::Runtime;
 use jsonrpc_core_client::{RpcChannel, transports::ws};
 use runtime_primitives::traits::Header;
-use serde::de::DeserializeOwned;
 use substrate_rpc_api::{
     author::AuthorClient,
     chain::{
@@ -44,7 +43,7 @@ where T: System + std::fmt::Debug + 'static
     // else insert the value into the database
     receiver.for_each(move |data| {
         match &data {
-            Data::Header(header) | Data::FinalizedHead(header) => {
+            /* Data::Header(header) | */  Data::FinalizedHead(header) => {
                 tokio::spawn(
                     rpc.block(header.hash(), sender.clone())
                        .map_err(|e| println!("{:?}", e))
@@ -83,9 +82,11 @@ impl<T: System> From<RpcChannel> for Rpc<T> {
 
 /// Communicate with Substrate node via RPC
 pub struct Rpc<T: System> {
-    state: StateClient<T::Hash>,
+    #[allow(dead_code)] // TODO remove
+    state: StateClient<T::Hash>, // TODO get types right
     chain: ChainClient<T::BlockNumber, T::Hash, <T as System>::Header, Block<T>>,
-    author: AuthorClient<T::Hash, T::Hash>,
+    #[allow(dead_code)] // TODO remove
+    author: AuthorClient<T::Hash, T::Hash>, // TODO get types right
 }
 
 impl<T> Rpc<T> where T: System + 'static {
