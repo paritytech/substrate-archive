@@ -38,17 +38,5 @@ impl System for Runtime {
     type Lookup = <RuntimeT as system::Trait>::Lookup;
     type Header = <RuntimeT as system::Trait>::Header;
     type Event = <RuntimeT as system::Trait>::Event;
-
     type SignedExtra = SignedExtra;
-    fn extra(nonce: Self::Index) -> Self::SignedExtra {
-        (
-            system::CheckVersion::<node_runtime::Runtime>::new(),
-            system::CheckGenesis::<node_runtime::Runtime>::new(),
-            system::CheckEra::<node_runtime::Runtime>::from(Era::Immortal),
-            system::CheckNonce::<node_runtime::Runtime>::from(nonce),
-            system::CheckWeight::<node_runtime::Runtime>::new(),
-            srml_balances::TakeFees::<node_runtime::Runtime>::from(0),
-        )
-    }
 }
-
