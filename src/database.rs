@@ -23,18 +23,20 @@ use runtime_primitives::{traits::Block, generic::UncheckedExtrinsic};
 use diesel::{prelude::*, pg::PgConnection};
 use codec::{Encode, Decode};
 use runtime_primitives::traits::Header;
+use runtime_support::dispatch::IsSubType;
+use node_runtime::Call;
 use dotenv::dotenv;
 use std::env;
 
 // use crate::error::Error as ArchiveError;
 use crate::types::{Data, System, BasicExtrinsic};
-use self::models::{InsertBlock, Blocks};
+use self::models::{InsertBlock, InsertInherent, Inherents, Blocks};
 use self::schema::blocks;
 
 
 /// Database object containing a postgreSQL connection and a runtime for asynchronous updating
 pub struct Database {
-    connection: PgConnection
+    connection: PgConnection,
 }
 
 impl Database {
@@ -42,7 +44,6 @@ impl Database {
     /// Connect to the database
     pub fn new() -> Self {
         dotenv().ok();
-
         let database_url = env::var("DATABASE_URL")
             .expect("DATABASE_URL must be set; qed");
         let connection = PgConnection::establish(&database_url)
@@ -51,30 +52,63 @@ impl Database {
         Self { connection }
     }
 
-    pub fn insert<T>(&self, data: &Data<T>)
-    where
-        T: System,
+    pub fn insert<T>(&self, data: &Data<T>) where T: System
     {
         match &data {
             Data::FinalizedHead(_header) => {
             }
             Data::Block(block) => {
-                println!("Arrived");
+                println!("\n=====================================\n");
                 let header = &block.block.header;
                 let extrinsics = block.block.extrinsics();
                 println!("HASH: {:X?}", header.hash().as_ref());
                 for e in extrinsics.iter() {
                     let encoded = e.encode();
+                    println!("Encoded Extrinsic: {:?}", encoded);
                     let decoded: Result<BasicExtrinsic<T>, _> = UncheckedExtrinsic::decode(&mut encoded.as_slice());
                     match decoded {
                         Err(e) => {
                             println!("{:?}", e);
                         },
                         Ok(v) => {
-                           println!("{:?}", v);
+                            println!("{:?}", v.function);
+                            let encoded = v.function.encode();
+                            // let dec: String = Decode::decode(&mut &encoded[0..3]).unwrap();
+                            println!("encoded function: {:?}", v.function.encode());
+                            let decoded = Call::decode(&mut v.function.encode().as_slice());
+                            println!("Decoded Function: {:?}", decoded);
+
+                            // basic calls
+
+                            // println!("{:?}", v.function.is_aux_sub_type());
+                            /*
+                            match &v {
+                                <T as System>::Call::Timestamp(epoch) => {
+                                    println!("the timestamp is {:?}", epoch);
+                                }
+                            };
+                            */
+                            /*
+                            if v.is_signed() {
+                                unimplemented!();
+                            } else {
+                                /*
+                                diesel::insert_into(inherents::table)
+                                    .values( InsertInherent {
+                                        hash: header.hash().as_ref(),
+                                        block: &(*header.number()).into(),
+                                        module: "test",
+                                        call: "test",
+                                        success: true,
+
+                                    })
+                                 */
+
+                            }
+                            */
                         }
                     };
-                    println!("{:?}", e);
+                    println!("opaque ext: {:?}", e);
                 }
                 println!("Inserting");
                 diesel::insert_into(blocks::table)
@@ -88,7 +122,6 @@ impl Database {
                     })
                     .get_result::<Blocks>(&self.connection)
                     .expect("ERROR saving block");
-
             },
             Data::Event(_event) => {
             },
@@ -98,6 +131,7 @@ impl Database {
             _ => {
             }
         }
+        println!("\n ================================ \n");
     }
 }
 

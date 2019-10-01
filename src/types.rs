@@ -41,6 +41,7 @@ use runtime_primitives::{
         StaticLookup,
     },
 };
+
 use runtime_support::Parameter;
 /// Format for describing accounts
 pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
@@ -61,14 +62,22 @@ pub enum Data<T: System> {
     Event(StorageChangeSet<T::Hash>),
 }
 
+// TODO: Consider removing this trait and directly using srml_system::Trait
+// Right now this acts as some sort of Shim, in case we need any traits that srml_system::Trait does not specify
+// which can be easily crafted in the type-specific (PolkadotArchive) portion of the code
+// Issue is with getting the block number from possible unsigned values that Postgres does not support
+// but using Trait is better
 /// The subset of the `srml_system::Trait` that a client must implement.
 pub trait System {
+
+    /// The Call type
     type Call: Encode
         + Decode
         + PartialEq
         + Eq
         + Clone
         + std::fmt::Debug;
+
     /// Account index (aka nonce) type. This stores the number of previous
     /// transactions associated with a sender account.
     type Index: Parameter

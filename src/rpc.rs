@@ -35,12 +35,11 @@ use crate::database::Database;
 fn handle_data<T>(receiver: mpsc::UnboundedReceiver<Data<T>>,
                   rpc: Rpc<T>,
                   sender: mpsc::UnboundedSender<Data<T>>,
-                  db: Database
 ) -> impl Future<Item = (), Error = ()> + 'static
 where T: System + std::fmt::Debug + 'static
 {
-    // spawn a getter for blocks if not there
-    // else insert the value into the database
+    // task for getting blocks
+    // if we need data that depends on other data that needs to be received first (EX block needs hash from the header)
     receiver.for_each(move |data| {
         match &data {
             Data::Header(header) /* Data::FinalizedHead(header) */ => {
@@ -51,7 +50,6 @@ where T: System + std::fmt::Debug + 'static
             },
             _ => {}
         };
-        db.insert(&data);
         future::ok(())
     })
 }
@@ -62,11 +60,19 @@ pub fn run<T: System + std::fmt::Debug + 'static>() -> Result<(), ArchiveError>{
     let rpc = Rpc::<T>::new(&mut rt, &url::Url::parse("ws://127.0.0.1:9944")?)?;
     let db = Database::new();
     rt.spawn(rpc.subscribe_new_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
-    rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
+    rt.spawn(rpc.subscribe_finalized_blocks(sender).map_err(|e| println!("{:?}", e)));
     // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
-    tokio::run(handle_data(receiver, rpc, sender, db));
+
+    let (db_sender, db_receiver) = mpsc::unbounded();
+    rt.spawn(handle_data(receiver, rpc, db_sender));
+    // separate spawned task for insreting into the database
+    tokio::run(db_receiver.for_each(move |data| {
+        db.insert(&data);
+        future::ok(())
+    }));
     Ok(())
 }
+
 
 
 

@@ -20,7 +20,7 @@ futures = "0.1"
 tokio = "0.1"
 failure = "0.1"
 chrono = "0.4.9"
-primitive-types = "0.5" 
+primitive-types = "0.5"
 dotenv = "0.14.1"
 url = "1.7"
 serde = "1.0.101"
@@ -30,9 +30,10 @@ codec = { package = "parity-scale-codec", version = "1.0.0" }
 jsonrpc-core-client = { version = "13.0", features = ["ws"] }
 
 srml-system = { git = "https://github.com/paritytech/substrate/", package = "srml-system", branch="polkadot-master"}
-runtime_support = { git = "https://github.com/paritytech/substrate/", package = "srml-support", branch="polkadot-master"}
-substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api" }
+substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch = "polkadot-master" }
 substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives", branch="polkadot-master" }
 runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives", branch="polkadot-master" }
+runtime-support = { git = "https://github.com/paritytech/substrate/", package = "srml-support", branch="polkadot-master"}
 inherents = { git = "https://github.com/paritytech/substrate/", package = "substrate-inherents", branch="polkadot-master" }
+node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }

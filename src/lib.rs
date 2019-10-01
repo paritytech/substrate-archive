@@ -21,4 +21,4 @@ mod error;
 mod database;
 pub use rpc::run;
 
-pub use types::System;
+pub use types::{System};
