@@ -76,6 +76,7 @@ impl Database {
                     };
                     println!("{:?}", e);
                 }
+                println!("Inserting");
                 diesel::insert_into(blocks::table)
                     .values( InsertBlock {
                         parent_hash: header.parent_hash().as_ref(),

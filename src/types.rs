@@ -130,11 +130,8 @@ pub trait System {
         + DeserializeOwned;
 
     /// The aggregated event type of the runtime.
-    type Event: Parameter + Member + From<Event>;
+    type Event: Parameter + Member;
 
     /// The `SignedExtension` to the basic transaction logic.
     type SignedExtra: SignedExtension;
-
-    /// Creates the `SignedExtra` from the account nonce.
-    fn extra(nonce: Self::Index) -> Self::SignedExtra;
 }

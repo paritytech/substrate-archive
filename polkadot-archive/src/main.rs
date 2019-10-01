@@ -18,65 +18,23 @@
 
 use failure::Error;
 use substrate_archive::{ System };
-use diesel::Queryable;
-use sr_primitives::{generic::Era, traits::StaticLookup};
+use polkadot_runtime::Runtime as RuntimeT;
+
 fn main() -> Result<(), Error> {
     substrate_archive::run::<Runtime>().map_err(Into::into)
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Runtime;
-// <Indices as StaticLookup>::Source
 impl System for Runtime {
-    // type Call = <node_runtime::Runtime as srml_system::Trait>::Call;
-    type Call = Vec<u8>;
-    #[allow(dead_code)]
-    type Index = <node_runtime::Runtime as srml_system::Trait>::Index;
-    type BlockNumber = <node_runtime::Runtime as srml_system::Trait>::BlockNumber;
-    type Hash = <node_runtime::Runtime as srml_system::Trait>::Hash;
-    type Hashing = <node_runtime::Runtime as srml_system::Trait>::Hashing;
-    #[allow(dead_code)]
-    type AccountId = <node_runtime::Runtime as srml_system::Trait>::AccountId;
-    type Lookup = <node_runtime::Runtime as srml_system::Trait>::Lookup;
-    type Header = <node_runtime::Runtime as srml_system::Trait>::Header;
-    type Event = <node_runtime::Runtime as srml_system::Trait>::Event;
-
-    type SignedExtra = (
-        srml_system::CheckVersion<node_runtime::Runtime>,
-        srml_system::CheckGenesis<node_runtime::Runtime>,
-        srml_system::CheckEra<node_runtime::Runtime>,
-        srml_system::CheckNonce<node_runtime::Runtime>,
-        srml_system::CheckWeight<node_runtime::Runtime>,
-        srml_balances::TakeFees<node_runtime::Runtime>,
-    );
-    fn extra(nonce: Self::Index) -> Self::SignedExtra {
-        (
-            srml_system::CheckVersion::<node_runtime::Runtime>::new(),
-            srml_system::CheckGenesis::<node_runtime::Runtime>::new(),
-            srml_system::CheckEra::<node_runtime::Runtime>::from(Era::Immortal),
-            srml_system::CheckNonce::<node_runtime::Runtime>::from(nonce),
-            srml_system::CheckWeight::<node_runtime::Runtime>::new(),
-            srml_balances::TakeFees::<node_runtime::Runtime>::from(0),
-        )
-    }
+    type Call = <RuntimeT as system::Trait>::Call;
+    type Index = <RuntimeT as system::Trait>::Index;
+    type BlockNumber = <RuntimeT as system::Trait>::BlockNumber;
+    type Hash = <RuntimeT as system::Trait>::Hash;
+    type Hashing = <RuntimeT as system::Trait>::Hashing;
+    type AccountId = <RuntimeT as system::Trait>::AccountId;
+    type Lookup = <RuntimeT as system::Trait>::Lookup;
+    type Header = <RuntimeT as system::Trait>::Header;
+    type Event = <RuntimeT as system::Trait>::Event;
+    type SignedExtra = polkadot_runtime::SignedExtra;
 }
-/*
-impl From<<node_runtime::Runtime as srml_system::Trait>::BlockNumber> for i64 {
-    fn from(block: <node_runtime::Runtime as srml_system::Trait>::BlockNumber ) -> i64 {
-        i64::from(block)
-    }
-}
-*/
-
-/*
-impl Balances for Runtime {
-    type Balance = <node_runtime::Runtime as srml_balances::Trait>::Balance;
-}
-impl Contracts for Runtime {}
- */
-
-#[allow(dead_code)]
-type Index = <Runtime as System>::Index;
-// type AccountId = <Runtime as System>::AccountId;
-// #[allow(dead_code)]
-// type Balance = <Runtime as Balances>::Balance;
