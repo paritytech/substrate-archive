@@ -19,6 +19,7 @@
 pub mod models;
 pub mod schema;
 
+use failure::Error;
 use runtime_primitives::{traits::Block, generic::UncheckedExtrinsic};
 use diesel::{prelude::*, pg::PgConnection};
 use codec::{Encode, Decode};
@@ -51,7 +52,8 @@ impl Database {
         Self { connection }
     }
 
-    pub fn insert<T>(&self, data: &Data<T>) where T: System
+    pub fn insert<T>(&self, data: &Data<T>) -> Result<(), Error>
+    where T: System
     {
         match &data {
             Data::FinalizedHead(_header) => {
@@ -62,34 +64,24 @@ impl Database {
                 let extrinsics = block.block.extrinsics();
                 println!("HASH: {:X?}", header.hash().as_ref());
                 for e in extrinsics.iter() {
+                    //TODO possibly redundant operation
                     let encoded = e.encode();
                     println!("Encoded Extrinsic: {:?}", encoded);
-                    println!("Encoded Extrinsic: {:x?}", encoded);
                     let decoded: Result<BasicExtrinsic<T>, _> = UncheckedExtrinsic::decode(&mut encoded.as_slice());
                     match decoded {
                         Err(e) => {
                             println!("{:?}", e);
                         },
                         Ok(v) => {
-                            println!("Function: {:?}", v.function);
+                            // println!("Function: {:?}", v.function);
                             // let dispatch = v.function.get_dispatch_info(); -- not really needed right now
-                            println!("Encoded function: {:x?}", v.function.encode());
-                            println!("Extracted Data {:?}", v.function.extract_call())
-                            // let decoded = Call::decode(&mut v.function.encode().as_slice());
-
-                            // basic calls
-
-                            // println!("{:?}", v.function.is_aux_sub_type());
-                            /*
-                            match &v {
-                                <T as System>::Call::Timestamp(epoch) => {
-                                    println!("the timestamp is {:?}", epoch);
-                                }
-                            };
-                            */
+                            // println!("Encoded function: {:x?}", v.function.encode());
+                            let (module, call) = v.function.extract_call();
+                            println!("Module: {:?}, Call: {:?}", module, call);
+                            let (fn_name, params) = call.function()?;
+                            println!("function: {}, parameters: {:?}", fn_name, params);
                         }
                     };
-                    println!("opaque ext: {:?}", e);
                 }
                 println!("Inserting");
                 diesel::insert_into(blocks::table)
@@ -113,16 +105,6 @@ impl Database {
             }
         }
         println!("\n================================= \n");
+        Ok(())
     }
 }
-
-/*
-// TODO: Optimize
-#[derive(Debug, Clone, PartialEq)]
-pub struct Extrinsic {
-    address: Vec<u8>,
-    index: Option<Vec<u8>>,
-    call: Option<Vec<u8>>,
-    signature: Option<Vec<u8>>
-}
-*/

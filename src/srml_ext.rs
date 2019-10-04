@@ -19,17 +19,23 @@ use srml_finality_tracker::Call as FinalityCall;
 use srml_sudo::Call as SudoCall;
 use codec::{Encode, Decode};
 
-use crate::types::{ System };
+use crate::types::System;
 use crate::error::Error;
 
 pub trait SrmlExt: std::fmt::Debug {
+    /// Seperates a call into it's name and parameters
+    /// Parameters are SCALE encoded
     fn function(&self) -> Result<(CallName, Parameters), Error>; // name of the function as a string
 }
 
-/// Name of the call
+/// Name of the function
 pub type CallName = String;
 /// SCALE Encoded Parameters
 pub type Parameters = Vec<u8>;
+
+// TODO: look to store parameters in something other than SCALE
+// like raw bit-array
+// problem is for modules that contain data other than simple u32's (ex: sudo)
 /// Convenience type
 pub type FunctionInfo = (CallName, Parameters);
 type SrmlResult<T> = Result<T, Error>;
