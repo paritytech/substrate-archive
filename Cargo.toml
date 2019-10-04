@@ -37,3 +37,6 @@ runtime-primitives = { git = "https://github.com/paritytech/substrate/", package
 runtime-support = { git = "https://github.com/paritytech/substrate/", package = "srml-support", branch="polkadot-master"}
 inherents = { git = "https://github.com/paritytech/substrate/", package = "substrate-inherents", branch="polkadot-master" }
 node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
+srml-timestamp = { git = "https://github.com/paritytech/substrate/", package = "srml-timestamp", branch = "polkadot-master" }
+srml-finality-tracker = { git = "https://github.com/paritytech/substrate", package = "srml-finality-tracker", branch = "polkadot-master" }
+srml-sudo = { git = "https://github.com/paritytech/substrate", package = "srml-sudo", branch = "polkadot-master" }

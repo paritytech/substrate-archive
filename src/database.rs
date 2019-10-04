@@ -23,13 +23,12 @@ use runtime_primitives::{traits::Block, generic::UncheckedExtrinsic};
 use diesel::{prelude::*, pg::PgConnection};
 use codec::{Encode, Decode};
 use runtime_primitives::traits::Header;
-use runtime_support::dispatch::IsSubType;
-use node_runtime::Call;
 use dotenv::dotenv;
 use std::env;
+use runtime_primitives::weights::GetDispatchInfo;
 
 // use crate::error::Error as ArchiveError;
-use crate::types::{Data, System, BasicExtrinsic};
+use crate::types::{Data, System, BasicExtrinsic, ExtractCall};
 use self::models::{InsertBlock, InsertInherent, Inherents, Blocks};
 use self::schema::blocks;
 
@@ -65,18 +64,18 @@ impl Database {
                 for e in extrinsics.iter() {
                     let encoded = e.encode();
                     println!("Encoded Extrinsic: {:?}", encoded);
+                    println!("Encoded Extrinsic: {:x?}", encoded);
                     let decoded: Result<BasicExtrinsic<T>, _> = UncheckedExtrinsic::decode(&mut encoded.as_slice());
                     match decoded {
                         Err(e) => {
                             println!("{:?}", e);
                         },
                         Ok(v) => {
-                            println!("{:?}", v.function);
-                            let encoded = v.function.encode();
-                            // let dec: String = Decode::decode(&mut &encoded[0..3]).unwrap();
-                            println!("encoded function: {:?}", v.function.encode());
-                            let decoded = Call::decode(&mut v.function.encode().as_slice());
-                            println!("Decoded Function: {:?}", decoded);
+                            println!("Function: {:?}", v.function);
+                            // let dispatch = v.function.get_dispatch_info(); -- not really needed right now
+                            println!("Encoded function: {:x?}", v.function.encode());
+                            println!("Extracted Data {:?}", v.function.extract_call())
+                            // let decoded = Call::decode(&mut v.function.encode().as_slice());
 
                             // basic calls
 
@@ -87,24 +86,6 @@ impl Database {
                                     println!("the timestamp is {:?}", epoch);
                                 }
                             };
-                            */
-                            /*
-                            if v.is_signed() {
-                                unimplemented!();
-                            } else {
-                                /*
-                                diesel::insert_into(inherents::table)
-                                    .values( InsertInherent {
-                                        hash: header.hash().as_ref(),
-                                        block: &(*header.number()).into(),
-                                        module: "test",
-                                        call: "test",
-                                        success: true,
-
-                                    })
-                                 */
-
-                            }
                             */
                         }
                     };
@@ -131,7 +112,7 @@ impl Database {
             _ => {
             }
         }
-        println!("\n ================================ \n");
+        println!("\n================================= \n");
     }
 }
 

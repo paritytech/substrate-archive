@@ -19,6 +19,13 @@ mod rpc;
 mod types;
 mod error;
 mod database;
+mod srml_ext;
 pub use rpc::run;
 
-pub use types::{System};
+pub use types::{System, Module, ExtractCall};
+pub use srml_ext::{SrmlExt, NotHandled};
+
+pub mod srml {
+    pub use srml_timestamp::Call as TimestampCall;
+    pub use srml_finality_tracker::Call as FinalityCall;
+}

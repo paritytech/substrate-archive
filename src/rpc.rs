@@ -129,7 +129,7 @@ impl<T> Rpc<T> where T: System + 'static {
                 })
             })
     }
-/*
+    /*
     /// send all substrate events back to main thread
     pub fn subscribe_events(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
     {
@@ -143,7 +143,7 @@ impl<T> Rpc<T> where T: System + 'static {
                 })
             })
     }
-*/
+    */
 
     fn block(&self, hash: T::Hash, sender: mpsc::UnboundedSender<Data<T>>)
              -> impl Future<Item = (), Error = ArchiveError>

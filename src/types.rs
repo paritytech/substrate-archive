@@ -17,6 +17,8 @@
 use substrate_primitives::storage::StorageChangeSet;
 use serde::de::DeserializeOwned;
 use srml_system::Event;
+use runtime_support::dispatch::Dispatchable;
+use runtime_primitives::weights::GetDispatchInfo;
 use codec::{Encode, Decode};
 use runtime_primitives::{
     OpaqueExtrinsic,
@@ -42,6 +44,8 @@ use runtime_primitives::{
     },
 };
 
+use crate::srml_ext::SrmlExt;
+
 use runtime_support::Parameter;
 /// Format for describing accounts
 pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
@@ -62,6 +66,33 @@ pub enum Data<T: System> {
     Event(StorageChangeSet<T::Hash>),
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Module {
+    Timestamp,
+    FinalityTracker,
+    Parachains,
+    Sudo,
+    NotHandled
+}
+
+impl From<&Module> for String {
+    fn from(module: &Module) -> String {
+        match &module {
+            Module::Timestamp => "timestamp".to_string(),
+            Module::FinalityTracker => "finality_tracker".to_string(),
+            Module::Parachains => "parachains".to_string(),
+            Module::Sudo => "sudo".to_string(),
+            _ => "NotHandled".to_string()
+        }
+    }
+}
+
+pub trait ExtractCall {
+    /// module the call is from, IE Timestamp, FinalityTracker
+    fn extract_call(&self) -> (Module, &dyn SrmlExt);
+}
+
+
 // TODO: Consider removing this trait and directly using srml_system::Trait
 // Right now this acts as some sort of Shim, in case we need any traits that srml_system::Trait does not specify
 // which can be easily crafted in the type-specific (PolkadotArchive) portion of the code
@@ -71,12 +102,14 @@ pub enum Data<T: System> {
 pub trait System {
 
     /// The Call type
+    /// Should implement `ExtractCall` to put call data in a more database-friendly format
     type Call: Encode
         + Decode
         + PartialEq
         + Eq
         + Clone
-        + std::fmt::Debug;
+        + std::fmt::Debug
+        + ExtractCall;
 
     /// Account index (aka nonce) type. This stores the number of previous
     /// transactions associated with a sender account.
