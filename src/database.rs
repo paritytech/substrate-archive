@@ -19,6 +19,7 @@
 pub mod models;
 pub mod schema;
 
+use log::*;
 use failure::Error;
 use runtime_primitives::{traits::Block, generic::UncheckedExtrinsic};
 use diesel::{prelude::*, pg::PgConnection};
@@ -27,7 +28,6 @@ use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 use std::env;
 use std::convert::TryFrom;
-use runtime_primitives::weights::GetDispatchInfo;
 
 // use crate::error::Error as ArchiveError;
 use crate::types::{Data, System, BasicExtrinsic, ExtractCall};
@@ -60,11 +60,9 @@ impl Database {
             Data::FinalizedHead(_header) => {
             }
             Data::Block(block) => {
-                println!("\n=====================================\n");
                 let header = &block.block.header;
                 let extrinsics = block.block.extrinsics();
-                println!("HASH: {:X?}", header.hash().as_ref());
-                println!("Inserting");
+                trace!("HASH: {:X?}", header.hash().as_ref());
                 diesel::insert_into(blocks::table)
                     .values( InsertBlock {
                         parent_hash: header.parent_hash().as_ref(),
@@ -79,32 +77,21 @@ impl Database {
                 for (idx, e) in extrinsics.iter().enumerate() {
                     //TODO possibly redundant operation
                     let encoded = e.encode();
-                    println!("Encoded Extrinsic: {:?}", encoded);
-                    let decoded: Result<BasicExtrinsic<T>, _> = UncheckedExtrinsic::decode(&mut encoded.as_slice());
-                    match decoded {
-                        Err(e) => {
-                            println!("{:?}", e);
-                        },
-                        Ok(v) => {
-                            let (module, call) = v.function.extract_call();
-                            // println!("Module: {:?}, Call: {:?}", module, call);
-                            let (fn_name, params) = call.function()?;
-                            // println!("function: {}, parameters: {:?}", fn_name, params);
-                            diesel::insert_into(inherents::table)
-                                .values( InsertInherent {
-                                    hash: header.hash().as_ref(),
-                                    block: &(*header.number()).into(),
-                                    module: &String::from(module),
-                                    call: &fn_name,
-                                    parameters: Some(params),
-                                    success: &true,
-                                    in_index: &(i32::try_from(idx)?)
-                                } )
-                                .get_result::<Inherents>(&self.connection)
-                                .expect("ERROR saving inherent");
-
-                        }
-                    };
+                    let decoded: BasicExtrinsic<T> = UncheckedExtrinsic::decode(&mut encoded.as_slice())?;
+                    let (module, call) = decoded.function.extract_call();
+                    let (fn_name, params) = call.function()?;
+                    diesel::insert_into(inherents::table)
+                        .values( InsertInherent {
+                            hash: header.hash().as_ref(),
+                            block: &(*header.number()).into(),
+                            module: &String::from(module),
+                            call: &fn_name,
+                            parameters: Some(params),
+                            success: &true,
+                            in_index: &(i32::try_from(idx)?)
+                        } )
+                        .get_result::<Inherents>(&self.connection)
+                        .expect("ERROR saving inherent");
                 }
             },
             Data::Event(_event) => {
@@ -115,7 +102,6 @@ impl Database {
             _ => {
             }
         }
-        println!("\n================================= \n");
         Ok(())
     }
 }

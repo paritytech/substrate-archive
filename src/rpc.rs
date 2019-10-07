@@ -65,9 +65,17 @@ pub fn run<T: System + std::fmt::Debug + 'static>() -> Result<(), ArchiveError>{
 
     let (db_sender, db_receiver) = mpsc::unbounded();
     rt.spawn(handle_data(receiver, rpc, db_sender));
-    // separate spawned task for insreting into the database
+    // separate spawned task for inserting into the database
     tokio::run(db_receiver.for_each(move |data| {
-        db.insert(&data);
+        let result = db.insert(&data);
+        match result {
+            Err(e) => {
+                error!("{:?}", e);
+            },
+            Ok(_) => {
+                trace!("Succesfully Inserted {:?}", data);
+            }
+        };
         future::ok(())
     }));
     Ok(())
