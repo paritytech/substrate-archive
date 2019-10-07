@@ -30,7 +30,8 @@ pub enum Error {
     Io(#[fail(cause)] IoError),
     #[fail(display = "Parse: {}", _0)]
     Parse(#[fail(cause)] ParseError),
-
+    #[fail(display = "Call type unhandled, not committing to database")]
+    UnhandledCallType
 }
 
 impl From<IoError> for Error {

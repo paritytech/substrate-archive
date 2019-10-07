@@ -19,7 +19,6 @@ use futures::{Future, Stream, sync::mpsc, future};
 use tokio::runtime::Runtime;
 use jsonrpc_core_client::{RpcChannel, transports::ws};
 use runtime_primitives::traits::Header;
-use serde::de::DeserializeOwned;
 use substrate_rpc_api::{
     author::AuthorClient,
     chain::{
@@ -36,15 +35,14 @@ use crate::database::Database;
 fn handle_data<T>(receiver: mpsc::UnboundedReceiver<Data<T>>,
                   rpc: Rpc<T>,
                   sender: mpsc::UnboundedSender<Data<T>>,
-                  db: Database
 ) -> impl Future<Item = (), Error = ()> + 'static
 where T: System + std::fmt::Debug + 'static
 {
-    // spawn a getter for blocks if not there
-    // else insert the value into the database
+    // task for getting blocks
+    // if we need data that depends on other data that needs to be received first (EX block needs hash from the header)
     receiver.for_each(move |data| {
         match &data {
-            Data::Header(header) | Data::FinalizedHead(header) => {
+            Data::Header(header) /* Data::FinalizedHead(header) */ => {
                 tokio::spawn(
                     rpc.block(header.hash(), sender.clone())
                        .map_err(|e| println!("{:?}", e))
@@ -52,7 +50,6 @@ where T: System + std::fmt::Debug + 'static
             },
             _ => {}
         };
-        db.insert(&data);
         future::ok(())
     })
 }
@@ -63,11 +60,19 @@ pub fn run<T: System + std::fmt::Debug + 'static>() -> Result<(), ArchiveError>{
     let rpc = Rpc::<T>::new(&mut rt, &url::Url::parse("ws://127.0.0.1:9944")?)?;
     let db = Database::new();
     rt.spawn(rpc.subscribe_new_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
-    rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
+    rt.spawn(rpc.subscribe_finalized_blocks(sender).map_err(|e| println!("{:?}", e)));
     // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
-    tokio::run(handle_data(receiver, rpc, sender, db));
+
+    let (db_sender, db_receiver) = mpsc::unbounded();
+    rt.spawn(handle_data(receiver, rpc, db_sender));
+    // separate spawned task for insreting into the database
+    tokio::run(db_receiver.for_each(move |data| {
+        db.insert(&data);
+        future::ok(())
+    }));
     Ok(())
 }
+
 
 
 
@@ -83,9 +88,11 @@ impl<T: System> From<RpcChannel> for Rpc<T> {
 
 /// Communicate with Substrate node via RPC
 pub struct Rpc<T: System> {
-    state: StateClient<T::Hash>,
+    #[allow(dead_code)] // TODO remove
+    state: StateClient<T::Hash>, // TODO get types right
     chain: ChainClient<T::BlockNumber, T::Hash, <T as System>::Header, Block<T>>,
-    author: AuthorClient<T::Hash, T::Hash>,
+    #[allow(dead_code)] // TODO remove
+    author: AuthorClient<T::Hash, T::Hash>, // TODO get types right
 }
 
 impl<T> Rpc<T> where T: System + 'static {
@@ -122,7 +129,7 @@ impl<T> Rpc<T> where T: System + 'static {
                 })
             })
     }
-/*
+    /*
     /// send all substrate events back to main thread
     pub fn subscribe_events(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
     {
@@ -136,7 +143,7 @@ impl<T> Rpc<T> where T: System + 'static {
                 })
             })
     }
-*/
+    */
 
     fn block(&self, hash: T::Hash, sender: mpsc::UnboundedSender<Data<T>>)
              -> impl Future<Item = (), Error = ArchiveError>

@@ -9,7 +9,8 @@ path = "src/lib.rs"
 
 [workspace]
 members = [
-	"polkadot-archive"
+	"polkadot-archive",
+	"node-template-archive"
 ]
 
 [dependencies]
@@ -18,19 +19,24 @@ env_logger = "0.6"
 futures = "0.1"
 tokio = "0.1"
 failure = "0.1"
-diesel = { version = "1.4", features = ["postgres", "chrono", "numeric"] }
 chrono = "0.4.9"
-primitive-types = { version = "0.5" }
+primitive-types = "0.5"
 dotenv = "0.14.1"
-codec = { package = "parity-scale-codec", version = "1.0.0" }
-substrate-subxt = { git = "https://github.com/paritytech/substrate-subxt" }
-srml-system = { git = "https://github.com/paritytech/substrate/", package = "srml-system"}
-jsonrpc-core-client = { version = "13.0", features = ["ws"] }
-runtime_support = { git = "https://github.com/paritytech/substrate/", package = "srml-support" }
-# substrate-subxt = { git = "https://github.com/paritytech/substrate-subxt" }
-substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api" }
-substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives" }
-runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives" }
 url = "1.7"
 serde = "1.0.101"
+
+diesel = { version = "1.4", features = ["postgres", "chrono", "numeric"] }
+codec = { package = "parity-scale-codec", version = "1.0.0" }
+jsonrpc-core-client = { version = "13.0", features = ["ws"] }
+
+srml-system = { git = "https://github.com/paritytech/substrate/", package = "srml-system", branch="polkadot-master"}
+substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch = "polkadot-master" }
+substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives", branch="polkadot-master" }
+runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives", branch="polkadot-master" }
+runtime-support = { git = "https://github.com/paritytech/substrate/", package = "srml-support", branch="polkadot-master"}
+inherents = { git = "https://github.com/paritytech/substrate/", package = "substrate-inherents", branch="polkadot-master" }
+node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
+srml-timestamp = { git = "https://github.com/paritytech/substrate/", package = "srml-timestamp", branch = "polkadot-master" }
+srml-finality-tracker = { git = "https://github.com/paritytech/substrate", package = "srml-finality-tracker", branch = "polkadot-master" }
+srml-sudo = { git = "https://github.com/paritytech/substrate", package = "srml-sudo", branch = "polkadot-master" }

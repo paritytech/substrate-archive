@@ -14,39 +14,47 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use runtime_primitives::OpaqueExtrinsic as UncheckedExtrinsic;
-use runtime_primitives::generic::{Block as BlockT, SignedBlock};
 use substrate_primitives::storage::StorageChangeSet;
-use substrate_rpc_primitives::number::NumberOrHex;
 use serde::de::DeserializeOwned;
 use srml_system::Event;
-use diesel::prelude::Insertable;
-use diesel::Expression;
-use diesel::expression::{AsExpression, IntoSql};
-use diesel::serialize::ToSql;
-use diesel::pg::Pg;
-use diesel::sql_types::BigInt;
-
-use runtime_primitives::traits::{
-    Bounded,
-    CheckEqual,
-    Hash,
-    Header,
-    MaybeDisplay,
-    MaybeSerializeDebug,
-    MaybeSerializeDebugButNotDeserialize,
-    Member,
-    SignedExtension,
-    SimpleArithmetic,
-    SimpleBitOps,
-    StaticLookup,
+use runtime_support::dispatch::Dispatchable;
+use runtime_primitives::weights::GetDispatchInfo;
+use codec::{Encode, Decode};
+use runtime_primitives::{
+    OpaqueExtrinsic,
+    AnySignature,
+    generic::{
+        UncheckedExtrinsic,
+        Block as BlockT,
+        SignedBlock
+    },
+    traits::{
+        Bounded,
+        CheckEqual,
+        Hash,
+        Header,
+        MaybeDisplay,
+        MaybeSerializeDebug,
+        MaybeSerializeDebugButNotDeserialize,
+        Member,
+        SignedExtension,
+        SimpleArithmetic,
+        SimpleBitOps,
+        StaticLookup,
+    },
 };
 
+use crate::srml_ext::SrmlExt;
+
 use runtime_support::Parameter;
+/// Format for describing accounts
+pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
+/// Basic Extrinsic Type. Does not contain an ERA
+pub type BasicExtrinsic<T> = UncheckedExtrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra >;
+/// A block with OpaqueExtrinsic as extrinsic type
+pub type Block<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
 
-
-pub type Block<T> = SignedBlock<BlockT<<T as System>::Header, UncheckedExtrinsic>>;
-pub type BlockNumber<T> = NumberOrHex<<T as System>::BlockNumber>;
+// pub type BlockNumber<T> = NumberOrHex<<T as System>::BlockNumber>;
 
 /// Sent from Substrate API to be committed into the Database
 #[derive(Debug, PartialEq, Eq)]
@@ -57,14 +65,62 @@ pub enum Data<T: System> {
     Block(Block<T>),
     Event(StorageChangeSet<T::Hash>),
 }
-/*
-pub trait Convert {
-    fn into_i64(&self) -> i64;
-}
-*/
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Module {
+    Timestamp,
+    FinalityTracker,
+    Parachains,
+    Sudo,
+    NotHandled
+}
+
+fn into_string(module: &Module) -> String {
+    match &module {
+        Module::Timestamp => "timestamp".to_string(),
+        Module::FinalityTracker => "finality_tracker".to_string(),
+        Module::Parachains => "parachains".to_string(),
+        Module::Sudo => "sudo".to_string(),
+        _ => "NotHandled".to_string()
+    }
+}
+
+impl From<&Module> for String {
+    fn from(module: &Module) -> String {
+        into_string(module)
+    }
+}
+impl From<Module> for String {
+    fn from(module: Module) -> String {
+        into_string(&module)
+    }
+}
+
+
+pub trait ExtractCall {
+    /// module the call is from, IE Timestamp, FinalityTracker
+    fn extract_call(&self) -> (Module, &dyn SrmlExt);
+}
+
+
+// TODO: Consider removing this trait and directly using srml_system::Trait
+// Right now this acts as some sort of Shim, in case we need any traits that srml_system::Trait does not specify
+// which can be easily crafted in the type-specific (PolkadotArchive) portion of the code
+// Issue is with getting the block number from possible unsigned values that Postgres does not support
+// but using Trait is better
 /// The subset of the `srml_system::Trait` that a client must implement.
 pub trait System {
+
+    /// The Call type
+    /// Should implement `ExtractCall` to put call data in a more database-friendly format
+    type Call: Encode
+        + Decode
+        + PartialEq
+        + Eq
+        + Clone
+        + std::fmt::Debug
+        + ExtractCall;
+
     /// Account index (aka nonce) type. This stores the number of previous
     /// transactions associated with a sender account.
     type Index: Parameter
@@ -126,11 +182,8 @@ pub trait System {
         + DeserializeOwned;
 
     /// The aggregated event type of the runtime.
-    type Event: Parameter + Member + From<Event>;
+    type Event: Parameter + Member;
 
     /// The `SignedExtension` to the basic transaction logic.
     type SignedExtra: SignedExtension;
-
-    /// Creates the `SignedExtra` from the account nonce.
-    fn extra(nonce: Self::Index) -> Self::SignedExtra;
 }

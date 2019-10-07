@@ -18,28 +18,26 @@
 
 pub mod models;
 pub mod schema;
-// use substrate_subxt::srml::system::System;
-use diesel::{
-    prelude::*,
-    pg::PgConnection,
-    serialize::ToSql,
-    expression::AsExpression,
-    sql_types::BigInt
-};
-use codec::{Encode, Compact};
+
+use failure::Error;
+use runtime_primitives::{traits::Block, generic::UncheckedExtrinsic};
+use diesel::{prelude::*, pg::PgConnection};
+use codec::{Encode, Decode};
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 use std::env;
 use std::convert::TryFrom;
+use runtime_primitives::weights::GetDispatchInfo;
 
 // use crate::error::Error as ArchiveError;
-use crate::types::{Data, System};
-use self::models::{InsertBlock, Blocks};
-use self::schema::blocks;
+use crate::types::{Data, System, BasicExtrinsic, ExtractCall};
+use self::models::{InsertBlock, InsertInherent, Inherents, Blocks};
+use self::schema::{blocks, inherents};
+
 
 /// Database object containing a postgreSQL connection and a runtime for asynchronous updating
 pub struct Database {
-    connection: PgConnection
+    connection: PgConnection,
 }
 
 impl Database {
@@ -47,7 +45,6 @@ impl Database {
     /// Connect to the database
     pub fn new() -> Self {
         dotenv().ok();
-
         let database_url = env::var("DATABASE_URL")
             .expect("DATABASE_URL must be set; qed");
         let connection = PgConnection::establish(&database_url)
@@ -56,39 +53,69 @@ impl Database {
         Self { connection }
     }
 
-    pub fn insert<T>(&self, data: &Data<T>)
-    where
-        T: System,
+    pub fn insert<T>(&self, data: &Data<T>) -> Result<(), Error>
+    where T: System
     {
         match &data {
             Data::FinalizedHead(_header) => {
-                println!("Got a header")
             }
             Data::Block(block) => {
-                let block = &block.block.header;
+                println!("\n=====================================\n");
+                let header = &block.block.header;
+                let extrinsics = block.block.extrinsics();
+                println!("HASH: {:X?}", header.hash().as_ref());
+                println!("Inserting");
                 diesel::insert_into(blocks::table)
                     .values( InsertBlock {
-                        parent_hash: block.parent_hash().as_ref(),
-                        hash: block.hash().as_ref(),
-                        block: &(*block.number()).into(),
-                        state_root: block.state_root().as_ref(),
-                        extrinsics_root: block.extrinsics_root().as_ref(),
+                        parent_hash: header.parent_hash().as_ref(),
+                        hash: header.hash().as_ref(),
+                        block: &(*header.number()).into(),
+                        state_root: header.state_root().as_ref(),
+                        extrinsics_root: header.extrinsics_root().as_ref(),
                         time: None
                     })
                     .get_result::<Blocks>(&self.connection)
                     .expect("ERROR saving block");
-                println!("Block");
+                for (idx, e) in extrinsics.iter().enumerate() {
+                    //TODO possibly redundant operation
+                    let encoded = e.encode();
+                    println!("Encoded Extrinsic: {:?}", encoded);
+                    let decoded: Result<BasicExtrinsic<T>, _> = UncheckedExtrinsic::decode(&mut encoded.as_slice());
+                    match decoded {
+                        Err(e) => {
+                            println!("{:?}", e);
+                        },
+                        Ok(v) => {
+                            let (module, call) = v.function.extract_call();
+                            // println!("Module: {:?}, Call: {:?}", module, call);
+                            let (fn_name, params) = call.function()?;
+                            // println!("function: {}, parameters: {:?}", fn_name, params);
+                            diesel::insert_into(inherents::table)
+                                .values( InsertInherent {
+                                    hash: header.hash().as_ref(),
+                                    block: &(*header.number()).into(),
+                                    module: &String::from(module),
+                                    call: &fn_name,
+                                    parameters: Some(params),
+                                    success: &true,
+                                    in_index: &(i32::try_from(idx)?)
+                                } )
+                                .get_result::<Inherents>(&self.connection)
+                                .expect("ERROR saving inherent");
 
+                        }
+                    };
+                }
             },
             Data::Event(_event) => {
-                println!("Event");
             },
             /*Data::Hash(hash) => {
                 println!("HASH: {:?}", hash);
             }*/
             _ => {
-                println!("not handled");
             }
         }
+        println!("\n================================= \n");
+        Ok(())
     }
 }
