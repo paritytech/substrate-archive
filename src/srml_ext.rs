@@ -17,9 +17,8 @@
 use srml_timestamp::Call as TimestampCall;
 use srml_finality_tracker::Call as FinalityCall;
 use srml_sudo::Call as SudoCall;
-use codec::{Encode, Decode};
+use codec::Encode;
 
-use crate::types::System;
 use crate::error::Error;
 
 pub trait SrmlExt: std::fmt::Debug {
