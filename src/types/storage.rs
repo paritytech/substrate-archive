@@ -1,7 +1,27 @@
+// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// This file is part of substrate-archive.
+
+// substrate-archive is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// substrate-archive is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
+
+//! Experimental way to manage StorageKey's and their derivative byte-representations
+//!
+
 // this may possibly be a nightmare to maintain?
 // especially if the # of srml modules continue to change/grow
 // keep enums stateless
 
+// TODO: custom derive implentations for iteration over keys and converting into/from the byte-vec twox_128 hash keys
 // TODO: remove dead code attributes, or just get rid of this in favor of a better way/don't need it
 
 #[allow(dead_code)]
