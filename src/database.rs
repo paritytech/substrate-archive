@@ -53,16 +53,15 @@ impl Database {
         Self { connection }
     }
 
+    // TODO: make async
     pub fn insert<T>(&self, data: &Data<T>) -> Result<(), Error>
     where T: System
     {
         match &data {
-            Data::FinalizedHead(_header) => {
-            }
             Data::Block(block) => {
                 let header = &block.block.header;
                 let extrinsics = block.block.extrinsics();
-                trace!("HASH: {:X?}", header.hash().as_ref());
+                info!("HASH: {:X?}", header.hash().as_ref());
                 diesel::insert_into(blocks::table)
                     .values( InsertBlock {
                         parent_hash: header.parent_hash().as_ref(),
@@ -94,11 +93,9 @@ impl Database {
                         .expect("ERROR saving inherent");
                 }
             },
-            Data::Event(_event) => {
-            },
-            /*Data::Hash(hash) => {
-                println!("HASH: {:?}", hash);
-            }*/
+            Data::Storage(data, from, hash) => {
+                println!("{:?}, {:?}, {:?}", data, from, hash);
+            }
             _ => {
             }
         }

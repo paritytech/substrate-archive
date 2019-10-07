@@ -23,6 +23,7 @@ use codec::{Encode, Decode, Input, Error as CodecError};
 
 
 fn main() -> Result<(), Error> {
+    env_logger::init();
     substrate_archive::run::<Runtime>().map_err(Into::into)
 }
 

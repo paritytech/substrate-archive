@@ -14,9 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+pub mod storage;
+
 use substrate_primitives::storage::StorageChangeSet;
 use serde::de::DeserializeOwned;
 use codec::{Encode, Decode};
+use substrate_primitives::storage::StorageData;
+use runtime_support::Parameter;
 use runtime_primitives::{
     OpaqueExtrinsic,
     AnySignature,
@@ -43,7 +47,8 @@ use runtime_primitives::{
 
 use crate::srml_ext::SrmlExt;
 
-use runtime_support::Parameter;
+use self::storage::StorageKeyType;
+
 /// Format for describing accounts
 pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
 /// Basic Extrinsic Type. Does not contain an ERA
@@ -58,11 +63,13 @@ pub type Block<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
 pub enum Data<T: System> {
     FinalizedHead(T::Header),
     Header(T::Header),
+    Storage(StorageData, StorageKeyType, T::Hash),
     // Hash(T::Hash),
     Block(Block<T>),
     Event(StorageChangeSet<T::Hash>),
 }
 
+// TODO: Not sustainable to keep an up-to-date enum of all modules?
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Module {
     Timestamp,
@@ -92,7 +99,6 @@ impl From<Module> for String {
         into_string(&module)
     }
 }
-
 
 pub trait ExtractCall {
     /// module the call is from, IE Timestamp, FinalityTracker
