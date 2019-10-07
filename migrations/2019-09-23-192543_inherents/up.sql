@@ -5,7 +5,8 @@ CREATE TABLE inherents (
   -- a constrained biginteger type whose max value corresponds with that of a u64 in rust
   block bigint check (block >= 0 and block < '9223372036854775807'::bigint) NOT NULL,
   module varchar NOT NULL,
-  CALL varchar NOT NULL,
+  call varchar NOT NULL,
+  parameters bytea,
   success bool NOT NULL,
   in_index int check (in_index >= 0) NOT NULL
 );

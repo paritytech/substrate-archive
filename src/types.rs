@@ -75,17 +75,27 @@ pub enum Module {
     NotHandled
 }
 
-impl From<&Module> for String {
-    fn from(module: &Module) -> String {
-        match &module {
-            Module::Timestamp => "timestamp".to_string(),
-            Module::FinalityTracker => "finality_tracker".to_string(),
-            Module::Parachains => "parachains".to_string(),
-            Module::Sudo => "sudo".to_string(),
-            _ => "NotHandled".to_string()
-        }
+fn into_string(module: &Module) -> String {
+    match &module {
+        Module::Timestamp => "timestamp".to_string(),
+        Module::FinalityTracker => "finality_tracker".to_string(),
+        Module::Parachains => "parachains".to_string(),
+        Module::Sudo => "sudo".to_string(),
+        _ => "NotHandled".to_string()
     }
 }
+
+impl From<&Module> for String {
+    fn from(module: &Module) -> String {
+        into_string(module)
+    }
+}
+impl From<Module> for String {
+    fn from(module: Module) -> String {
+        into_string(&module)
+    }
+}
+
 
 pub trait ExtractCall {
     /// module the call is from, IE Timestamp, FinalityTracker

@@ -26,12 +26,13 @@ use codec::{Encode, Decode};
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 use std::env;
+use std::convert::TryFrom;
 use runtime_primitives::weights::GetDispatchInfo;
 
 // use crate::error::Error as ArchiveError;
 use crate::types::{Data, System, BasicExtrinsic, ExtractCall};
 use self::models::{InsertBlock, InsertInherent, Inherents, Blocks};
-use self::schema::blocks;
+use self::schema::{blocks, inherents};
 
 
 /// Database object containing a postgreSQL connection and a runtime for asynchronous updating
@@ -63,26 +64,6 @@ impl Database {
                 let header = &block.block.header;
                 let extrinsics = block.block.extrinsics();
                 println!("HASH: {:X?}", header.hash().as_ref());
-                for e in extrinsics.iter() {
-                    //TODO possibly redundant operation
-                    let encoded = e.encode();
-                    println!("Encoded Extrinsic: {:?}", encoded);
-                    let decoded: Result<BasicExtrinsic<T>, _> = UncheckedExtrinsic::decode(&mut encoded.as_slice());
-                    match decoded {
-                        Err(e) => {
-                            println!("{:?}", e);
-                        },
-                        Ok(v) => {
-                            // println!("Function: {:?}", v.function);
-                            // let dispatch = v.function.get_dispatch_info(); -- not really needed right now
-                            // println!("Encoded function: {:x?}", v.function.encode());
-                            let (module, call) = v.function.extract_call();
-                            println!("Module: {:?}, Call: {:?}", module, call);
-                            let (fn_name, params) = call.function()?;
-                            println!("function: {}, parameters: {:?}", fn_name, params);
-                        }
-                    };
-                }
                 println!("Inserting");
                 diesel::insert_into(blocks::table)
                     .values( InsertBlock {
@@ -95,6 +76,36 @@ impl Database {
                     })
                     .get_result::<Blocks>(&self.connection)
                     .expect("ERROR saving block");
+                for (idx, e) in extrinsics.iter().enumerate() {
+                    //TODO possibly redundant operation
+                    let encoded = e.encode();
+                    println!("Encoded Extrinsic: {:?}", encoded);
+                    let decoded: Result<BasicExtrinsic<T>, _> = UncheckedExtrinsic::decode(&mut encoded.as_slice());
+                    match decoded {
+                        Err(e) => {
+                            println!("{:?}", e);
+                        },
+                        Ok(v) => {
+                            let (module, call) = v.function.extract_call();
+                            // println!("Module: {:?}, Call: {:?}", module, call);
+                            let (fn_name, params) = call.function()?;
+                            // println!("function: {}, parameters: {:?}", fn_name, params);
+                            diesel::insert_into(inherents::table)
+                                .values( InsertInherent {
+                                    hash: header.hash().as_ref(),
+                                    block: &(*header.number()).into(),
+                                    module: &String::from(module),
+                                    call: &fn_name,
+                                    parameters: Some(params),
+                                    success: &true,
+                                    in_index: &(i32::try_from(idx)?)
+                                } )
+                                .get_result::<Inherents>(&self.connection)
+                                .expect("ERROR saving inherent");
+
+                        }
+                    };
+                }
             },
             Data::Event(_event) => {
             },

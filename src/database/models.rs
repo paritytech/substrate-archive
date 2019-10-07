@@ -51,6 +51,7 @@ pub struct InsertInherent<'a> {
     pub block: &'a i64,
     pub module: &'a str,
     pub call: &'a str,
+    pub parameters: Option<Vec<u8>>,
     pub success: &'a bool,
     pub in_index: &'a i32,
 }
@@ -107,7 +108,7 @@ pub struct Blocks {
 #[derive(Queryable, PartialEq, Debug)]
 pub struct Inherents {
     /// PostgreSQL Generated ID/Primary Key (No meaning within substrate/chains)
-    id: usize,
+    id: i32,
     /// Hash of the block this inherant was created in, foreign key
     hash: H256,
     /// Block number of the block this inherant was created in
@@ -116,10 +117,11 @@ pub struct Inherents {
     module: String,
     /// Call within the module inherant used
     call: String,
+    parameters: Option<Vec<u8>>,
     /// Was the call succesful?
     success: bool,
     /// Index of the inherant within a block
-    in_index: usize,
+    in_index: i32,
 }
 
 /// Signed Extrinsics (More like traditional transactions)
