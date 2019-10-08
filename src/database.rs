@@ -28,6 +28,7 @@ use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 use std::env;
 use std::convert::TryFrom;
+use chrono::offset::{Utc, TimeZone};
 
 use crate::error::Error as ArchiveError;
 use crate::types::{Data, System, BasicExtrinsic, ExtractCall};
@@ -74,6 +75,7 @@ impl Database {
                     //TODO possibly redundant operation
                     let encoded = e.encode();
                     let decoded: BasicExtrinsic<T> = UncheckedExtrinsic::decode(&mut encoded.as_slice())?;
+                    println!("DECODED EXTRINSIC {:?}", decoded);
                     let (module, call) = decoded.function.extract_call();
                     let (fn_name, params) = call.function()?;
                     diesel::insert_into(inherents::table)
@@ -90,8 +92,15 @@ impl Database {
                 }
             },
             Data::Storage(data, from, hash) => {
-
+                use self::schema::blocks::dsl::{blocks, time};
                 println!("{:?}, {:?}, {:?}", data, from, hash);
+                let unix_time: i64 = Decode::decode(&mut data.0.as_slice()).expect("Decoding failed");
+                let date_time = Utc.timestamp_millis(unix_time); // panics if time is incorrect
+                println!("epoch: {}", unix_time);
+                let block = diesel::update(blocks.find(hash.as_ref()))
+                    .set(time.eq(Some(&date_time)))
+                    .get_result::<Blocks>(&self.connection)?;
+                println!("{:?}", block.time);
             }
             _ => {
             }

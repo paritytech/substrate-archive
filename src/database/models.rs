@@ -22,7 +22,7 @@ use diesel::sql_types::{Binary};
 use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
 use diesel::Queryable;
-use chrono::NaiveDateTime;
+use chrono::{offset::Utc, DateTime};
 
 use super::schema::{blocks, inherents, signed_extrinsics, accounts};
 
@@ -41,7 +41,7 @@ pub struct InsertBlock<'a> {
     pub block: &'a i64,
     pub state_root: &'a [u8],
     pub extrinsics_root: &'a [u8],
-    pub time: Option<NaiveDateTime>
+    pub time: Option<&'a DateTime<Utc>>
 }
 
 #[derive(Insertable)]
@@ -91,17 +91,17 @@ type EncodedData = Vec<u8>;
 #[derive(Queryable, PartialEq, Debug)]
 pub struct Blocks {
     /// hash of the previous block
-    parent_hash: H256,
+    pub parent_hash: H256,
     /// Hash of this block
-    hash: H256,
+    pub hash: H256,
     /// The block number
-    block: i64,
+    pub block: i64,
     /// root of the state trie
-    state_root: H256,
+    pub state_root: H256,
     /// root of the extrinsics trie
-    extrinsics_root: H256,
+    pub extrinsics_root: H256,
     /// timestamp
-    time: Option<NaiveDateTime>
+    pub time: Option<DateTime<Utc>>
 }
 
 /// Inherents (not signed) extrinsics

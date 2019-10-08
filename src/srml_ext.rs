@@ -51,8 +51,8 @@ impl SrmlExt for NotHandled {
 impl<T> SrmlExt for TimestampCall<T> where T: srml_timestamp::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
-            TimestampCall::set(block) => {
-                Ok(("set".into(), block.encode()))
+            TimestampCall::set(time) => {
+                Ok(("set".into(), time.encode()))
             },
             _ => {
                 // TODO: Error
@@ -65,8 +65,8 @@ impl<T> SrmlExt for TimestampCall<T> where T: srml_timestamp::Trait {
 impl<T> SrmlExt for FinalityCall<T> where T: srml_finality_tracker::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
-            FinalityCall::final_hint(time) => {
-                Ok(("final_hint".into(), time.encode()))
+            FinalityCall::final_hint(block) => {
+                Ok(("final_hint".into(), block.encode()))
             },
             _ => {
                 //TODO Error

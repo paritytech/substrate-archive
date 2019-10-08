@@ -109,8 +109,7 @@ impl<T: System> From<RpcChannel> for Rpc<T> {
 
 /// Communicate with Substrate node via RPC
 pub struct Rpc<T: System> {
-    #[allow(dead_code)] // TODO remove
-    state: StateClient<T::Hash>, // TODO get types right
+    state: StateClient<T::Hash>,
     chain: ChainClient<T::BlockNumber, T::Hash, <T as System>::Header, Block<T>>,
     #[allow(dead_code)] // TODO remove
     author: AuthorClient<T::Hash, T::Hash>, // TODO get types right
