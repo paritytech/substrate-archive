@@ -21,8 +21,9 @@
 // especially if the # of srml modules continue to change/grow
 // keep enums stateless
 
-// TODO: custom derive implentations for iteration over keys and converting into/from the byte-vec twox_128 hash keys
-// TODO: remove dead code attributes, or just get rid of this in favor of a better way/don't need it
+// TODO: custom derive (macro) implentations for iteration over keys and converting into/from the byte-vec twox_128 hash keys
+// TODO: remove dead code attributes, or just get rid of this in favor of a better way/might not need it
+// currenty experimental with Timestamp and Finality modules
 
 #[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq, Clone)]
