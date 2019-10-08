@@ -15,10 +15,13 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use failure::Fail;
+use codec::Error as CodecError;
 use futures::sync::mpsc::SendError;
 use jsonrpc_core_client::RpcError as JsonRpcError;
 use std::io::Error as IoError;
 use url::ParseError;
+use diesel::result::{Error as DieselError, ConnectionError};
+use std::env::VarError as EnvironmentError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -30,8 +33,40 @@ pub enum Error {
     Io(#[fail(cause)] IoError),
     #[fail(display = "Parse: {}", _0)]
     Parse(#[fail(cause)] ParseError),
+    #[fail(display  = "Db: {}", _0)]
+    Db(#[fail(cause)] DieselError),
+    #[fail(display = "Db Connection: {}", _0)]
+    DbConnection(#[fail(cause)] ConnectionError),
+    #[fail(display = "Environment: {}", _0)]
+    Environment(#[fail(cause)] EnvironmentError),
+    #[fail(display = "Codec: {}", _0)]
+    Codec(#[fail(cause)] CodecError),
     #[fail(display = "Call type unhandled, not committing to database")]
-    UnhandledCallType
+    UnhandledCallType,
+}
+
+impl From<CodecError> for Error {
+    fn from(err: CodecError) -> Error {
+        Error::Codec(err)
+    }
+}
+
+impl From<EnvironmentError> for Error {
+    fn from(err: EnvironmentError) -> Error {
+        Error::Environment(err)
+    }
+}
+
+impl From<ConnectionError> for Error {
+    fn from(err: ConnectionError) -> Error {
+        Error::DbConnection(err)
+    }
+}
+
+impl From<DieselError> for Error {
+    fn from(err: DieselError) -> Error {
+        Error::Db(err)
+    }
 }
 
 impl From<IoError> for Error {

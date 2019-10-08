@@ -46,6 +46,7 @@ where T: System + std::fmt::Debug + 'static
     // task for getting blocks
     // if we need data that depends on other data that needs to be received first (EX block needs hash from the header)
     receiver.for_each(move |data| {
+        let res = db.insert(&data);
         match &data {
             Data::Header(header) => {
                 tokio::spawn(
@@ -70,7 +71,6 @@ where T: System + std::fmt::Debug + 'static
             },
             _ => {}
         };
-        let res = db.insert(&data);
         match res {
             Err(e) => {
                 error!("Failed inserting all of {:?} into db", data);
@@ -87,7 +87,7 @@ pub fn run<T: System + std::fmt::Debug + 'static>() -> Result<(), ArchiveError>{
     let (sender, receiver) = mpsc::unbounded();
     let mut rt = Runtime::new()?;
     let rpc = Rpc::<T>::new(&mut rt, &url::Url::parse("ws://127.0.0.1:9944")?)?;
-    let db = Database::new();
+    let db = Database::new()?;
     rt.spawn(rpc.subscribe_new_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
     // rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
     // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
@@ -174,7 +174,6 @@ impl<T> Rpc<T> where T: System + 'static {
             .storage(key, Some(hash))
             .map_err(Into::into)
             .and_then(move |data| {
-                println!("{:?}", data);
                 if let Some(d) = data {
                     sender
                         .unbounded_send(Data::Storage(d, from, hash))

@@ -29,7 +29,7 @@ use dotenv::dotenv;
 use std::env;
 use std::convert::TryFrom;
 
-// use crate::error::Error as ArchiveError;
+use crate::error::Error as ArchiveError;
 use crate::types::{Data, System, BasicExtrinsic, ExtractCall};
 use self::models::{InsertBlock, InsertInherent, Inherents, Blocks};
 use self::schema::{blocks, inherents};
@@ -43,14 +43,12 @@ pub struct Database {
 impl Database {
 
     /// Connect to the database
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, ArchiveError> {
         dotenv().ok();
-        let database_url = env::var("DATABASE_URL")
-            .expect("DATABASE_URL must be set; qed");
-        let connection = PgConnection::establish(&database_url)
-            .expect(&format!("Error connecting to {}", database_url));
+        let database_url = env::var("DATABASE_URL")?;
+        let connection = PgConnection::establish(&database_url)?;
 
-        Self { connection }
+        Ok(Self { connection })
     }
 
     // TODO: make async
@@ -71,8 +69,7 @@ impl Database {
                         extrinsics_root: header.extrinsics_root().as_ref(),
                         time: None
                     })
-                    .get_result::<Blocks>(&self.connection)
-                    .expect("ERROR saving block");
+                    .get_result::<Blocks>(&self.connection)?;
                 for (idx, e) in extrinsics.iter().enumerate() {
                     //TODO possibly redundant operation
                     let encoded = e.encode();
@@ -89,11 +86,11 @@ impl Database {
                             success: &true,
                             in_index: &(i32::try_from(idx)?)
                         } )
-                        .get_result::<Inherents>(&self.connection)
-                        .expect("ERROR saving inherent");
+                        .get_result::<Inherents>(&self.connection)?;
                 }
             },
             Data::Storage(data, from, hash) => {
+
                 println!("{:?}, {:?}, {:?}", data, from, hash);
             }
             _ => {
