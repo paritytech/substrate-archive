@@ -20,9 +20,9 @@ use tokio::runtime::Runtime;
 use jsonrpc_core_client::{RpcChannel, transports::ws};
 use runtime_primitives::traits::Header;
 use substrate_primitives::{
-    storage::StorageKey,
-    twox_128
+    storage::StorageKey
 };
+
 use substrate_rpc_api::{
     author::AuthorClient,
     chain::{
@@ -31,71 +31,9 @@ use substrate_rpc_api::{
     state::StateClient,
 };
 
-use crate::types::{Data, System, Block, storage::{StorageKeyType, TimestampOp}};
+use crate::types::{Data, System, Block, storage::StorageKeyType};
 use crate::error::{Error as ArchiveError};
-use crate::database::Database;
 
-
-fn handle_data<T>(receiver: mpsc::UnboundedReceiver<Data<T>>,
-                  db: Database,
-                  rpc: Rpc<T>,
-                  sender: mpsc::UnboundedSender<Data<T>>,
-) -> impl Future<Item = (), Error = ()> + 'static
-where T: System + std::fmt::Debug + 'static
-{
-    // task for getting blocks
-    // if we need data that depends on other data that needs to be received first (EX block needs hash from the header)
-    receiver.for_each(move |data| {
-        let res = db.insert(&data);
-        match &data {
-            Data::Header(header) => {
-                tokio::spawn(
-                    rpc.block(header.hash(), sender.clone())
-                       .map_err(|e| println!("{:?}", e))
-                );
-            },
-            Data::Block(block) => {
-                println!("In block");
-                let header = &block.block.header;
-                let timestamp_key = b"Timestamp Now";
-                let storage_key = twox_128(timestamp_key);
-                tokio::spawn(
-                    rpc.storage(
-                        sender.clone(),
-                        StorageKey(storage_key.to_vec()),
-                        header.hash(),
-                        StorageKeyType::Timestamp(TimestampOp::Now)
-                    )
-                       .map_err(|e| println!("{:?}", e))
-                );
-            },
-            _ => {}
-        };
-        match res {
-            Err(e) => {
-                error!("Failed inserting all of {:?} into db", data);
-            },
-            Ok(v) => {
-                info!("Succesfully inserted {:?} into db", data);
-            }
-        };
-        future::ok(())
-    })
-}
-
-pub fn run<T: System + std::fmt::Debug + 'static>() -> Result<(), ArchiveError>{
-    let (sender, receiver) = mpsc::unbounded();
-    let mut rt = Runtime::new()?;
-    let rpc = Rpc::<T>::new(&mut rt, &url::Url::parse("ws://127.0.0.1:9944")?)?;
-    let db = Database::new()?;
-    rt.spawn(rpc.subscribe_new_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
-    // rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
-    // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
-    // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
-
-    tokio::run(handle_data(receiver, db, rpc, sender));
-    Ok(())
-}
 
 impl<T: System> From<RpcChannel> for Rpc<T> {
     fn from(channel: RpcChannel) -> Self {
@@ -123,7 +61,7 @@ impl<T> Rpc<T> where T: System + 'static {
     }
 
     /// send all new headers back to main thread
-    pub fn subscribe_new_heads(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
+    pub(crate) fn subscribe_new_heads(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
     {
         self.chain.subscribe_new_heads()
             .map_err(|e| ArchiveError::from(e))
@@ -137,7 +75,7 @@ impl<T> Rpc<T> where T: System + 'static {
     }
 
     /// send all finalized headers back to main thread
-    pub fn subscribe_finalized_blocks(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
+    pub(crate) fn subscribe_finalized_blocks(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
     {
         self.chain.subscribe_finalized_heads()
             .map_err(|e| ArchiveError::from(e))
@@ -166,7 +104,7 @@ impl<T> Rpc<T> where T: System + 'static {
      */
 
     /// Get a storage item
-    fn storage(&self, sender: mpsc::UnboundedSender<Data<T>>, key: StorageKey, hash: T::Hash, from: StorageKeyType )
+    pub(crate) fn storage(&self, sender: mpsc::UnboundedSender<Data<T>>, key: StorageKey, hash: T::Hash, from: StorageKeyType )
                -> impl Future<Item = (), Error = ArchiveError>
     {
         self.state
@@ -185,7 +123,7 @@ impl<T> Rpc<T> where T: System + 'static {
     }
 
     /// Get all storage keys
-    fn storage_keys(&self, sender: mpsc::UnboundedSender<Data<T>>)
+    pub(crate) fn storage_keys(&self, sender: mpsc::UnboundedSender<Data<T>>)
                     -> impl Future<Item = (), Error = ArchiveError>
     {
         self.state
@@ -200,7 +138,7 @@ impl<T> Rpc<T> where T: System + 'static {
     }
 
     /// Fetch a block by hash from Substrate RPC
-    fn block(&self, hash: T::Hash, sender: mpsc::UnboundedSender<Data<T>>)
+    pub(crate) fn block(&self, hash: T::Hash, sender: mpsc::UnboundedSender<Data<T>>)
              -> impl Future<Item = (), Error = ArchiveError>
     {
         self.chain

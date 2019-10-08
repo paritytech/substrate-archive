@@ -18,9 +18,10 @@
 mod rpc;
 mod types;
 mod error;
+mod archive;
 mod database;
 mod srml_ext;
-pub use rpc::run;
+pub use archive::Archive;
 
 pub use types::{System, Module, ExtractCall};
 pub use srml_ext::{SrmlExt, NotHandled};
