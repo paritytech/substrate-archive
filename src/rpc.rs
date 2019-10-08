@@ -18,7 +18,6 @@ use log::*;
 use futures::{Future, Stream, sync::mpsc, future};
 use tokio::runtime::Runtime;
 use jsonrpc_core_client::{RpcChannel, transports::ws};
-use runtime_primitives::traits::Header;
 use substrate_primitives::{
     storage::StorageKey
 };
@@ -121,7 +120,7 @@ impl<T> Rpc<T> where T: System + 'static {
                 }
             })
     }
-
+/*
     /// Get all storage keys
     pub(crate) fn storage_keys(&self, sender: mpsc::UnboundedSender<Data<T>>)
                     -> impl Future<Item = (), Error = ArchiveError>
@@ -136,6 +135,7 @@ impl<T> Rpc<T> where T: System + 'static {
                 future::ok(())
             })
     }
+     */
 
     /// Fetch a block by hash from Substrate RPC
     pub(crate) fn block(&self, hash: T::Hash, sender: mpsc::UnboundedSender<Data<T>>)
@@ -156,10 +156,12 @@ impl<T> Rpc<T> where T: System + 'static {
             })
     }
 
+    /// unsubscribe from finalized heads
     fn unsubscribe_finalized_heads() {
         unimplemented!();
     }
 
+    /// unsubscribe from new heads
     fn unsubscribe_new_heads() {
         unimplemented!();
     }

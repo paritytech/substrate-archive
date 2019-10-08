@@ -17,14 +17,14 @@
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
 use failure::Error;
-use substrate_archive::{ System, Module, ExtractCall, SrmlExt, NotHandled};
+use substrate_archive::{ Archive, System, Module, ExtractCall, SrmlExt, NotHandled};
 use polkadot_runtime::{Runtime as RuntimeT, Call};
 use codec::{Encode, Decode, Input, Error as CodecError};
 
 
 fn main() -> Result<(), Error> {
     env_logger::init();
-    substrate_archive::run::<Runtime>().map_err(Into::into)
+    Archive::<Runtime>::run().map_err(Into::into)
 }
 
 // Passthrough traits (Boilerplate)

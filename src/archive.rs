@@ -22,6 +22,7 @@ use substrate_primitives::{
     storage::StorageKey,
     twox_128
 };
+
 use std::marker::PhantomData;
 
 use crate::{
@@ -52,6 +53,20 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
         Ok(())
     }
 
+    // use tokio_threadpool to asyncronize diesel queries
+    //https://github.com/gotham-rs/gotham/issues/309
+    //https://docs.rs/tokio-threadpool/0.1.8/tokio_threadpool/fn.blocking.html
+    // put PgConnection in a mutex
+    // this will allow us to send off multiple requests to insert into the database
+    // in an asyncronous fashion
+    // this becomes especially important when inserting batch requests for historical blocks that
+    // are not yet in the database
+    // without blocking our RPC from accepting new_heads therefore keeping up with the blocktime of
+    // substrate/polkadot
+    fn verify(db: Database, rpc: Rpc<T>) -> impl Future<Item = (), Error = ()> {
+        unimplemented!();
+    }
+
     fn handle_data(receiver: UnboundedReceiver<Data<T>>,
                     db: Database,
                     rpc: Rpc<T>,
@@ -70,7 +85,6 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
                     );
                 },
                 Data::Block(block) => {
-                    println!("In block");
                     let header = &block.block.header;
                     let timestamp_key = b"Timestamp Now";
                     let storage_key = twox_128(timestamp_key);
@@ -88,10 +102,10 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
             };
             match res {
                 Err(e) => {
-                    error!("Failed inserting all of {:?} into db", data);
+                    error!("Failed inserting all of block {:?} ", e);
                 },
-                Ok(v) => {
-                    info!("Succesfully inserted {:?} into db", data);
+                Ok(_) => {
+                    info!("Succesfully inserted block into db");
                 }
             };
             future::ok(())
