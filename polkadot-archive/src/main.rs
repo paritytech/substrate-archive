@@ -17,7 +17,7 @@
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
 use failure::Error;
-use substrate_archive::{ System, Module, ExtractCall, srml::{FinalityCall, TimestampCall}, SrmlExt, NotHandled};
+use substrate_archive::{ System, Module, ExtractCall, SrmlExt, NotHandled};
 use polkadot_runtime::{Runtime as RuntimeT, Call};
 use codec::{Encode, Decode, Input, Error as CodecError};
 
