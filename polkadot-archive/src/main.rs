@@ -27,6 +27,8 @@ fn main() -> Result<(), Error> {
     Archive::<Runtime>::run().map_err(Into::into)
 }
 
+// need to define Encode/Decode for Call New Type
+
 // Passthrough traits (Boilerplate)
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CallWrapper { inner: Call }
@@ -45,6 +47,7 @@ impl Decode for CallWrapper {
     }
 }
 
+// define all calls/inherents that you want tracked by the archive node
 impl ExtractCall for CallWrapper {
     fn extract_call(&self) -> (Module, &dyn SrmlExt) {
         match &self.inner {

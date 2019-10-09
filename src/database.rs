@@ -18,6 +18,7 @@
 
 pub mod models;
 pub mod schema;
+pub mod db_middleware;
 
 use log::*;
 use failure::Error;
@@ -26,15 +27,22 @@ use diesel::{prelude::*, pg::PgConnection};
 use codec::{Encode, Decode};
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
-use std::env;
-use std::convert::TryFrom;
 use chrono::offset::{Utc, TimeZone};
 
-use crate::error::Error as ArchiveError;
-use crate::types::{Data, System, BasicExtrinsic, ExtractCall};
-use self::models::{InsertBlock, InsertInherent, Inherents, Blocks};
-use self::schema::{blocks, inherents};
+use std::{
+    env,
+    convert::TryFrom,
+    sync::{Arc, Mutex}
+};
 
+use crate::{
+    error::Error as ArchiveError,
+    types::{Data, System, BasicExtrinsic, ExtractCall},
+    database::{
+        models::{InsertBlock, InsertInherent, Inherents, Blocks},
+        schema::{blocks, inherents}
+    },
+};
 
 /// Database object containing a postgreSQL connection and a runtime for asynchronous updating
 pub struct Database {
