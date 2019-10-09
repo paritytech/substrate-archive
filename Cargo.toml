@@ -24,7 +24,7 @@ dotenv = "0.14.1"
 url = "1.7"
 serde = "1.0.101"
 
-diesel = { version = "1.4", features = ["postgres", "chrono", "numeric"] }
+diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 jsonrpc-core-client = { version = "13.0", features = ["ws"] }
 
@@ -39,3 +39,5 @@ node-runtime = { git = "https://github.com/paritytech/substrate", package="node-
 srml-timestamp = { git = "https://github.com/paritytech/substrate/", package = "srml-timestamp", branch = "polkadot-master" }
 srml-finality-tracker = { git = "https://github.com/paritytech/substrate", package = "srml-finality-tracker", branch = "polkadot-master" }
 srml-sudo = { git = "https://github.com/paritytech/substrate", package = "srml-sudo", branch = "polkadot-master" }
+r2d2 = "0.8.5"
+tokio-threadpool = "0.1.16"

@@ -54,8 +54,8 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
     }
 
     // use tokio_threadpool to asyncronize diesel queries
-    //https://github.com/gotham-rs/gotham/issues/309
-    //https://docs.rs/tokio-threadpool/0.1.8/tokio_threadpool/fn.blocking.html
+    // https://github.com/gotham-rs/gotham/issues/309
+    // https://docs.rs/tokio-threadpool/0.1.8/tokio_threadpool/fn.blocking.html
     // put PgConnection in a mutex
     // this will allow us to send off multiple requests to insert into the database
     // in an asyncronous fashion
@@ -63,7 +63,7 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
     // are not yet in the database
     // without blocking our RPC from accepting new_heads therefore keeping up with the blocktime of
     // substrate/polkadot
-    fn verify(db: Database, rpc: Rpc<T>) -> impl Future<Item = (), Error = ()> {
+    fn verify(db: Database, rpc: Rpc<T>) -> () /* impl Future<Item = (), Error = ()> */ {
         unimplemented!();
     }
 

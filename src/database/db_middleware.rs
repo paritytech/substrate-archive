@@ -1,0 +1,139 @@
+/*
+ * Copyright (c) 2017-2019 Parity Technologies (UK) Ltd.
+ * This file is part of substrate-archive
+ *
+ *  This file is free software: you may copy, redistribute and/or modify it
+ *  under the terms of the GNU General Public License as published by the
+ *  Free Software Foundation, either version 3 of the License, or (at your
+ *  option) any later version.
+ *
+ *  This file is distributed in the hope that it will be useful, but
+ *  WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * This file incorporates work covered by the following copyright and
+ * permission notice:
+ *
+ *     Copyright (c) 2017, MIT, The Gotham Project Developers. <https://github.com/gotham-rs/gotham>,
+ *     <https://github.com/gotham-rs/gotham/blob/master/middleware/diesel/src/repo.rs>
+ *
+ *     Permission to use, copy, modify, and/or distribute this software
+ *     for any purpose with or without fee is hereby granted, provided
+ *     that the above copyright notice and this permission notice appear
+ *     in all copies.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ *     WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ *     WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+ *     AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+ *     CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+ *     OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *     NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ *     CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+use futures::{
+    Async, Poll, try_ready,
+    future::{self, Future},
+};
+use std::iter::Iterator;
+use diesel::{Connection, r2d2::ConnectionManager};
+use r2d2::{CustomizeConnection, Pool, PooledConnection};
+use tokio_threadpool::blocking;
+
+use crate::error::Error as ArchiveError;
+
+
+struct DatabaseFuture<'a, T, F, R>
+where
+    T: Connection + 'static,
+    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+{
+    fun: Option<F>,
+    pool: &'a Pool<ConnectionManager<T>>
+}
+
+impl<'a, T, F, R> DatabaseFuture<'a, T, F, R>
+where
+    T: Connection + 'static,
+F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+{
+    fn new(fun: F, pool: &'a Pool<ConnectionManager<T>>) -> Self {
+        Self {
+            fun: Some(fun),
+            pool: pool
+        }
+    }
+}
+
+// https://stackoverflow.com/questions/56058494/when-is-it-safe-to-move-a-member-value-out-of-a-pinned-future
+impl<'a, T, F, R> Future for DatabaseFuture<'a, T, F, R>
+where
+    T: Connection + 'static,
+    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+    + Send
+    + std::marker::Unpin
+    + 'static
+{
+    type Item = R;
+    type Error = ArchiveError;
+
+    fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
+        let pool = self.pool
+                       .clone()
+                       .get()
+                       .expect("The only way to create a database future is to instantiate with a concrete FnOnce Closure; qed");
+        // need to take() to avoid shared-reference borrowing constraints
+        // this is safe because we do not meddle with self-referential references
+        let res = try_ready!(blocking( || (self.fun.take().unwrap())(pool) ));
+        match res {
+            Ok(v) => Ok(Async::Ready(v)),
+            Err(e) => Err(e)
+        }
+    }
+}
+
+pub struct AsyncDiesel<T: Connection + 'static> {
+    pool: Pool<ConnectionManager<T>>
+}
+
+impl<T> Clone for AsyncDiesel<T>
+where
+    T: Connection + 'static,
+{
+    fn clone(&self) -> AsyncDiesel<T> {
+        AsyncDiesel {
+            pool: self.pool.clone(),
+        }
+    }
+}
+
+// TODO: " 'static " should be removable once async/await is released nov 7
+impl<T> AsyncDiesel<T> where T: Connection + 'static {
+
+    pub fn new(db_url: &str) -> Result<Self, ArchiveError> {
+        Self::new_pool(db_url, r2d2::Builder::default())
+    }
+
+    pub fn new_pool(db_url: &str, builder: r2d2::Builder<ConnectionManager<T>>) -> Result<Self, ArchiveError> {
+        let manager = ConnectionManager::new(db_url);
+        let pool = builder.build(manager)?;
+        Ok(AsyncDiesel { pool })
+    }
+
+    pub fn run<F, R>(&self, fun: F) -> impl Future<Item = R, Error = ArchiveError> + '_
+    where
+        F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+        + Send
+        + std::marker::Unpin
+        + 'static,
+        R: 'static,
+        T: Send + 'static,
+    {
+        DatabaseFuture::new(fun, &self.pool)
+    }
+}

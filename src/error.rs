@@ -22,6 +22,8 @@ use std::io::Error as IoError;
 use url::ParseError;
 use diesel::result::{Error as DieselError, ConnectionError};
 use std::env::VarError as EnvironmentError;
+use tokio_threadpool::BlockingError;
+use r2d2::Error as R2d2Error;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -41,8 +43,24 @@ pub enum Error {
     Environment(#[fail(cause)] EnvironmentError),
     #[fail(display = "Codec: {}", _0)]
     Codec(#[fail(cause)] CodecError),
+    #[fail(display = "Db Pool {}", _0)]
+    DbPool(#[fail(cause)] R2d2Error),
+    #[fail(display = "ThreadPool {}", _0)]
+    ThreadPool(#[fail(cause)] BlockingError),
     #[fail(display = "Call type unhandled, not committing to database")]
     UnhandledCallType,
+}
+
+impl From<R2d2Error> for Error {
+    fn from(err: R2d2Error) -> Error {
+        Error::DbPool(err)
+    }
+}
+
+impl From<BlockingError> for Error {
+    fn from(err: BlockingError) -> Error {
+        Error::ThreadPool(err)
+    }
 }
 
 impl From<CodecError> for Error {
