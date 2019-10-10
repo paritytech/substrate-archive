@@ -75,7 +75,7 @@ where
     T: Connection + 'static,
     F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
     + Send
-    + std::marker::Unpin
+    // + std::marker::Unpin
     + 'static,
     E: From<BlockingError>
 {
@@ -98,6 +98,7 @@ where
 }
 
 /// Allows for creating asyncronous database requests
+#[derive(Debug)]
 pub struct AsyncDiesel<T: Connection + 'static> {
     pool: Pool<ConnectionManager<T>>
 }
@@ -134,7 +135,7 @@ impl<T> AsyncDiesel<T> where T: Connection + 'static {
     where
         F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
         + Send
-        + std::marker::Unpin
+        // + std::marker::Unpin this isn't critical until nov 7
         + 'static,
         R: 'static,
         T: Send + 'static,

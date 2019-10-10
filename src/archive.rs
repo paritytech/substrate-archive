@@ -79,32 +79,32 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
             match &data {
                 Data::Header(header) => {
                     tokio::spawn(
-                        rpc.block(header.hash(), sender.clone())
+                        rpc.block(header.inner().hash(), sender.clone())
                         .map_err(|e| warn!("{:?}", e))
                     );
                 },
                 Data::Block(block) => {
-                    let header = &block.block.header;
+                    let header = &block.inner().block.header;
                     let timestamp_key = b"Timestamp Now";
                     let storage_key = twox_128(timestamp_key);
                     tokio::spawn(
                         db.insert(&data)
                           .map_err(|e| warn!("{:?}", e))
-                            .and_then(|res| {
-                                // send off storage (timestamps, etc) for
-                                // this block hash to be inserted into the db
-                                rpc.storage(
-                                    sender.clone(),
-                                    StorageKey(storage_key.to_vec()),
-                                    header.hash(),
-                                    StorageKeyType::Timestamp(TimestampOp::Now)
-                                )
-                                   .map_err(|e| warn!("{:?}", e))
+                          .and_then(|res| {
+                              // send off storage (timestamps, etc) for
+                              // this block hash to be inserted into the db
+                              rpc.storage(
+                                  sender.clone(),
+                                  StorageKey(storage_key.to_vec()),
+                                  header.hash(),
+                                  StorageKeyType::Timestamp(TimestampOp::Now)
+                              )
+                                 .map_err(|e| warn!("{:?}", e))
                           })
                     );
                 },
                 _ => {
-                    tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)))
+                    tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)));
                 }
             };
 
