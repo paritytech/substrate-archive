@@ -22,6 +22,7 @@ pub mod db_middleware;
 
 use log::*;
 use failure::Error;
+use futures::future::{Future, join_all};
 use runtime_primitives::{traits::Block, generic::UncheckedExtrinsic};
 use diesel::{prelude::*, pg::PgConnection};
 use codec::{Encode, Decode};
@@ -44,9 +45,12 @@ use crate::{
     },
 };
 
-/// Database object containing a postgreSQL connection and a runtime for asynchronous updating
+use self::db_middleware::AsyncDiesel;
+
+/// Database object which communicates with Diesel in a (psuedo)asyncronous way
+/// via `AsyncDiesel`
 pub struct Database {
-    connection: PgConnection,
+    db: AsyncDiesel<PgConnection>,
 }
 
 impl Database {
@@ -55,60 +59,76 @@ impl Database {
     pub fn new() -> Result<Self, ArchiveError> {
         dotenv().ok();
         let database_url = env::var("DATABASE_URL")?;
-        let connection = PgConnection::establish(&database_url)?;
-
-        Ok(Self { connection })
+        let db = AsyncDiesel::new(&database_url)?;
+        Ok(Self { db })
     }
 
     // TODO: make async
-    pub fn insert<T>(&self, data: &Data<T>) -> Result<(), Error>
-    where T: System
+    pub fn insert<T>(&self, data: &Data<T>) -> impl Future<Item = (), Error = ArchiveError>
+    where
+        T: System
     {
         match &data {
             Data::Block(block) => {
                 let header = &block.block.header;
                 let extrinsics = block.block.extrinsics();
                 info!("HASH: {:X?}", header.hash().as_ref());
-                diesel::insert_into(blocks::table)
-                    .values( InsertBlock {
-                        parent_hash: header.parent_hash().as_ref(),
-                        hash: header.hash().as_ref(),
-                        block: &(*header.number()).into(),
-                        state_root: header.state_root().as_ref(),
-                        extrinsics_root: header.extrinsics_root().as_ref(),
-                        time: None
-                    })
-                    .get_result::<Blocks>(&self.connection)?;
-                for (idx, e) in extrinsics.iter().enumerate() {
-                    //TODO possibly redundant operation
-                    let encoded = e.encode();
-                    let decoded: BasicExtrinsic<T> = UncheckedExtrinsic::decode(&mut encoded.as_slice())?;
-                    let (module, call) = decoded.function.extract_call();
-                    let (fn_name, params) = call.function()?;
-                    diesel::insert_into(inherents::table)
-                        .values( InsertInherent {
+                self.db.run(move |conn| {
+                    diesel::insert_into(blocks::table)
+                        .values( InsertBlock {
+                            parent_hash: header.parent_hash().as_ref(),
                             hash: header.hash().as_ref(),
                             block: &(*header.number()).into(),
-                            module: &String::from(module),
-                            call: &fn_name,
-                            parameters: Some(params),
-                            success: &true,
-                            in_index: &(i32::try_from(idx)?)
-                        } )
-                        .get_result::<Inherents>(&self.connection)?;
-                }
+                            state_root: header.state_root().as_ref(),
+                            extrinsics_root: header.extrinsics_root().as_ref(),
+                            time: None
+                        })
+                        .execute(&conn)
+                        .map_err(|e| e.into())
+                }).and_then (|res| {
+                    let inherents = Vec::new();
+                    for (idx, e) in extrinsics.iter().enumerate() {
+                        //TODO possibly redundant operation
+                        let encoded = e.encode();
+                        let decoded: BasicExtrinsic<T> =
+                            UncheckedExtrinsic::decode(&mut encoded.as_slice()).expect("Tempt Expect -- Decode Ext Failed!");
+                        let (module, call) = decoded.function.extract_call();
+                        let (fn_name, params) = call.function().expect("Temp Expect -- Function in Trait Failed 96 database");
+                        inherents.push(
+                            InsertInherent {
+                                hash: header.hash().as_ref(),
+                                block: &(*header.number()).into(),
+                                module: &String::from(module),
+                                call: &fn_name,
+                                parameters: Some(params),
+                                success: &true, // TODO not always true
+                                in_index: &(i32::try_from(idx).expect("Temp Expect --- TryFrom failed 105 database"))
+                            }
+                        );
+                    }
+                    self.db.run(move |conn| {
+                        diesel::insert_into(inherents::table)
+                            .values(&inherents)
+                            .execute(&conn)
+                            .map_err(|e| e.into())
+                    })
+                })
             },
             Data::Storage(data, from, hash) => {
                 use self::schema::blocks::dsl::{blocks, time};
                 let unix_time: i64 = Decode::decode(&mut data.0.as_slice()).expect("Decoding failed");
                 let date_time = Utc.timestamp_millis(unix_time); // panics if time is incorrect
-                diesel::update(blocks.find(hash.as_ref()))
-                    .set(time.eq(Some(&date_time)))
-                    .get_result::<Blocks>(&self.connection)?; // TODO just get()?
+                self.db.run(move |conn| {
+                    diesel::update(blocks.find(hash.as_ref()))
+                        .set(time.eq(Some(&date_time)))
+                        .execute(&conn)
+                        .map_err(|e| e.into())
+                }).and_then(|res| {
+                    futures::future::ok(())
+                })
             }
             _ => {
             }
         }
-        Ok(())
     }
 }

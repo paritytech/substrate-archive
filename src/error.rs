@@ -47,6 +47,7 @@ pub enum Error {
     DbPool(#[fail(cause)] R2d2Error),
     #[fail(display = "ThreadPool {}", _0)]
     ThreadPool(#[fail(cause)] BlockingError),
+
     #[fail(display = "Call type unhandled, not committing to database")]
     UnhandledCallType,
 }

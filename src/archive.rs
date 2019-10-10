@@ -76,12 +76,11 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
         // task for getting blocks
         // if we need data that depends on other data that needs to be received first (EX block needs hash from the header)
         receiver.for_each(move |data| {
-            let res = db.insert(&data);
             match &data {
                 Data::Header(header) => {
                     tokio::spawn(
                         rpc.block(header.hash(), sender.clone())
-                        .map_err(|e| println!("{:?}", e))
+                        .map_err(|e| warn!("{:?}", e))
                     );
                 },
                 Data::Block(block) => {
@@ -89,26 +88,38 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
                     let timestamp_key = b"Timestamp Now";
                     let storage_key = twox_128(timestamp_key);
                     tokio::spawn(
-                        rpc.storage(
-                            sender.clone(),
-                            StorageKey(storage_key.to_vec()),
-                            header.hash(),
-                            StorageKeyType::Timestamp(TimestampOp::Now)
-                        )
-                        .map_err(|e| println!("{:?}", e))
+                        db.insert(&data)
+                          .map_err(|e| warn!("{:?}", e))
+                            .and_then(|res| {
+                                // send off storage (timestamps, etc) for
+                                // this block hash to be inserted into the db
+                                rpc.storage(
+                                    sender.clone(),
+                                    StorageKey(storage_key.to_vec()),
+                                    header.hash(),
+                                    StorageKeyType::Timestamp(TimestampOp::Now)
+                                )
+                                   .map_err(|e| warn!("{:?}", e))
+                          })
                     );
                 },
-                _ => {}
-            };
-            match res {
-                Err(e) => {
-                    error!("Failed inserting all of block {:?} ", e);
-                },
-                Ok(_) => {
-                    info!("Succesfully inserted block into db");
+                _ => {
+                    tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)))
                 }
             };
+
             future::ok(())
         })
     }
+}
+
+fn log_result(res: Result<(), ArchiveError>) -> () {
+    match res {
+        Err(e) => {
+            error!("Failed inserting all of block {:?} ", e);
+        },
+        Ok(_) => {
+            info!("Succesfully inserted block into db");
+        }
+    };
 }

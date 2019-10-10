@@ -40,27 +40,26 @@ use futures::{
     Async, Poll, try_ready,
     future::{self, Future},
 };
-use std::iter::Iterator;
 use diesel::{Connection, r2d2::ConnectionManager};
 use r2d2::{CustomizeConnection, Pool, PooledConnection};
-use tokio_threadpool::blocking;
+use tokio_threadpool::{blocking, BlockingError};
 
 use crate::error::Error as ArchiveError;
 
 
-struct DatabaseFuture<'a, T, F, R>
+struct DatabaseFuture<'a, T, F, R, E>
 where
     T: Connection + 'static,
-    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
 {
     fun: Option<F>,
     pool: &'a Pool<ConnectionManager<T>>
 }
 
-impl<'a, T, F, R> DatabaseFuture<'a, T, F, R>
+impl<'a, T, F, R, E> DatabaseFuture<'a, T, F, R, E>
 where
     T: Connection + 'static,
-F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
 {
     fn new(fun: F, pool: &'a Pool<ConnectionManager<T>>) -> Self {
         Self {
@@ -71,16 +70,17 @@ F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
 }
 
 // https://stackoverflow.com/questions/56058494/when-is-it-safe-to-move-a-member-value-out-of-a-pinned-future
-impl<'a, T, F, R> Future for DatabaseFuture<'a, T, F, R>
+impl<'a, T, F, R, E> Future for DatabaseFuture<'a, T, F, R, E>
 where
     T: Connection + 'static,
-    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
     + Send
     + std::marker::Unpin
-    + 'static
+    + 'static,
+    E: From<BlockingError>
 {
     type Item = R;
-    type Error = ArchiveError;
+    type Error = E;
 
     fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
         let pool = self.pool
@@ -97,6 +97,7 @@ where
     }
 }
 
+/// Allows for creating asyncronous database requests
 pub struct AsyncDiesel<T: Connection + 'static> {
     pool: Pool<ConnectionManager<T>>
 }
@@ -115,24 +116,29 @@ where
 // TODO: " 'static " should be removable once async/await is released nov 7
 impl<T> AsyncDiesel<T> where T: Connection + 'static {
 
+    /// Create a new instance of an asyncronous diesel
     pub fn new(db_url: &str) -> Result<Self, ArchiveError> {
         Self::new_pool(db_url, r2d2::Builder::default())
     }
 
+    /// create a new instance of asyncronous diesel, using custom ConnectionManager
     pub fn new_pool(db_url: &str, builder: r2d2::Builder<ConnectionManager<T>>) -> Result<Self, ArchiveError> {
         let manager = ConnectionManager::new(db_url);
         let pool = builder.build(manager)?;
         Ok(AsyncDiesel { pool })
     }
 
-    pub fn run<F, R>(&self, fun: F) -> impl Future<Item = R, Error = ArchiveError> + '_
+    /// Run a database operation asyncronously
+    /// The closure is supplied with a 'ConnectionManager instance' for connecting to the DB
+    pub fn run<F, R, E>(&self, fun: F) -> impl Future<Item = R, Error = E> + '_
     where
-        F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+        F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
         + Send
         + std::marker::Unpin
         + 'static,
         R: 'static,
         T: Send + 'static,
+        E: From<BlockingError> + 'static
     {
         DatabaseFuture::new(fun, &self.pool)
     }
