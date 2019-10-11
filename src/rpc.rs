@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use log::*;
-use futures::{Future, Stream, sync::mpsc, future};
+use futures::{Future, Stream, sync::mpsc};
 use tokio::runtime::Runtime;
 use jsonrpc_core_client::{RpcChannel, transports::ws};
 use substrate_primitives::{
@@ -30,7 +30,7 @@ use substrate_rpc_api::{
     state::StateClient,
 };
 
-use crate::types::{Data, System, SubstrateBlock, storage::StorageKeyType, Block, Header, Storage, Event};
+use crate::types::{Data, System, SubstrateBlock, storage::StorageKeyType, Block, Header, Storage};
 use crate::error::{Error as ArchiveError};
 
 

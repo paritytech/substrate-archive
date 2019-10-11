@@ -24,6 +24,7 @@ use substrate_primitives::{
 };
 
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use crate::{
     database::Database,
@@ -48,8 +49,8 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
         // rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
-
-        tokio::run(Self::handle_data(receiver, db, rpc, sender));
+        let rpc = Arc::new(rpc);
+        tokio::run(Self::handle_data(receiver, db, rpc.clone(), sender));
         Ok(())
     }
 
@@ -69,7 +70,7 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
 
     fn handle_data(receiver: UnboundedReceiver<Data<T>>,
                     db: Database,
-                    rpc: Rpc<T>,
+                    rpc: Arc<Rpc<T>>,
                     sender: UnboundedSender<Data<T>>,
     ) -> impl Future<Item = (), Error = ()> + 'static
     {
@@ -84,17 +85,19 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
                     );
                 },
                 Data::Block(block) => {
-                    let header = &block.inner().block.header;
+                    let header = block.inner().block.header.clone();
                     let timestamp_key = b"Timestamp Now";
                     let storage_key = twox_128(timestamp_key);
+                    let (sender, rpc) = (sender.clone(), rpc.clone());
+
                     tokio::spawn(
                         db.insert(&data)
                           .map_err(|e| warn!("{:?}", e))
-                          .and_then(|res| {
+                          .and_then(move |res| { // TODO do something with res
                               // send off storage (timestamps, etc) for
                               // this block hash to be inserted into the db
                               rpc.storage(
-                                  sender.clone(),
+                                  sender,
                                   StorageKey(storage_key.to_vec()),
                                   header.hash(),
                                   StorageKeyType::Timestamp(TimestampOp::Now)

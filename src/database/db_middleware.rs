@@ -37,31 +37,31 @@
  */
 
 use futures::{
-    Async, Poll, try_ready,
-    future::{self, Future},
+    Async, try_ready,
+    future::{Future},
 };
 use diesel::{Connection, r2d2::ConnectionManager};
-use r2d2::{CustomizeConnection, Pool, PooledConnection};
+use r2d2::{Pool, PooledConnection};
 use tokio_threadpool::{blocking, BlockingError};
 
 use crate::error::Error as ArchiveError;
 
 
-struct DatabaseFuture<'a, T, F, R, E>
+struct DatabaseFuture<T, F, R, E>
 where
     T: Connection + 'static,
     F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
 {
     fun: Option<F>,
-    pool: &'a Pool<ConnectionManager<T>>
+    pool: Pool<ConnectionManager<T>>
 }
 
-impl<'a, T, F, R, E> DatabaseFuture<'a, T, F, R, E>
+impl<T, F, R, E> DatabaseFuture<T, F, R, E>
 where
     T: Connection + 'static,
 F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
 {
-    fn new(fun: F, pool: &'a Pool<ConnectionManager<T>>) -> Self {
+    fn new(fun: F, pool: Pool<ConnectionManager<T>>) -> Self {
         Self {
             fun: Some(fun),
             pool: pool
@@ -70,26 +70,24 @@ F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
 }
 
 // https://stackoverflow.com/questions/56058494/when-is-it-safe-to-move-a-member-value-out-of-a-pinned-future
-impl<'a, T, F, R, E> Future for DatabaseFuture<'a, T, F, R, E>
+impl<T, F, R, E> Future for DatabaseFuture<T, F, R, E>
 where
     T: Connection + 'static,
     F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
     + Send
-    // + std::marker::Unpin
+    + std::marker::Unpin
     + 'static,
-    E: From<BlockingError>
+    E: From<BlockingError> + From<r2d2::Error>
 {
     type Item = R;
     type Error = E;
 
     fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
-        let pool = self.pool
-                       .clone()
-                       .get()
-                       .expect("The only way to create a database future is to instantiate with a concrete FnOnce Closure; qed");
+        let pool = self.pool.get()?;
+
         // need to take() to avoid shared-reference borrowing constraints
         // this is safe because we do not meddle with self-referential references
-        let res = try_ready!(blocking( || (self.fun.take().unwrap())(pool) ));
+        let res = try_ready!(blocking( || (self.fun.take().expect("Only way to create database future is to instantiate with a concrete Fn"))(pool) ));
         match res {
             Ok(v) => Ok(Async::Ready(v)),
             Err(e) => Err(e)
@@ -109,7 +107,7 @@ where
 {
     fn clone(&self) -> AsyncDiesel<T> {
         AsyncDiesel {
-            pool: self.pool.clone(),
+            pool: self.pool.clone(), // clones the underlying Arc<>
         }
     }
 }
@@ -131,16 +129,16 @@ impl<T> AsyncDiesel<T> where T: Connection + 'static {
 
     /// Run a database operation asyncronously
     /// The closure is supplied with a 'ConnectionManager instance' for connecting to the DB
-    pub fn run<F, R, E>(&self, fun: F) -> impl Future<Item = R, Error = E> + '_
+    pub fn run<F, R, E>(&self, fun: F) -> impl Future<Item = R, Error = E>
     where
         F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
         + Send
-        // + std::marker::Unpin this isn't critical until nov 7
+        + std::marker::Unpin // not critical until Nov 7
         + 'static,
         R: 'static,
         T: Send + 'static,
-        E: From<BlockingError> + 'static
+        E: From<BlockingError> + From<r2d2::Error> + 'static
     {
-        DatabaseFuture::new(fun, &self.pool)
+        DatabaseFuture::new(fun, self.pool.clone())
     }
 }

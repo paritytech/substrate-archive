@@ -21,7 +21,6 @@ use serde::de::DeserializeOwned;
 use codec::{Encode, Decode};
 use substrate_primitives::storage::StorageData;
 use runtime_support::Parameter;
-use diesel::PgConnection;
 use runtime_primitives::{
     OpaqueExtrinsic,
     AnySignature,
@@ -45,7 +44,6 @@ use runtime_primitives::{
         StaticLookup,
     },
 };
-use std::convert::TryFrom;
 
 use crate::srml_ext::SrmlExt;
 use self::storage::StorageKeyType;
@@ -84,8 +82,8 @@ impl<T: System> Header<T> {
         }
     }
 
-    pub fn inner(&self) -> T::Header {
-        self.inner
+    pub fn inner(&self) -> &T::Header {
+        &self.inner
     }
 }
 
@@ -102,8 +100,8 @@ impl<T: System> Block<T> {
         }
     }
 
-    pub fn inner(&self) -> SubstrateBlock<T> {
-        self.inner
+    pub fn inner(&self) -> &SubstrateBlock<T> {
+        &self.inner
     }
 }
 
@@ -120,14 +118,14 @@ impl<T: System> Storage<T> {
         Self { data, key_type, hash }
     }
 
-    pub fn data(&self) -> StorageData {
-        self.data
+    pub fn data(&self) -> &StorageData {
+        &self.data
     }
-    pub fn key_type(&self) -> StorageKeyType {
-        self.key_type
+    pub fn key_type(&self) -> &StorageKeyType {
+        &self.key_type
     }
-    pub fn hash(&self) -> T::Hash {
-        self.hash
+    pub fn hash(&self) -> &T::Hash {
+        &self.hash
     }
 }
 
@@ -235,7 +233,8 @@ pub trait System {
         + CheckEqual
         + std::hash::Hash
         + AsRef<[u8]>
-        + AsMut<[u8]>;
+        + AsMut<[u8]>
+        + std::marker::Unpin;
 
     /// The hashing system (algorithm) being used in the runtime (e.g. Blake2).
     type Hashing: Hash<Output = Self::Hash>;
@@ -260,7 +259,9 @@ pub trait System {
     /// The block header.
     type Header: Parameter
         + HeaderTrait<Number = Self::BlockNumber, Hash = Self::Hash>
-        + DeserializeOwned;
+        + DeserializeOwned
+        + Clone
+        + Unpin;
 
     /// The aggregated event type of the runtime.
     type Event: Parameter + Member;
