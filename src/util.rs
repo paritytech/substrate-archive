@@ -14,20 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-#[macro_use] extern crate diesel;
-mod rpc;
-mod types;
-mod error;
-mod archive;
-mod database;
-mod util;
-mod srml_ext;
-pub use archive::Archive;
 
-pub use types::{System, Module, ExtractCall};
-pub use srml_ext::{SrmlExt, NotHandled};
+//! Functions providing general utility and may be used all over the place
 
-pub mod srml {
-    pub use srml_timestamp::Call as TimestampCall;
-    pub use srml_finality_tracker::Call as FinalityCall;
-}
+use futures::{Future, future};
+use crate::error::Error as ArchiveError;
