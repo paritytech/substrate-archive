@@ -55,7 +55,7 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
     }
 
     /// Verify that all blocks are in the database
-    fn verify(db: Database, rpc: Rpc<T>) -> () /* impl Future<Item = (), Error = ()> */ {
+    fn verify(db: Database, rpc: Rpc<T>) -> () { //impl Future<Item = (), Error = ()> {
         unimplemented!();
     }
 

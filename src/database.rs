@@ -188,7 +188,6 @@ where
             })
         })
         .collect::<Result<Vec<InsertInherentOwned>, ArchiveError>>()?;
-    println!("{:?}", values);
 
     let fut = db.run(move |conn| {
         info!("Inserting Extrinsic");
