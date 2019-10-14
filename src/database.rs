@@ -21,32 +21,55 @@ pub mod schema;
 pub mod db_middleware;
 
 use log::*;
-use failure::Error;
-use runtime_primitives::{traits::Block, generic::UncheckedExtrinsic};
+use futures::future::{self, Future};
+use runtime_primitives::{traits::Block as BlockTrait, OpaqueExtrinsic, generic::UncheckedExtrinsic};
 use diesel::{prelude::*, pg::PgConnection};
 use codec::{Encode, Decode};
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 use chrono::offset::{Utc, TimeZone};
-
 use std::{
     env,
-    convert::TryFrom,
-    sync::{Arc, Mutex}
+    convert::TryFrom
 };
-
 use crate::{
     error::Error as ArchiveError,
-    types::{Data, System, BasicExtrinsic, ExtractCall},
+    types::{Data, System, Block, Storage, BasicExtrinsic, ExtractCall},
     database::{
-        models::{InsertBlock, InsertInherent, Inherents, Blocks},
+        models::{InsertBlock, InsertInherentOwned},
         schema::{blocks, inherents}
     },
 };
+use self::db_middleware::AsyncDiesel;
 
-/// Database object containing a postgreSQL connection and a runtime for asynchronous updating
+pub type DbFuture = Box<dyn Future<Item = (), Error = ArchiveError> + Send >;
+
+pub trait Insert {
+    type Error;
+    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, Self::Error>;
+}
+
+impl<T> Insert for Data<T> where T: System + 'static {
+    type Error = ArchiveError;
+    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+        match self {
+            Data::Block(block) => {
+                block.insert(db)
+            },
+            Data::Storage(storage) => {
+                storage.insert(db)
+            },
+            _=> {
+                Err(ArchiveError::UnhandledDataType)
+            }
+        }
+    }
+}
+
+/// Database object which communicates with Diesel in a (psuedo)asyncronous way
+/// via `AsyncDiesel`
 pub struct Database {
-    connection: PgConnection,
+    db: AsyncDiesel<PgConnection>,
 }
 
 impl Database {
@@ -55,60 +78,124 @@ impl Database {
     pub fn new() -> Result<Self, ArchiveError> {
         dotenv().ok();
         let database_url = env::var("DATABASE_URL")?;
-        let connection = PgConnection::establish(&database_url)?;
-
-        Ok(Self { connection })
+        let db = AsyncDiesel::new(&database_url)?;
+        Ok(Self { db })
     }
 
-    // TODO: make async
-    pub fn insert<T>(&self, data: &Data<T>) -> Result<(), Error>
-    where T: System
+    pub fn insert<T>(&self, data: &Data<T>) -> DbFuture
+    where
+        T: System + 'static
     {
-        match &data {
-            Data::Block(block) => {
-                let header = &block.block.header;
-                let extrinsics = block.block.extrinsics();
-                info!("HASH: {:X?}", header.hash().as_ref());
-                diesel::insert_into(blocks::table)
-                    .values( InsertBlock {
-                        parent_hash: header.parent_hash().as_ref(),
-                        hash: header.hash().as_ref(),
-                        block: &(*header.number()).into(),
-                        state_root: header.state_root().as_ref(),
-                        extrinsics_root: header.extrinsics_root().as_ref(),
-                        time: None
-                    })
-                    .get_result::<Blocks>(&self.connection)?;
-                for (idx, e) in extrinsics.iter().enumerate() {
-                    //TODO possibly redundant operation
-                    let encoded = e.encode();
-                    let decoded: BasicExtrinsic<T> = UncheckedExtrinsic::decode(&mut encoded.as_slice())?;
-                    let (module, call) = decoded.function.extract_call();
-                    let (fn_name, params) = call.function()?;
-                    diesel::insert_into(inherents::table)
-                        .values( InsertInherent {
-                            hash: header.hash().as_ref(),
-                            block: &(*header.number()).into(),
-                            module: &String::from(module),
-                            call: &fn_name,
-                            parameters: Some(params),
-                            success: &true,
-                            in_index: &(i32::try_from(idx)?)
-                        } )
-                        .get_result::<Inherents>(&self.connection)?;
-                }
-            },
-            Data::Storage(data, from, hash) => {
-                use self::schema::blocks::dsl::{blocks, time};
-                let unix_time: i64 = Decode::decode(&mut data.0.as_slice()).expect("Decoding failed");
-                let date_time = Utc.timestamp_millis(unix_time); // panics if time is incorrect
-                diesel::update(blocks.find(hash.as_ref()))
-                    .set(time.eq(Some(&date_time)))
-                    .get_result::<Blocks>(&self.connection)?; // TODO just get()?
-            }
-            _ => {
-            }
+        match data.insert(self.db.clone()) {
+            Ok(v) => v,
+            Err(e) => Box::new(future::err(e)),
         }
-        Ok(())
     }
+}
+
+impl<T> Insert for Storage<T>
+where
+    T: System,
+{
+    type Error = ArchiveError;
+
+    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+        use self::schema::blocks::dsl::{blocks, time};
+        let (data, key_type, hash) = (self.data(), self.key_type(), self.hash().clone());
+        let unix_time: i64 = Decode::decode(&mut data.0.as_slice())?;
+        let date_time = Utc.timestamp_millis(unix_time); // panics if time is incorrect
+        let fut = db.run(move |conn| {
+            diesel::update(blocks.find(hash.as_ref()))
+                .set(time.eq(Some(&date_time)))
+                .execute(&conn)
+                .map_err(|e| e.into())
+        }).map(|_| ());
+        Ok(Box::new(fut))
+    }
+}
+
+impl<T> Insert for Block<T>
+where
+    T: System + 'static
+{
+    type Error = ArchiveError;
+
+    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+        let block = self.inner().block.clone();
+        info!("HASH: {:X?}", block.header.hash().as_ref());
+        let extrinsics_fut = insert_extrinsics::<T>(block.extrinsics(),
+                                                    &block.header,
+                                                    &db)?;
+        let fut = db.run(move |conn| {
+            info!("Inserting Block");
+            diesel::insert_into(blocks::table)
+                .values( InsertBlock {
+                    parent_hash: block.header.parent_hash().as_ref(),
+                    hash: block.header.hash().as_ref(),
+                    block: &(*block.header.number()).into(),
+                    state_root: block.header.state_root().as_ref(),
+                    extrinsics_root: block.header.extrinsics_root().as_ref(),
+                    time: None
+                })
+                .execute(&conn)
+                .map_err(|e| e.into())
+        }).and_then(move |res| {
+            extrinsics_fut
+        }).map(|_| ());
+        Ok(Box::new(fut))
+    }
+}
+
+fn insert_extrinsics<T>(
+    extrinsics: &[OpaqueExtrinsic],
+    header: &T::Header,
+    db: &AsyncDiesel<PgConnection>,
+) -> Result<DbFuture, ArchiveError>
+where
+    T: System + 'static
+{
+    let values: Vec<InsertInherentOwned> = extrinsics
+        .iter()
+        // enumerate is used here to preserve order/index of extrinsics
+        .enumerate()
+        .map(|(idx, x)| Ok(( idx, UncheckedExtrinsic::decode(&mut x.encode().as_slice())? )))
+        .collect::<Vec<Result<(usize, BasicExtrinsic<T>), ArchiveError>>>()
+        .into_iter()
+        // we don't want to skip over _all_ extrinsics if decoding one extrinsic does not work
+        .filter_map(|x: Result<(usize, BasicExtrinsic<T>), _>| {
+            match x {
+                Ok(v) => {
+                    Some((v.0, v.1))
+                },
+                Err(e) => {
+                    error!("in filter_map {:?}", e);
+                    None
+                }
+            }
+        })
+        .map(|(idx, decoded)| {
+            let (module, call) = decoded.function.extract_call();
+            let index: i32 = i32::try_from(idx)?;
+            let (fn_name, params) = call.function()?;
+            Ok(InsertInherentOwned {
+                hash: header.hash().as_ref().to_vec(),
+                block: (*header.number()).into(),
+                module: module.into(),
+                call: fn_name,
+                parameters: Some(params),
+                success: true, // TODO: Success is not always true
+                in_index: index
+            })
+        })
+        .collect::<Result<Vec<InsertInherentOwned>, ArchiveError>>()?;
+    println!("{:?}", values);
+
+    let fut = db.run(move |conn| {
+        info!("Inserting Extrinsic");
+        diesel::insert_into(inherents::table)
+            .values(&values)
+            .execute(&conn)
+            .map_err(|e| e.into())
+    }).map(|_| ());
+    Ok(Box::new(fut))
 }

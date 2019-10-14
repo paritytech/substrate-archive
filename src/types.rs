@@ -33,7 +33,7 @@ use runtime_primitives::{
         Bounded,
         CheckEqual,
         Hash,
-        Header,
+        Header as HeaderTrait,
         MaybeDisplay,
         MaybeSerializeDebug,
         MaybeSerializeDebugButNotDeserialize,
@@ -46,7 +46,6 @@ use runtime_primitives::{
 };
 
 use crate::srml_ext::SrmlExt;
-
 use self::storage::StorageKeyType;
 
 /// Format for describing accounts
@@ -54,19 +53,96 @@ pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
 /// Basic Extrinsic Type. Does not contain an ERA
 pub type BasicExtrinsic<T> = UncheckedExtrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra >;
 /// A block with OpaqueExtrinsic as extrinsic type
-pub type Block<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
+pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
 
 // pub type BlockNumber<T> = NumberOrHex<<T as System>::BlockNumber>;
 
 /// Sent from Substrate API to be committed into the Database
 #[derive(Debug, PartialEq, Eq)]
 pub enum Data<T: System> {
-    FinalizedHead(T::Header),
-    Header(T::Header),
-    Storage(StorageData, StorageKeyType, T::Hash),
+    Header(Header<T>),
+    FinalizedHead(Header<T>),
     // Hash(T::Hash),
     Block(Block<T>),
-    Event(StorageChangeSet<T::Hash>),
+    Storage(Storage<T>),
+    Event(Event<T>),
+}
+
+// new types to allow implementing of traits
+#[derive(Debug, PartialEq, Eq)]
+pub struct Header<T: System> {
+    inner: T::Header
+}
+
+impl<T: System> Header<T> {
+
+    pub fn new(header: T::Header) -> Self {
+        Self {
+            inner: header
+        }
+    }
+
+    pub fn inner(&self) -> &T::Header {
+        &self.inner
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Block<T: System>{
+    inner: SubstrateBlock<T>
+}
+
+impl<T: System> Block<T> {
+
+    pub fn new(block: SubstrateBlock<T>) -> Self {
+        Self {
+            inner: block
+        }
+    }
+
+    pub fn inner(&self) -> &SubstrateBlock<T> {
+        &self.inner
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Storage<T: System>{
+    data: StorageData,
+    key_type: StorageKeyType,
+    hash: T::Hash
+}
+
+impl<T: System> Storage<T> {
+
+    pub fn new(data: StorageData, key_type: StorageKeyType, hash: T::Hash) -> Self {
+        Self { data, key_type, hash }
+    }
+
+    pub fn data(&self) -> &StorageData {
+        &self.data
+    }
+    pub fn key_type(&self) -> &StorageKeyType {
+        &self.key_type
+    }
+    pub fn hash(&self) -> &T::Hash {
+        &self.hash
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Event<T: System> {
+    change_set: StorageChangeSet<T::Hash>
+}
+
+impl<T: System> Event<T> {
+
+    pub fn new(change_set: StorageChangeSet<T::Hash>) -> Self {
+        Self { change_set }
+    }
+
+    pub fn change_set(&self) -> &StorageChangeSet<T::Hash> {
+        &self.change_set
+    }
 }
 
 // TODO: Not sustainable to keep an up-to-date enum of all modules?
@@ -157,7 +233,8 @@ pub trait System {
         + CheckEqual
         + std::hash::Hash
         + AsRef<[u8]>
-        + AsMut<[u8]>;
+        + AsMut<[u8]>
+        + std::marker::Unpin;
 
     /// The hashing system (algorithm) being used in the runtime (e.g. Blake2).
     type Hashing: Hash<Output = Self::Hash>;
@@ -181,8 +258,10 @@ pub trait System {
 
     /// The block header.
     type Header: Parameter
-        + Header<Number = Self::BlockNumber, Hash = Self::Hash>
-        + DeserializeOwned;
+        + HeaderTrait<Number = Self::BlockNumber, Hash = Self::Hash>
+        + DeserializeOwned
+        + Clone
+        + Unpin;
 
     /// The aggregated event type of the runtime.
     type Event: Parameter + Member;

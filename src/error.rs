@@ -24,6 +24,7 @@ use diesel::result::{Error as DieselError, ConnectionError};
 use std::env::VarError as EnvironmentError;
 use tokio_threadpool::BlockingError;
 use r2d2::Error as R2d2Error;
+use std::num::TryFromIntError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -47,8 +48,20 @@ pub enum Error {
     DbPool(#[fail(cause)] R2d2Error),
     #[fail(display = "ThreadPool {}", _0)]
     ThreadPool(#[fail(cause)] BlockingError),
+    #[fail(display = "Int Conversion Error: {}", _0)]
+    IntConversion(#[fail(cause)] TryFromIntError),
+
     #[fail(display = "Call type unhandled, not committing to database")]
     UnhandledCallType,
+    // if trying to insert unsupported type into database
+    // (as of this writing, anything other than a block or storage type)
+    #[fail(display = "Unhandled Data type, not committing to database")]
+    UnhandledDataType
+}
+impl From<TryFromIntError> for Error {
+    fn from(err: TryFromIntError) -> Error {
+        Error::IntConversion(err)
+    }
 }
 
 impl From<R2d2Error> for Error {

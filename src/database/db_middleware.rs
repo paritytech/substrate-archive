@@ -37,32 +37,31 @@
  */
 
 use futures::{
-    Async, Poll, try_ready,
-    future::{self, Future},
+    Async, try_ready,
+    future::{Future},
 };
-use std::iter::Iterator;
 use diesel::{Connection, r2d2::ConnectionManager};
-use r2d2::{CustomizeConnection, Pool, PooledConnection};
-use tokio_threadpool::blocking;
+use r2d2::{Pool, PooledConnection};
+use tokio_threadpool::{blocking, BlockingError};
 
 use crate::error::Error as ArchiveError;
 
 
-struct DatabaseFuture<'a, T, F, R>
+struct DatabaseFuture<T, F, R, E>
 where
     T: Connection + 'static,
-    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
 {
     fun: Option<F>,
-    pool: &'a Pool<ConnectionManager<T>>
+    pool: Pool<ConnectionManager<T>>
 }
 
-impl<'a, T, F, R> DatabaseFuture<'a, T, F, R>
+impl<T, F, R, E> DatabaseFuture<T, F, R, E>
 where
     T: Connection + 'static,
-F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
 {
-    fn new(fun: F, pool: &'a Pool<ConnectionManager<T>>) -> Self {
+    fn new(fun: F, pool: Pool<ConnectionManager<T>>) -> Self {
         Self {
             fun: Some(fun),
             pool: pool
@@ -71,25 +70,24 @@ F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
 }
 
 // https://stackoverflow.com/questions/56058494/when-is-it-safe-to-move-a-member-value-out-of-a-pinned-future
-impl<'a, T, F, R> Future for DatabaseFuture<'a, T, F, R>
+impl<T, F, R, E> Future for DatabaseFuture<T, F, R, E>
 where
     T: Connection + 'static,
-    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
     + Send
     + std::marker::Unpin
-    + 'static
+    + 'static,
+    E: From<BlockingError> + From<r2d2::Error>
 {
     type Item = R;
-    type Error = ArchiveError;
+    type Error = E;
 
     fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
-        let pool = self.pool
-                       .clone()
-                       .get()
-                       .expect("The only way to create a database future is to instantiate with a concrete FnOnce Closure; qed");
+        let pool = self.pool.get()?;
+
         // need to take() to avoid shared-reference borrowing constraints
         // this is safe because we do not meddle with self-referential references
-        let res = try_ready!(blocking( || (self.fun.take().unwrap())(pool) ));
+        let res = try_ready!(blocking( || (self.fun.take().expect("Only way to create database future is to instantiate with a concrete Fn"))(pool) ));
         match res {
             Ok(v) => Ok(Async::Ready(v)),
             Err(e) => Err(e)
@@ -97,6 +95,8 @@ where
     }
 }
 
+/// Allows for creating asyncronous database requests
+#[derive(Debug)]
 pub struct AsyncDiesel<T: Connection + 'static> {
     pool: Pool<ConnectionManager<T>>
 }
@@ -107,7 +107,7 @@ where
 {
     fn clone(&self) -> AsyncDiesel<T> {
         AsyncDiesel {
-            pool: self.pool.clone(),
+            pool: self.pool.clone(), // clones the underlying Arc<>
         }
     }
 }
@@ -115,25 +115,30 @@ where
 // TODO: " 'static " should be removable once async/await is released nov 7
 impl<T> AsyncDiesel<T> where T: Connection + 'static {
 
+    /// Create a new instance of an asyncronous diesel
     pub fn new(db_url: &str) -> Result<Self, ArchiveError> {
         Self::new_pool(db_url, r2d2::Builder::default())
     }
 
+    /// create a new instance of asyncronous diesel, using custom ConnectionManager
     pub fn new_pool(db_url: &str, builder: r2d2::Builder<ConnectionManager<T>>) -> Result<Self, ArchiveError> {
         let manager = ConnectionManager::new(db_url);
         let pool = builder.build(manager)?;
         Ok(AsyncDiesel { pool })
     }
 
-    pub fn run<F, R>(&self, fun: F) -> impl Future<Item = R, Error = ArchiveError> + '_
+    /// Run a database operation asyncronously
+    /// The closure is supplied with a 'ConnectionManager instance' for connecting to the DB
+    pub fn run<F, R, E>(&self, fun: F) -> impl Future<Item = R, Error = E>
     where
-        F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, ArchiveError>
+        F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
         + Send
-        + std::marker::Unpin
+        + std::marker::Unpin // not critical until Nov 7
         + 'static,
         R: 'static,
         T: Send + 'static,
+        E: From<BlockingError> + From<r2d2::Error> + 'static
     {
-        DatabaseFuture::new(fun, &self.pool)
+        DatabaseFuture::new(fun, self.pool.clone())
     }
 }

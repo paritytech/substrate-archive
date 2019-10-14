@@ -56,6 +56,19 @@ pub struct InsertInherent<'a> {
     pub in_index: &'a i32,
 }
 
+// for batch inserts where collecting references may not always live long enough
+#[derive(Insertable, Debug)]
+#[table_name="inherents"]
+pub struct InsertInherentOwned {
+    pub hash: Vec<u8>,
+    pub block: i64,
+    pub module: String,
+    pub call: String,
+    pub parameters: Option<Vec<u8>>,
+    pub success: bool,
+    pub in_index: i32
+}
+
 #[derive(Insertable)]
 #[table_name="signed_extrinsics"]
 pub struct InsertTransaction<'a> {

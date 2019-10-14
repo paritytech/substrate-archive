@@ -24,6 +24,7 @@ use substrate_primitives::{
 };
 
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use crate::{
     database::Database,
@@ -48,64 +49,56 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
         // rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
-
-        tokio::run(Self::handle_data(receiver, db, rpc, sender));
+        let rpc = Arc::new(rpc);
+        tokio::run(Self::handle_data(receiver, db, rpc.clone(), sender));
         Ok(())
     }
 
-    // use tokio_threadpool to asyncronize diesel queries
-    // https://github.com/gotham-rs/gotham/issues/309
-    // https://docs.rs/tokio-threadpool/0.1.8/tokio_threadpool/fn.blocking.html
-    // put PgConnection in a mutex
-    // this will allow us to send off multiple requests to insert into the database
-    // in an asyncronous fashion
-    // this becomes especially important when inserting batch requests for historical blocks that
-    // are not yet in the database
-    // without blocking our RPC from accepting new_heads therefore keeping up with the blocktime of
-    // substrate/polkadot
+    /// Verify that all blocks are in the database
     fn verify(db: Database, rpc: Rpc<T>) -> () /* impl Future<Item = (), Error = ()> */ {
         unimplemented!();
     }
 
     fn handle_data(receiver: UnboundedReceiver<Data<T>>,
                     db: Database,
-                    rpc: Rpc<T>,
+                    rpc: Arc<Rpc<T>>,
                     sender: UnboundedSender<Data<T>>,
     ) -> impl Future<Item = (), Error = ()> + 'static
     {
         // task for getting blocks
         // if we need data that depends on other data that needs to be received first (EX block needs hash from the header)
         receiver.for_each(move |data| {
-            let res = db.insert(&data);
             match &data {
                 Data::Header(header) => {
                     tokio::spawn(
-                        rpc.block(header.hash(), sender.clone())
-                        .map_err(|e| println!("{:?}", e))
+                        rpc.block(header.inner().hash(), sender.clone())
+                        .map_err(|e| warn!("{:?}", e))
                     );
                 },
                 Data::Block(block) => {
-                    let header = &block.block.header;
+                    let header = block.inner().block.header.clone();
                     let timestamp_key = b"Timestamp Now";
                     let storage_key = twox_128(timestamp_key);
+                    let (sender, rpc) = (sender.clone(), rpc.clone());
+
                     tokio::spawn(
-                        rpc.storage(
-                            sender.clone(),
-                            StorageKey(storage_key.to_vec()),
-                            header.hash(),
-                            StorageKeyType::Timestamp(TimestampOp::Now)
-                        )
-                        .map_err(|e| println!("{:?}", e))
+                        db.insert(&data)
+                          .map_err(|e| warn!("{:?}", e))
+                          .and_then(move |res| { // TODO do something with res
+                              // send off storage (timestamps, etc) for
+                              // this block hash to be inserted into the db
+                              rpc.storage(
+                                  sender,
+                                  StorageKey(storage_key.to_vec()),
+                                  header.hash(),
+                                  StorageKeyType::Timestamp(TimestampOp::Now)
+                              )
+                                 .map_err(|e| warn!("{:?}", e))
+                          })
                     );
                 },
-                _ => {}
-            };
-            match res {
-                Err(e) => {
-                    error!("Failed inserting all of block {:?} ", e);
-                },
-                Ok(_) => {
-                    info!("Succesfully inserted block into db");
+                _ => {
+                    tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)));
                 }
             };
             future::ok(())
