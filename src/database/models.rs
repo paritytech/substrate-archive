@@ -57,7 +57,7 @@ pub struct InsertInherent<'a> {
 }
 
 // for batch inserts where collecting references may not always live long enough
-#[derive(Insertable)]
+#[derive(Insertable, Debug)]
 #[table_name="inherents"]
 pub struct InsertInherentOwned {
     pub hash: Vec<u8>,
