@@ -20,6 +20,7 @@ mod types;
 mod error;
 mod archive;
 mod database;
+mod sql;
 mod srml_ext;
 pub use archive::Archive;
 

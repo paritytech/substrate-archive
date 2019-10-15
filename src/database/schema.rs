@@ -14,9 +14,10 @@ table! {
 
 table! {
     blocks (hash) {
+        id -> Int4,
         parent_hash -> Bytea,
         hash -> Bytea,
-        block -> Int8,
+        block_num -> Int8,
         state_root -> Bytea,
         extrinsics_root -> Bytea,
         time -> Nullable<Timestamptz>,
@@ -27,7 +28,7 @@ table! {
     inherents (id) {
         id -> Int4,
         hash -> Bytea,
-        block -> Int8,
+        block_num -> Int8,
         module -> Varchar,
         call -> Varchar,
         parameters -> Nullable<Bytea>,
@@ -39,7 +40,7 @@ table! {
 table! {
     signed_extrinsics (transaction_hash) {
         transaction_hash -> Bytea,
-        block -> Int8,
+        block_num -> Int8,
         hash -> Bytea,
         from_addr -> Bytea,
         to_addr -> Nullable<Bytea>,

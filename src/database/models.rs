@@ -38,7 +38,7 @@ use super::schema::{blocks, inherents, signed_extrinsics, accounts};
 pub struct InsertBlock<'a> {
     pub parent_hash: &'a [u8],
     pub hash: &'a [u8],
-    pub block: &'a i64,
+    pub block_num: &'a i64,
     pub state_root: &'a [u8],
     pub extrinsics_root: &'a [u8],
     pub time: Option<&'a DateTime<Utc>>
@@ -48,7 +48,7 @@ pub struct InsertBlock<'a> {
 #[table_name="inherents"]
 pub struct InsertInherent<'a> {
     pub hash: &'a [u8],
-    pub block: &'a i64,
+    pub block_num: &'a i64,
     pub module: &'a str,
     pub call: &'a str,
     pub parameters: Option<Vec<u8>>,
@@ -61,7 +61,7 @@ pub struct InsertInherent<'a> {
 #[table_name="inherents"]
 pub struct InsertInherentOwned {
     pub hash: Vec<u8>,
-    pub block: i64,
+    pub block_num: i64,
     pub module: String,
     pub call: String,
     pub parameters: Option<Vec<u8>>,
@@ -73,7 +73,7 @@ pub struct InsertInherentOwned {
 #[table_name="signed_extrinsics"]
 pub struct InsertTransaction<'a> {
     transaction_hash: &'a [u8],
-    block: &'a i64,
+    block_num: &'a i64,
     hash: &'a [u8],
     from_addr: &'a [u8],
     to_addr: Option<&'a [u8]>,
@@ -106,9 +106,9 @@ pub struct Blocks {
     /// hash of the previous block
     pub parent_hash: H256,
     /// Hash of this block
-    pub hash: H256,
+    pub block_hash: H256,
     /// The block number
-    pub block: i64,
+    pub block_num: i64,
     /// root of the state trie
     pub state_root: H256,
     /// root of the extrinsics trie
@@ -143,7 +143,7 @@ pub struct SignedExtrinsics {
     /// Hash of the transaction, primary key
     transaction_hash: H256,
     /// the block this transaction was created in
-    block: i64,
+    block_num: i64,
     /// the account that originated this transaction
     from_addr: H256,
     /// the account that is receiving this transaction, if any

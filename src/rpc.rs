@@ -87,7 +87,7 @@ impl<T> Rpc<T> where T: System + 'static {
             })
     }
     /*
-    /// send all substrate events back to main thread
+    /// send all substrate events back to us
     pub fn subscribe_events(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
     {
         self.chain.subscribe_events()

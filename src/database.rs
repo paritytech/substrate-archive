@@ -132,7 +132,7 @@ where
                 .values( InsertBlock {
                     parent_hash: block.header.parent_hash().as_ref(),
                     hash: block.header.hash().as_ref(),
-                    block: &(*block.header.number()).into(),
+                    block_num: &(*block.header.number()).into(),
                     state_root: block.header.state_root().as_ref(),
                     extrinsics_root: block.header.extrinsics_root().as_ref(),
                     time: None
@@ -168,7 +168,7 @@ where
                     Some((v.0, v.1))
                 },
                 Err(e) => {
-                    error!("in filter_map {:?}", e);
+                    error!("{:?}", e);
                     None
                 }
             }
@@ -179,7 +179,7 @@ where
             let (fn_name, params) = call.function()?;
             Ok(InsertInherentOwned {
                 hash: header.hash().as_ref().to_vec(),
-                block: (*header.number()).into(),
+                block_num: (*header.number()).into(),
                 module: module.into(),
                 call: fn_name,
                 parameters: Some(params),
