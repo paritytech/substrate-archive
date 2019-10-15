@@ -18,10 +18,8 @@ use log::*;
 use futures::{Future, Stream, sync::mpsc};
 use tokio::runtime::Runtime;
 use jsonrpc_core_client::{RpcChannel, transports::ws};
-use substrate_primitives::{
-    storage::StorageKey
-};
-
+use substrate_primitives::storage::StorageKey;
+use substrate_rpc_primitives::number::NumberOrHex;
 use substrate_rpc_api::{
     author::AuthorClient,
     chain::{
@@ -156,6 +154,17 @@ impl<T> Rpc<T> where T: System + 'static {
                     info!("No block exists! (somehow)");
                     Ok(()) // TODO: error Out
                 }
+            })
+    }
+
+    pub(crate) fn hash(&self, number: NumberOrHex<T::BlockNumber>, sender: mpsc::UnboundedSender<Data<T>>)
+                       -> impl Future<Item = (), Error = ArchiveError> + '_
+    {
+        self.chain
+            .block_hash(Some(number))
+            .map_err(Into::into)
+            .and_then(move |hash| {
+                self.block(hash.expect("Should always exist"), sender)
             })
     }
 

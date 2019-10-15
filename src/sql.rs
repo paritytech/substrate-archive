@@ -18,7 +18,8 @@
 
 use diesel::{
     dsl::{min, max},
-    sql_types::{Integer, Array}
+    sql_types::{BigInt, Array},
+    QueryDsl, ExpressionMethods,
 };
 use futures::Future;
 
@@ -33,41 +34,44 @@ diesel::sql_function!{
     /// Generate a series of values, from start to stop with a step size of one
     /// https://www.postgresql.org/docs/9.1/functions-srf.html
     /// only supports the simplest variation (no control over step or interval)
-    fn generate_series(start: Integer, stop: Integer) -> Array<Integer>
+    fn generate_series(start: BigInt, stop: BigInt) -> Array<BigInt>
 }
 
-//
-//
-// SELECT id
-// FROM  (SELECT min(id) AS a, max(id) AS z FROM numbers) x, generate_series(a, z) id
-// LEFT   JOIN numbers n1 USING (id)
-// WHERE  n1.id IS NULL;
-//
-// this should work
-//
-// SELECT block
-// FROM (SELECT min(block) AS a, max(block) AS z FROM blocks) x, generate_series(a, z) blocks
-// LEFT JOIN hash n1 USING (blocks)
-// WHERE n1.hash IS NULL;
-//
-//
-/*
-pub(crate) fn get_missing_blocks<T>(db: &AsyncDiesel<T>)
-                                    -> impl Future<Item = Vec<u64>, Error = ArchiveError>
-where
-    T: System + diesel::Connection
-{
-    use crate::database::schema::blocks::dsl::{blocks, block, hash};
 
-    db.run(move |conn| {
-        let min_block = min(block);
-        let max_block = max(block);
-        generate_series(min_block, max_block)
-            .select(block)
-            .left_join(blocks.hash)
-            .filter(hash == None)
-            .load::<Vec<i64>>(&conn)
-            .expect("Error loading missing")
-    })
+const MISSING_BLOCKS: &'static str = "\
+SELECT
+  generate_series FROM GENERATE_SERIES(
+    0, (select max(block_num) from blocks)
+  )
+WHERE
+  NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
+";
+
+/*
+SELECT
+  generate_series FROM GENERATE_SERIES(
+    0, (select max(block_num) from blocks)
+  )
+WHERE
+  NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
+*/
+
+pub(crate) fn missing_blocks() -> diesel::query_builder::SqlQuery
+{
+    use crate::database::schema::blocks::dsl::{blocks, block_num, hash, id};
+    // use diesel::dsl::{exists, not};
+    diesel::sql_query(MISSING_BLOCKS)
+
+/*
+    let generate_series = generate_series(0, max(block_num));
+    blocks.filter(not(exists(
+        blocks.select(id).filter(block_num.eq(generate_series.select(block_num)))
+    )))
+*/
+}
+/*
+pub(crate) fn block_exists() -> {
+
+
 }
 */

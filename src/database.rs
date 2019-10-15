@@ -39,6 +39,7 @@ use crate::{
         models::{InsertBlock, InsertInherentOwned},
         schema::{blocks, inherents}
     },
+    sql
 };
 use self::db_middleware::AsyncDiesel;
 
@@ -90,6 +91,27 @@ impl Database {
             Ok(v) => v,
             Err(e) => Box::new(future::err(e)),
         }
+    }
+
+    pub fn query_missing_blocks(&self)
+                          -> impl Future<Item = Vec<u64>, Error = ArchiveError>
+    {
+        #[derive(QueryableByName, PartialEq, Debug)]
+        #[table_name = "blocks"]
+        pub struct Blocks {
+            #[column_name = "block_num"]
+            block_num: i64
+        };
+
+        self.db.run(move |conn| {
+            let blocks: Vec<Blocks> = sql::missing_blocks()
+                .load::<Blocks>(&conn)?;
+
+            Ok(blocks
+                .iter()
+                .map(|b| u64::try_from(b.block_num).expect("Block number should never be negative"))
+                .collect::<Vec<u64>>())
+        })
     }
 }
 

@@ -30,7 +30,7 @@ jsonrpc-core-client = { version = "13.0", features = ["ws"] }
 
 srml-system = { git = "https://github.com/paritytech/substrate/", package = "srml-system", branch="polkadot-master"}
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch = "polkadot-master" }
-substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives" }
+substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives", branch = "polkadot-master" }
 substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives", branch="polkadot-master" }
 runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives", branch="polkadot-master" }
 runtime-support = { git = "https://github.com/paritytech/substrate/", package = "srml-support", branch="polkadot-master"}
