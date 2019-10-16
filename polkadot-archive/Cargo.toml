@@ -10,6 +10,6 @@ edition = "2018"
 failure = "0.1"
 substrate-archive = { path = "../" }
 system = { git = "https://github.com/paritytech/substrate/", package = "srml-system", branch="polkadot-master" }
-polkadot-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime", rev="5002af9" }
+polkadot-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime", rev="318889f" }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 env_logger = "0.7.0"

@@ -69,9 +69,18 @@ pub(crate) fn missing_blocks() -> diesel::query_builder::SqlQuery
     )))
 */
 }
+
 /*
 pub(crate) fn block_exists() -> {
 
 
 }
-*/
+ */
+
+#[cfg(test)]
+mod tests {
+    //! Must be connected to a postgres database
+    use super::*;
+    use disel::test_transaction;
+
+}

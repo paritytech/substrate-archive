@@ -142,3 +142,13 @@ impl<T> AsyncDiesel<T> where T: Connection + 'static {
         DatabaseFuture::new(fun, self.pool.clone())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Must be conected to a database
+    use super::*;
+
+
+
+
+}

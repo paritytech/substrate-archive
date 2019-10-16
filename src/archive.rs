@@ -18,7 +18,11 @@
 //! Nowhere else is anything ever spawned
 
 use log::*;
-use futures::{Future, Stream, sync::mpsc::{self, UnboundedReceiver, UnboundedSender}, future};
+use futures::{
+    Future, Stream,
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    future::{self, join_all, loop_fn, Loop}
+};
 use tokio::runtime::Runtime;
 use runtime_primitives::traits::Header;
 use substrate_rpc_primitives::number::NumberOrHex;
@@ -40,18 +44,19 @@ use crate::{
     types::{System, Data, storage::{StorageKeyType, TimestampOp}}
 };
 
-// TODO: the " 'static" constraint will be possible to remove Nov 7, with the hopeful and long-anticipated release of async-await
-pub struct Archive<T: System + std::fmt::Debug + 'static> {
+// TODO: the " 'static" constraint will be possible to remove Nov 7,
+// with the hopeful and long-anticipated release of async-await
+pub struct Archive<T: System> {
     rpc: Arc<Rpc<T>>,
     db: Arc<Database>,
     runtime: Runtime
 }
 
-impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
+impl<T> Archive<T> where T: System {
 
     pub fn new() -> Result<Self, ArchiveError> {
-        let mut runtime = Runtime::new()?;
-        let rpc = Rpc::<T>::new(&mut runtime, &url::Url::parse("ws://127.0.0.1:9944")?)?;
+        let runtime = Runtime::new()?;
+        let rpc = Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?);
         let db = Database::new()?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
         Ok( Self { rpc, db, runtime })
@@ -63,39 +68,26 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
         // rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
-        // self.runtime.spawn(Self::verify(self.db.clone(), self.rpc.clone(), sender.clone()));
-        self.verify(sender.clone());
+        self.runtime.spawn(Self::verify(self.db.clone(), self.rpc.clone(), sender.clone()).map(|v| info!("updated {} mising blocks", v)));
         tokio::run(Self::handle_data(receiver, self.db.clone(), self.rpc.clone(), sender));
         Ok(())
     }
-
     // TODO return a float between 0 and 1 corresponding to percent of database that is up-to-date?
     /// Verification task that ensures all blocks are in the database
-    /// otherwise sleeps
-    fn verify(&mut self, sender: UnboundedSender<Data<T>>) -> Result<(), ArchiveError>
+    fn verify(db: Arc<Database>, rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>)
+              -> impl Future<Item = Verify, Error = ()> + 'static
     {
-        // TODO I don't think this is the best way to accomplish, maybe loop_fn is better
-        // let rpc = self.rpc.clone();
-        loop {
-            self.runtime.spawn({
-                // sleeps for a minute before checking again
-                self.db.clone()
-                    .query_missing_blocks()
-                    .and_then(move |blocks| {
-                        for block in blocks {
-                            // get block for every missing block
-                            tokio::spawn(
-                                self.rpc.hash(NumberOrHex::Hex(U256::from(block)), sender.clone())
-                                   .map_err(|e| error!("{:?}", e))
-                            );
-                        }
-                        future::ok(())
-                    })
-                    .map_err(|e| error!("{:?}", e))
-            });
-            thread::sleep(time::Duration::from_millis(60_000))
-        }
-        Ok(())
+        loop_fn(Verify::new(), move |t| {
+            t.verify(db.clone(), rpc.clone(), sender.clone())
+             .and_then(|(verify, done)| {
+                 info!("Updating {} missing blocks", verify);
+                 if done {
+                     Ok(Loop::Break(verify))
+                 } else {
+                     Ok(Loop::Continue(verify))
+                 }
+             })
+        })
     }
 
     fn handle_data(receiver: UnboundedReceiver<Data<T>>,
@@ -105,13 +97,14 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
     ) -> impl Future<Item = (), Error = ()> + 'static
     {
         // task for getting blocks
-        // if we need data that depends on other data that needs to be received first (EX block needs hash from the header)
+        // if we need data that depends on other data that needs to be received first
+        // (EX block needs hash from the header)
         receiver.for_each(move |data| {
             match &data {
                 Data::Header(header) => {
                     tokio::spawn(
                         rpc.block(header.inner().hash(), sender.clone())
-                        .map_err(|e| warn!("{:?}", e))
+                           .map_err(|e| warn!("{:?}", e))
                     );
                 },
                 Data::Block(block) => {
@@ -127,20 +120,63 @@ impl<T> Archive<T> where T: System + std::fmt::Debug + 'static {
                               // send off storage (timestamps, etc) for
                               // this block hash to be inserted into the db
                               rpc.storage(
-                                  sender,
-                                  StorageKey(storage_key.to_vec()),
-                                  header.hash(),
-                                  StorageKeyType::Timestamp(TimestampOp::Now)
-                              )
-                                 .map_err(|e| warn!("{:?}", e))
+                                   sender,
+                                   StorageKey(storage_key.to_vec()),
+                                   header.hash(),
+                                   StorageKeyType::Timestamp(TimestampOp::Now)
+                               ).map_err(|e| warn!("{:?}", e))
                           })
                     );
                 },
                 _ => {
                     tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)));
+
                 }
             };
             future::ok(())
         })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct Verify {
+    blocks_missing: usize
+}
+
+impl std::fmt::Display for Verify {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.blocks_missing)
+    }
+}
+
+impl Verify {
+    fn new() -> Self {
+        Self {
+            blocks_missing: 0,
+        }
+    }
+
+    fn verify<T>(self, db: Arc<Database>, rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>
+    ) -> impl Future<Item = (Self, bool), Error = ()> + 'static
+        where T: System + std::fmt::Debug + 'static
+    {
+        db.query_missing_blocks()
+          .and_then(move |blocks| {
+              let length = blocks.len();
+              let mut futures = Vec::new();
+              for block in blocks {
+                  futures.push(
+                      rpc.block_from_number(NumberOrHex::Hex(U256::from(block)), sender.clone())
+                         .map_err(|e| error!("{:?}", e))
+                  );
+              }
+              // sort of batch request -- happens in one task but many futures
+              tokio::spawn(join_all(futures).and_then(|_| future::ok(()) ));
+              // sleep for 30s
+              thread::sleep(time::Duration::from_millis(30_000));
+              // done is false because we never want this loop fn to exit
+              future::ok((Self { blocks_missing: length }, false))
+          })
+          .map_err(|e| error!("{:?}", e))
     }
 }

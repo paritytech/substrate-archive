@@ -24,7 +24,8 @@ use codec::{Encode, Decode, Input, Error as CodecError};
 
 fn main() -> Result<(), Error> {
     env_logger::init();
-    Archive::<Runtime>::run().map_err(Into::into)
+    Archive::<Runtime>::new()?.run()?;
+    Ok(())
 }
 
 // need to define Encode/Decode for Call New Type

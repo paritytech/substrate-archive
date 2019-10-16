@@ -188,7 +188,7 @@ pub trait ExtractCall {
 // Issue is with getting the block number from possible unsigned values that Postgres does not support
 // but using Trait is better
 /// The subset of the `srml_system::Trait` that a client must implement.
-pub trait System {
+pub trait System: Send + Sync + 'static + std::fmt::Debug {
 
     /// The Call type
     /// Should implement `ExtractCall` to put call data in a more database-friendly format

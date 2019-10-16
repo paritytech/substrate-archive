@@ -149,7 +149,7 @@ where
                                                     &block.header,
                                                     &db)?;
         let fut = db.run(move |conn| {
-            info!("Inserting Block");
+            trace!("Inserting Block: {:?}", block.clone());
             diesel::insert_into(blocks::table)
                 .values( InsertBlock {
                     parent_hash: block.header.parent_hash().as_ref(),
@@ -212,11 +212,22 @@ where
         .collect::<Result<Vec<InsertInherentOwned>, ArchiveError>>()?;
 
     let fut = db.run(move |conn| {
-        info!("Inserting Extrinsic");
+        trace!("Inserting Extrinsics: {:?}", values);
         diesel::insert_into(inherents::table)
             .values(&values)
             .execute(&conn)
             .map_err(|e| e.into())
     }).map(|_| ());
     Ok(Box::new(fut))
+}
+
+
+#[cfg(test)]
+mod tests {
+    //! Must be connected to a local database
+    use super::*;
+
+
+
+
 }
