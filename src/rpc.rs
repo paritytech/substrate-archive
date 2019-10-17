@@ -68,6 +68,7 @@ impl<T> Rpc<T> where T: System {
                       })
             })
     }
+
     /// send all finalized headers back to main thread
     pub(crate) fn subscribe_finalized_blocks(&self, sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
@@ -84,6 +85,7 @@ impl<T> Rpc<T> where T: System {
                     })
             })
     }
+
     /*
     /// send all substrate events back to us
     pub fn subscribe_events(&self, sender: UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>

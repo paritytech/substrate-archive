@@ -59,7 +59,6 @@ impl ExtractCall for CallWrapper {
                 (Module::FinalityTracker, call)
             },
             _ => {
-                println!("Unsupported Module");
                 (Module::NotHandled, &NotHandled)
             }
         }
