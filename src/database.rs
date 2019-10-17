@@ -23,7 +23,7 @@ pub mod db_middleware;
 use log::*;
 use futures::future::{self, Future};
 use runtime_primitives::{traits::Block as BlockTrait, OpaqueExtrinsic, generic::UncheckedExtrinsic};
-use diesel::{prelude::*, pg::PgConnection};
+use diesel::{prelude::*, pg::PgConnection, sql_types::BigInt};
 use codec::{Encode, Decode};
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
@@ -97,20 +97,19 @@ impl Database {
                           -> impl Future<Item = Vec<u64>, Error = ArchiveError>
     {
         #[derive(QueryableByName, PartialEq, Debug)]
-        #[table_name = "blocks"]
         pub struct Blocks {
-            #[column_name = "block_num"]
+            #[column_name = "generate_series"]
+            #[sql_type = "BigInt"]
             block_num: i64
         };
 
         self.db.run(move |conn| {
             let blocks: Vec<Blocks> = sql::missing_blocks()
-                .load::<Blocks>(&conn)?;
-
+                .load(&conn)?;
             Ok(blocks
                 .iter()
                 .map(|b| u64::try_from(b.block_num).expect("Block number should never be negative"))
-                .collect::<Vec<u64>>())
+               .collect::<Vec<u64>>())
         })
     }
 }

@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use log::*;
-use futures::{Future, Stream, sync::mpsc::UnboundedSender, future};
+use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::{self, join_all}};
 use tokio::runtime::Runtime;
 use jsonrpc_core_client::{RpcChannel, transports::ws};
 use substrate_primitives::storage::StorageKey;
@@ -29,6 +29,7 @@ use substrate_rpc_api::{
 };
 
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use crate::types::{Data, System, SubstrateBlock, storage::StorageKeyType, Block, Header, Storage};
 use crate::error::{Error as ArchiveError};
@@ -155,6 +156,39 @@ impl<T> Rpc<T> where T: System {
                                     Self::send_block(block, sender)
                                 })
                       })
+            })
+    }
+
+    pub(crate) fn batch_block_from_number(&self,
+                                          numbers: Vec<NumberOrHex<T::BlockNumber>>,
+                                          handle: tokio::runtime::TaskExecutor,
+                                          sender: UnboundedSender<Data<T>>
+    ) -> impl Future<Item = (), Error = ArchiveError>
+    {
+        SubstrateRpc::connect(&self.url)
+            .and_then(move |client: SubstrateRpc<T>| {
+                let client = Arc::new(client);
+
+                let mut futures = Vec::new();
+                for number in numbers {
+                    let client = client.clone();
+                    let sender = sender.clone();
+                    futures.push(
+                        client.hash(number)
+                            .and_then(move |hash| {
+                                client.block(hash.expect("should always exist"))
+                                        .and_then(move |block| {
+                                            Self::send_block(block, sender.clone())
+                                        })
+                            })
+                    );
+                }
+                handle.spawn(
+                    join_all(futures)
+                        .map_err(|e| error!("{:?}", e))
+                        .map(|_| ())
+                    );
+                future::ok(())
             })
     }
 

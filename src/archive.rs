@@ -23,7 +23,7 @@ use futures::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     future::{self, join_all, loop_fn, Loop}
 };
-use tokio::runtime::Runtime;
+use tokio::runtime::{Runtime, TaskExecutor};
 use runtime_primitives::traits::Header;
 use substrate_rpc_primitives::number::NumberOrHex;
 use substrate_primitives::{
@@ -68,17 +68,26 @@ impl<T> Archive<T> where T: System {
         // rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
-        self.runtime.spawn(Self::verify(self.db.clone(), self.rpc.clone(), sender.clone()).map(|v| info!("updated {} mising blocks", v)));
+        let handle = self.runtime.executor();
+        self.runtime.spawn(
+            Self::verify(self.db.clone(), self.rpc.clone(), sender.clone(), handle)
+                .map(|v| info!("updated {} mising blocks", v))
+        );
         tokio::run(Self::handle_data(receiver, self.db.clone(), self.rpc.clone(), sender));
         Ok(())
     }
     // TODO return a float between 0 and 1 corresponding to percent of database that is up-to-date?
     /// Verification task that ensures all blocks are in the database
-    fn verify(db: Arc<Database>, rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>)
+    fn verify(db: Arc<Database>,
+              rpc: Arc<Rpc<T>>,
+              sender: UnboundedSender<Data<T>>,
+              handle: TaskExecutor
+
+    )
               -> impl Future<Item = Verify, Error = ()> + 'static
     {
         loop_fn(Verify::new(), move |t| {
-            t.verify(db.clone(), rpc.clone(), sender.clone())
+            t.verify(db.clone(), rpc.clone(), sender.clone(), handle.clone())
              .and_then(|(verify, done)| {
                  info!("Updating {} missing blocks", verify);
                  if done {
@@ -155,22 +164,26 @@ impl Verify {
         }
     }
 
-    fn verify<T>(self, db: Arc<Database>, rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>
+    fn verify<T>(self,
+                 db: Arc<Database>,
+                 rpc: Arc<Rpc<T>>,
+                 sender: UnboundedSender<Data<T>>,
+                 handle: TaskExecutor,
     ) -> impl Future<Item = (Self, bool), Error = ()> + 'static
         where T: System + std::fmt::Debug + 'static
     {
         db.query_missing_blocks()
           .and_then(move |blocks| {
               let length = blocks.len();
-              let mut futures = Vec::new();
-              for block in blocks {
-                  futures.push(
-                      rpc.block_from_number(NumberOrHex::Hex(U256::from(block)), sender.clone())
-                         .map_err(|e| error!("{:?}", e))
-                  );
-              }
-              // sort of batch request -- happens in one task but many futures
-              tokio::spawn(join_all(futures).and_then(|_| future::ok(()) ));
+              let blocks = blocks
+                  .into_iter()
+                  .map(|b| NumberOrHex::Hex(U256::from(b)))
+                  .collect::<Vec<NumberOrHex<T::BlockNumber>>>();
+              tokio::spawn(
+                  rpc
+                      .batch_block_from_number(blocks, handle, sender)
+                      .map_err(|e| error!("{:?}", e))
+              );
               // sleep for 30s
               thread::sleep(time::Duration::from_millis(30_000));
               // done is false because we never want this loop fn to exit
