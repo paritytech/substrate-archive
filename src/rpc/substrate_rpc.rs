@@ -78,22 +78,6 @@ impl<T> SubstrateRpc<T> where T: System {
             .map_err(|e| ArchiveError::from(e))
     }
 
-    /*
-    /// send all substrate events back to us
-    pub fn subscribe_events(&self, sender: mpsc::UnboundedSender<Data<T>>) -> impl Future<Item = (), Error = ArchiveError>
-    {
-        self.chain.subscribe_events()
-            .map_err(|e| ArchiveError::from(e))
-            .and_then(|stream| {
-                stream.map_err(|e| e.into()).for_each(move |storage_change| {
-                    sender
-                        .unbounded_send(Data::Event(storage_change))
-                        .map_err(|e| ArchiveError::from(e))
-                })
-            })
-    }
-     */
-
     // TODO: make "Key" and "from" vectors
     // TODO: Merge 'from' and 'key' via a macro_derive on StorageKeyType, to auto-generate storage keys
     /// Get a storage item
@@ -139,7 +123,50 @@ impl<T> SubstrateRpc<T> where T: System {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::{
+        tests::*,
+        types::*,
+    };
+    use tokio::runtime::Runtime;
+    use substrate_primitives::{H256, U256};
+    use std::str::FromStr;
 
+    fn connect() -> (Runtime, SubstrateRpc<T>) {
+        let runtime = Runtime::new().unwrap();
+        let rpc = runtime
+            .block_on(
+                SubstrateRpc::<Runtime>::connect(&url::Url::parse("ws://127.0.0.1:9944").unwrap())
+            ).unwrap();
+        (runtime, rpc)
+    }
+
+    // [WARNING] Needs an Rpc running on port 9944
+    #[test]
+    fn should_get_block() {
+        let (rt, rpc) = connect::();
+        let block = rt
+            .block_on(
+                rpc.block("0x373c569f3520c7ba67a7ac1d6b8e4ead5bd27b1ec28f3e39f5f863c503956e31".parse().unwrap())
+            ).unwrap();
+        println!("{:?}", block);
+    }
+
+    // [WARNING] Requires an Rpc running on port 9944
+    #[test]
+    fn should_get_hash<T: System>() {
+        let (rt, rpc) = connect::();
+        let hash = rt
+            .block_on(
+                rpc.hash(NumberOrHex::Number(U256::from(6)))
+            ).unwrap();
+        println!("{:?}", hash);
+    }
+
+    #[test]
+    fn should_get_storage<T: System>() {
+        let (rt, rpc) = connect::();
+    }
 
     #[test]
     fn it_works() {

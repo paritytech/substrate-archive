@@ -41,3 +41,5 @@ srml-timestamp = { git = "https://github.com/paritytech/substrate/", package = "
 srml-finality-tracker = { git = "https://github.com/paritytech/substrate", package = "srml-finality-tracker", branch = "polkadot-master" }
 srml-sudo = { git = "https://github.com/paritytech/substrate", package = "srml-sudo", branch = "polkadot-master" }
 
+[dev-dependencies]
+node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }

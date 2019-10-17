@@ -130,7 +130,6 @@ impl<T> Archive<T> where T: System {
                 },
                 _ => {
                     tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)));
-
                 }
             };
             future::ok(())

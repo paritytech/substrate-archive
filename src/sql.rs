@@ -81,6 +81,6 @@ pub(crate) fn block_exists() -> {
 mod tests {
     //! Must be connected to a postgres database
     use super::*;
-    use disel::test_transaction;
+    // use diesel::test_transaction;
 
 }
