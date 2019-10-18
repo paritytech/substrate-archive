@@ -125,15 +125,20 @@ impl<T> SubstrateRpc<T> where T: System {
 mod tests {
     use super::*;
     use crate::{
-        tests::*,
+        tests::Runtime,
         types::*,
+        types::storage::{StorageKeyType, TimestampOp}
     };
-    use tokio::runtime::Runtime;
+    use substrate_primitives::{
+        storage::StorageKey,
+        twox_128
+    };
+    use tokio::runtime::Runtime as TokioRuntime;
     use substrate_primitives::{H256, U256};
     use std::str::FromStr;
 
-    fn connect() -> (Runtime, SubstrateRpc<T>) {
-        let runtime = Runtime::new().unwrap();
+    fn connect() -> (TokioRuntime, SubstrateRpc<Runtime>) {
+        let mut runtime = TokioRuntime::new().unwrap();
         let rpc = runtime
             .block_on(
                 SubstrateRpc::<Runtime>::connect(&url::Url::parse("ws://127.0.0.1:9944").unwrap())
@@ -144,32 +149,35 @@ mod tests {
     // [WARNING] Needs an Rpc running on port 9944
     #[test]
     fn should_get_block() {
-        let (rt, rpc) = connect::();
+        let (mut rt, rpc) = connect();
         let block = rt
             .block_on(
-                rpc.block("0x373c569f3520c7ba67a7ac1d6b8e4ead5bd27b1ec28f3e39f5f863c503956e31".parse().unwrap())
+                rpc.block("373c569f3520c7ba67a7ac1d6b8e4ead5bd27b1ec28f3e39f5f863c503956e31".parse().unwrap())
             ).unwrap();
         println!("{:?}", block);
     }
 
     // [WARNING] Requires an Rpc running on port 9944
     #[test]
-    fn should_get_hash<T: System>() {
-        let (rt, rpc) = connect::();
+    fn should_get_hash() {
+        let (mut rt, rpc) = connect();
         let hash = rt
             .block_on(
-                rpc.hash(NumberOrHex::Number(U256::from(6)))
+                rpc.hash(NumberOrHex::Number(6))
             ).unwrap();
         println!("{:?}", hash);
     }
 
     #[test]
-    fn should_get_storage<T: System>() {
-        let (rt, rpc) = connect::();
-    }
-
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn should_get_storage() {
+        let (mut rt, rpc) = connect();
+        let timestamp_key = b"Timestamp Now";
+        let storage_key = StorageKey(twox_128(timestamp_key).to_vec());
+        let hash: <Runtime as System>::Hash = "373c569f3520c7ba67a7ac1d6b8e4ead5bd27b1ec28f3e39f5f863c503956e31"
+            .parse()
+            .unwrap();
+        let storage = rt.block_on(
+            rpc.storage(storage_key, hash)
+        );
     }
 }

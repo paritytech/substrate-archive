@@ -16,14 +16,15 @@
 //! Default Runtime for tests
 #[cfg(test)]
 
-use node_runtime::{Runtime as RuntimeT, SignedExtra};
+use node_runtime::{Runtime as RuntimeT, SignedExtra, Call};
 use srml_system::Trait;
-use codec::{Encode, Decode, Input};
-use crate::{System, ExtractCall};
+use codec::{Encode, Decode, Input, Error as CodecError};
+use crate::{ System, ExtractCall, Module, SrmlExt, NotHandled};
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Runtime;
 impl System for Runtime {
-    type Call = <RuntimeT as Trait>::Call;
+    type Call = CallWrapper;
     type Index = <RuntimeT as Trait>::Index;
     type BlockNumber = <RuntimeT as Trait>::BlockNumber;
     type Hash = <RuntimeT as Trait>::Hash;
@@ -36,7 +37,8 @@ impl System for Runtime {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct CallWrapper {
+pub struct CallWrapper { inner: Call }
+impl Encode for CallWrapper {
     fn encode(&self) -> Vec<u8> {
         self.inner.encode()
     }
@@ -67,3 +69,4 @@ impl ExtractCall for CallWrapper {
             }
         }
     }
+}

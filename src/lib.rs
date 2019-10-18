@@ -21,6 +21,8 @@ mod error;
 mod archive;
 mod database;
 mod queries;
+#[cfg(test)]
+mod tests;
 mod srml_ext;
 pub use archive::Archive;
 
