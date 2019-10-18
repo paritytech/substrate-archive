@@ -29,55 +29,17 @@ use crate::{
     error::Error as ArchiveError
 };
 
-diesel::sql_function!{
-    /// The Generate Series SQL Function
-    /// Generate a series of values, from start to stop with a step size of one
-    /// https://www.postgresql.org/docs/9.1/functions-srf.html
-    /// only supports the simplest variation (no control over step or interval)
-    fn generate_series(start: BigInt, stop: Nullable<BigInt>) -> Array<BigInt>
-}
 
-
-const MISSING_BLOCKS: &'static str = "\
+pub(crate) fn missing_blocks() -> diesel::query_builder::SqlQuery {
+    let query = "\
 SELECT generate_series
   FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
 WHERE
   NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
 ";
-
-/*
-SELECT
-  generate_series FROM GENERATE_SERIES(
-    0, (select max(block_num) from blocks)
-  )
-WHERE
-  NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
-*/
-
-pub(crate) fn missing_blocks() -> diesel::query_builder::SqlQuery {
-    use crate::database::schema::blocks::dsl::{blocks, block_num, hash, id};
-    use diesel::dsl::{exists, not};
-
-    // let generate_series = generate_series(0, max(block_num));
-    diesel::sql_query(MISSING_BLOCKS)
-    // blocks.filter(not(exists(
-    //    blocks.select(id).filter(block_num.eq(generate_series.select(block_num)))
-    // )))
-
-/*
-    let generate_series = generate_series(0, max(block_num));
-    blocks.filter(not(exists(
-        blocks.select(id).filter(block_num.eq(generate_series.select(block_num)))
-    )))
-*/
+    diesel::sql_query(query)
 }
 
-/*
-pub(crate) fn block_exists() -> {
-
-
-}
- */
 
 #[cfg(test)]
 mod tests {

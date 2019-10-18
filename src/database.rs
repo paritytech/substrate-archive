@@ -39,7 +39,7 @@ use crate::{
         models::{InsertBlock, InsertInherentOwned},
         schema::{blocks, inherents}
     },
-    sql
+    queries
 };
 use self::db_middleware::AsyncDiesel;
 
@@ -104,11 +104,10 @@ impl Database {
         };
 
         self.db.run(move |conn| {
-            let blocks: Vec<Blocks> = sql::missing_blocks()
-                .load(&conn)?;
+            let blocks: Vec<Blocks> = queries::missing_blocks().load(&conn)?;
             Ok(blocks
                 .iter()
-                .map(|b| u64::try_from(b.block_num).expect("Block number should never be negative"))
+                .map(|b| u64::try_from(b.block_num).expect("Block number should never be negative; qed"))
                .collect::<Vec<u64>>())
         })
     }

@@ -23,7 +23,10 @@ use futures::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     future::{self, join_all, loop_fn, Loop}
 };
-use tokio::runtime::{Runtime, TaskExecutor};
+use tokio::{
+    runtime::{Runtime, TaskExecutor},
+    timer::Delay
+};
 use runtime_primitives::traits::Header;
 use substrate_rpc_primitives::number::NumberOrHex;
 use substrate_primitives::{
@@ -34,7 +37,8 @@ use substrate_primitives::{
 
 use std::{
     sync::Arc,
-    thread, time
+    thread,
+    time::{self, Duration, Instant}
 };
 
 use crate::{
@@ -86,8 +90,9 @@ impl<T> Archive<T> where T: System {
     )
               -> impl Future<Item = Verify, Error = ()> + 'static
     {
-        loop_fn(Verify::new(), move |t| {
-            t.verify(db.clone(), rpc.clone(), sender.clone(), handle.clone())
+        let when = Instant::now() + Duration::from_millis(60_000);
+        loop_fn(Verify::new(), move |v| {
+            v.verify(db.clone(), rpc.clone(), sender.clone(), handle.clone())
              .and_then(|(verify, done)| {
                  info!("Updating {} missing blocks", verify);
                  if done {
@@ -184,8 +189,8 @@ impl Verify {
                       .batch_block_from_number(blocks, handle, sender)
                       .map_err(|e| error!("{:?}", e))
               );
-              // sleep for 30s
-              thread::sleep(time::Duration::from_millis(30_000));
+
+              thread::sleep(time::Duration::from_millis(60_000));
               // done is false because we never want this loop fn to exit
               future::ok((Self { blocks_missing: length }, false))
           })

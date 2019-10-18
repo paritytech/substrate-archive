@@ -53,7 +53,6 @@ install() {
 	printf "\n\n"
 	echo "Creating Database and default user"
 	printf "%s[WARNING] change the password of user 'archive'. Default password being used...%s\n" "$yellow_color" "$color_end"
-	# echo "[WARNING] change the password of user 'archive'. default password being used..."
 	printf "If you would rather configure the database yourself, all settings \n\
 	are stored in .env file in the root directory and init.sql\n\n"
 	cp init.sql /tmp/init.sql
@@ -62,7 +61,7 @@ install() {
 	    case $yn in
 		[Yy]* ) sudo -i -u postgres psql -f /tmp/init.sql; break;;
 		[Nn]* ) exit;;
-		* ) echo "Please answer yes or no.";;
+		* ) echo "Answer Yes or No.";;
 	    esac
 	done
 }
