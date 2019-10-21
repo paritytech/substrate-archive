@@ -10,7 +10,6 @@ path = "src/lib.rs"
 [workspace]
 members = [
 	"polkadot-archive",
-	"node-template-archive"
 ]
 
 [dependencies]
@@ -18,26 +17,40 @@ log = "0.4"
 futures = "0.1"
 tokio = "0.1"
 failure = "0.1"
-chrono = "0.4.9"
+chrono = "0.4"
 primitive-types = "0.5"
-dotenv = "0.14.1"
+dotenv = "0.14"
 url = "1.7"
-serde = "1.0.101"
+serde = "1.0"
+r2d2 = "0.8"
+tokio-threadpool = "0.1"
+custom_derive = "0.1.7"
+enum_derive = "0.1.7"
 
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 jsonrpc-core-client = { version = "13.0", features = ["ws"] }
 
 srml-system = { git = "https://github.com/paritytech/substrate/", package = "srml-system", branch="polkadot-master"}
-substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch = "polkadot-master" }
-substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives" }
-substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives", branch="polkadot-master" }
-runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives", branch="polkadot-master" }
+substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch="polkadot-master"}
+substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives", branch="polkadot-master"}
+substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives", branch="polkadot-master"}
+runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives", branch="polkadot-master"}
 runtime-support = { git = "https://github.com/paritytech/substrate/", package = "srml-support", branch="polkadot-master"}
-inherents = { git = "https://github.com/paritytech/substrate/", package = "substrate-inherents", branch="polkadot-master" }
+inherents = { git = "https://github.com/paritytech/substrate/", package = "substrate-inherents", branch="polkadot-master"}
+
+
+# srml-assets = { git = "https://github.com/paritytech/substrate/", package = "srml-assets", branch="polkadot-master"}
+srml-staking = {git = "https://github.com/paritytech/substrate/", package = "srml-staking", branch = "polkadot-master"}
+srml-grandpa = {git = "https://github.com/paritytech/substrate/", package = "srml-grandpa", branch = "polkadot-master"}
+srml-babe = {git = "https://github.com/paritytech/substrate/", package = "srml-babe", branch = "polkadot-master"}
+srml-session = { git = "https://github.com/paritytech/substrate/", package = "srml-session", branch = "polkadot-master"}
+srml-aura = { git = "https://github.com/paritytech/substrate/", package = "srml-aura", branch = "polkadot-master"}
+srml-timestamp = { git = "https://github.com/paritytech/substrate/", package = "srml-timestamp", branch = "polkadot-master"}
+srml-finality-tracker = { git = "https://github.com/paritytech/substrate", package = "srml-finality-tracker", branch = "polkadot-master"}
+srml-sudo = { git = "https://github.com/paritytech/substrate", package = "srml-sudo", branch = "polkadot-master"}
+srml-im-online = { git = "https://github.com/paritytech/substrate", package = "srml-im-online", branch = "polkadot-master"}
+srml-treasury = { git = "https://github.com/paritytech/substrate", package = "srml-treasury", branch = "polkadot-master"}
+
+[dev-dependencies]
 node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
-srml-timestamp = { git = "https://github.com/paritytech/substrate/", package = "srml-timestamp", branch = "polkadot-master" }
-srml-finality-tracker = { git = "https://github.com/paritytech/substrate", package = "srml-finality-tracker", branch = "polkadot-master" }
-srml-sudo = { git = "https://github.com/paritytech/substrate", package = "srml-sudo", branch = "polkadot-master" }
-r2d2 = "0.8.5"
-tokio-threadpool = "0.1.16"

@@ -22,25 +22,31 @@ pub mod db_middleware;
 
 use log::*;
 use futures::future::{self, Future};
-use runtime_primitives::{traits::Block as BlockTrait, OpaqueExtrinsic, generic::UncheckedExtrinsic};
-use diesel::{prelude::*, pg::PgConnection};
+use diesel::{prelude::*, pg::PgConnection, sql_types::BigInt};
 use codec::{Encode, Decode};
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 use chrono::offset::{Utc, TimeZone};
+use runtime_primitives::{
+    traits::{Block as BlockTrait, Extrinsic},
+    OpaqueExtrinsic, generic::UncheckedExtrinsic
+};
+
 use std::{
     env,
     convert::TryFrom
 };
+
 use crate::{
     error::Error as ArchiveError,
     types::{Data, System, Block, Storage, BasicExtrinsic, ExtractCall},
     database::{
         models::{InsertBlock, InsertInherentOwned},
-        schema::{blocks, inherents}
+        schema::{blocks, inherents},
+        db_middleware::AsyncDiesel
     },
+    queries
 };
-use self::db_middleware::AsyncDiesel;
 
 pub type DbFuture = Box<dyn Future<Item = (), Error = ArchiveError> + Send >;
 
@@ -91,6 +97,25 @@ impl Database {
             Err(e) => Box::new(future::err(e)),
         }
     }
+
+    pub fn query_missing_blocks(&self)
+                          -> impl Future<Item = Vec<u64>, Error = ArchiveError>
+    {
+        #[derive(QueryableByName, PartialEq, Debug)]
+        pub struct Blocks {
+            #[column_name = "generate_series"]
+            #[sql_type = "BigInt"]
+            block_num: i64
+        };
+
+        self.db.run(move |conn| {
+            let blocks: Vec<Blocks> = queries::missing_blocks().load(&conn)?;
+            Ok(blocks
+                .iter()
+                .map(|b| u64::try_from(b.block_num).expect("Block number should never be negative; qed"))
+               .collect::<Vec<u64>>())
+        })
+    }
 }
 
 impl<T> Insert for Storage<T>
@@ -127,7 +152,7 @@ where
                                                     &block.header,
                                                     &db)?;
         let fut = db.run(move |conn| {
-            info!("Inserting Block");
+            trace!("Inserting Block: {:?}", block.clone());
             diesel::insert_into(blocks::table)
                 .values( InsertBlock {
                     parent_hash: block.header.parent_hash().as_ref(),
@@ -165,7 +190,16 @@ where
         .filter_map(|x: Result<(usize, BasicExtrinsic<T>), _>| {
             match x {
                 Ok(v) => {
-                    Some((v.0, v.1))
+                    if let Some(b) = v.1.is_signed() {
+                        if b {
+                            // will be inserted as signed_extrinsic
+                            None
+                        } else {
+                            Some((v.0, v.1))
+                        }
+                    } else {
+                        Some((v.0, v.1))
+                    }
                 },
                 Err(e) => {
                     error!("{:?}", e);
@@ -176,11 +210,15 @@ where
         .map(|(idx, decoded)| {
             let (module, call) = decoded.function.extract_call();
             let index: i32 = i32::try_from(idx)?;
-            let (fn_name, params) = call.function()?;
+            let res = call.function();
+            if res.is_err() {
+                info!("Call : {:?}", decoded);
+            }
+            let (fn_name, params) = res?;
             Ok(InsertInherentOwned {
                 hash: header.hash().as_ref().to_vec(),
                 block_num: (*header.number()).into(),
-                module: module.into(),
+                module: module.to_string(),
                 call: fn_name,
                 parameters: Some(params),
                 success: true, // TODO: Success is not always true
@@ -190,11 +228,22 @@ where
         .collect::<Result<Vec<InsertInherentOwned>, ArchiveError>>()?;
 
     let fut = db.run(move |conn| {
-        info!("Inserting Extrinsic");
+        trace!("Inserting Extrinsics: {:?}", values);
         diesel::insert_into(inherents::table)
             .values(&values)
             .execute(&conn)
             .map_err(|e| e.into())
     }).map(|_| ());
     Ok(Box::new(fut))
+}
+
+
+#[cfg(test)]
+mod tests {
+    //! Must be connected to a local database
+    use super::*;
+
+
+
+
 }

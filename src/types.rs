@@ -19,6 +19,8 @@ pub mod storage;
 use substrate_primitives::storage::StorageChangeSet;
 use serde::de::DeserializeOwned;
 use codec::{Encode, Decode};
+use custom_derive::*;
+use enum_derive::*;
 use substrate_primitives::storage::StorageData;
 use runtime_support::Parameter;
 use runtime_primitives::{
@@ -66,6 +68,7 @@ pub enum Data<T: System> {
     Block(Block<T>),
     Storage(Storage<T>),
     Event(Event<T>),
+    SyncProgress(usize),
 }
 
 // new types to allow implementing of traits
@@ -145,36 +148,46 @@ impl<T: System> Event<T> {
     }
 }
 
+
 // TODO: Not sustainable to keep an up-to-date enum of all modules?
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Module {
-    Timestamp,
-    FinalityTracker,
-    Parachains,
-    Sudo,
-    NotHandled
-}
-
-fn into_string(module: &Module) -> String {
-    match &module {
-        Module::Timestamp => "timestamp".to_string(),
-        Module::FinalityTracker => "finality_tracker".to_string(),
-        Module::Parachains => "parachains".to_string(),
-        Module::Sudo => "sudo".to_string(),
-        _ => "NotHandled".to_string()
+custom_derive! {
+    #[derive(Debug, PartialEq, Eq, Clone, EnumDisplay, IterVariants(IterCallModule))]
+    pub enum Module {
+        Assets,
+        Aura,
+        AuthorityDiscovery,
+        Authorship,
+        Babe,
+        Balances,
+        Collective,
+        Contracts,
+        Democracy,
+        Elections,
+        ElectionsPhragmen,
+        Executive,
+        FinalityTracker,
+        GenericAsset,
+        Grandpa,
+        ImOnline,
+        Indices,
+        Membership,
+        Metadata,
+        Offences,
+        RandomnessCollectiveFlip,
+        ScoredPool,
+        Session,
+        Staking,
+        Sudo,
+        Support,
+        // System,
+        Timestamp,
+        TransactionPayment,
+        Treasury,
+        Utility,
+        NotHandled,
     }
 }
 
-impl From<&Module> for String {
-    fn from(module: &Module) -> String {
-        into_string(module)
-    }
-}
-impl From<Module> for String {
-    fn from(module: Module) -> String {
-        into_string(&module)
-    }
-}
 
 pub trait ExtractCall {
     /// module the call is from, IE Timestamp, FinalityTracker
@@ -188,7 +201,7 @@ pub trait ExtractCall {
 // Issue is with getting the block number from possible unsigned values that Postgres does not support
 // but using Trait is better
 /// The subset of the `srml_system::Trait` that a client must implement.
-pub trait System {
+pub trait System: Send + Sync + 'static + std::fmt::Debug {
 
     /// The Call type
     /// Should implement `ExtractCall` to put call data in a more database-friendly format
