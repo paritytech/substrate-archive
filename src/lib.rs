@@ -30,6 +30,8 @@ pub use types::{System, Module, ExtractCall};
 pub use srml_ext::{SrmlExt, NotHandled};
 
 pub mod srml {
+    pub use srml_system;
     pub use srml_timestamp::Call as TimestampCall;
     pub use srml_finality_tracker::Call as FinalityCall;
+    pub use srml_im_online::Call as ImOnlineCall;
 }

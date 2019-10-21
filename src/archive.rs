@@ -74,7 +74,7 @@ impl<T> Archive<T> where T: System {
         // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
         let handle = self.runtime.executor();
         self.runtime.spawn(
-            Self::verify(self.db.clone(), self.rpc.clone(), sender.clone(), handle)
+            Self::sync(self.db.clone(), self.rpc.clone(), sender.clone(), handle)
                 .map(|v| info!("updated {} mising blocks", v))
         );
         tokio::run(Self::handle_data(receiver, self.db.clone(), self.rpc.clone(), sender));
@@ -82,23 +82,25 @@ impl<T> Archive<T> where T: System {
     }
     // TODO return a float between 0 and 1 corresponding to percent of database that is up-to-date?
     /// Verification task that ensures all blocks are in the database
-    fn verify(db: Arc<Database>,
+    fn sync(db: Arc<Database>,
               rpc: Arc<Rpc<T>>,
               sender: UnboundedSender<Data<T>>,
               handle: TaskExecutor
 
     )
-              -> impl Future<Item = Verify, Error = ()> + 'static
+              -> impl Future<Item = Sync, Error = ()> + 'static
     {
-        let when = Instant::now() + Duration::from_millis(60_000);
-        loop_fn(Verify::new(), move |v| {
-            v.verify(db.clone(), rpc.clone(), sender.clone(), handle.clone())
-             .and_then(|(verify, done)| {
-                 info!("Updating {} missing blocks", verify);
+        loop_fn(Sync::new(), move |v| {
+            let (sender0, sender1) = (sender.clone(), sender.clone());
+            v.sync(db.clone(), rpc.clone(), sender0.clone(), handle.clone())
+             .and_then(move |(sync, done)| {
+                 info!("Updating {} missing blocks", sync);
+                 sender1.unbounded_send(Data::SyncProgress(sync.blocks_missing))
+                       .unwrap();
                  if done {
-                     Ok(Loop::Break(verify))
+                     Ok(Loop::Break(sync))
                  } else {
-                     Ok(Loop::Continue(verify))
+                     Ok(Loop::Continue(sync))
                  }
              })
         })
@@ -142,6 +144,9 @@ impl<T> Archive<T> where T: System {
                           })
                     );
                 },
+                Data::SyncProgress(missing_blocks) => {
+                   // nothing
+                }
                 _ => {
                     tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)));
                 }
@@ -152,24 +157,24 @@ impl<T> Archive<T> where T: System {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct Verify {
+struct Sync {
     blocks_missing: usize
 }
 
-impl std::fmt::Display for Verify {
+impl std::fmt::Display for Sync {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.blocks_missing)
     }
 }
 
-impl Verify {
+impl Sync {
     fn new() -> Self {
         Self {
             blocks_missing: 0,
         }
     }
 
-    fn verify<T>(self,
+    fn sync<T>(self,
                  db: Arc<Database>,
                  rpc: Arc<Rpc<T>>,
                  sender: UnboundedSender<Data<T>>,
@@ -189,6 +194,7 @@ impl Verify {
                       .batch_block_from_number(blocks, handle, sender)
                       .map_err(|e| error!("{:?}", e))
               );
+              info!("Tokio Thread Done!");
 
               thread::sleep(time::Duration::from_millis(60_000));
               // done is false because we never want this loop fn to exit

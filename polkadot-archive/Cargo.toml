@@ -8,9 +8,8 @@ edition = "2018"
 
 [dependencies]
 failure = "0.1"
-substrate-archive = { path = "../" }
-system = { git = "https://github.com/paritytech/substrate/", package = "srml-system" }
-# polkadot-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime", rev="4a983a8" } TEMP
-polkadot-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime"}
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 env_logger = "0.7.0"
+substrate-archive = { path = "../" }
+polkadot-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime", rev = "b5cdfbe" }
+# polkadot-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime", rev="4a983a8" }

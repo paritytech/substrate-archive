@@ -40,6 +40,14 @@ WHERE
     diesel::sql_query(query)
 }
 
+// Get the latest block in the database
+// this might not be up-to-date right as the node starts,
+// but will soon start collecting the latest heads
+pub(crate) fn head() -> diesel::query_builder::SqlQuery {
+    unimplemented!()
+
+}
+
 
 #[cfg(test)]
 mod tests {

@@ -17,7 +17,11 @@
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
 use failure::Error;
-use substrate_archive::{ Archive, System, Module, ExtractCall, SrmlExt, NotHandled};
+use substrate_archive::{
+    Archive, System, Module,
+    ExtractCall, SrmlExt, NotHandled,
+    srml::{srml_system as system}
+};
 use polkadot_runtime::{Runtime as RuntimeT, Call};
 use codec::{Encode, Decode, Input, Error as CodecError};
 
@@ -58,7 +62,26 @@ impl ExtractCall for CallWrapper {
             Call::FinalityTracker(call) => {
                 (Module::FinalityTracker, call)
             },
-            _ => {
+            Call::ImOnline(call) => {
+                (Module::ImOnline, call)
+            },
+            Call::Babe(call) => {
+                (Module::Babe, call)
+            },
+            Call::Staking(call) => {
+                (Module::Staking, call)
+            },
+            Call::Session(call) => {
+                (Module::Session, call)
+            },
+            Call::Grandpa(call) => {
+                (Module::Grandpa, call)
+            },
+            Call::Treasury(call) => {
+                (Module::Treasury, call)
+            }
+            c @ _ => {
+                println!("{:?}", c);
                 (Module::NotHandled, &NotHandled)
             }
         }
