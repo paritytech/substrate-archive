@@ -146,22 +146,30 @@ where
     type Error = ArchiveError;
 
     fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+        use self::schema::blocks::block_num;
+
         let block = self.inner().block.clone();
         info!("HASH: {:X?}", block.header.hash().as_ref());
+        info!("Block Num: {:?}", block.header.number());
         let extrinsics_fut = insert_extrinsics::<T>(block.extrinsics(),
                                                     &block.header,
                                                     &db)?;
         let fut = db.run(move |conn| {
             trace!("Inserting Block: {:?}", block.clone());
-            diesel::insert_into(blocks::table)
-                .values( InsertBlock {
+            let block =
+                InsertBlock {
                     parent_hash: block.header.parent_hash().as_ref(),
                     hash: block.header.hash().as_ref(),
                     block_num: &(*block.header.number()).into(),
                     state_root: block.header.state_root().as_ref(),
                     extrinsics_root: block.header.extrinsics_root().as_ref(),
                     time: None
-                })
+                };
+            diesel::insert_into(blocks::table)
+                .values(&block)
+                .on_conflict(block_num)
+                .do_update()
+                .set(&block)
                 .execute(&conn)
                 .map_err(|e| e.into())
         }).and_then(move |res| {

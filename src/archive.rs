@@ -88,7 +88,7 @@ impl<T> Archive<T> where T: System {
               handle: TaskExecutor
 
     )
-              -> impl Future<Item = Sync, Error = ()> + 'static
+            -> impl Future<Item = Sync, Error = ()> + 'static
     {
         loop_fn(Sync::new(), move |v| {
             let (sender0, sender1) = (sender.clone(), sender.clone());
