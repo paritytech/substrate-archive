@@ -2,7 +2,7 @@ CREATE TABLE signed_extrinsics (
   transaction_hash bytea PRIMARY KEY,
   -- a constrained biginteger type whose max value corresponds with that of a u64 in rust
   block_num bigint check (block_num >= 0 and block_num < '9223372036854775807'::bigint) NOT NULL UNIQUE,
-  hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE CASCADE,
+  hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE,
   from_addr bytea NOT NULL,
   to_addr bytea,
   call varchar NOT NULL,

@@ -80,7 +80,7 @@ impl<T> Rpc<T> where T: System {
                 let client = Arc::new(client);
                 let client0 = client.clone();
                 let client1 = client.clone();
-                client0.subscribe_new_heads()
+                client0.subscribe_finalized_heads()
                       .and_then(|stream| {
                           stream.for_each(move |head| {
                               let sender0 = sender.clone();
@@ -95,13 +95,13 @@ impl<T> Rpc<T> where T: System {
     }
 
     /// send all finalized headers back to main thread
-    pub(crate) fn subscribe_finalized_blocks(&self, sender: UnboundedSender<Data<T>>
+    pub(crate) fn subscribe_finalized_heads(&self, sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
         SubstrateRpc::connect(&self.url)
             .and_then(|client: SubstrateRpc<T>| {
                 client
-                    .subscribe_finalized_blocks()
+                    .subscribe_finalized_heads()
                     .and_then(|stream| {
                         stream.for_each(move |head| {
                             sender.unbounded_send(Data::FinalizedHead(Header::new(head)))

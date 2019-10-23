@@ -69,7 +69,7 @@ impl<T> Archive<T> where T: System {
     pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
         self.runtime.spawn(self.rpc.subscribe_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
-        // rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
+        // self.runtime.spawn(self.rpc.subscribe_finalized_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
         let handle = self.runtime.executor();
@@ -180,21 +180,17 @@ impl Sync {
     {
         db.query_missing_blocks()
           .and_then(move |blocks| {
-              let length = blocks.len();
-              let blocks = blocks
+              future::ok(blocks
                   .into_iter()
                   .map(|b| NumberOrHex::Hex(U256::from(b)))
-                  .collect::<Vec<NumberOrHex<T::BlockNumber>>>();
-              tokio::spawn(
-                  rpc
-                      .batch_block_from_number(blocks, handle, sender)
-                      .map_err(|e| error!("{:?}", e))
-              );
-              info!("Tokio Thread Done!");
-
-              thread::sleep(time::Duration::from_millis(60_000));
-              // done is false because we never want this loop fn to exit
-              future::ok((Self { blocks_missing: length }, false))
+                  .collect::<Vec<NumberOrHex<T::BlockNumber>>>())
+          }).map(|blocks| {
+              rpc.batch_block_from_number(blocks, handle, sender)
+                 .map_err(|e| error!("{:?}", e))
+                 .and_then(|_| {
+                     thread::sleep(time::Duration::from_millis(60_000));
+                     Ok((Self { blocks_missing: blocks.len() }, false ))
+                 })
           })
           .map_err(|e| error!("{:?}", e))
     }

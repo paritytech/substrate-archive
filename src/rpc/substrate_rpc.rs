@@ -69,7 +69,7 @@ impl<T> SubstrateRpc<T> where T: System {
     }
 
     /// send all finalized headers back to main thread
-    pub(crate) fn subscribe_finalized_blocks(&self
+    pub(crate) fn subscribe_finalized_heads(&self
     ) -> impl Future<Item = impl Stream<Item = T::Header, Error = ArchiveError>, Error = ArchiveError>
     {
         self.chain
