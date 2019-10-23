@@ -18,6 +18,7 @@ use log::*;
 use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::{self, join_all}};
 use tokio::runtime::Runtime;
 use jsonrpc_core_client::{RpcChannel, transports::ws};
+use runtime_primitives::traits::Header as HeaderTrait;
 use substrate_primitives::storage::StorageKey;
 use substrate_rpc_primitives::number::NumberOrHex;
 use substrate_rpc_api::{
@@ -62,8 +63,32 @@ impl<T> Rpc<T> where T: System {
                       .and_then(|stream| {
                           stream
                               .for_each(move |head| {
+
                                   sender.unbounded_send(Data::Header(Header::new(head)))
                                         .map_err(|e| ArchiveError::from(e))
+                          })
+                      })
+            })
+    }
+
+    /// subscribes to new heads but sends blocks instead of headers
+    pub(crate) fn subscribe_blocks(&self, sender: UnboundedSender<Data<T>>
+    ) -> impl Future<Item = (), Error = ArchiveError>
+    {
+        SubstrateRpc::connect(&self.url)
+            .and_then(|client: SubstrateRpc<T>| {
+                let client = Arc::new(client);
+                let client0 = client.clone();
+                let client1 = client.clone();
+                client0.subscribe_new_heads()
+                      .and_then(|stream| {
+                          stream.for_each(move |head| {
+                              let sender0 = sender.clone();
+                              client1
+                                  .block(head.hash())
+                                  .and_then(move |block| {
+                                      Self::send_block(block, sender0)
+                                  })
                           })
                       })
             })
@@ -180,7 +205,9 @@ impl<T> Rpc<T> where T: System {
                             .and_then(move |hash| {
                                 client.block(hash.expect("should always exist"))
                                         .and_then(move |block| {
-                                            Self::send_block(block, sender.clone())
+                                            Self::send_block(block.clone(), sender.clone())
+                                                .expect("Send infalible");
+                                            Ok(block)
                                         })
                             })
                     );

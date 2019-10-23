@@ -68,7 +68,7 @@ impl<T> Archive<T> where T: System {
 
     pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
-        self.runtime.spawn(self.rpc.subscribe_new_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
+        self.runtime.spawn(self.rpc.subscribe_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
@@ -117,13 +117,9 @@ impl<T> Archive<T> where T: System {
         // (EX block needs hash from the header)
         receiver.for_each(move |data| {
             match &data {
-                Data::Header(header) => {
-                    tokio::spawn(
-                        rpc.block(header.inner().hash(), sender.clone())
-                           .map_err(|e| warn!("{:?}", e))
-                    );
-                },
                 Data::Block(block) => {
+                    // TODO: Transfer this into the rpc
+                    // So that it does not starve RPC of connections
                     let header = block.inner().block.header.clone();
                     let timestamp_key = b"Timestamp Now";
                     let storage_key = twox_128(timestamp_key);

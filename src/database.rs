@@ -41,7 +41,7 @@ use crate::{
     error::Error as ArchiveError,
     types::{Data, System, Block, Storage, BasicExtrinsic, ExtractCall},
     database::{
-        models::{InsertBlock, InsertInherentOwned},
+        models::{InsertBlockOwned, InsertInherentOwned},
         schema::{blocks, inherents},
         db_middleware::AsyncDiesel
     },
@@ -157,12 +157,12 @@ where
         let fut = db.run(move |conn| {
             trace!("Inserting Block: {:?}", block.clone());
             let block =
-                InsertBlock {
-                    parent_hash: block.header.parent_hash().as_ref(),
-                    hash: block.header.hash().as_ref(),
-                    block_num: &(*block.header.number()).into(),
-                    state_root: block.header.state_root().as_ref(),
-                    extrinsics_root: block.header.extrinsics_root().as_ref(),
+                InsertBlockOwned {
+                    parent_hash: block.header.parent_hash().as_ref().to_vec(),
+                    hash: block.header.hash().as_ref().to_vec(),
+                    block_num: (*block.header.number()).into(),
+                    state_root: block.header.state_root().as_ref().to_vec(),
+                    extrinsics_root: block.header.extrinsics_root().as_ref().to_vec(),
                     time: None
                 };
             diesel::insert_into(blocks::table)
@@ -171,7 +171,7 @@ where
                 .do_update()
                 .set(&block)
                 .execute(&conn)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }).and_then(move |res| {
             extrinsics_fut
         }).map(|_| ());
