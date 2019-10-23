@@ -1,7 +1,7 @@
 CREATE TABLE inherents (
   -- a PostgreSQL-specific id. Does not exist on-chain
   id SERIAL PRIMARY KEY,
-  hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE RESTRICT,
+  hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE CASCADE,
   -- a constrained biginteger type whose max value corresponds with that of a u64 in rust
   block_num bigint check (block_num >= 0 and block_num < '9223372036854775807'::bigint) NOT NULL,
   module varchar NOT NULL,
