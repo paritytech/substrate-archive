@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+mod substrate_rpc;
+use self::substrate_rpc::SubstrateRpc;
+
 use log::*;
 use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::{self, join_all}};
 use tokio::runtime::Runtime;
@@ -32,11 +35,14 @@ use substrate_rpc_api::{
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use crate::types::{Data, System, SubstrateBlock, storage::StorageKeyType, Block, Header, Storage};
-use crate::error::{Error as ArchiveError};
-
-mod substrate_rpc;
-use self::substrate_rpc::SubstrateRpc;
+use crate::{
+    types::{
+        storage::StorageKeyType,
+        Data, System, SubstrateBlock,
+        Block, BatchBlock, Header, Storage,
+    },
+    error::{Error as ArchiveError},
+};
 
 /// Communicate with Substrate node via RPC
 pub struct Rpc<T: System> {
@@ -203,16 +209,15 @@ impl<T> Rpc<T> where T: System {
                         client.hash(number)
                             .and_then(move |hash| {
                                 client.block(hash.expect("should always exist"))
-                                      .and_then(move |block| {
-                                          // TODO: send all blocks as a 'batch' at once
-                                          // then insert all into database at once
-                                            Self::send_block(block.clone(), sender.clone())
-                                                .map_err(Into::into)
-                                        })
                             })
                     );
                 }
-                join_all(futures).map(|_| ())
+                join_all(futures)
+                    .and_then(move |blocks| {
+                        let blocks = blocks.into_iter().filter_map(|b| b).collect::<Vec<SubstrateBlock<T>>>();
+                        sender.unbounded_send(Data::BatchBlock(BatchBlock::new(blocks)))
+                            .map_err(Into::into)
+                    })
             })
     }
 

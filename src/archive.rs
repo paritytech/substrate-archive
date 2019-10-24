@@ -18,6 +18,7 @@
 //! Nowhere else is anything ever spawned
 
 use log::*;
+use failure::Fail;
 use futures::{
     Future, Stream,
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
@@ -137,13 +138,13 @@ impl<T> Archive<T> where T: System {
                                    StorageKey(storage_key.to_vec()),
                                    header.hash(),
                                    StorageKeyType::Timestamp(TimestampOp::Now)
-                               ).map_err(|e| warn!("{:?}", e))
+                              ).map_err(|e| warn!("{:?}", e))
                           })
                     );
                 },
                 Data::SyncProgress(missing_blocks) => {
                     println!("{} blocks missing", missing_blocks);
-                }
+                },
                 _ => {
                     tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)));
                 }
@@ -191,7 +192,6 @@ impl Sync {
               future::ok(
                   blocks
                       .into_iter()
-                      .take(250_000) // avoid "Too many open files" os limit
                       .map(|b| NumberOrHex::Hex(U256::from(b)))
                       .collect::<Vec<NumberOrHex<T::BlockNumber>>>()
               )

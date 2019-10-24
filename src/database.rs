@@ -39,9 +39,9 @@ use std::{
 
 use crate::{
     error::Error as ArchiveError,
-    types::{Data, System, Block, Storage, BasicExtrinsic, ExtractCall},
+    types::{Data, System, Block, Storage, BatchBlock, BasicExtrinsic, ExtractCall},
     database::{
-        models::{InsertBlockOwned, InsertInherentOwned},
+        models::{InsertBlock, InsertBlockOwned, InsertInherentOwned},
         schema::{blocks, inherents},
         db_middleware::AsyncDiesel
     },
@@ -65,8 +65,11 @@ impl<T> Insert for Data<T> where T: System + 'static {
             Data::Storage(storage) => {
                 storage.insert(db)
             },
-            _=> {
-                Err(ArchiveError::UnhandledDataType)
+            Data::BatchBlock(blocks) => {
+                blocks.insert(db)
+            },
+            o @ _=> {
+                Err(ArchiveError::UnhandledDataType(format!("{:?}", o)))
             }
         }
     }
@@ -139,6 +142,58 @@ where
     }
 }
 
+impl<T> Insert for BatchBlock<T>
+where
+    T: System,
+{
+    type Error = ArchiveError;
+
+    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+        use self::schema::blocks::block_num;
+
+        let mut extrinsics: Vec<InsertInherentOwned> = Vec::new();
+        info!("Batch inserting {} blocks into DB", self.inner().len());
+        let blocks = self
+            .inner()
+            .iter()
+            .map(|block| {
+                let block = block.block.clone();
+                let mut block_ext: Vec<InsertInherentOwned>
+                    = get_extrinsics::<T>(block.extrinsics(), &block.header)?;
+
+                extrinsics.append(&mut block_ext);
+                Ok(InsertBlockOwned {
+                    parent_hash: block.header.parent_hash().as_ref().to_vec(),
+                    hash: block.header.hash().as_ref().to_vec(),
+                    block_num: (*block.header.number()).into(),
+                    state_root: block.header.state_root().as_ref().to_vec(),
+                    extrinsics_root: block.header.extrinsics_root().as_ref().to_vec(),
+                    time: None
+                })
+            })
+            .filter_map(|b: Result<_, ArchiveError>| b.ok())
+            .collect::<Vec<InsertBlockOwned>>();
+        let fut = db.run(move |conn| {
+            for chunks in blocks.as_slice().chunks(10_000) {
+                info!("{}", chunks.len());
+                diesel::insert_into(blocks::table)
+                    .values(chunks)
+                    .execute(&conn)
+                    .map_err(|e| ArchiveError::from(e))?;
+            }
+            for chunks in extrinsics.as_slice().chunks(10_000) {
+                info!("{}", chunks.len());
+                diesel::insert_into(inherents::table)
+                    .values(chunks)
+                    .execute(&conn)
+                    .map_err(|e| ArchiveError::from(e))?;
+            }
+            Ok(())
+        }).map(|_| ());
+        Ok(Box::new(fut))
+    }
+}
+
 impl<T> Insert for Block<T>
 where
     T: System + 'static
@@ -151,43 +206,40 @@ where
         let block = self.inner().block.clone();
         info!("HASH: {:X?}", block.header.hash().as_ref());
         info!("Block Num: {:?}", block.header.number());
-        let extrinsics_fut = insert_extrinsics::<T>(block.extrinsics(),
-                                                    &block.header,
-                                                    &db)?;
+        let extrinsics = get_extrinsics::<T>(block.extrinsics(), &block.header)?;
+        // TODO Optimize
         let fut = db.run(move |conn| {
             trace!("Inserting Block: {:?}", block.clone());
-            let block =
-                InsertBlockOwned {
-                    parent_hash: block.header.parent_hash().as_ref().to_vec(),
-                    hash: block.header.hash().as_ref().to_vec(),
-                    block_num: (*block.header.number()).into(),
-                    state_root: block.header.state_root().as_ref().to_vec(),
-                    extrinsics_root: block.header.extrinsics_root().as_ref().to_vec(),
-                    time: None
-                };
             diesel::insert_into(blocks::table)
-                .values(&block)
-                .on_conflict(block_num)
-                .do_update()
-                .set(&block)
+                .values(InsertBlock {
+                    parent_hash: block.header.parent_hash().as_ref(),
+                    hash: block.header.hash().as_ref(),
+                    block_num: &(*block.header.number()).into(),
+                    state_root: block.header.state_root().as_ref(),
+                    extrinsics_root: block.header.extrinsics_root().as_ref(),
+                    time: None
+                })
+                .execute(&conn)
+                .map_err(|e| ArchiveError::from(e))?;
+            trace!("Inserting Extrinsics: {:?}", extrinsics);
+            diesel::insert_into(inherents::table)
+                .values(&extrinsics)
                 .execute(&conn)
                 .map_err(Into::into)
-        }).and_then(move |res| {
-            extrinsics_fut
         }).map(|_| ());
         Ok(Box::new(fut))
     }
 }
 
-fn insert_extrinsics<T>(
+fn get_extrinsics<T>(
     extrinsics: &[OpaqueExtrinsic],
     header: &T::Header,
-    db: &AsyncDiesel<PgConnection>,
-) -> Result<DbFuture, ArchiveError>
+    // db: &AsyncDiesel<PgConnection>,
+) -> Result<Vec<InsertInherentOwned>, ArchiveError>
 where
-    T: System + 'static
+    T: System
 {
-    let values: Vec<InsertInherentOwned> = extrinsics
+    extrinsics
         .iter()
         // enumerate is used here to preserve order/index of extrinsics
         .enumerate()
@@ -233,8 +285,8 @@ where
                 in_index: index
             })
         })
-        .collect::<Result<Vec<InsertInherentOwned>, ArchiveError>>()?;
-
+        .collect::<Result<Vec<InsertInherentOwned>, ArchiveError>>()
+/*
     let fut = db.run(move |conn| {
         trace!("Inserting Extrinsics: {:?}", values);
         diesel::insert_into(inherents::table)
@@ -243,6 +295,7 @@ where
             .map_err(|e| e.into())
     }).map(|_| ());
     Ok(Box::new(fut))
+*/
 }
 
 

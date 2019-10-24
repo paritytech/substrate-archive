@@ -56,7 +56,7 @@ pub enum Error {
     // if trying to insert unsupported type into database
     // (as of this writing, anything other than a block or storage type)
     #[fail(display = "Unhandled Data type, not committing to database")]
-    UnhandledDataType
+    UnhandledDataType(String)
 }
 impl From<TryFromIntError> for Error {
     fn from(err: TryFromIntError) -> Error {
