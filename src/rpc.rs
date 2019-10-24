@@ -188,7 +188,6 @@ impl<T> Rpc<T> where T: System {
 
     pub(crate) fn batch_block_from_number(&self,
                                           numbers: Vec<NumberOrHex<T::BlockNumber>>,
-                                          handle: tokio::runtime::TaskExecutor,
                                           sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
@@ -204,19 +203,16 @@ impl<T> Rpc<T> where T: System {
                         client.hash(number)
                             .and_then(move |hash| {
                                 client.block(hash.expect("should always exist"))
-                                        .and_then(move |block| {
+                                      .and_then(move |block| {
+                                          // TODO: send all blocks as a 'batch' at once
+                                          // then insert all into database at once
                                             Self::send_block(block.clone(), sender.clone())
                                                 .map_err(Into::into)
                                         })
                             })
                     );
                 }
-                // handle.spawn(
-                join_all(futures)
-                    // .map_err(|e| error!("{:?}", e))
-                    .map(|_| ())
-                    // );
-                // future::ok(())
+                join_all(futures).map(|_| ())
             })
     }
 

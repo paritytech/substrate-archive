@@ -129,7 +129,7 @@ impl<T> Archive<T> where T: System {
                     tokio::spawn(
                         db.insert(&data)
                           .map_err(|e| warn!("{:?}", e))
-                          .and_then(move |res| { // TODO do something with res
+                          .and_then(move |_| {
                               // send off storage (timestamps, etc) for
                               // this block hash to be inserted into the db
                               rpc.storage(
@@ -142,7 +142,7 @@ impl<T> Archive<T> where T: System {
                     );
                 },
                 Data::SyncProgress(missing_blocks) => {
-                    println!("{} / 300 some-thousand synced", missing_blocks);
+                    println!("{} blocks missing", missing_blocks);
                 }
                 _ => {
                     tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)));
@@ -177,7 +177,6 @@ impl Sync {
                  db: Arc<Database>,
                  rpc: Arc<Rpc<T>>,
                  sender: UnboundedSender<Data<T>>,
-                 handle: TaskExecutor,
     ) -> impl Future<Item = (Self, bool), Error = ()> + 'static
         where T: System + std::fmt::Debug + 'static
     {
@@ -198,7 +197,7 @@ impl Sync {
               )
           }).and_then(move |blocks| {
               let length = blocks.len();
-              rpc.batch_block_from_number(blocks, handle, sender)
+              rpc.batch_block_from_number(blocks, sender)
                  .and_then(move |_| {
                      if length == 0 {
                          thread::sleep(time::Duration::from_millis(60_000));
