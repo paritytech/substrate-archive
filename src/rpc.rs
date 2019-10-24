@@ -206,18 +206,17 @@ impl<T> Rpc<T> where T: System {
                                 client.block(hash.expect("should always exist"))
                                         .and_then(move |block| {
                                             Self::send_block(block.clone(), sender.clone())
-                                                .expect("Send infalible");
-                                            Ok(block)
+                                                .map_err(Into::into)
                                         })
                             })
                     );
                 }
-                handle.spawn(
-                    join_all(futures)
-                        .map_err(|e| error!("{:?}", e))
-                        .map(|_| ())
-                    );
-                future::ok(())
+                // handle.spawn(
+                join_all(futures)
+                    // .map_err(|e| error!("{:?}", e))
+                    .map(|_| ())
+                    // );
+                // future::ok(())
             })
     }
 

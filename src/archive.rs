@@ -68,6 +68,7 @@ impl<T> Archive<T> where T: System {
 
     pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
+        crate::util::init_logger(log::LevelFilter::Error); // TODO move this into polkadot-archive
         self.runtime.spawn(self.rpc.subscribe_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
         // self.runtime.spawn(self.rpc.subscribe_finalized_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
@@ -141,7 +142,7 @@ impl<T> Archive<T> where T: System {
                     );
                 },
                 Data::SyncProgress(missing_blocks) => {
-                   // nothing
+                    println!("{} / 300 some-thousand synced", missing_blocks);
                 }
                 _ => {
                     tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)));
@@ -154,6 +155,7 @@ impl<T> Archive<T> where T: System {
 
 #[derive(Debug, PartialEq, Eq)]
 struct Sync {
+    looped: usize,
     blocks_missing: usize
 }
 
@@ -166,6 +168,7 @@ impl std::fmt::Display for Sync {
 impl Sync {
     fn new() -> Self {
         Self {
+            looped: 0,
             blocks_missing: 0,
         }
     }
@@ -178,20 +181,31 @@ impl Sync {
     ) -> impl Future<Item = (Self, bool), Error = ()> + 'static
         where T: System + std::fmt::Debug + 'static
     {
+
+        let sender0 = sender.clone();
+        let looped = self.looped;
+        info!("Looped: {}", looped);
         db.query_missing_blocks()
           .and_then(move |blocks| {
-              future::ok(blocks
-                  .into_iter()
-                  .map(|b| NumberOrHex::Hex(U256::from(b)))
-                  .collect::<Vec<NumberOrHex<T::BlockNumber>>>())
-          }).map(|blocks| {
+              sender0.unbounded_send(Data::SyncProgress(blocks.len()))
+                    .map_err(|e| error!("{:?}", e));
+              future::ok(
+                  blocks
+                      .into_iter()
+                      .take(250_000) // avoid "Too many open files" os limit
+                      .map(|b| NumberOrHex::Hex(U256::from(b)))
+                      .collect::<Vec<NumberOrHex<T::BlockNumber>>>()
+              )
+          }).and_then(move |blocks| {
+              let length = blocks.len();
               rpc.batch_block_from_number(blocks, handle, sender)
-                 .map_err(|e| error!("{:?}", e))
-                 .and_then(|_| {
-                     thread::sleep(time::Duration::from_millis(60_000));
-                     Ok((Self { blocks_missing: blocks.len() }, false ))
+                 .and_then(move |_| {
+                     if length == 0 {
+                         thread::sleep(time::Duration::from_millis(60_000));
+                     }
+                     let looped = looped + 1;
+                     future::ok((Self {blocks_missing: length, looped}, false ))
                  })
-          })
-          .map_err(|e| error!("{:?}", e))
+          }).map_err(|e| error!("{:?}", e))
     }
 }

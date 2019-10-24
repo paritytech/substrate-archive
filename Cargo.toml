@@ -26,10 +26,12 @@ r2d2 = "0.8"
 tokio-threadpool = "0.1"
 custom_derive = "0.1.7"
 enum_derive = "0.1.7"
+dirs = "2.0.2"
 
+fern = { version = "0.5", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
-jsonrpc-core-client = { version = "13.0", features = ["ws"] }
+jsonrpc-core-client = { version = "13.0", features = ["ws", "http"] }
 
 srml-system = { git = "https://github.com/paritytech/substrate/", package = "srml-system", branch="polkadot-master"}
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch="polkadot-master"}
