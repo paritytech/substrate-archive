@@ -14,10 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+mod substrate_rpc;
+use self::substrate_rpc::SubstrateRpc;
+
 use log::*;
 use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::{self, join_all}};
 use tokio::runtime::Runtime;
 use jsonrpc_core_client::{RpcChannel, transports::ws};
+use runtime_primitives::traits::Header as HeaderTrait;
 use substrate_primitives::storage::StorageKey;
 use substrate_rpc_primitives::number::NumberOrHex;
 use substrate_rpc_api::{
@@ -31,11 +35,14 @@ use substrate_rpc_api::{
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use crate::types::{Data, System, SubstrateBlock, storage::StorageKeyType, Block, Header, Storage};
-use crate::error::{Error as ArchiveError};
-
-mod substrate_rpc;
-use self::substrate_rpc::SubstrateRpc;
+use crate::{
+    types::{
+        storage::StorageKeyType,
+        Data, System, SubstrateBlock,
+        Block, BatchBlock, Header, Storage,
+    },
+    error::{Error as ArchiveError},
+};
 
 /// Communicate with Substrate node via RPC
 pub struct Rpc<T: System> {
@@ -62,6 +69,7 @@ impl<T> Rpc<T> where T: System {
                       .and_then(|stream| {
                           stream
                               .for_each(move |head| {
+
                                   sender.unbounded_send(Data::Header(Header::new(head)))
                                         .map_err(|e| ArchiveError::from(e))
                           })
@@ -69,14 +77,37 @@ impl<T> Rpc<T> where T: System {
             })
     }
 
+    /// subscribes to new heads but sends blocks instead of headers
+    pub(crate) fn subscribe_blocks(&self, sender: UnboundedSender<Data<T>>
+    ) -> impl Future<Item = (), Error = ArchiveError>
+    {
+        SubstrateRpc::connect(&self.url)
+            .and_then(|client: SubstrateRpc<T>| {
+                let client = Arc::new(client);
+                let client0 = client.clone();
+                let client1 = client.clone();
+                client0.subscribe_finalized_heads()
+                      .and_then(|stream| {
+                          stream.for_each(move |head| {
+                              let sender0 = sender.clone();
+                              client1
+                                  .block(head.hash())
+                                  .and_then(move |block| {
+                                      Self::send_block(block, sender0)
+                                  })
+                          })
+                      })
+            })
+    }
+
     /// send all finalized headers back to main thread
-    pub(crate) fn subscribe_finalized_blocks(&self, sender: UnboundedSender<Data<T>>
+    pub(crate) fn subscribe_finalized_heads(&self, sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
         SubstrateRpc::connect(&self.url)
             .and_then(|client: SubstrateRpc<T>| {
                 client
-                    .subscribe_finalized_blocks()
+                    .subscribe_finalized_heads()
                     .and_then(|stream| {
                         stream.for_each(move |head| {
                             sender.unbounded_send(Data::FinalizedHead(Header::new(head)))
@@ -163,7 +194,6 @@ impl<T> Rpc<T> where T: System {
 
     pub(crate) fn batch_block_from_number(&self,
                                           numbers: Vec<NumberOrHex<T::BlockNumber>>,
-                                          handle: tokio::runtime::TaskExecutor,
                                           sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
@@ -179,18 +209,15 @@ impl<T> Rpc<T> where T: System {
                         client.hash(number)
                             .and_then(move |hash| {
                                 client.block(hash.expect("should always exist"))
-                                        .and_then(move |block| {
-                                            Self::send_block(block, sender.clone())
-                                        })
                             })
                     );
                 }
-                handle.spawn(
-                    join_all(futures)
-                        .map_err(|e| error!("{:?}", e))
-                        .map(|_| ())
-                    );
-                future::ok(())
+                join_all(futures)
+                    .and_then(move |blocks| {
+                        let blocks = blocks.into_iter().filter_map(|b| b).collect::<Vec<SubstrateBlock<T>>>();
+                        sender.unbounded_send(Data::BatchBlock(BatchBlock::new(blocks)))
+                            .map_err(Into::into)
+                    })
             })
     }
 

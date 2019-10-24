@@ -64,8 +64,8 @@ pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExt
 pub enum Data<T: System> {
     Header(Header<T>),
     FinalizedHead(Header<T>),
-    // Hash(T::Hash),
     Block(Block<T>),
+    BatchBlock(BatchBlock<T>),
     Storage(Storage<T>),
     Event(Event<T>),
     SyncProgress(usize),
@@ -91,7 +91,23 @@ impl<T: System> Header<T> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Block<T: System>{
+pub struct BatchBlock<T: System> {
+    inner: Vec<SubstrateBlock<T>>
+}
+
+impl<T: System> BatchBlock<T> {
+
+    pub fn new(blocks: Vec<SubstrateBlock<T>>) -> Self {
+        Self { inner: blocks }
+    }
+
+    pub fn inner(&self) -> &Vec<SubstrateBlock<T>> {
+        &self.inner
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Block<T: System> {
     inner: SubstrateBlock<T>
 }
 

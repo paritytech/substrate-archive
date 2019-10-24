@@ -18,6 +18,7 @@
 //! Nowhere else is anything ever spawned
 
 use log::*;
+use failure::Fail;
 use futures::{
     Future, Stream,
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
@@ -68,8 +69,9 @@ impl<T> Archive<T> where T: System {
 
     pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
-        self.runtime.spawn(self.rpc.subscribe_new_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
-        // rt.spawn(rpc.subscribe_finalized_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
+        crate::util::init_logger(log::LevelFilter::Error); // TODO move this into polkadot-archive
+        self.runtime.spawn(self.rpc.subscribe_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
+        // self.runtime.spawn(self.rpc.subscribe_finalized_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
         let handle = self.runtime.executor();
@@ -88,11 +90,11 @@ impl<T> Archive<T> where T: System {
               handle: TaskExecutor
 
     )
-              -> impl Future<Item = Sync, Error = ()> + 'static
+            -> impl Future<Item = Sync, Error = ()> + 'static
     {
         loop_fn(Sync::new(), move |v| {
             let (sender0, sender1) = (sender.clone(), sender.clone());
-            v.sync(db.clone(), rpc.clone(), sender0.clone(), handle.clone())
+            v.sync(db.clone(), rpc.clone(), sender0.clone())
              .and_then(move |(sync, done)| {
                  info!("Updating {} missing blocks", sync);
                  sender1.unbounded_send(Data::SyncProgress(sync.blocks_missing))
@@ -117,13 +119,9 @@ impl<T> Archive<T> where T: System {
         // (EX block needs hash from the header)
         receiver.for_each(move |data| {
             match &data {
-                Data::Header(header) => {
-                    tokio::spawn(
-                        rpc.block(header.inner().hash(), sender.clone())
-                           .map_err(|e| warn!("{:?}", e))
-                    );
-                },
                 Data::Block(block) => {
+                    // TODO: Transfer this into the rpc
+                    // So that it does not starve RPC of connections
                     let header = block.inner().block.header.clone();
                     let timestamp_key = b"Timestamp Now";
                     let storage_key = twox_128(timestamp_key);
@@ -132,7 +130,7 @@ impl<T> Archive<T> where T: System {
                     tokio::spawn(
                         db.insert(&data)
                           .map_err(|e| warn!("{:?}", e))
-                          .and_then(move |res| { // TODO do something with res
+                          .and_then(move |_| {
                               // send off storage (timestamps, etc) for
                               // this block hash to be inserted into the db
                               rpc.storage(
@@ -140,13 +138,13 @@ impl<T> Archive<T> where T: System {
                                    StorageKey(storage_key.to_vec()),
                                    header.hash(),
                                    StorageKeyType::Timestamp(TimestampOp::Now)
-                               ).map_err(|e| warn!("{:?}", e))
+                              ).map_err(|e| warn!("{:?}", e))
                           })
                     );
                 },
                 Data::SyncProgress(missing_blocks) => {
-                   // nothing
-                }
+                    println!("{} blocks missing", missing_blocks);
+                },
                 _ => {
                     tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)));
                 }
@@ -158,6 +156,7 @@ impl<T> Archive<T> where T: System {
 
 #[derive(Debug, PartialEq, Eq)]
 struct Sync {
+    looped: usize,
     blocks_missing: usize
 }
 
@@ -170,6 +169,7 @@ impl std::fmt::Display for Sync {
 impl Sync {
     fn new() -> Self {
         Self {
+            looped: 0,
             blocks_missing: 0,
         }
     }
@@ -178,28 +178,33 @@ impl Sync {
                  db: Arc<Database>,
                  rpc: Arc<Rpc<T>>,
                  sender: UnboundedSender<Data<T>>,
-                 handle: TaskExecutor,
     ) -> impl Future<Item = (Self, bool), Error = ()> + 'static
         where T: System + std::fmt::Debug + 'static
     {
+
+        let sender0 = sender.clone();
+        let looped = self.looped;
+        info!("Looped: {}", looped);
         db.query_missing_blocks()
           .and_then(move |blocks| {
+              sender0.unbounded_send(Data::SyncProgress(blocks.len()))
+                    .map_err(|e| error!("{:?}", e));
+              future::ok(
+                  blocks
+                      .into_iter()
+                      .map(|b| NumberOrHex::Hex(U256::from(b)))
+                      .collect::<Vec<NumberOrHex<T::BlockNumber>>>()
+              )
+          }).and_then(move |blocks| {
               let length = blocks.len();
-              let blocks = blocks
-                  .into_iter()
-                  .map(|b| NumberOrHex::Hex(U256::from(b)))
-                  .collect::<Vec<NumberOrHex<T::BlockNumber>>>();
-              tokio::spawn(
-                  rpc
-                      .batch_block_from_number(blocks, handle, sender)
-                      .map_err(|e| error!("{:?}", e))
-              );
-              info!("Tokio Thread Done!");
-
-              thread::sleep(time::Duration::from_millis(60_000));
-              // done is false because we never want this loop fn to exit
-              future::ok((Self { blocks_missing: length }, false))
-          })
-          .map_err(|e| error!("{:?}", e))
+              rpc.batch_block_from_number(blocks, sender)
+                 .and_then(move |_| {
+                     if length == 0 {
+                         thread::sleep(time::Duration::from_millis(60_000));
+                     }
+                     let looped = looped + 1;
+                     future::ok((Self {blocks_missing: length, looped}, false ))
+                 })
+          }).map_err(|e| error!("{:?}", e))
     }
 }

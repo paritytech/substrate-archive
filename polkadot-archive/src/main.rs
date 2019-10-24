@@ -27,7 +27,6 @@ use codec::{Encode, Decode, Input, Error as CodecError};
 
 
 fn main() -> Result<(), Error> {
-    env_logger::init();
     Archive::<Runtime>::new()?.run()?;
     Ok(())
 }

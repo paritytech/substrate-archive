@@ -21,9 +21,11 @@ mod error;
 mod archive;
 mod database;
 mod queries;
+mod util;
 #[cfg(test)]
 mod tests;
 mod srml_ext;
+
 pub use archive::Archive;
 
 pub use types::{System, Module, ExtractCall};

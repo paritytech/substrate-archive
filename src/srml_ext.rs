@@ -122,7 +122,7 @@ impl<T> SrmlExt for FinalityCall<T> where T: srml_finality_tracker::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             FinalityCall::final_hint(block) => {
-                Ok(("final_hint".into(), block.encode()))
+                Ok(("final_hint".into(), vec![block.encode()].encode()))
             },
             &__phantom_item => {
                 Ok(("".into(), Vec::new()))
@@ -164,7 +164,7 @@ impl<T> SrmlExt for GrandpaCall<T> where T: srml_grandpa::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             GrandpaCall::report_misbehavior(report) => {
-                Ok(("report_misbehavior".into(), report.encode()))
+                Ok(("report_misbehavior".into(), vec![report.encode()].encode()))
             },
             &__phantom_item => {
                 Ok(("".into(), Vec::new()))
@@ -177,10 +177,10 @@ impl<T> SrmlExt for SudoCall<T> where T: srml_sudo::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             SudoCall::sudo(proposal) => {
-                Ok(("sudo".into(), proposal.encode()))
+                Ok(("sudo".into(), vec![proposal.encode()].encode()))
             },
             SudoCall::set_key(source) => {
-                Ok(("set_key".into(), source.encode()))
+                Ok(("set_key".into(), vec![source.encode()].encode()))
             },
             &__phantom_item => {
                 Ok(("".into(), Vec::new()))
@@ -196,10 +196,10 @@ impl<T> SrmlExt for TreasuryCall<T> where T: srml_treasury::Trait {
                 Ok(("propose_spend".into(), vec![value.encode(), beneficiary.encode()].encode()))
             },
             TreasuryCall::reject_proposal(proposal_id) => {
-                Ok(("reject_proposal".into(), proposal_id.encode()))
+                Ok(("reject_proposal".into(), vec![proposal_id.encode()].encode()))
             },
             TreasuryCall::approve_proposal(proposal_id) => {
-                Ok(("approve_proposal".into(), proposal_id.encode()))
+                Ok(("approve_proposal".into(), vec![proposal_id.encode()].encode()))
             },
             &__phantom_item => {
                 Ok(("".into(), Vec::new()))

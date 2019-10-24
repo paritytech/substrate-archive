@@ -21,7 +21,7 @@ use primitive_types::{H256 as SubstrateH256, H512 as SubstrateH512};
 use diesel::sql_types::{Binary};
 use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
-use diesel::Queryable;
+use diesel::{Queryable, AsChangeset};
 use chrono::{offset::Utc, DateTime};
 
 use super::schema::{blocks, inherents, signed_extrinsics, accounts};
@@ -33,7 +33,7 @@ use super::schema::{blocks, inherents, signed_extrinsics, accounts};
 /// if not originally a hash (bytes from hashes are extracted with as_ref())
 /// it is encoded with parity_scale_codec (u32/etc)
 /// to make up for PostgreSQL's lack of an unsigned data type
-#[derive(Insertable)]
+#[derive(Insertable, AsChangeset)]
 #[table_name="blocks"]
 pub struct InsertBlock<'a> {
     pub parent_hash: &'a [u8],
@@ -42,6 +42,17 @@ pub struct InsertBlock<'a> {
     pub state_root: &'a [u8],
     pub extrinsics_root: &'a [u8],
     pub time: Option<&'a DateTime<Utc>>
+}
+
+#[derive(Insertable, AsChangeset)]
+#[table_name="blocks"]
+pub struct InsertBlockOwned {
+    pub parent_hash: Vec<u8>,
+    pub hash: Vec<u8>,
+    pub block_num: i64,
+    pub state_root: Vec<u8>,
+    pub extrinsics_root: Vec<u8>,
+    pub time: Option<DateTime<Utc>>
 }
 
 #[derive(Insertable)]
