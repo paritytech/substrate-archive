@@ -93,7 +93,7 @@ impl<T> Archive<T> where T: System {
     {
         loop_fn(Sync::new(), move |v| {
             let (sender0, sender1) = (sender.clone(), sender.clone());
-            v.sync(db.clone(), rpc.clone(), sender0.clone(), handle.clone())
+            v.sync(db.clone(), rpc.clone(), sender0.clone())
              .and_then(move |(sync, done)| {
                  info!("Updating {} missing blocks", sync);
                  sender1.unbounded_send(Data::SyncProgress(sync.blocks_missing))
