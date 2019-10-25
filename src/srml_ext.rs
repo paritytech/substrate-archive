@@ -15,7 +15,6 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 //! Extensions to Srml Modules to extract data useful in a database scenario
 // use srml_assets::Call as AssetsCall;
-use log::info;
 use srml_aura::Call as AuraCall;
 use srml_timestamp::Call as TimestampCall;
 use srml_finality_tracker::Call as FinalityCall;

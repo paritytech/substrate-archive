@@ -129,7 +129,8 @@ where
 
     fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
         use self::schema::blocks::dsl::{blocks, time};
-        let (data, key_type, hash) = (self.data(), self.key_type(), self.hash().clone());
+        let (data, _key_type) = (self.data(), self.key_type());
+        let hash = self.hash().ok_or(ArchiveError::DataNotFound("Hash".to_string()))?;
         let unix_time: i64 = Decode::decode(&mut data.0.as_slice())?;
         let date_time = Utc.timestamp_millis(unix_time); // panics if time is incorrect
         let fut = db.run(move |conn| {
@@ -149,7 +150,6 @@ where
     type Error = ArchiveError;
 
     fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-        use self::schema::blocks::block_num;
 
         let mut extrinsics: Vec<InsertInherentOwned> = Vec::new();
         info!("Batch inserting {} blocks into DB", self.inner().len());
@@ -201,7 +201,6 @@ where
     type Error = ArchiveError;
 
     fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-        use self::schema::blocks::block_num;
 
         let block = self.inner().block.clone();
         info!("HASH: {:X?}", block.header.hash().as_ref());
@@ -239,6 +238,7 @@ fn get_extrinsics<T>(
 where
     T: System
 {
+    debug!("Extrinsics: {:?}", extrinsics);
     extrinsics
         .iter()
         // enumerate is used here to preserve order/index of extrinsics
@@ -255,6 +255,7 @@ where
                             // will be inserted as signed_extrinsic
                             None
                         } else {
+                            debug!("Inherent: {:?}", v);
                             Some((v.0, v.1))
                         }
                     } else {

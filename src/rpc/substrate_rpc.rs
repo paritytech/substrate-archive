@@ -16,9 +16,7 @@
 
 //! A simple shim over the Substrate Rpc
 
-use log::*;
-use futures::{Future, Stream, sync::mpsc};
-use tokio::runtime::Runtime;
+use futures::{Future, Stream};
 use jsonrpc_core_client::{RpcChannel, transports::ws};
 use substrate_primitives::storage::{StorageKey, StorageData};
 use substrate_rpc_primitives::number::NumberOrHex;
@@ -30,7 +28,7 @@ use substrate_rpc_api::{
     state::StateClient,
 };
 
-use crate::types::{Data, System, SubstrateBlock, storage::StorageKeyType, Block, Header, Storage};
+use crate::types::{System, SubstrateBlock};
 use crate::error::{Error as ArchiveError};
 
 impl<T: System> From<RpcChannel> for SubstrateRpc<T> {
@@ -84,12 +82,12 @@ impl<T> SubstrateRpc<T> where T: System {
     /// must provide the key, hash of the block to get storage from, as well as the key type
     pub(crate) fn storage(&self,
                           key: StorageKey,
-                          hash: T::Hash,
+                          hash: Option<T::Hash>,
                           // from: StorageKeyType
     ) -> impl Future<Item = Option<StorageData>, Error = ArchiveError>
     {
         self.state
-            .storage(key, Some(hash))
+            .storage(key, hash)
             .map_err(Into::into)
     }
 
@@ -111,11 +109,13 @@ impl<T> SubstrateRpc<T> where T: System {
     }
 
     /// unsubscribe from finalized heads
+    #[allow(dead_code)]
     fn unsubscribe_finalized_heads() {
         unimplemented!();
     }
 
     /// unsubscribe from new heads
+    #[allow(dead_code)]
     fn unsubscribe_new_heads() {
         unimplemented!();
     }

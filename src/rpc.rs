@@ -18,19 +18,10 @@ mod substrate_rpc;
 use self::substrate_rpc::SubstrateRpc;
 
 use log::*;
-use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::{self, join_all}};
-use tokio::runtime::Runtime;
-use jsonrpc_core_client::{RpcChannel, transports::ws};
+use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::join_all};
 use runtime_primitives::traits::Header as HeaderTrait;
 use substrate_primitives::storage::StorageKey;
 use substrate_rpc_primitives::number::NumberOrHex;
-use substrate_rpc_api::{
-    author::AuthorClient,
-    chain::{
-        ChainClient,
-    },
-    state::StateClient,
-};
 
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -52,7 +43,7 @@ pub struct Rpc<T: System> {
 
 impl<T> Rpc<T> where T: System {
 
-    pub(crate) fn new(url: url::Url) -> Self {
+    pub fn new(url: url::Url) -> Self {
         Self {
             url,
             _marker: PhantomData
@@ -60,7 +51,7 @@ impl<T> Rpc<T> where T: System {
     }
 
     /// send all new headers back to main thread
-    pub(crate) fn subscribe_new_heads(&self, sender: UnboundedSender<Data<T>>
+    pub fn subscribe_new_heads(&self, sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
         SubstrateRpc::connect(&self.url)
@@ -78,7 +69,7 @@ impl<T> Rpc<T> where T: System {
     }
 
     /// subscribes to new heads but sends blocks instead of headers
-    pub(crate) fn subscribe_blocks(&self, sender: UnboundedSender<Data<T>>
+    pub fn subscribe_blocks(&self, sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
         SubstrateRpc::connect(&self.url)
@@ -101,7 +92,7 @@ impl<T> Rpc<T> where T: System {
     }
 
     /// send all finalized headers back to main thread
-    pub(crate) fn subscribe_finalized_heads(&self, sender: UnboundedSender<Data<T>>
+    pub fn subscribe_finalized_heads(&self, sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
         SubstrateRpc::connect(&self.url)
@@ -137,10 +128,10 @@ impl<T> Rpc<T> where T: System {
     // TODO: Merge 'from' and 'key' via a macro_derive on StorageKeyType, to auto-generate storage keys
     /// Get a storage item
     /// must provide the key, hash of the block to get storage from, as well as the key type
-    pub(crate) fn storage(&self,
+    pub fn storage(&self,
                           sender: UnboundedSender<Data<T>>,
                           key: StorageKey,
-                          hash: T::Hash,
+                          hash: Option<T::Hash>,
                           from: StorageKeyType
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
@@ -149,6 +140,7 @@ impl<T> Rpc<T> where T: System {
                 client
                     .storage(key, hash)
                     .and_then(move |data| {
+                        debug!("STORAGE: {:?}", data);
                         if let Some(d) = data {
                             sender
                                 .unbounded_send(Data::Storage(Storage::new(d, from, hash)))
@@ -162,7 +154,7 @@ impl<T> Rpc<T> where T: System {
     }
 
     /// Fetch a block by hash from Substrate RPC
-    pub(crate) fn block(&self, hash: T::Hash, sender: UnboundedSender<Data<T>>
+    pub fn block(&self, hash: T::Hash, sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
         SubstrateRpc::connect(&self.url)
@@ -175,7 +167,7 @@ impl<T> Rpc<T> where T: System {
             })
     }
 
-    pub(crate) fn block_from_number(&self,
+    pub fn block_from_number(&self,
                        number: NumberOrHex<T::BlockNumber>,
                        sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
@@ -192,7 +184,7 @@ impl<T> Rpc<T> where T: System {
             })
     }
 
-    pub(crate) fn batch_block_from_number(&self,
+    pub fn batch_block_from_number(&self,
                                           numbers: Vec<NumberOrHex<T::BlockNumber>>,
                                           sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
@@ -204,7 +196,6 @@ impl<T> Rpc<T> where T: System {
                 let mut futures = Vec::new();
                 for number in numbers {
                     let client = client.clone();
-                    let sender = sender.clone();
                     futures.push(
                         client.hash(number)
                             .and_then(move |hash| {
@@ -234,11 +225,13 @@ impl<T> Rpc<T> where T: System {
     }
 
     /// unsubscribe from finalized heads
+    #[allow(dead_code)]
     fn unsubscribe_finalized_heads() {
         unimplemented!();
     }
 
     /// unsubscribe from new heads
+    #[allow(dead_code)]
     fn unsubscribe_new_heads() {
         unimplemented!();
     }

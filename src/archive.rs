@@ -18,16 +18,12 @@
 //! Nowhere else is anything ever spawned
 
 use log::*;
-use failure::Fail;
 use futures::{
     Future, Stream,
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
-    future::{self, join_all, loop_fn, Loop}
+    future::{self, loop_fn, Loop}
 };
-use tokio::{
-    runtime::{Runtime, TaskExecutor},
-    timer::Delay
-};
+use tokio::runtime::Runtime;
 use runtime_primitives::traits::Header;
 use substrate_rpc_primitives::number::NumberOrHex;
 use substrate_primitives::{
@@ -39,7 +35,7 @@ use substrate_primitives::{
 use std::{
     sync::Arc,
     thread,
-    time::{self, Duration, Instant}
+    time
 };
 
 use crate::{
@@ -74,9 +70,8 @@ impl<T> Archive<T> where T: System {
         // self.runtime.spawn(self.rpc.subscribe_finalized_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
-        let handle = self.runtime.executor();
         self.runtime.spawn(
-            Self::sync(self.db.clone(), self.rpc.clone(), sender.clone(), handle)
+            Self::sync(self.db.clone(), self.rpc.clone(), sender.clone())
                 .map(|v| info!("updated {} mising blocks", v))
         );
         tokio::run(Self::handle_data(receiver, self.db.clone(), self.rpc.clone(), sender));
@@ -86,9 +81,7 @@ impl<T> Archive<T> where T: System {
     /// Verification task that ensures all blocks are in the database
     fn sync(db: Arc<Database>,
               rpc: Arc<Rpc<T>>,
-              sender: UnboundedSender<Data<T>>,
-              handle: TaskExecutor
-
+              sender: UnboundedSender<Data<T>>
     )
             -> impl Future<Item = Sync, Error = ()> + 'static
     {
@@ -136,7 +129,7 @@ impl<T> Archive<T> where T: System {
                               rpc.storage(
                                    sender,
                                    StorageKey(storage_key.to_vec()),
-                                   header.hash(),
+                                   Some(header.hash()),
                                    StorageKeyType::Timestamp(TimestampOp::Now)
                               ).map_err(|e| warn!("{:?}", e))
                           })
@@ -144,6 +137,23 @@ impl<T> Archive<T> where T: System {
                 },
                 Data::SyncProgress(missing_blocks) => {
                     println!("{} blocks missing", missing_blocks);
+                },
+                Data::BatchBlock(_blocks) => {
+                    let timestamp_key = b"Timestamp Now";
+                    let storage_key = twox_128(timestamp_key);
+                    let (sender, rpc) = (sender.clone(), rpc.clone());
+                    tokio::spawn(
+                        db.insert(&data)
+                          .map_err(|e| warn!("{:?}", e))
+                          .and_then(move |_| {
+                              rpc.storage(
+                                  sender,
+                                  StorageKey(storage_key.to_vec()),
+                                  None,
+                                  StorageKeyType::Timestamp(TimestampOp::Now)
+                              ).map_err(|e| warn!("{:?}", e))
+                          })
+                    );
                 },
                 _ => {
                     tokio::spawn(db.insert(&data).map_err(|e| warn!("{:?}", e)));
@@ -187,8 +197,12 @@ impl Sync {
         info!("Looped: {}", looped);
         db.query_missing_blocks()
           .and_then(move |blocks| {
-              sender0.unbounded_send(Data::SyncProgress(blocks.len()))
-                    .map_err(|e| error!("{:?}", e));
+              match sender0
+                  .unbounded_send(Data::SyncProgress(blocks.len()))
+                  .map_err(Into::into) {
+                      Ok(()) => (),
+                      Err(e) => return future::err(e)
+                  }
               future::ok(
                   blocks
                       .into_iter()

@@ -15,7 +15,6 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 #[macro_use] extern crate diesel;
-mod rpc;
 mod types;
 mod error;
 mod archive;
@@ -31,6 +30,7 @@ pub use archive::Archive;
 pub use types::{System, Module, ExtractCall};
 pub use srml_ext::{SrmlExt, NotHandled};
 
+pub mod rpc;
 pub mod srml {
     pub use srml_system;
     pub use srml_timestamp::Call as TimestampCall;

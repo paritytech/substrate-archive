@@ -53,7 +53,7 @@ use self::storage::StorageKeyType;
 /// Format for describing accounts
 pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
 /// Basic Extrinsic Type. Does not contain an ERA
-pub type BasicExtrinsic<T> = UncheckedExtrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra >;
+pub type BasicExtrinsic<T> = UncheckedExtrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra>;
 /// A block with OpaqueExtrinsic as extrinsic type
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
 
@@ -128,12 +128,12 @@ impl<T: System> Block<T> {
 pub struct Storage<T: System>{
     data: StorageData,
     key_type: StorageKeyType,
-    hash: T::Hash
+    hash: Option<T::Hash>
 }
 
 impl<T: System> Storage<T> {
 
-    pub fn new(data: StorageData, key_type: StorageKeyType, hash: T::Hash) -> Self {
+    pub fn new(data: StorageData, key_type: StorageKeyType, hash: Option<T::Hash>) -> Self {
         Self { data, key_type, hash }
     }
 
@@ -143,8 +143,8 @@ impl<T: System> Storage<T> {
     pub fn key_type(&self) -> &StorageKeyType {
         &self.key_type
     }
-    pub fn hash(&self) -> &T::Hash {
-        &self.hash
+    pub fn hash(&self) -> Option<T::Hash> {
+        self.hash
     }
 }
 
