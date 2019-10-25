@@ -31,7 +31,7 @@ dirs = "2.0.2"
 fern = { version = "0.5", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
-jsonrpc-core-client = { version = "13.0", features = ["ws", "http"] }
+jsonrpc-core-client = { version = "13.0", features = ["ws"] }
 
 srml-system = { git = "https://github.com/paritytech/substrate/", package = "srml-system", branch="polkadot-master"}
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch="polkadot-master"}
