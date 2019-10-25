@@ -17,7 +17,7 @@
 mod substrate_rpc;
 use self::substrate_rpc::SubstrateRpc;
 
-use log::*;
+use log::{debug, warn};
 use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::join_all};
 use runtime_primitives::traits::Header as HeaderTrait;
 use substrate_primitives::storage::StorageKey;
@@ -32,6 +32,7 @@ use crate::{
         Data, System, SubstrateBlock,
         Block, BatchBlock, Header, Storage,
     },
+    metadata::Metadata,
     error::{Error as ArchiveError},
 };
 
@@ -123,6 +124,12 @@ impl<T> Rpc<T> where T: System {
             })
     }
      */
+pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
+        SubstrateRpc::connect(&self.url)
+            .and_then(move |client: SubstrateRpc<T>| {
+                client.metadata()
+            })
+    }
 
     // TODO: make "Key" and "from" vectors
     // TODO: Merge 'from' and 'key' via a macro_derive on StorageKeyType, to auto-generate storage keys

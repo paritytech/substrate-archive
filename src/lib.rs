@@ -24,6 +24,7 @@ mod util;
 #[cfg(test)]
 mod tests;
 mod srml_ext;
+mod metadata;
 
 pub use archive::Archive;
 

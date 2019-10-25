@@ -33,6 +33,7 @@ diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2"]
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 jsonrpc-core-client = { version = "13.0", features = ["ws"] }
 
+runtime-metadata = { git = "https://github.com/paritytech/substrate/", package = "srml-metadata", branch = "polkadot-master" }
 srml-system = { git = "https://github.com/paritytech/substrate/", package = "srml-system", branch="polkadot-master"}
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch="polkadot-master"}
 substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives", branch="polkadot-master"}
@@ -53,6 +54,7 @@ srml-finality-tracker = { git = "https://github.com/paritytech/substrate", packa
 srml-sudo = { git = "https://github.com/paritytech/substrate", package = "srml-sudo", branch = "polkadot-master"}
 srml-im-online = { git = "https://github.com/paritytech/substrate", package = "srml-im-online", branch = "polkadot-master"}
 srml-treasury = { git = "https://github.com/paritytech/substrate", package = "srml-treasury", branch = "polkadot-master"}
+derive_more = "0.15.0"
 
 [dev-dependencies]
 node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }

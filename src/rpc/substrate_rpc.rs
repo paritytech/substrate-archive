@@ -16,20 +16,21 @@
 
 //! A simple shim over the Substrate Rpc
 
-use futures::{Future, Stream};
+use futures::{Future, Stream, future};
 use jsonrpc_core_client::{RpcChannel, transports::ws};
+use codec::Decode;
+use runtime_metadata::RuntimeMetadataPrefixed;
 use substrate_primitives::storage::{StorageKey, StorageData};
 use substrate_rpc_primitives::number::NumberOrHex;
-use substrate_rpc_api::{
-    author::AuthorClient,
-    chain::{
-        ChainClient,
-    },
-    state::StateClient,
-};
+use substrate_rpc_api::{author::AuthorClient, chain::ChainClient, state::StateClient};
 
-use crate::types::{System, SubstrateBlock};
-use crate::error::{Error as ArchiveError};
+use std::convert::TryInto;
+
+use crate::{
+    types::{System, SubstrateBlock},
+    error::Error as ArchiveError,
+    metadata::Metadata
+};
 
 impl<T: System> From<RpcChannel> for SubstrateRpc<T> {
     fn from(channel: RpcChannel) -> Self {
@@ -74,6 +75,16 @@ impl<T> SubstrateRpc<T> where T: System {
             .subscribe_finalized_heads()
             .map(|s| s.map_err(Into::into))
             .map_err(|e| ArchiveError::from(e))
+    }
+
+    pub(crate) fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
+        self.state
+            .metadata(None)
+            .map(|bytes| Decode::decode(&mut &bytes[..]).expect("Decode failed"))
+            .map_err(Into::into)
+            .and_then(|meta: RuntimeMetadataPrefixed| {
+                future::result(meta.try_into().map_err(Into::into))
+            })
     }
 
     // TODO: make "Key" and "from" vectors

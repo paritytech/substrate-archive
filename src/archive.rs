@@ -56,10 +56,12 @@ pub struct Archive<T: System> {
 impl<T> Archive<T> where T: System {
 
     pub fn new() -> Result<Self, ArchiveError> {
-        let runtime = Runtime::new()?;
+        let mut runtime = Runtime::new()?;
         let rpc = Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?);
         let db = Database::new()?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
+        let metadata = runtime.block_on(rpc.metadata())?;
+        debug!("METADATA: {:?}", metadata);
         Ok( Self { rpc, db, runtime })
     }
 
