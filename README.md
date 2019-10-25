@@ -1,7 +1,7 @@
 # Substrate Archive Node
 ## Currently Under Development!
 
-Run this alongside the substrate client to sync *all* historical TxData. Allows
+Run this alongside the substrate client to sync all historical TxData. Allows
 you to run queries on a PostgreSQL database.
 
 The schema for the PostgreSQL database is described in the Pdf File at the root of this directory
