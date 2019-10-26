@@ -39,7 +39,7 @@ use std::{
 
 use crate::{
     error::Error as ArchiveError,
-    types::{Data, System, Block, Storage, BatchBlock, BasicExtrinsic, ExtractCall},
+    types::{Data, System, Block, Storage, BatchBlock, BatchStorage, BasicExtrinsic, ExtractCall},
     database::{
         models::{InsertBlock, InsertBlockOwned, InsertInherentOwned},
         schema::{blocks, inherents},
@@ -67,6 +67,9 @@ impl<T> Insert for Data<T> where T: System + 'static {
             },
             Data::BatchBlock(blocks) => {
                 blocks.insert(db)
+            },
+            Data::BatchStorage(storage) => {
+                storage.insert(db)
             },
             o @ _=> {
                 Err(ArchiveError::UnhandledDataType(format!("{:?}", o)))
@@ -129,8 +132,7 @@ where
 
     fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
         use self::schema::blocks::dsl::{blocks, time};
-        let (data, _key_type) = (self.data(), self.key_type());
-        let hash = self.hash().ok_or(ArchiveError::DataNotFound("Hash".to_string()))?;
+        let (data, _key_type, hash) = (self.data(), self.key_type(), self.hash().clone());
         let unix_time: i64 = Decode::decode(&mut data.0.as_slice())?;
         let date_time = Utc.timestamp_millis(unix_time); // panics if time is incorrect
         let fut = db.run(move |conn| {
@@ -138,6 +140,55 @@ where
                 .set(time.eq(Some(&date_time)))
                 .execute(&conn)
                 .map_err(|e| e.into())
+        }).map(|_| ());
+        Ok(Box::new(fut))
+    }
+}
+
+impl<T> Insert for BatchStorage<T>
+where
+    T: System
+{
+    type Error = ArchiveError;
+    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+        debug!("Inserting Batch Storage");
+        let mut futures: Vec<DbFuture> = Vec::new();
+        for item in self.inner() { futures.push(item.insert(db.clone())?); }
+        Ok(Box::new(future::join_all(futures).map(|_|())))
+    }
+}
+
+impl<T> Insert for Block<T>
+where
+    T: System + 'static
+{
+    type Error = ArchiveError;
+
+    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+
+        let block = self.inner().block.clone();
+        info!("HASH: {:X?}", block.header.hash().as_ref());
+        info!("Block Num: {:?}", block.header.number());
+        let extrinsics = get_extrinsics::<T>(block.extrinsics(), &block.header)?;
+        // TODO Optimize
+        let fut = db.run(move |conn| {
+            trace!("Inserting Block: {:?}", block.clone());
+            diesel::insert_into(blocks::table)
+                .values(InsertBlock {
+                    parent_hash: block.header.parent_hash().as_ref(),
+                    hash: block.header.hash().as_ref(),
+                    block_num: &(*block.header.number()).into(),
+                    state_root: block.header.state_root().as_ref(),
+                    extrinsics_root: block.header.extrinsics_root().as_ref(),
+                    time: None
+                })
+                .execute(&conn)
+                .map_err(|e| ArchiveError::from(e))?;
+            trace!("Inserting Extrinsics: {:?}", extrinsics);
+            diesel::insert_into(inherents::table)
+                .values(&extrinsics)
+                .execute(&conn)
+                .map_err(Into::into)
         }).map(|_| ());
         Ok(Box::new(fut))
     }
@@ -189,42 +240,6 @@ where
                     .map_err(|e| ArchiveError::from(e))?;
             }
             Ok(())
-        }).map(|_| ());
-        Ok(Box::new(fut))
-    }
-}
-
-impl<T> Insert for Block<T>
-where
-    T: System + 'static
-{
-    type Error = ArchiveError;
-
-    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-
-        let block = self.inner().block.clone();
-        info!("HASH: {:X?}", block.header.hash().as_ref());
-        info!("Block Num: {:?}", block.header.number());
-        let extrinsics = get_extrinsics::<T>(block.extrinsics(), &block.header)?;
-        // TODO Optimize
-        let fut = db.run(move |conn| {
-            trace!("Inserting Block: {:?}", block.clone());
-            diesel::insert_into(blocks::table)
-                .values(InsertBlock {
-                    parent_hash: block.header.parent_hash().as_ref(),
-                    hash: block.header.hash().as_ref(),
-                    block_num: &(*block.header.number()).into(),
-                    state_root: block.header.state_root().as_ref(),
-                    extrinsics_root: block.header.extrinsics_root().as_ref(),
-                    time: None
-                })
-                .execute(&conn)
-                .map_err(|e| ArchiveError::from(e))?;
-            trace!("Inserting Extrinsics: {:?}", extrinsics);
-            diesel::insert_into(inherents::table)
-                .values(&extrinsics)
-                .execute(&conn)
-                .map_err(Into::into)
         }).map(|_| ());
         Ok(Box::new(fut))
     }

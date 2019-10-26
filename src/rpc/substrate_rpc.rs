@@ -82,12 +82,12 @@ impl<T> SubstrateRpc<T> where T: System {
     /// must provide the key, hash of the block to get storage from, as well as the key type
     pub(crate) fn storage(&self,
                           key: StorageKey,
-                          hash: Option<T::Hash>,
+                          hash: T::Hash,
                           // from: StorageKeyType
     ) -> impl Future<Item = Option<StorageData>, Error = ArchiveError>
     {
         self.state
-            .storage(key, hash)
+            .storage(key, Some(hash))
             .map_err(Into::into)
     }
 

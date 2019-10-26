@@ -7,9 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+log = "0.4"
 failure = "0.1"
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 env_logger = "0.7.0"
 substrate-archive = { path = "../" }
-polkadot-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime", rev = "b5cdfbe" }
+polkadot-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime", rev = "9ec50f5" }
 # polkadot-runtime = { git = "https://github.com/paritytech/polkadot", package = "polkadot-runtime", rev="4a983a8" }
