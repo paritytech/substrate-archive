@@ -37,8 +37,8 @@ use runtime_primitives::{
         Hash,
         Header as HeaderTrait,
         MaybeDisplay,
-        MaybeSerializeDebug,
-        MaybeSerializeDebugButNotDeserialize,
+        MaybeSerializeDeserialize,
+        MaybeSerialize,
         Member,
         SignedExtension,
         SimpleArithmetic,
@@ -66,6 +66,7 @@ pub enum Data<T: System> {
     FinalizedHead(Header<T>),
     Block(Block<T>),
     BatchBlock(BatchBlock<T>),
+    BatchStorage(BatchStorage<T>),
     Storage(Storage<T>),
     Event(Event<T>),
     SyncProgress(usize),
@@ -90,21 +91,6 @@ impl<T: System> Header<T> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct BatchBlock<T: System> {
-    inner: Vec<SubstrateBlock<T>>
-}
-
-impl<T: System> BatchBlock<T> {
-
-    pub fn new(blocks: Vec<SubstrateBlock<T>>) -> Self {
-        Self { inner: blocks }
-    }
-
-    pub fn inner(&self) -> &Vec<SubstrateBlock<T>> {
-        &self.inner
-    }
-}
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Block<T: System> {
@@ -125,26 +111,59 @@ impl<T: System> Block<T> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct BatchBlock<T: System> {
+    inner: Vec<SubstrateBlock<T>>
+}
+
+impl<T: System> BatchBlock<T> {
+
+    pub fn new(blocks: Vec<SubstrateBlock<T>>) -> Self {
+        Self { inner: blocks }
+    }
+
+    pub fn inner(&self) -> &Vec<SubstrateBlock<T>> {
+        &self.inner
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct Storage<T: System>{
     data: StorageData,
     key_type: StorageKeyType,
-    hash: Option<T::Hash>
+    hash: T::Hash
 }
 
 impl<T: System> Storage<T> {
 
-    pub fn new(data: StorageData, key_type: StorageKeyType, hash: Option<T::Hash>) -> Self {
+    pub fn new(data: StorageData, key_type: StorageKeyType, hash: T::Hash) -> Self {
         Self { data, key_type, hash }
     }
 
     pub fn data(&self) -> &StorageData {
         &self.data
     }
+
     pub fn key_type(&self) -> &StorageKeyType {
         &self.key_type
     }
-    pub fn hash(&self) -> Option<T::Hash> {
-        self.hash
+
+    pub fn hash(&self) -> &T::Hash {
+        &self.hash
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BatchStorage<T: System> {
+    inner: Vec<Storage<T>>,
+}
+
+impl<T: System> BatchStorage<T> {
+    pub fn new(data: Vec<Storage<T>>) -> Self {
+        Self { inner: data }
+    }
+
+    pub fn inner(&self) -> &Vec<Storage<T>> {
+        &self.inner
     }
 }
 
@@ -233,7 +252,8 @@ pub trait System: Send + Sync + 'static + std::fmt::Debug {
     /// transactions associated with a sender account.
     type Index: Parameter
         + Member
-        + MaybeSerializeDebugButNotDeserialize
+        + MaybeSerialize
+        + std::fmt::Debug
         + Default
         + MaybeDisplay
         + SimpleArithmetic
@@ -242,7 +262,8 @@ pub trait System: Send + Sync + 'static + std::fmt::Debug {
     /// The block number type used by the runtime.
     type BlockNumber: Parameter
         + Member
-        + MaybeSerializeDebug
+        + MaybeSerializeDeserialize
+        + std::fmt::Debug
         + MaybeDisplay
         + SimpleArithmetic
         + Default
@@ -254,7 +275,8 @@ pub trait System: Send + Sync + 'static + std::fmt::Debug {
     /// The output of the `Hashing` function.
     type Hash: Parameter
         + Member
-        + MaybeSerializeDebug
+        + MaybeSerializeDeserialize
+        + std::fmt::Debug
         + MaybeDisplay
         + SimpleBitOps
         + Default
@@ -271,7 +293,8 @@ pub trait System: Send + Sync + 'static + std::fmt::Debug {
     /// The user account identifier type for the runtime.
     type AccountId: Parameter
         + Member
-        + MaybeSerializeDebug
+        + MaybeSerializeDeserialize
+        + std::fmt::Debug
         + MaybeDisplay
         + Ord
         + Default;

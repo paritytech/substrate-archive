@@ -16,6 +16,7 @@
 
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
+use log::warn;
 use failure::Error;
 use substrate_archive::{
     Archive, System, Module,
@@ -80,7 +81,7 @@ impl ExtractCall for CallWrapper {
                 (Module::Treasury, call)
             }
             c @ _ => {
-                println!("{:?}", c);
+                warn!("Call Not Handled: {:?}", c);
                 (Module::NotHandled, &NotHandled)
             }
         }
