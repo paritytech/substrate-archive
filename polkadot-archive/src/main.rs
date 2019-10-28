@@ -16,13 +16,17 @@
 
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
+use log::warn;
 use failure::Error;
 use substrate_archive::{
     Archive, System, Module,
     ExtractCall, SrmlExt, NotHandled,
     srml::{srml_system as system}
 };
-use polkadot_runtime::{Runtime as RuntimeT, Call};
+use polkadot_runtime::{
+    Runtime as RuntimeT, Call,
+    // ParachainsCall, /*parachains::Trait as ParachainsTrait*/
+};
 use codec::{Encode, Decode, Input, Error as CodecError};
 
 
@@ -78,14 +82,38 @@ impl ExtractCall for CallWrapper {
             },
             Call::Treasury(call) => {
                 (Module::Treasury, call)
-            }
+            },
+            /*Call::Parachains(call) => {
+                (Module::Parachains, call)
+            }*/
             c @ _ => {
-                println!("{:?}", c);
+                warn!("Call Not Handled: {:?}", c);
                 (Module::NotHandled, &NotHandled)
             }
         }
     }
 }
+
+////////////////////
+// Custom Modules //
+////////////////////
+// pub struct ParachainsCallWrapper<T>(ParachainsCall<T>);
+/*
+impl<T> SrmlExt for ParachainsCallWrapper<T> {
+    fn function(&self) -> Result<(String, Vec<u8>), Error> {
+        match &self.0 {
+            ParachainsCall::SetHeads(heads) => {
+                Ok(( "set_heads".into(), vec![heads.encode()].encode() ))
+            },
+            &__phantom_item => { // marker
+                warn!("hit phantom item");
+                Ok(("".into(), Vec::new()))
+            }
+        }
+    }
+}
+*/
+
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Runtime;

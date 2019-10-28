@@ -63,7 +63,7 @@ pub struct InsertInherent<'a> {
     pub module: &'a str,
     pub call: &'a str,
     pub parameters: Option<Vec<u8>>,
-    pub success: &'a bool,
+    // pub success: &'a bool,
     pub in_index: &'a i32,
 }
 
@@ -76,7 +76,7 @@ pub struct InsertInherentOwned {
     pub module: String,
     pub call: String,
     pub parameters: Option<Vec<u8>>,
-    pub success: bool,
+    // pub success: bool,
     pub in_index: i32
 }
 
@@ -143,7 +143,7 @@ pub struct Inherents {
     call: String,
     parameters: Option<Vec<u8>>,
     /// Was the call succesful?
-    success: bool,
+    // success: bool,
     /// Index of the inherant within a block
     in_index: i32,
 }

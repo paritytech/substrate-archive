@@ -20,7 +20,7 @@ use self::substrate_rpc::SubstrateRpc;
 use log::{debug, warn};
 use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::join_all};
 use runtime_primitives::traits::Header as HeaderTrait;
-use substrate_primitives::storage::StorageKey;
+use substrate_primitives::storage::{StorageKey, StorageData};
 use substrate_rpc_primitives::number::NumberOrHex;
 
 use std::marker::PhantomData;
@@ -30,7 +30,8 @@ use crate::{
     types::{
         storage::StorageKeyType,
         Data, System, SubstrateBlock,
-        Block, BatchBlock, Header, Storage,
+        Block, BatchBlock, BatchStorage,
+        Header, Storage,
     },
     metadata::Metadata,
     error::{Error as ArchiveError},
@@ -138,8 +139,8 @@ pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
     pub fn storage(&self,
                           sender: UnboundedSender<Data<T>>,
                           key: StorageKey,
-                          hash: Option<T::Hash>,
-                          from: StorageKeyType
+                          hash: T::Hash,
+                          key_type: StorageKeyType
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
         SubstrateRpc::connect(&self.url)
@@ -150,12 +151,51 @@ pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
                         debug!("STORAGE: {:?}", data);
                         if let Some(d) = data {
                             sender
-                                .unbounded_send(Data::Storage(Storage::new(d, from, hash)))
+                                .unbounded_send(Data::Storage(Storage::new(d, key_type, hash)))
                                 .map_err(Into::into)
                         } else {
                             warn!("Storage Item does not exist!");
                             Ok(())
                         }
+                    })
+            })
+    }
+
+    pub fn batch_storage(&self,
+                         sender: UnboundedSender<Data<T>>,
+                         keys: Vec<StorageKey>,
+                         hashes: Vec<T::Hash>,
+                         key_types: Vec<StorageKeyType>
+    ) -> impl Future<Item = (), Error = ArchiveError>
+    {
+        assert!(hashes.len() == keys.len() && keys.len() == key_types.len()); // TODO remove assertion
+        // TODO: too many clones
+        SubstrateRpc::connect(&self.url)
+            .and_then(move |client: SubstrateRpc<T>| {
+                let mut futures = Vec::new();
+                for (idx, hash) in hashes.into_iter().enumerate() {
+                    let key = keys[idx].clone();
+                    let key_type = key_types[idx].clone();
+                    futures.push(
+                        client.storage(key.clone(), hash)
+                              .map(move |data| {
+                                  if let Some(d) = data {
+                                      Ok(Storage::new(d, key_type, hash))
+                                  } else {
+                                      let err = format!("Storage item {:?} does not exist!", key);
+                                      Err(ArchiveError::DataNotFound(err))
+                                  }
+                              })
+                    );
+                }
+                join_all(futures)
+                    .and_then(move |data| {
+                        let data = data.into_iter().filter_map(|d| {
+                            if d.is_err() { error!("{:?}", d); }
+                            d.ok()
+                        }).collect::<Vec<Storage<T>>>();
+                        sender.unbounded_send(Data::BatchStorage(BatchStorage::new(data)))
+                            .map_err(Into::into)
                     })
             })
     }

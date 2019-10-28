@@ -7,6 +7,6 @@ CREATE TABLE inherents (
   module varchar NOT NULL,
   call varchar NOT NULL,
   parameters bytea,
-  success bool NOT NULL,
+  -- success bool NOT NULL,
   in_index int check (in_index >= 0) NOT NULL
 );

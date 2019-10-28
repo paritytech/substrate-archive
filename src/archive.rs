@@ -124,14 +124,14 @@ impl<T> Archive<T> where T: System {
 
                     tokio::spawn(
                         db.insert(&data)
-                          .map_err(|e| warn!("{:?}", e))
+                          .map_err(|e| error!("block not inserted: {:?}", e))
                           .and_then(move |_| {
                               // send off storage (timestamps, etc) for
                               // this block hash to be inserted into the db
                               rpc.storage(
                                    sender,
                                    StorageKey(storage_key.to_vec()),
-                                   Some(header.hash()),
+                                   header.hash(),
                                    StorageKeyType::Timestamp(TimestampOp::Now)
                               ).map_err(|e| warn!("{:?}", e))
                           })
@@ -140,20 +140,27 @@ impl<T> Archive<T> where T: System {
                 Data::SyncProgress(missing_blocks) => {
                     println!("{} blocks missing", missing_blocks);
                 },
-                Data::BatchBlock(_blocks) => {
+                Data::BatchBlock(blocks) => {
                     let timestamp_key = b"Timestamp Now";
                     let storage_key = twox_128(timestamp_key);
                     let (sender, rpc) = (sender.clone(), rpc.clone());
+
+                    let keys = std::iter::repeat(StorageKey(storage_key.to_vec()))
+                        .take(blocks.inner().len())
+                        .collect::<Vec<StorageKey>>();
+                    let key_types = std::iter::repeat(StorageKeyType::Timestamp(TimestampOp::Now))
+                        .take(blocks.inner().len())
+                        .collect::<Vec<StorageKeyType>>();
+                    let hashes = blocks.inner()
+                                       .iter()
+                                       .map(|b| b.block.header.clone().hash())
+                                       .collect::<Vec<T::Hash>>();
                     tokio::spawn(
                         db.insert(&data)
                           .map_err(|e| warn!("{:?}", e))
                           .and_then(move |_| {
-                              rpc.storage(
-                                  sender,
-                                  StorageKey(storage_key.to_vec()),
-                                  None,
-                                  StorageKeyType::Timestamp(TimestampOp::Now)
-                              ).map_err(|e| warn!("{:?}", e))
+                              rpc.batch_storage(sender, keys, hashes, key_types)
+                                  .map_err(|e| warn!("{:?}", e))
                           })
                     );
                 },

@@ -32,7 +32,6 @@ table! {
         module -> Varchar,
         call -> Varchar,
         parameters -> Nullable<Bytea>,
-        success -> Bool,
         in_index -> Int4,
     }
 }
