@@ -25,6 +25,7 @@ use srml_im_online::Call as ImOnlineCall;
 use srml_staking::Call as StakingCall;
 use srml_grandpa::Call as GrandpaCall;
 use srml_treasury::Call as TreasuryCall;
+// use runtime_support::dispatch::{IsSubType, Callable};
 use codec::Encode;
 
 use crate::error::Error;
@@ -33,6 +34,7 @@ pub trait SrmlExt: std::fmt::Debug {
     /// Seperates a call into it's name and parameters
     /// Parameters are SCALE encoded
     fn function(&self) -> Result<(CallName, Parameters), Error>; // name of the function as a string
+
 }
 
 /// Name of the function
@@ -108,7 +110,7 @@ impl<T> SrmlExt for TimestampCall<T> where T: srml_timestamp::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             TimestampCall::set(time) => {
-                Ok(("set".into(), time.encode()))
+                Ok(("set".into(), vec![time.encode()].encode() ))
             },
             &__phantom_item => {
                 Ok(("".into(), Vec::new()))

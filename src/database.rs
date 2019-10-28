@@ -27,6 +27,7 @@ use codec::{Encode, Decode};
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 use chrono::offset::{Utc, TimeZone};
+// use runtime_support::dispatch::IsSubType;
 use runtime_primitives::{
     traits::{Block as BlockTrait, Extrinsic},
     OpaqueExtrinsic, generic::UncheckedExtrinsic
@@ -286,18 +287,25 @@ where
         .map(|(idx, decoded)| {
             let (module, call) = decoded.function.extract_call();
             let index: i32 = i32::try_from(idx)?;
+            // info!("SubType: {:?}", call.is_sub_type());
             let res = call.function();
+            let (fn_name, params);
             if res.is_err() {
-                info!("Call : {:?}", decoded);
+                debug!("Call not Found, Call : {:?}", decoded);
+                fn_name = format!("{:?}", decoded);
+                params = Vec::new();
+            } else {
+                let (name, p) = res?;
+                fn_name = name;
+                params = p;
             }
-            let (fn_name, params) = res?;
             Ok(InsertInherentOwned {
                 hash: header.hash().as_ref().to_vec(),
                 block_num: (*header.number()).into(),
                 module: module.to_string(),
                 call: fn_name,
                 parameters: Some(params),
-                success: true, // TODO: Success is not always true
+                // success: true, // TODO: Success is not always true
                 in_index: index
             })
         })

@@ -23,7 +23,10 @@ use substrate_archive::{
     ExtractCall, SrmlExt, NotHandled,
     srml::{srml_system as system}
 };
-use polkadot_runtime::{Runtime as RuntimeT, Call};
+use polkadot_runtime::{
+    Runtime as RuntimeT, Call,
+    parachains::Call as ParachainsCall, parachains::Trait as ParachainsTrait
+};
 use codec::{Encode, Decode, Input, Error as CodecError};
 
 
@@ -90,6 +93,27 @@ impl ExtractCall for CallWrapper {
         }
     }
 }
+
+////////////////////
+// Custom Modules //
+////////////////////
+pub struct ParachainsCallWrapper(ParachainsCall);
+
+impl<T> SrmlExt for ParachainsCallWrapper<T> where T: ParachainsTrait {
+    fn function(&self) -> Result<(String, Vec<u8>), Error> {
+        match &self.0 {
+            ParachainsCall::SetHeads(heads) => {
+                Ok(( "set_heads".into(), vec![heads.encode()].encode() ))
+            },
+            &__phantom_item => { // marker
+                warn!("hit phantom item");
+                Ok(("".into(), Vec::new()))
+            }
+        }
+    }
+}
+
+
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Runtime;
