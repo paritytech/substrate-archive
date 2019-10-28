@@ -25,7 +25,7 @@ use substrate_archive::{
 };
 use polkadot_runtime::{
     Runtime as RuntimeT, Call,
-    parachains::Call as ParachainsCall, parachains::Trait as ParachainsTrait
+    // ParachainsCall, /*parachains::Trait as ParachainsTrait*/
 };
 use codec::{Encode, Decode, Input, Error as CodecError};
 
@@ -83,9 +83,9 @@ impl ExtractCall for CallWrapper {
             Call::Treasury(call) => {
                 (Module::Treasury, call)
             },
-            Call::Parachains(call) => {
+            /*Call::Parachains(call) => {
                 (Module::Parachains, call)
-            }
+            }*/
             c @ _ => {
                 warn!("Call Not Handled: {:?}", c);
                 (Module::NotHandled, &NotHandled)
@@ -97,9 +97,9 @@ impl ExtractCall for CallWrapper {
 ////////////////////
 // Custom Modules //
 ////////////////////
-pub struct ParachainsCallWrapper(ParachainsCall);
-
-impl<T> SrmlExt for ParachainsCallWrapper<T> where T: ParachainsTrait {
+// pub struct ParachainsCallWrapper<T>(ParachainsCall<T>);
+/*
+impl<T> SrmlExt for ParachainsCallWrapper<T> {
     fn function(&self) -> Result<(String, Vec<u8>), Error> {
         match &self.0 {
             ParachainsCall::SetHeads(heads) => {
@@ -112,7 +112,7 @@ impl<T> SrmlExt for ParachainsCallWrapper<T> where T: ParachainsTrait {
         }
     }
 }
-
+*/
 
 
 #[derive(Debug, PartialEq, Eq, Clone)]
