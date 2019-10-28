@@ -208,6 +208,7 @@ custom_derive! {
         Membership,
         Metadata,
         Offences,
+        Parachains,
         RandomnessCollectiveFlip,
         ScoredPool,
         Session,

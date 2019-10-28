@@ -79,6 +79,9 @@ impl ExtractCall for CallWrapper {
             },
             Call::Treasury(call) => {
                 (Module::Treasury, call)
+            },
+            Call::Parachains(call) => {
+                (Module::Parachains, call)
             }
             c @ _ => {
                 warn!("Call Not Handled: {:?}", c);
