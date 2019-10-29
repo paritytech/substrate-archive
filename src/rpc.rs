@@ -17,10 +17,10 @@
 mod substrate_rpc;
 use self::substrate_rpc::SubstrateRpc;
 
-use log::{debug, warn};
+use log::{debug, warn, error};
 use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::join_all};
 use runtime_primitives::traits::Header as HeaderTrait;
-use substrate_primitives::storage::{StorageKey, StorageData};
+use substrate_primitives::storage::StorageKey;
 use substrate_rpc_primitives::number::NumberOrHex;
 
 use std::marker::PhantomData;

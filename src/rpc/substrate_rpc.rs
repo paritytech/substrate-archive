@@ -97,6 +97,8 @@ impl<T> SubstrateRpc<T> where T: System {
                           // from: StorageKeyType
     ) -> impl Future<Item = Option<StorageData>, Error = ArchiveError>
     {
+        // let hash: Vec<u8> = hash.encode();
+        // let hash: T::Hash = Decode::decode(&mut hash.as_slice()).unwrap();
         self.state
             .storage(key, Some(hash))
             .map_err(Into::into)

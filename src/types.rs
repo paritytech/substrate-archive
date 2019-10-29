@@ -19,6 +19,7 @@ pub mod storage;
 use substrate_primitives::storage::StorageChangeSet;
 use serde::de::DeserializeOwned;
 use codec::{Encode, Decode};
+use chrono::{DateTime, Utc, TimeZone};
 use custom_derive::*;
 use enum_derive::*;
 use substrate_primitives::storage::StorageData;
@@ -47,7 +48,7 @@ use runtime_primitives::{
     },
 };
 
-use crate::srml_ext::SrmlExt;
+use crate::{error::Error, srml_ext::SrmlExt};
 use self::storage::StorageKeyType;
 
 /// Format for describing accounts
@@ -127,13 +128,16 @@ impl<T: System> BatchBlock<T> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Storage<T: System>{
+pub struct Storage<T: System> {
     data: StorageData,
     key_type: StorageKeyType,
-    hash: T::Hash
+    hash: T::Hash // TODO use T:Hash
 }
 
-impl<T: System> Storage<T> {
+impl<T> Storage<T>
+where
+    T: System
+{
 
     pub fn new(data: StorageData, key_type: StorageKeyType, hash: T::Hash) -> Self {
         Self { data, key_type, hash }
@@ -150,6 +154,12 @@ impl<T: System> Storage<T> {
     pub fn hash(&self) -> &T::Hash {
         &self.hash
     }
+
+    pub fn get_timestamp(&self) -> Result<DateTime<Utc>, Error> {
+        // TODO: check if storage key type is actually from the timestamp module
+        let unix_time: i64 = Decode::decode(&mut self.data().0.as_slice())?;
+        Ok(Utc.timestamp_millis(unix_time)) // panics if time is incorrect
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -157,13 +167,20 @@ pub struct BatchStorage<T: System> {
     inner: Vec<Storage<T>>,
 }
 
-impl<T: System> BatchStorage<T> {
+impl<T> BatchStorage<T>
+where
+    T: System
+{
     pub fn new(data: Vec<Storage<T>>) -> Self {
         Self { inner: data }
     }
 
     pub fn inner(&self) -> &Vec<Storage<T>> {
         &self.inner
+    }
+
+    pub fn consume(self) -> Vec<Storage<T>> {
+        self.inner
     }
 }
 
