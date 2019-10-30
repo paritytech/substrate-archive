@@ -136,12 +136,9 @@ impl Database {
                .iter()
                .map(|b| {
                    let old_hash = b.hash.clone();
-                   let hash = b.hash.encode();
-                   let hash: T::Hash = Decode::decode(&mut hash.as_slice())
+                   let hash: T::Hash = Decode::decode(&mut b.hash.as_slice())
                        .expect("Immediate Decoding/Encoding should be infallible");
-                   debug!("OLDHASH {:X?}", old_hash);
-                   debug!("OLDHASH {:?}", hash);
-                   // assert!(hash.as_ref() == old_hash.as_slice());
+                   assert!(hash.as_ref() == old_hash.as_slice());
                    hash
                })
                .collect::<Vec<T::Hash>>()

@@ -84,7 +84,7 @@ impl<T> Rpc<T> where T: System {
                           stream.for_each(move |head| {
                               let sender0 = sender.clone();
                               client1
-                                  .block(head.hash())
+                                  .block(Some(head.hash()))
                                   .and_then(move |block| {
                                       Self::send_block(block, sender0)
                                   })
@@ -207,7 +207,7 @@ pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
         SubstrateRpc::connect(&self.url)
             .and_then(move |client: SubstrateRpc<T>| {
                 client.
-                    block(hash)
+                    block(Some(hash))
                     .and_then(move |block| {
                         Self::send_block(block, sender)
                     })
@@ -223,9 +223,9 @@ pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
             .and_then(move |client: SubstrateRpc<T>| {
                 client.hash(number)
                       .and_then(move |hash| {
-                          client.block(hash.expect("Should always exist"))
+                          client.block(hash)
                                 .and_then(move |block| {
-                                    Self::send_block(block, sender)
+                                    Self::send_block(block, sender) // TODO
                                 })
                       })
             })
@@ -245,9 +245,9 @@ pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
                     let client = client.clone();
                     futures.push(
                         client.hash(number)
-                            .and_then(move |hash| {
-                                client.block(hash.expect("should always exist"))
-                            })
+                              .and_then(move |hash| {
+                                  client.block(hash)
+                              })
                     );
                 }
                 join_all(futures)

@@ -124,32 +124,6 @@ impl<T> Archive<T> where T: System {
                 Data::SyncProgress(missing_blocks) => {
                     println!("{} blocks missing", missing_blocks);
                 },
-                // Data::BatchBlock(blocks) => {
-
-                   //  let timestamp_key = b"Timestamp Now";
-                    // let storage_key = twox_128(timestamp_key);
-                    // let (sender, rpc) = (sender.clone(), rpc.clone());
-/*
-                    let keys = std::iter::repeat(StorageKey(storage_key.to_vec()))
-                        .take(blocks.inner().len())
-                        .collect::<Vec<StorageKey>>();
-                    let key_types = std::iter::repeat(StorageKeyType::Timestamp(TimestampOp::Now))
-                        .take(blocks.inner().len())
-                        .collect::<Vec<StorageKeyType>>();
-                    let hashes = blocks.inner()
-                                       .iter()
-                                       .map(|b| b.block.header.clone().hash())
-                                       .collect::<Vec<T::Hash>>();
-                    tokio::spawn(
-                        db.insert(&data)
-                          .map_err(|e| warn!("{:?}", e))
-                          .and_then(move |_| {
-                              rpc.batch_storage(sender, keys, hashes, key_types)
-                                  .map_err(|e| warn!("{:?}", e))
-                          })
-                    );
-*/
-                // },
                 c @ _ => {
                     tokio::spawn(db.insert(c).map_err(|e| warn!("{:?}", e)));
                 }
@@ -203,6 +177,7 @@ impl Sync {
                   future::ok(
                       blocks
                           .into_iter()
+                          .take(100_000) // just do 50K blocks at a time
                           .map(|b| NumberOrHex::Hex(U256::from(b)))
                           .collect::<Vec<NumberOrHex<T::BlockNumber>>>()
                   )

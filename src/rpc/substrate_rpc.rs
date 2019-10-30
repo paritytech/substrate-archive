@@ -105,11 +105,11 @@ impl<T> SubstrateRpc<T> where T: System {
     }
 
     /// Fetch a block by hash from Substrate RPC
-    pub(crate) fn block(&self, hash: T::Hash
+    pub(crate) fn block(&self, hash: Option<T::Hash>
     ) -> impl Future<Item = Option<SubstrateBlock<T>>, Error = ArchiveError>
     {
         self.chain
-            .block(Some(hash))
+            .block(hash)
             .map_err(Into::into)
     }
 
