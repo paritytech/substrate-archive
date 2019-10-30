@@ -22,11 +22,10 @@ pub mod db_middleware;
 
 use log::*;
 use futures::future::{self, Future};
-use diesel::{prelude::*, pg::PgConnection, sql_types::BigInt};
+use diesel::{prelude::*, pg::PgConnection, sql_types::{BigInt, Bytea}} ;
 use codec::{Encode, Decode};
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
-use chrono::offset::{Utc, TimeZone};
 // use runtime_support::dispatch::IsSubType;
 use runtime_primitives::{
     traits::{Block as BlockTrait, Extrinsic},
@@ -52,13 +51,11 @@ use crate::{
 pub type DbFuture = Box<dyn Future<Item = (), Error = ArchiveError> + Send >;
 
 pub trait Insert {
-    type Error;
-    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, Self::Error>;
+    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError>;
 }
 
 impl<T> Insert for Data<T> where T: System + 'static {
-    type Error = ArchiveError;
-    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
         match self {
             Data::Block(block) => {
                 block.insert(db)
@@ -95,18 +92,15 @@ impl Database {
         Ok(Self { db })
     }
 
-    pub fn insert<T>(&self, data: &Data<T>) -> DbFuture
-    where
-        T: System + 'static
-    {
+    pub fn insert(&self, data: impl Insert) -> DbFuture {
         match data.insert(self.db.clone()) {
             Ok(v) => v,
             Err(e) => Box::new(future::err(e)),
         }
     }
 
-    pub fn query_missing_blocks(&self)
-                          -> impl Future<Item = Vec<u64>, Error = ArchiveError>
+    pub fn query_missing_blocks(&self
+    ) -> impl Future<Item = Vec<u64>, Error = ArchiveError>
     {
         #[derive(QueryableByName, PartialEq, Debug)]
         pub struct Blocks {
@@ -120,22 +114,49 @@ impl Database {
             Ok(blocks
                 .iter()
                 .map(|b| u64::try_from(b.block_num).expect("Block number should never be negative; qed"))
-               .collect::<Vec<u64>>())
+               .collect::<Vec<u64>>()
+            )
+        })
+    }
+
+    pub fn query_missing_timestamps<T>(&self
+    ) -> impl Future<Item = Vec<T::Hash>, Error = ArchiveError>
+    where T: System
+    {
+        #[derive(QueryableByName, PartialEq, Debug)]
+        pub struct Hashes {
+            #[column_name = "hash"]
+            #[sql_type = "Bytea"]
+            pub hash: Vec<u8>
+        };
+
+        self.db.run(move |conn| {
+            let blocks: Vec<Hashes> = queries::missing_timestamp().load(&conn)?;
+            Ok(blocks
+               .iter()
+               .map(|b| {
+                   let old_hash = b.hash.clone();
+                   let hash: T::Hash = Decode::decode(&mut b.hash.as_slice())
+                       .expect("Immediate Decoding/Encoding should be infallible");
+                   assert!(hash.as_ref() == old_hash.as_slice());
+                   hash
+               })
+               .collect::<Vec<T::Hash>>()
+            )
         })
     }
 }
 
+// TODO Make storage insertions generic over any type of insertin
+// not only timestamps
 impl<T> Insert for Storage<T>
 where
-    T: System,
+    T: System
 {
-    type Error = ArchiveError;
-
-    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
         use self::schema::blocks::dsl::{blocks, time};
-        let (data, _key_type, hash) = (self.data(), self.key_type(), self.hash().clone());
-        let unix_time: i64 = Decode::decode(&mut data.0.as_slice())?;
-        let date_time = Utc.timestamp_millis(unix_time); // panics if time is incorrect
+        let date_time = self.get_timestamp()?;
+        let hash = self.hash().clone();
         let fut = db.run(move |conn| {
             diesel::update(blocks.find(hash.as_ref()))
                 .set(time.eq(Some(&date_time)))
@@ -150,12 +171,22 @@ impl<T> Insert for BatchStorage<T>
 where
     T: System
 {
-    type Error = ArchiveError;
-    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-        debug!("Inserting Batch Storage");
-        let mut futures: Vec<DbFuture> = Vec::new();
-        for item in self.inner() { futures.push(item.insert(db.clone())?); }
-        Ok(Box::new(future::join_all(futures).map(|_|())))
+    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+        use self::schema::blocks::dsl::{blocks, time};
+        debug!("Inserting {} items via Batch Storage", self.inner().len());
+        let storage: Vec<Storage<T>> = self.consume();
+        let fut = db.run(move |conn| {
+            for item in storage.into_iter() {
+                let date_time = item.get_timestamp()?;
+                diesel::update(blocks.find(item.hash().as_ref()))
+                    .set(time.eq(Some(&date_time)))
+                    .execute(&conn)
+                    .map_err(|e| ArchiveError::from(e))?;
+            }
+            Ok(())
+        }).map(|_| ());
+
+        Ok(Box::new(fut))
     }
 }
 
@@ -163,9 +194,8 @@ impl<T> Insert for Block<T>
 where
     T: System + 'static
 {
-    type Error = ArchiveError;
 
-    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
 
         let block = self.inner().block.clone();
         info!("HASH: {:X?}", block.header.hash().as_ref());
@@ -199,9 +229,8 @@ impl<T> Insert for BatchBlock<T>
 where
     T: System,
 {
-    type Error = ArchiveError;
 
-    fn insert(&self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
 
         let mut extrinsics: Vec<InsertInherentOwned> = Vec::new();
         info!("Batch inserting {} blocks into DB", self.inner().len());

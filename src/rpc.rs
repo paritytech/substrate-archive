@@ -17,10 +17,10 @@
 mod substrate_rpc;
 use self::substrate_rpc::SubstrateRpc;
 
-use log::*;
-use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::{self, join_all}};
+use log::{debug, warn, error};
+use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::join_all};
 use runtime_primitives::traits::Header as HeaderTrait;
-use substrate_primitives::storage::{StorageKey, StorageData};
+use substrate_primitives::storage::StorageKey;
 use substrate_rpc_primitives::number::NumberOrHex;
 
 use std::marker::PhantomData;
@@ -33,6 +33,7 @@ use crate::{
         Block, BatchBlock, BatchStorage,
         Header, Storage,
     },
+    metadata::Metadata,
     error::{Error as ArchiveError},
 };
 
@@ -83,7 +84,7 @@ impl<T> Rpc<T> where T: System {
                           stream.for_each(move |head| {
                               let sender0 = sender.clone();
                               client1
-                                  .block(head.hash())
+                                  .block(Some(head.hash()))
                                   .and_then(move |block| {
                                       Self::send_block(block, sender0)
                                   })
@@ -124,6 +125,12 @@ impl<T> Rpc<T> where T: System {
             })
     }
      */
+pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
+        SubstrateRpc::connect(&self.url)
+            .and_then(move |client: SubstrateRpc<T>| {
+                client.metadata()
+            })
+    }
 
     // TODO: make "Key" and "from" vectors
     // TODO: Merge 'from' and 'key' via a macro_derive on StorageKeyType, to auto-generate storage keys
@@ -200,7 +207,7 @@ impl<T> Rpc<T> where T: System {
         SubstrateRpc::connect(&self.url)
             .and_then(move |client: SubstrateRpc<T>| {
                 client.
-                    block(hash)
+                    block(Some(hash))
                     .and_then(move |block| {
                         Self::send_block(block, sender)
                     })
@@ -216,9 +223,9 @@ impl<T> Rpc<T> where T: System {
             .and_then(move |client: SubstrateRpc<T>| {
                 client.hash(number)
                       .and_then(move |hash| {
-                          client.block(hash.expect("Should always exist"))
+                          client.block(hash)
                                 .and_then(move |block| {
-                                    Self::send_block(block, sender)
+                                    Self::send_block(block, sender) // TODO
                                 })
                       })
             })
@@ -238,9 +245,9 @@ impl<T> Rpc<T> where T: System {
                     let client = client.clone();
                     futures.push(
                         client.hash(number)
-                            .and_then(move |hash| {
-                                client.block(hash.expect("should always exist"))
-                            })
+                              .and_then(move |hash| {
+                                  client.block(hash)
+                              })
                     );
                 }
                 join_all(futures)

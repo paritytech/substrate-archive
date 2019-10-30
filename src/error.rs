@@ -25,6 +25,7 @@ use std::env::VarError as EnvironmentError;
 use tokio_threadpool::BlockingError;
 use r2d2::Error as R2d2Error;
 use std::num::TryFromIntError;
+use crate::metadata::Error as MetadataError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -58,8 +59,17 @@ pub enum Error {
     #[fail(display = "Unhandled Data type, not committing to database")]
     UnhandledDataType(String),
     #[fail(display = "{} not found, or does not exist", _0)]
-    DataNotFound(String)
+    DataNotFound(String),
+    #[fail(display = "Metadata {}", _0)]
+    Metadata(MetadataError),
 }
+
+impl From<MetadataError> for Error {
+    fn from(err: MetadataError) -> Error {
+        Error::Metadata(err)
+    }
+}
+
 impl From<TryFromIntError> for Error {
     fn from(err: TryFromIntError) -> Error {
         Error::IntConversion(err)

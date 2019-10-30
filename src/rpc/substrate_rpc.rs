@@ -16,20 +16,21 @@
 
 //! A simple shim over the Substrate Rpc
 
-use futures::{Future, Stream};
+use futures::{Future, Stream, future};
 use jsonrpc_core_client::{RpcChannel, transports::ws};
+use codec::Decode;
+use runtime_metadata::RuntimeMetadataPrefixed;
 use substrate_primitives::storage::{StorageKey, StorageData};
 use substrate_rpc_primitives::number::NumberOrHex;
-use substrate_rpc_api::{
-    author::AuthorClient,
-    chain::{
-        ChainClient,
-    },
-    state::StateClient,
-};
+use substrate_rpc_api::{author::AuthorClient, chain::ChainClient, state::StateClient};
 
-use crate::types::{System, SubstrateBlock};
-use crate::error::{Error as ArchiveError};
+use std::convert::TryInto;
+
+use crate::{
+    types::{System, SubstrateBlock},
+    error::Error as ArchiveError,
+    metadata::Metadata
+};
 
 impl<T: System> From<RpcChannel> for SubstrateRpc<T> {
     fn from(channel: RpcChannel) -> Self {
@@ -76,6 +77,16 @@ impl<T> SubstrateRpc<T> where T: System {
             .map_err(|e| ArchiveError::from(e))
     }
 
+    pub(crate) fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
+        self.state
+            .metadata(None)
+            .map(|bytes| Decode::decode(&mut &bytes[..]).expect("Decode failed"))
+            .map_err(Into::into)
+            .and_then(|meta: RuntimeMetadataPrefixed| {
+                future::result(meta.try_into().map_err(Into::into))
+            })
+    }
+
     // TODO: make "Key" and "from" vectors
     // TODO: Merge 'from' and 'key' via a macro_derive on StorageKeyType, to auto-generate storage keys
     /// Get a storage item
@@ -86,17 +97,19 @@ impl<T> SubstrateRpc<T> where T: System {
                           // from: StorageKeyType
     ) -> impl Future<Item = Option<StorageData>, Error = ArchiveError>
     {
+        // let hash: Vec<u8> = hash.encode();
+        // let hash: T::Hash = Decode::decode(&mut hash.as_slice()).unwrap();
         self.state
             .storage(key, Some(hash))
             .map_err(Into::into)
     }
 
     /// Fetch a block by hash from Substrate RPC
-    pub(crate) fn block(&self, hash: T::Hash
+    pub(crate) fn block(&self, hash: Option<T::Hash>
     ) -> impl Future<Item = Option<SubstrateBlock<T>>, Error = ArchiveError>
     {
         self.chain
-            .block(Some(hash))
+            .block(hash)
             .map_err(Into::into)
     }
 
