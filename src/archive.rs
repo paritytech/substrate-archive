@@ -67,13 +67,17 @@ impl<T> Archive<T> where T: System {
     pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
         crate::util::init_logger(log::LevelFilter::Error); // TODO move this into polkadot-archive
-        self.runtime.spawn(self.rpc.subscribe_blocks(sender.clone()).map_err(|e| println!("{:?}", e)));
+        self.runtime.spawn(
+            self.rpc
+                .clone()
+                .subscribe_blocks(sender.clone()).map_err(|e| println!("{:?}", e))
+        );
         // self.runtime.spawn(self.rpc.subscribe_finalized_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
         // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
         self.runtime.spawn(
             Self::sync(self.db.clone(), self.rpc.clone(), sender.clone())
-                .map(|v| info!("updated {} mising blocks", v))
+                .map(|_| ())
         );
         tokio::run(Self::handle_data(receiver, self.db.clone()));
         Ok(())
@@ -88,12 +92,9 @@ impl<T> Archive<T> where T: System {
             -> impl Future<Item = Sync, Error = ()> + 'static
     {
         loop_fn(Sync::new(), move |v| {
-            let (sender0, sender1) = (sender.clone(), sender.clone());
+            let sender0 = sender.clone();
             v.sync(db.clone(), rpc.clone(), sender0.clone())
              .and_then(move |(sync, done)| {
-                 info!("Updating {} missing blocks", sync);
-                 sender1.unbounded_send(Data::SyncProgress(sync.blocks_missing))
-                       .unwrap();
                  if done {
                      Ok(Loop::Break(sync))
                  } else {
@@ -107,25 +108,14 @@ impl<T> Archive<T> where T: System {
                     db: Arc<Database>,
     ) -> impl Future<Item = (), Error = ()> + 'static
     {
-        // task for getting blocks
-        // if we need data that depends on other data that needs to be received first
-        // (EX block needs hash from the header)
         receiver.for_each(move |data| {
             match data {
-                b @ Data::Block(_) => {
-                    // TODO: Transfer this into the rpc
-                    // So that it does not starve RPC of connections
-
-                    tokio::spawn(
-                        db.insert(b)
-                          .map_err(|e| error!("block not inserted: {:?}", e))
-                    );
-                },
                 Data::SyncProgress(missing_blocks) => {
                     println!("{} blocks missing", missing_blocks);
                 },
                 c @ _ => {
-                    tokio::spawn(db.insert(c).map_err(|e| warn!("{:?}", e)));
+                    trace!("Got {:?}", c);
+                    tokio::spawn(db.insert(c).map_err(|e| error!("{:?}", e)));
                 }
             };
             future::ok(())
@@ -136,20 +126,12 @@ impl<T> Archive<T> where T: System {
 #[derive(Debug, PartialEq, Eq)]
 struct Sync {
     looped: usize,
-    blocks_missing: usize
-}
-
-impl std::fmt::Display for Sync {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.blocks_missing)
-    }
 }
 
 impl Sync {
     fn new() -> Self {
         Self {
             looped: 0,
-            blocks_missing: 0,
         }
     }
 
@@ -177,7 +159,7 @@ impl Sync {
                   future::ok(
                       blocks
                           .into_iter()
-                          .take(100_000) // just do 50K blocks at a time
+                          .take(100_000) // just do 100K blocks at a time
                           .map(|b| NumberOrHex::Hex(U256::from(b)))
                           .collect::<Vec<NumberOrHex<T::BlockNumber>>>()
                   )
@@ -186,10 +168,10 @@ impl Sync {
                   rpc0.batch_block_from_number(blocks, sender)
                      .and_then(move |_| {
                          if length == 0 {
-                             thread::sleep(time::Duration::from_millis(10_000));
+                             thread::sleep(time::Duration::from_millis(100));
                          }
                          let looped = looped + 1;
-                         future::ok((Self {blocks_missing: length, looped}, false ))
+                         future::ok((Self {looped}, false ))
                      })
               });
 

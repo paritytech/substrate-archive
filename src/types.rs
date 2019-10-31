@@ -20,15 +20,12 @@ use substrate_primitives::storage::StorageChangeSet;
 use serde::de::DeserializeOwned;
 use codec::{Encode, Decode};
 use chrono::{DateTime, Utc, TimeZone};
-use custom_derive::*;
-use enum_derive::*;
 use substrate_primitives::storage::StorageData;
 use runtime_support::Parameter;
 use runtime_primitives::{
     OpaqueExtrinsic,
     AnySignature,
     generic::{
-        UncheckedExtrinsic,
         Block as BlockT,
         SignedBlock
     },
@@ -48,13 +45,13 @@ use runtime_primitives::{
     },
 };
 
-use crate::{error::Error, srml_ext::SrmlExt};
+use crate::{error::Error, srml_ext::SrmlExt, extrinsics::UncheckedExtrinsic};
 use self::storage::StorageKeyType;
 
 /// Format for describing accounts
 pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
-/// Basic Extrinsic Type. Does not contain an ERA
-pub type BasicExtrinsic<T> = UncheckedExtrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra>;
+pub type BasicExtrinsic<T>
+    = UncheckedExtrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra>;
 /// A block with OpaqueExtrinsic as extrinsic type
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
 
@@ -67,7 +64,7 @@ pub enum Data<T: System> {
     FinalizedHead(Header<T>),
     Block(Block<T>),
     BatchBlock(BatchBlock<T>),
-    BatchStorage(BatchStorage<T>),
+    BatchStorage(BatchStorage<T>), // include callback on storage types for exact diesel::call
     Storage(Storage<T>),
     Event(Event<T>),
     SyncProgress(usize),
@@ -200,53 +197,48 @@ impl<T: System> Event<T> {
     }
 }
 
-
-// TODO: Not sustainable to keep an up-to-date enum of all modules?
-custom_derive! {
-    #[derive(Debug, PartialEq, Eq, Clone, EnumDisplay, IterVariants(IterCallModule))]
-    pub enum Module {
-        Assets,
-        Aura,
-        AuthorityDiscovery,
-        Authorship,
-        Babe,
-        Balances,
-        Collective,
-        Contracts,
-        Democracy,
-        Elections,
-        ElectionsPhragmen,
-        Executive,
-        FinalityTracker,
-        GenericAsset,
-        Grandpa,
-        ImOnline,
-        Indices,
-        Membership,
-        Metadata,
-        Offences,
-        Parachains,
-        RandomnessCollectiveFlip,
-        ScoredPool,
-        Session,
-        Staking,
-        Sudo,
-        Support,
-        // System,
-        Timestamp,
-        TransactionPayment,
-        Treasury,
-        Utility,
-        NotHandled,
-    }
+#[derive(Debug, PartialEq, Eq, Clone, derive_more::Display)]
+pub enum Module {
+    Assets,
+    Aura,
+    AuthorityDiscovery,
+    Authorship,
+    Babe,
+    Balances,
+    Collective,
+    Contracts,
+    Democracy,
+    Elections,
+    ElectionsPhragmen,
+    Executive,
+    FinalityTracker,
+    GenericAsset,
+    Grandpa,
+    ImOnline,
+    Membership,
+    Metadata,
+    Offences,
+    Parachains,
+    RandomnessCollectiveFlip,
+    ScoredPool,
+    Session,
+    Staking,
+    Sudo,
+    Support,
+    // System,
+    Timestamp,
+    TransactionPayment,
+    Treasury,
+    Utility,
+    Custom(String), // modules that are not defined within substrate
+    NotHandled,
 }
 
 
 pub trait ExtractCall {
     /// module the call is from, IE Timestamp, FinalityTracker
-    fn extract_call(&self) -> (Module, &dyn SrmlExt);
+    fn extract_call(&self) -> (Module, Box<dyn SrmlExt>);
 }
-
 
 // TODO: Consider removing this trait and directly using srml_system::Trait
 // Right now this acts as some sort of Shim, in case we need any traits that srml_system::Trait does not specify

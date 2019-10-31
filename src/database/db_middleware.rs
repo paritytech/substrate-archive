@@ -64,7 +64,7 @@ F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
     fn new(fun: F, pool: Pool<ConnectionManager<T>>) -> Self {
         Self {
             fun: Some(fun),
-            pool: pool
+            pool
         }
     }
 }

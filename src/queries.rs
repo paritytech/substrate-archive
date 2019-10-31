@@ -30,10 +30,9 @@ pub(crate) fn missing_timestamp() -> diesel::query_builder::SqlQuery {
     let query = "\
 SELECT hash
 FROM blocks
-WHERE
-time IS NULL
+WHERE block_num > 0 AND time IS NULL
 ";
-    diesel::sql_query(query)
+    diesel::sql_query(query) // block_num must be > 0 because genesis block will not have timestamp
 }
 
 // Get the latest block in the database

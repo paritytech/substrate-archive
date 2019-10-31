@@ -13,11 +13,10 @@ codec = { package = "parity-scale-codec", version = "1.0.0" }
 env_logger = "0.7.0"
 substrate-archive = { path = "../" }
 
-
 [dependencies.polkadot-runtime]
 git = "https://github.com/paritytech/polkadot"
 package = "polkadot-runtime"
 default-features = false
-branch = "master"
-# rev = "9bf2655"
+# branch = "master"
+rev = "39397ab"
 features = ["std"]

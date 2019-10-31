@@ -21,11 +21,12 @@ use failure::Error;
 use substrate_archive::{
     Archive, System, Module,
     ExtractCall, SrmlExt, NotHandled,
-    srml::{srml_system as system}
+    srml::srml_system as system,
+    Error as ArchiveError
 };
 use polkadot_runtime::{
     Runtime as RuntimeT, Call,
-    // ParachainsCall, /*parachains::Trait as ParachainsTrait*/
+    ParachainsCall, ParachainsTrait
 };
 use codec::{Encode, Decode, Input, Error as CodecError};
 
@@ -57,38 +58,38 @@ impl Decode for CallWrapper {
 
 // define all calls/inherents that you want tracked by the archive node
 impl ExtractCall for CallWrapper {
-    fn extract_call(&self) -> (Module, &dyn SrmlExt) {
+    fn extract_call(&self) -> (Module, Box<dyn SrmlExt>) {
         match &self.inner {
             Call::Timestamp(call) => {
-                (Module::Timestamp, call)
+                (Module::Timestamp, Box::new(call.clone()))
             },
             Call::FinalityTracker(call) => {
-                (Module::FinalityTracker, call)
+                (Module::FinalityTracker, Box::new(call.clone()))
             },
             Call::ImOnline(call) => {
-                (Module::ImOnline, call)
+                (Module::ImOnline, Box::new(call.clone()))
             },
             Call::Babe(call) => {
-                (Module::Babe, call)
+                (Module::Babe, Box::new(call.clone()))
             },
             Call::Staking(call) => {
-                (Module::Staking, call)
+                (Module::Staking, Box::new(call.clone()))
             },
             Call::Session(call) => {
-                (Module::Session, call)
+                (Module::Session, Box::new(call.clone()))
             },
             Call::Grandpa(call) => {
-                (Module::Grandpa, call)
+                (Module::Grandpa, Box::new(call.clone()))
             },
             Call::Treasury(call) => {
-                (Module::Treasury, call)
+                (Module::Treasury, Box::new(call.clone()))
             },
-            /*Call::Parachains(call) => {
-                (Module::Parachains, call)
-            }*/
+            Call::Parachains(call) => {
+                (Module::Custom("Parachains".into()), Box::new(ParachainsCallWrapper(call.clone())))
+            }
             c @ _ => {
                 warn!("Call Not Handled: {:?}", c);
-                (Module::NotHandled, &NotHandled)
+                (Module::NotHandled, Box::new(NotHandled))
             }
         }
     }
@@ -97,23 +98,25 @@ impl ExtractCall for CallWrapper {
 ////////////////////
 // Custom Modules //
 ////////////////////
-// pub struct ParachainsCallWrapper<T>(ParachainsCall<T>);
-/*
-impl<T> SrmlExt for ParachainsCallWrapper<T> {
-    fn function(&self) -> Result<(String, Vec<u8>), Error> {
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParachainsCallWrapper<T: ParachainsTrait>(ParachainsCall<T>);
+
+impl<T> SrmlExt for ParachainsCallWrapper<T>
+where
+    T: ParachainsTrait + std::fmt::Debug
+{
+    fn function(&self) -> Result<(String, Vec<u8>), ArchiveError> {
         match &self.0 {
-            ParachainsCall::SetHeads(heads) => {
+            ParachainsCall::set_heads(heads) => {
                 Ok(( "set_heads".into(), vec![heads.encode()].encode() ))
             },
-            &__phantom_item => { // marker
+            __phantom_item => { // marker
                 warn!("hit phantom item");
                 Ok(("".into(), Vec::new()))
             }
         }
     }
 }
-*/
-
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Runtime;

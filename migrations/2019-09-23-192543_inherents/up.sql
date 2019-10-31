@@ -8,5 +8,6 @@ CREATE TABLE inherents (
   call varchar NOT NULL,
   parameters bytea,
   -- success bool NOT NULL,
-  in_index int check (in_index >= 0) NOT NULL
+  in_index int check (in_index >= 0) NOT NULL,
+  tx_version int check (tx_version >= 0) NOT NULL,
 );

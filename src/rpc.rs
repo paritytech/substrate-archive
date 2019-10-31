@@ -17,10 +17,10 @@
 mod substrate_rpc;
 use self::substrate_rpc::SubstrateRpc;
 
-use log::{debug, warn, error};
+use log::{debug, warn, error, trace};
 use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::join_all};
 use runtime_primitives::traits::Header as HeaderTrait;
-use substrate_primitives::storage::StorageKey;
+use substrate_primitives::{storage::{StorageKey}, twox_128};
 use substrate_rpc_primitives::number::NumberOrHex;
 
 use std::marker::PhantomData;
@@ -28,7 +28,7 @@ use std::sync::Arc;
 
 use crate::{
     types::{
-        storage::StorageKeyType,
+        storage::{StorageKeyType, TimestampOp},
         Data, System, SubstrateBlock,
         Block, BatchBlock, BatchStorage,
         Header, Storage,
@@ -42,6 +42,51 @@ pub struct Rpc<T: System> {
     _marker: PhantomData<T>,
     url: url::Url
 }
+
+impl<T> Rpc<T> where T: System {
+    /// subscribes to new heads but sends blocks and timestamps instead of headers
+    pub fn subscribe_blocks(self: Arc<Self>, sender: UnboundedSender<Data<T>>
+    ) -> impl Future<Item = (), Error = ArchiveError>
+    {
+
+        let rpc = self.clone();
+        SubstrateRpc::connect(&self.url)
+            .and_then(|client: SubstrateRpc<T>| {
+                let client = Arc::new(client);
+                client.subscribe_finalized_heads()
+                       .and_then(|stream| {
+                           stream.for_each(move |head| {
+                               let sender0 = sender.clone();
+                               rpc.clone().block(head.hash(), sender0)
+                           })
+                       })
+            })
+    }
+
+    pub fn block_and_timestamp(self: Arc<Self>, hash: T::Hash, sender: UnboundedSender<Data<T>>
+    ) -> impl Future<Item = (), Error = ArchiveError>
+    {
+        trace!("Gathering block + timestamp for {}", hash);
+        let rpc = self.clone();
+        SubstrateRpc::connect(&self.url)
+            .and_then(move |client: SubstrateRpc<T>| {
+                let sender1 = sender.clone();
+                let sender2 = sender.clone();
+                client.
+                    block(Some(hash))
+                    .and_then(move |block| {
+                        Self::send_block(block, sender1)
+                    }).and_then(move |_| {
+                        let timestamp_key = b"Timestamp Now";
+                        let storage_key = twox_128(timestamp_key);
+                        let key = StorageKey(storage_key.to_vec());
+                        let key_type = StorageKeyType::Timestamp(TimestampOp::Now);
+                        rpc.storage(sender2, key, hash, key_type)
+                    })
+            })
+    }
+}
+
 
 impl<T> Rpc<T> where T: System {
 
@@ -65,29 +110,6 @@ impl<T> Rpc<T> where T: System {
 
                                   sender.unbounded_send(Data::Header(Header::new(head)))
                                         .map_err(|e| ArchiveError::from(e))
-                          })
-                      })
-            })
-    }
-
-    /// subscribes to new heads but sends blocks instead of headers
-    pub fn subscribe_blocks(&self, sender: UnboundedSender<Data<T>>
-    ) -> impl Future<Item = (), Error = ArchiveError>
-    {
-        SubstrateRpc::connect(&self.url)
-            .and_then(|client: SubstrateRpc<T>| {
-                let client = Arc::new(client);
-                let client0 = client.clone();
-                let client1 = client.clone();
-                client0.subscribe_finalized_heads()
-                      .and_then(|stream| {
-                          stream.for_each(move |head| {
-                              let sender0 = sender.clone();
-                              client1
-                                  .block(Some(head.hash()))
-                                  .and_then(move |block| {
-                                      Self::send_block(block, sender0)
-                                  })
                           })
                       })
             })
@@ -125,7 +147,8 @@ impl<T> Rpc<T> where T: System {
             })
     }
      */
-pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
+
+    pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
         SubstrateRpc::connect(&self.url)
             .and_then(move |client: SubstrateRpc<T>| {
                 client.metadata()
@@ -150,6 +173,7 @@ pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
                     .and_then(move |data| {
                         debug!("STORAGE: {:?}", data);
                         if let Some(d) = data {
+                            trace!("Sending timestamp for {}", hash);
                             sender
                                 .unbounded_send(Data::Storage(Storage::new(d, key_type, hash)))
                                 .map_err(Into::into)
@@ -209,7 +233,7 @@ pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
                 client.
                     block(Some(hash))
                     .and_then(move |block| {
-                        Self::send_block(block, sender)
+                        Self::send_block(block.clone(), sender)
                     })
             })
     }

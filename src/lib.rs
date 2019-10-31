@@ -21,6 +21,7 @@ mod archive;
 mod database;
 mod queries;
 mod util;
+mod extrinsics;
 #[cfg(test)]
 mod tests;
 mod srml_ext;
@@ -30,6 +31,7 @@ pub use archive::Archive;
 
 pub use types::{System, Module, ExtractCall};
 pub use srml_ext::{SrmlExt, NotHandled};
+pub use error::Error;
 
 pub mod rpc;
 pub mod srml {

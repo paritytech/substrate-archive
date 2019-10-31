@@ -29,7 +29,7 @@ use dotenv::dotenv;
 // use runtime_support::dispatch::IsSubType;
 use runtime_primitives::{
     traits::{Block as BlockTrait, Extrinsic},
-    OpaqueExtrinsic, generic::UncheckedExtrinsic
+    OpaqueExtrinsic
 };
 
 use std::{
@@ -39,7 +39,8 @@ use std::{
 
 use crate::{
     error::Error as ArchiveError,
-    types::{Data, System, Block, Storage, BatchBlock, BatchStorage, BasicExtrinsic, ExtractCall},
+    extrinsics::UncheckedExtrinsic,
+    types::{BasicExtrinsic, Data, System, Block, Storage, BatchBlock, BatchStorage, ExtractCall},
     database::{
         models::{InsertBlock, InsertBlockOwned, InsertInherentOwned},
         schema::{blocks, inherents},
@@ -154,15 +155,17 @@ where
     T: System
 {
     fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-        use self::schema::blocks::dsl::{blocks, time};
+        use self::schema::blocks::dsl::{blocks, hash, time};
         let date_time = self.get_timestamp()?;
-        let hash = self.hash().clone();
+        let hsh = self.hash().clone();
         let fut = db.run(move |conn| {
-            diesel::update(blocks.find(hash.as_ref()))
+            trace!("inserting timestamp for: {}", hsh);
+            diesel::update(blocks.filter(hash.eq(hsh.as_ref())))
                 .set(time.eq(Some(&date_time)))
                 .execute(&conn)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }).map(|_| ());
+
         Ok(Box::new(fut))
     }
 }
@@ -172,13 +175,13 @@ where
     T: System
 {
     fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-        use self::schema::blocks::dsl::{blocks, time};
+        use self::schema::blocks::dsl::{blocks, hash, time};
         debug!("Inserting {} items via Batch Storage", self.inner().len());
         let storage: Vec<Storage<T>> = self.consume();
         let fut = db.run(move |conn| {
             for item in storage.into_iter() {
                 let date_time = item.get_timestamp()?;
-                diesel::update(blocks.find(item.hash().as_ref()))
+                diesel::update(blocks.filter(hash.eq(item.hash().as_ref())))
                     .set(time.eq(Some(&date_time)))
                     .execute(&conn)
                     .map_err(|e| ArchiveError::from(e))?;
@@ -288,13 +291,16 @@ where
         .iter()
         // enumerate is used here to preserve order/index of extrinsics
         .enumerate()
-        .map(|(idx, x)| Ok(( idx, UncheckedExtrinsic::decode(&mut x.encode().as_slice())? )))
+        .map(|(idx, x)| {
+            Ok(( idx, UncheckedExtrinsic::decode(&mut x.encode().as_slice())? ))
+        })
         .collect::<Vec<Result<(usize, BasicExtrinsic<T>), ArchiveError>>>()
         .into_iter()
         // we don't want to skip over _all_ extrinsics if decoding one extrinsic does not work
         .filter_map(|x: Result<(usize, BasicExtrinsic<T>), _>| {
             match x {
                 Ok(v) => {
+                    println!("{:?}", v.1.function());
                     if let Some(b) = v.1.is_signed() {
                         if b {
                             // will be inserted as signed_extrinsic
@@ -314,7 +320,7 @@ where
             }
         })
         .map(|(idx, decoded)| {
-            let (module, call) = decoded.function.extract_call();
+            let (module, call) = decoded.function().extract_call();
             let index: i32 = i32::try_from(idx)?;
             // info!("SubType: {:?}", call.is_sub_type());
             let res = call.function();
