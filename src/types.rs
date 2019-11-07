@@ -45,13 +45,13 @@ use runtime_primitives::{
     },
 };
 
-use crate::{error::Error, srml_ext::SrmlExt, extrinsics::UncheckedExtrinsic};
+use crate::{error::Error, srml_ext::SrmlExt, extrinsics::Extrinsic};
 use self::storage::StorageKeyType;
 
 /// Format for describing accounts
 pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
 pub type BasicExtrinsic<T>
-    = UncheckedExtrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra>;
+    = Extrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra>;
 /// A block with OpaqueExtrinsic as extrinsic type
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
 

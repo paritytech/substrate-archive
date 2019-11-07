@@ -17,6 +17,6 @@ substrate-archive = { path = "../" }
 git = "https://github.com/paritytech/polkadot"
 package = "polkadot-runtime"
 default-features = false
-# branch = "master"
-rev = "39397ab"
+branch = "v0.6"
+# rev = "39397ab"
 features = ["std"]

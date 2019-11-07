@@ -23,27 +23,27 @@ pub mod db_middleware;
 use log::*;
 use futures::future::{self, Future};
 use diesel::{prelude::*, pg::PgConnection, sql_types::{BigInt, Bytea}} ;
-use codec::{Encode, Decode};
-use runtime_primitives::traits::Header;
+use codec::Decode;
+use runtime_primitives::traits::{Header, Hash};
 use dotenv::dotenv;
 // use runtime_support::dispatch::IsSubType;
 use runtime_primitives::{
-    traits::{Block as BlockTrait, Extrinsic},
+    traits::{Block as BlockTrait, Extrinsic as ExtrinsicTrait},
     OpaqueExtrinsic
 };
 
 use std::{
     env,
-    convert::TryFrom
+    convert::{TryFrom, TryInto}
 };
 
 use crate::{
     error::Error as ArchiveError,
-    extrinsics::UncheckedExtrinsic,
+    extrinsics::{Extrinsic, DbExtrinsic},
     types::{BasicExtrinsic, Data, System, Block, Storage, BatchBlock, BatchStorage, ExtractCall},
     database::{
-        models::{InsertBlock, InsertBlockOwned, InsertInherentOwned},
-        schema::{blocks, inherents},
+        models::{InsertBlock, InsertBlockOwned, InsertInherentOwned, InsertTransactionOwned},
+        schema::{blocks, inherents, signed_extrinsics},
         db_middleware::AsyncDiesel
     },
     queries
@@ -193,10 +193,7 @@ where
     }
 }
 
-impl<T> Insert for Block<T>
-where
-    T: System + 'static
-{
+impl<T> Insert for Block<T> where T: System + 'static {
 
     fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
 
@@ -206,7 +203,6 @@ where
         let extrinsics = get_extrinsics::<T>(block.extrinsics(), &block.header)?;
         // TODO Optimize
         let fut = db.run(move |conn| {
-            trace!("Inserting Block: {:?}", block.clone());
             diesel::insert_into(blocks::table)
                 .values(InsertBlock {
                     parent_hash: block.header.parent_hash().as_ref(),
@@ -218,12 +214,27 @@ where
                 })
                 .execute(&conn)
                 .map_err(|e| ArchiveError::from(e))?;
-            trace!("Inserting Extrinsics: {:?}", extrinsics);
+
+            let (mut signed_ext, mut unsigned_ext) = (Vec::new(), Vec::new());
+            for e in extrinsics.into_iter() {
+                match e {
+                    DbExtrinsic::Signed(e) => signed_ext.push(e),
+                    DbExtrinsic::NotSigned(e) => unsigned_ext.push(e),
+                }
+            }
+
             diesel::insert_into(inherents::table)
-                .values(&extrinsics)
+                .values(unsigned_ext)
+                .execute(&conn)
+                .map_err(|e| ArchiveError::from(e))?;
+
+            diesel::insert_into(signed_extrinsics::table)
+                .values(signed_ext)
                 .execute(&conn)
                 .map_err(Into::into)
+
         }).map(|_| ());
+
         Ok(Box::new(fut))
     }
 }
@@ -235,14 +246,14 @@ where
 
     fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
 
-        let mut extrinsics: Vec<InsertInherentOwned> = Vec::new();
+        let mut extrinsics: Vec<DbExtrinsic> = Vec::new();
         info!("Batch inserting {} blocks into DB", self.inner().len());
         let blocks = self
             .inner()
             .iter()
             .map(|block| {
                 let block = block.block.clone();
-                let mut block_ext: Vec<InsertInherentOwned>
+                let mut block_ext: Vec<DbExtrinsic>
                     = get_extrinsics::<T>(block.extrinsics(), &block.header)?;
 
                 extrinsics.append(&mut block_ext);
@@ -257,6 +268,17 @@ where
             })
             .filter_map(|b: Result<_, ArchiveError>| b.ok())
             .collect::<Vec<InsertBlockOwned>>();
+
+            let (mut signed_ext, mut unsigned_ext) = (Vec::new(), Vec::new());
+
+            for e in extrinsics.into_iter() {
+                match e {
+                    DbExtrinsic::Signed(e) => signed_ext.push(e),
+                    DbExtrinsic::NotSigned(e) => unsigned_ext.push(e),
+                }
+            }
+
+        // batch insert everything we've formatted/collected into the database 10,000 items at a time
         let fut = db.run(move |conn| {
             for chunks in blocks.as_slice().chunks(10_000) {
                 info!("{}", chunks.len());
@@ -265,9 +287,16 @@ where
                     .execute(&conn)
                     .map_err(|e| ArchiveError::from(e))?;
             }
-            for chunks in extrinsics.as_slice().chunks(10_000) {
-                info!("{}", chunks.len());
+            for chunks in unsigned_ext.as_slice().chunks(2_500) {
+                info!("inserting {} unsigned extrinsics", chunks.len());
                 diesel::insert_into(inherents::table)
+                    .values(chunks)
+                    .execute(&conn)
+                    .map_err(|e| ArchiveError::from(e))?;
+            }
+            for chunks in signed_ext.as_slice().chunks(2_500) {
+                info!("inserting {} signed extrinsics", chunks.len());
+                diesel::insert_into(signed_extrinsics::table)
                     .values(chunks)
                     .execute(&conn)
                     .map_err(|e| ArchiveError::from(e))?;
@@ -282,17 +311,13 @@ fn get_extrinsics<T>(
     extrinsics: &[OpaqueExtrinsic],
     header: &T::Header,
     // db: &AsyncDiesel<PgConnection>,
-) -> Result<Vec<InsertInherentOwned>, ArchiveError>
-where
-    T: System
-{
-    debug!("Extrinsics: {:?}", extrinsics);
+) -> Result<Vec<DbExtrinsic>, ArchiveError> where T: System {
     extrinsics
         .iter()
         // enumerate is used here to preserve order/index of extrinsics
         .enumerate()
         .map(|(idx, x)| {
-            Ok(( idx, UncheckedExtrinsic::decode(&mut x.encode().as_slice())? ))
+            Ok((idx, Extrinsic::new(&x)?))
         })
         .collect::<Vec<Result<(usize, BasicExtrinsic<T>), ArchiveError>>>()
         .into_iter()
@@ -300,18 +325,8 @@ where
         .filter_map(|x: Result<(usize, BasicExtrinsic<T>), _>| {
             match x {
                 Ok(v) => {
-                    println!("{:?}", v.1.function());
-                    if let Some(b) = v.1.is_signed() {
-                        if b {
-                            // will be inserted as signed_extrinsic
-                            None
-                        } else {
-                            debug!("Inherent: {:?}", v);
-                            Some((v.0, v.1))
-                        }
-                    } else {
-                        Some((v.0, v.1))
-                    }
+                    let number = (*header.number()).into();
+                    Some(v.1.database_format(v.0.try_into().unwrap(), header, number))
                 },
                 Err(e) => {
                     error!("{:?}", e);
@@ -319,44 +334,8 @@ where
                 }
             }
         })
-        .map(|(idx, decoded)| {
-            let (module, call) = decoded.function().extract_call();
-            let index: i32 = i32::try_from(idx)?;
-            // info!("SubType: {:?}", call.is_sub_type());
-            let res = call.function();
-            let (fn_name, params);
-            if res.is_err() {
-                debug!("Call not Found, Call : {:?}", decoded);
-                fn_name = format!("{:?}", decoded);
-                params = Vec::new();
-            } else {
-                let (name, p) = res?;
-                fn_name = name;
-                params = p;
-            }
-            Ok(InsertInherentOwned {
-                hash: header.hash().as_ref().to_vec(),
-                block_num: (*header.number()).into(),
-                module: module.to_string(),
-                call: fn_name,
-                parameters: Some(params),
-                // success: true, // TODO: Success is not always true
-                in_index: index
-            })
-        })
-        .collect::<Result<Vec<InsertInherentOwned>, ArchiveError>>()
-/*
-    let fut = db.run(move |conn| {
-        trace!("Inserting Extrinsics: {:?}", values);
-        diesel::insert_into(inherents::table)
-            .values(&values)
-            .execute(&conn)
-            .map_err(|e| e.into())
-    }).map(|_| ());
-    Ok(Box::new(fut))
-*/
+        .collect::<Result<Vec<DbExtrinsic>, ArchiveError>>()
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -29,7 +29,7 @@ dirs = "2.0.2"
 fern = { version = "0.5", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
-jsonrpc-core-client = { version = "13.0", features = ["ws"] }
+jsonrpc-core-client = { version = "14.0", features = ["ws"] }
 
 runtime-metadata = { git = "https://github.com/paritytech/substrate/", package = "srml-metadata", branch = "polkadot-master" }
 srml-system = { git = "https://github.com/paritytech/substrate/", package = "srml-system", branch="polkadot-master"}
@@ -55,7 +55,7 @@ srml-treasury = { git = "https://github.com/paritytech/substrate", package = "sr
 derive_more = "0.15.0"
 
 [patch.'https://github.com/paritytech/polkadot']
-polkadot-runtime = { git = "https://github.com/insipx/polkadot", branch = "insipx/archive-patches" }
+polkadot-runtime = { git = "https://github.com/insipx/polkadot", branch = "insipx/archive-patches-v0.6" }
 
 [dev-dependencies]
 node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }

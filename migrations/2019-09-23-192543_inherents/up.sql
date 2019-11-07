@@ -9,5 +9,5 @@ CREATE TABLE inherents (
   parameters bytea,
   -- success bool NOT NULL,
   in_index int check (in_index >= 0) NOT NULL,
-  tx_version int check (tx_version >= 0) NOT NULL,
+  transaction_version int check (transaction_version >= 0) NOT NULL
 );

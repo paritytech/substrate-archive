@@ -59,8 +59,8 @@ impl<T> Archive<T> where T: System {
         let rpc = Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?);
         let db = Database::new()?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
-        let metadata = runtime.block_on(rpc.metadata())?;
-        debug!("METADATA: {:?}", metadata);
+        // let metadata = runtime.block_on(rpc.metadata())?;
+        // debug!("METADATA: {:?}", metadata);
         Ok( Self { rpc, db, runtime })
     }
 
@@ -114,7 +114,6 @@ impl<T> Archive<T> where T: System {
                     println!("{} blocks missing", missing_blocks);
                 },
                 c @ _ => {
-                    trace!("Got {:?}", c);
                     tokio::spawn(db.insert(c).map_err(|e| error!("{:?}", e)));
                 }
             };
@@ -168,7 +167,7 @@ impl Sync {
                   rpc0.batch_block_from_number(blocks, sender)
                      .and_then(move |_| {
                          if length == 0 {
-                             thread::sleep(time::Duration::from_millis(100));
+                             thread::sleep(time::Duration::from_millis(10_000));
                          }
                          let looped = looped + 1;
                          future::ok((Self {looped}, false ))

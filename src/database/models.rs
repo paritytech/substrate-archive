@@ -65,6 +65,7 @@ pub struct InsertInherent<'a> {
     pub parameters: Option<Vec<u8>>,
     // pub success: &'a bool,
     pub in_index: &'a i32,
+    pub transaction_version: &'a i32
 }
 
 // for batch inserts where collecting references may not always live long enough
@@ -77,22 +78,40 @@ pub struct InsertInherentOwned {
     pub call: String,
     pub parameters: Option<Vec<u8>>,
     // pub success: bool,
-    pub in_index: i32
+    pub in_index: i32,
+    pub transaction_version: i32
 }
 
 #[derive(Insertable)]
 #[table_name="signed_extrinsics"]
 pub struct InsertTransaction<'a> {
-    transaction_hash: &'a [u8],
-    block_num: &'a i64,
-    hash: &'a [u8],
-    from_addr: &'a [u8],
-    to_addr: Option<&'a [u8]>,
-    call: &'a str,
-    success: &'a bool,
-    nonce: &'a i32,
-    tx_index: &'a i32,
-    signature: &'a [u8]
+    pub transaction_hash: &'a [u8],
+    pub block_num: &'a i64,
+    pub hash: &'a [u8],
+    pub from_addr: &'a [u8],
+    pub to_addr: Option<&'a [u8]>,
+    pub call: &'a str,
+    // pub success: &'a bool,
+    pub nonce: &'a i32,
+    pub tx_index: &'a i32,
+    pub signature: &'a [u8],
+    pub transaction_version: &'a i32,
+}
+
+#[derive(Insertable, Debug)]
+#[table_name="signed_extrinsics"]
+pub struct InsertTransactionOwned {
+    pub transaction_hash: Vec<u8>,
+    pub block_num: i64,
+    pub hash: Vec<u8>,
+    pub from_addr: Vec<u8>,
+    pub to_addr: Option<Vec<u8>>,
+    pub call: String,
+    // pub success: bool,
+    pub nonce: i32,
+    pub tx_index: i32,
+    pub signature: Vec<u8>,
+    pub transaction_version: i32
 }
 
 #[derive(Insertable)]
@@ -162,7 +181,7 @@ pub struct SignedExtrinsics {
     /// The call this transaction is using
     call: String,
     /// was the transaction succesful?
-    success: bool,
+    // success: bool,
     /// nonce of the transaction
     nonce: usize,
     /// Index of the transaction within the block it originated in

@@ -6,9 +6,9 @@ CREATE TABLE signed_extrinsics (
   from_addr bytea NOT NULL,
   to_addr bytea,
   call varchar NOT NULL,
-  success bool NOT NULL,
+  -- success bool NOT NULL,
   nonce int check (nonce >= 0) NOT NULL,
   tx_index int check (tx_index >= 0) NOT NULL,
   signature bytea NOT NULL,
-  tx_version int check (tx_version >= 0) NOT NULL
+  transaction_version int check (transaction_version >= 0) NOT NULL
 );

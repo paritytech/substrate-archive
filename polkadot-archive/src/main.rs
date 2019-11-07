@@ -26,7 +26,8 @@ use substrate_archive::{
 };
 use polkadot_runtime::{
     Runtime as RuntimeT, Call,
-    ParachainsCall, ParachainsTrait
+    ParachainsCall, ParachainsTrait,
+    ClaimsCall, ClaimsTrait
 };
 use codec::{Encode, Decode, Input, Error as CodecError};
 
@@ -86,7 +87,10 @@ impl ExtractCall for CallWrapper {
             },
             Call::Parachains(call) => {
                 (Module::Custom("Parachains".into()), Box::new(ParachainsCallWrapper(call.clone())))
-            }
+            },
+            Call::Claims(call) => {
+                (Module::Custom("Claims".into()), Box::new(ClaimsCallWrapper(call.clone())))
+            },
             c @ _ => {
                 warn!("Call Not Handled: {:?}", c);
                 (Module::NotHandled, Box::new(NotHandled))
@@ -109,6 +113,26 @@ where
         match &self.0 {
             ParachainsCall::set_heads(heads) => {
                 Ok(( "set_heads".into(), vec![heads.encode()].encode() ))
+            },
+            __phantom_item => { // marker
+                warn!("hit phantom item");
+                Ok(("".into(), Vec::new()))
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClaimsCallWrapper<T: ClaimsTrait>(ClaimsCall<T>);
+
+impl<T> SrmlExt for ClaimsCallWrapper<T>
+where
+    T: ClaimsTrait + std::fmt::Debug
+{
+    fn function(&self) -> Result<(String, Vec<u8>), ArchiveError> {
+        match &self.0 {
+            ClaimsCall::claim(account, signature) => {
+                Ok(("claim".into(), vec![account.encode(), signature.encode()].encode()))
             },
             __phantom_item => { // marker
                 warn!("hit phantom item");
