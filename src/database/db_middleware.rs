@@ -37,12 +37,15 @@
  */
 
 use futures::{
-    Async, try_ready,
-    future::{Future},
+    task::{Poll, Context},
+    future::Future,
 };
+use futures01::Async;
 use diesel::{Connection, r2d2::ConnectionManager};
 use r2d2::{Pool, PooledConnection};
 use tokio_threadpool::{blocking, BlockingError};
+
+use core::pin::Pin;
 
 use crate::error::Error as ArchiveError;
 
@@ -79,18 +82,19 @@ where
     + 'static,
     E: From<BlockingError> + From<r2d2::Error>
 {
-    type Item = R;
-    type Error = E;
+    type Output = Result<R, E>;
 
-    fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let pool = self.pool.get()?;
 
         // need to take() to avoid shared-reference borrowing constraints
         // this is safe because we do not meddle with self-referential references
-        let res = try_ready!(blocking( || (self.fun.take().expect("Only way to create database future is to instantiate with a concrete Fn"))(pool) ));
-        match res {
-            Ok(v) => Ok(Async::Ready(v)),
-            Err(e) => Err(e)
+
+        match blocking(|| (self.fun.take().expect("Only way to create database future is to instantiate with a concrete Fn"))(pool))
+        {
+            Ok(Async::Ready(t)) => Poll::Ready(t),
+            Ok(Async::NotReady) => Poll::Pending,
+            Err(e) => Poll::Ready(Err(e.into()))
         }
     }
 }
@@ -113,7 +117,7 @@ where
 }
 
 // TODO: " 'static " should be removable once async/await is released nov 7
-impl<T> AsyncDiesel<T> where T: Connection + 'static {
+impl<T> AsyncDiesel<T> where T: Connection {
 
     /// Create a new instance of an asyncronous diesel
     pub fn new(db_url: &str) -> Result<Self, ArchiveError> {
@@ -129,17 +133,16 @@ impl<T> AsyncDiesel<T> where T: Connection + 'static {
 
     /// Run a database operation asyncronously
     /// The closure is supplied with a 'ConnectionManager instance' for connecting to the DB
-    pub fn run<F, R, E>(&self, fun: F) -> impl Future<Item = R, Error = E>
+    pub async fn run<F, R, E>(&self, fun: F) -> Result<R, E>
     where
         F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
         + Send
-        + std::marker::Unpin // not critical until Nov 7
-        + 'static,
-        R: 'static,
-        T: Send + 'static,
-        E: From<BlockingError> + From<r2d2::Error> + 'static
+        + 'static
+        + std::marker::Unpin,
+        T: Send,
+        E: From<BlockingError> + From<r2d2::Error>
     {
-        DatabaseFuture::new(fun, self.pool.clone())
+        DatabaseFuture::new(fun, self.pool.clone()).await
     }
 }
 
@@ -147,8 +150,5 @@ impl<T> AsyncDiesel<T> where T: Connection + 'static {
 mod tests {
     //! Must be conected to a database
     use super::*;
-
-
-
 
 }

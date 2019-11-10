@@ -14,8 +14,11 @@ members = [
 
 [dependencies]
 log = "0.4"
-futures = "0.1"
-tokio = "0.1"
+futures01 = { version = "0.1" }
+futures-preview = { version = "0.3.0-alpha.19", features = ["compat"] }
+tokio = "=0.2.0-alpha.6"
+tokio-threadpool = "0.1"
+# tokio = "0.1"
 failure = "0.1"
 chrono = "0.4"
 primitive-types = "0.5"
@@ -23,7 +26,6 @@ dotenv = "0.14"
 url = "1.7"
 serde = "1.0"
 r2d2 = "0.8"
-tokio-threadpool = "0.1"
 dirs = "2.0.2"
 
 fern = { version = "0.5", features = ["colored"] }
@@ -53,6 +55,9 @@ srml-sudo = { git = "https://github.com/paritytech/substrate", package = "srml-s
 srml-im-online = { git = "https://github.com/paritytech/substrate", package = "srml-im-online", branch = "polkadot-master"}
 srml-treasury = { git = "https://github.com/paritytech/substrate", package = "srml-treasury", branch = "polkadot-master"}
 derive_more = "0.15.0"
+async-trait = "0.1.17"
+async-stream = "0.1.2"
+futures-util = "0.3.1"
 
 [patch.'https://github.com/paritytech/polkadot']
 polkadot-runtime = { git = "https://github.com/insipx/polkadot", branch = "insipx/archive-patches-v0.6" }

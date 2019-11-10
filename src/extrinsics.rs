@@ -30,7 +30,6 @@ use self::v3::UncheckedExtrinsicV3;
 use crate::{
     database::models::{InsertInherentOwned, InsertTransactionOwned},
     types::ExtractCall,
-    srml_ext::SrmlExt,
     error::Error
 };
 
