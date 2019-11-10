@@ -18,13 +18,16 @@
 //! Nowhere else is anything ever spawned
 
 use log::*;
-use tokio::runtime::Runtime;
+// use tokio::runtime::Runtime;
+use async_std::task;
 use substrate_rpc_primitives::number::NumberOrHex;
 use async_stream::try_stream;
 use futures::{
-    Stream,
+    future,
+    Stream, Future,
     FutureExt, StreamExt,
-    channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    channel::mpsc::{self, UnboundedReceiver, UnboundedSender, Sender, Receiver},
+    task::{Context, Waker, Poll},
 };
 use substrate_primitives::{
     U256,
@@ -39,6 +42,8 @@ use std::{
     time
 };
 
+use core::pin::Pin;
+
 use crate::{
     database::Database,
     rpc::Rpc,
@@ -50,34 +55,36 @@ use crate::{
 pub struct Archive<T: System> {
     rpc: Arc<Rpc<T>>,
     db: Arc<Database>,
-    runtime: Runtime
 }
 
 impl<T> Archive<T> where T: System {
 
     pub fn new() -> Result<Self, ArchiveError> {
-        let mut runtime = Runtime::new()?;
         let rpc = Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?);
         let db = Database::new()?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
         // let metadata = runtime.block_on(rpc.metadata())?;
         // debug!("METADATA: {:?}", metadata);
-        Ok( Self { rpc, db, runtime })
+        Ok( Self { rpc, db })
     }
 
     pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
         crate::util::init_logger(log::LevelFilter::Error); // TODO user should decide log strategy
 
-        // block subscription thread
-        self.runtime.spawn(Self::blocks(self.rpc.clone(), sender.clone()));
+        let blocks = task::Builder::new().name("block subscription".into()).spawn(
+            Self::blocks(self.rpc.clone(), sender.clone())
+        );
 
-        // crawls database and retrieves missing values
-        self.runtime.spawn(Self::sync(self.db.clone(), self.rpc.clone(), sender.clone()));
+        let sync = task::Builder::new().name("sync".into()).spawn(
+            Self::sync(self.db.clone(), self.rpc.clone(), sender.clone())
+        );
 
-        // inserts into database / handles misc. data (ie sync progress, etc)
-        self.runtime.block_on(Self::handle_data(receiver, self.db.clone()));
+        let data = task::Builder::new().name("data".into()).spawn(
+            Self::handle_data(receiver, self.db.clone())
+        );
 
+        task::block_on(future::join_all(blocks, sync, data));
         Ok(())
     }
 
@@ -89,8 +96,9 @@ impl<T> Archive<T> where T: System {
     }
 
     /// Verification task that ensures all blocks are in the database
-    async fn sync(db: Arc<Database>, rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>) {
-        let stream = Sync::new().sync(db.clone(), rpc.clone(), sender.clone()).await;
+    async fn sync(db: Arc<Database>, rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>)
+    {
+        let stream = Sync::<T>::new(db.clone(), rpc.clone(), sender.clone()).await;
         futures_util::pin_mut!(stream);
         while let Some(v) = stream.next().await {
             if v.is_err() {
@@ -124,6 +132,34 @@ impl<T> Archive<T> where T: System {
         }
     }
 }
+/*
+impl<T> Stream for Sync<T> where T: System + std::fmt::Debug {
+    type Item = Result<SyncStreamItem, ArchiveError>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        match self.inner.poll(cx) {
+            Poll::Ready(v) => {
+                let v = v.map(|f| {
+                    SyncStreamItem {
+                        blocks_missing: v.0,
+                        timestamps_missing: v.1
+                    }
+                });
+                Poll::Ready(Some(v))
+            },
+            Poll::Pending => Poll::Pending
+        }
+    }
+}
+*/
+
+impl<T> Stream for Sync<T> where T: System + std::fmt::Debug {
+    type Item = Result<SyncStreamItem, ArchiveError>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        self.inner.poll_next(cx)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncStreamItem {
@@ -131,47 +167,100 @@ pub struct SyncStreamItem {
     timestamps_missing: usize
 }
 
-#[derive(Debug, PartialEq, Eq)]
 struct Sync<T: System + std::fmt::Debug> {
-    last: usize,
-    looped: usize,
-    _marker: PhantomData<T>
+    // pub looped: usize,
+    inner: Receiver<Result<SyncStreamItem, ArchiveError>>,
+    timestamps_missing: usize,
+    blocks_missing: usize,
 }
 
 impl<T> Sync<T> where T: System + std::fmt::Debug {
 
-    fn new() -> Self {
-        Self {
-            last: 0,
-            looped: 0,
-            _marker: PhantomData
-        }
-    }
-
-    async fn sync(self,
-                  db: Arc<Database>,
+    async fn new(db: Arc<Database>,
                   rpc: Arc<Rpc<T>>,
                   sender: UnboundedSender<Data<T>>,
     ) -> impl Stream<Item = Result<SyncStreamItem, ArchiveError>> {
 
-        info!("Looped: {}", &self.looped);
-        try_stream! {
-            loop {
-                let timestamps_missing = self.sync_timestamps(db.clone(), rpc.clone(), sender.clone()).await?;
-                let blocks_missing = self.sync_blocks(db.clone(), rpc.clone(), sender.clone()).await?;
+        let (stream_sender, stream_receiver) = mpsc::channel(3);
+        task::spawn(CrawlItems::new(db.clone(), rpc.clone(), sender.clone()).crawl(stream_sender));
+        Self {
+            timestamps_missing: 0,
+            blocks_missing: 0,
+            inner: stream_receiver
+        }
+    }
+}
 
-                // sleep, this thread does not need to run all the time
-                if blocks_missing == 0 && timestamps_missing == 0 {
-                    // TODO change to non-blocking sleep
-                    thread::sleep(time::Duration::from_millis(10_000));
+/*
+impl<T> Future for CrawlItems<T>
+    where T: System + std::fmt::Debug
+{
+    type Output = Result<(usize, usize), ArchiveError>;
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let fut = self.inner.take();
+        match fut {
+            Some(v) => {
+                match v.poll(cx) {
+                    Poll::Ready(v) => {
+                        Poll::Ready(v)
+                    },
+                    Poll::Pending => Poll::Pending
                 }
-                yield SyncStreamItem { blocks_missing, timestamps_missing };
+            },
+            None => {
+                self.crawl();
+                self.inner.expect("None value set by crawl; qed").poll(cx)
+            }
+        }
+    }
+}*/
+
+struct CrawlItems<T: System + std::fmt::Debug> {
+    db: Arc<Database>,
+    rpc: Arc<Rpc<T>>,
+    sender: UnboundedSender<Data<T>>,
+    // inner: Option<Pin<Box<dyn Future<Output = Result<(usize, usize), ArchiveError>> + Send>>>
+}
+
+impl<T> CrawlItems<T> where T: System + std::fmt::Debug {
+
+    fn new(db: Arc<Database>, rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>) -> Self {
+        Self {
+            db, rpc, sender,
+        }
+    }
+
+    async fn crawl(&self, stream_sender: Sender<Result<SyncStreamItem, ArchiveError>>) {
+        let (db, rpc, sender) =
+            (self.db.clone(), self.rpc.clone(), self.sender.clone());
+        loop {
+            let item : Result<SyncStreamItem, ArchiveError>
+                = self.start()
+                .await
+                .map(|v| {
+                    SyncStreamItem {
+                        blocks_missing: v.0,
+                        timestamps_missing: v.1
+                    }
+                });
+            match stream_sender.try_send(item) {
+                Ok(_) => (),
+                Err(e) => error!("Send Failed {:?}", e),
             }
         }
     }
 
+    async fn start(&self) -> Result<(usize, usize), ArchiveError>
+    {
+        future::try_join(
+            CrawlItems::sync_timestamps(self.db.clone(), self.rpc.clone(), self.sender.clone()),
+            CrawlItems::sync_blocks(self.db.clone(), self.rpc.clone(), self.sender.clone())
+        ).await
+    }
     /// find missing timestamps and add them to DB if found. Return number missing timestamps
-    async fn sync_timestamps(&self, db: Arc<Database>, rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>
+    async fn sync_timestamps(db: Arc<Database>,
+                             rpc: Arc<Rpc<T>>,
+                             sender: UnboundedSender<Data<T>>
     ) -> Result<usize, ArchiveError>
     {
         let hashes = db.query_missing_timestamps::<T>().await?;
@@ -189,7 +278,7 @@ impl<T> Sync<T> where T: System + std::fmt::Debug {
     }
 
     /// sync blocks, 100,000 at a time, returning number of blocks that were missing before synced
-    async fn sync_blocks(&self, db: Arc<Database>, rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>
+    async fn sync_blocks(db: Arc<Database>, rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>
     ) -> Result<usize, ArchiveError>
     {
         let missing_blocks = db.query_missing_blocks().await?;
@@ -203,3 +292,4 @@ impl<T> Sync<T> where T: System + std::fmt::Debug {
         Ok(blocks.len())
     }
 }
+
