@@ -14,9 +14,7 @@ env_logger = "0.7.0"
 substrate-archive = { path = "../" }
 
 [dependencies.polkadot-runtime]
-git = "https://github.com/paritytech/polkadot"
+git = "https://github.com/insipx/polkadot"
 package = "polkadot-runtime"
 default-features = false
-branch = "v0.6"
-# rev = "39397ab"
-features = ["std"]
+branch = "insipx/archive-patches"

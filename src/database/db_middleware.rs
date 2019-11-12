@@ -38,63 +38,13 @@
 
 use futures::{
     Async, try_ready,
-    future::{Future},
+    future::{self, Future, poll_fn},
 };
 use diesel::{Connection, r2d2::ConnectionManager};
 use r2d2::{Pool, PooledConnection};
 use tokio_threadpool::{blocking, BlockingError};
 
 use crate::error::Error as ArchiveError;
-
-
-struct DatabaseFuture<T, F, R, E>
-where
-    T: Connection + 'static,
-    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
-{
-    fun: Option<F>,
-    pool: Pool<ConnectionManager<T>>
-}
-
-impl<T, F, R, E> DatabaseFuture<T, F, R, E>
-where
-    T: Connection + 'static,
-F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
-{
-    fn new(fun: F, pool: Pool<ConnectionManager<T>>) -> Self {
-        Self {
-            fun: Some(fun),
-            pool
-        }
-    }
-}
-
-// https://stackoverflow.com/questions/56058494/when-is-it-safe-to-move-a-member-value-out-of-a-pinned-future
-impl<T, F, R, E> Future for DatabaseFuture<T, F, R, E>
-where
-    T: Connection + 'static,
-    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
-    + Send
-    + std::marker::Unpin
-    + 'static,
-    E: From<BlockingError> + From<r2d2::Error>
-{
-    type Item = R;
-    type Error = E;
-
-    fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
-        let pool = self.pool.get()?;
-
-        // need to take() to avoid shared-reference borrowing constraints
-        // this is safe because we do not meddle with self-referential references
-        let res = try_ready!(blocking( || (self.fun.take().expect("Only way to create database future is to instantiate with a concrete Fn"))(pool) ));
-        match res {
-            Ok(v) => Ok(Async::Ready(v)),
-            Err(e) => Err(e)
-        }
-    }
-}
-
 /// Allows for creating asyncronous database requests
 #[derive(Debug)]
 pub struct AsyncDiesel<T: Connection + 'static> {
@@ -139,7 +89,18 @@ impl<T> AsyncDiesel<T> where T: Connection + 'static {
         T: Send + 'static,
         E: From<BlockingError> + From<r2d2::Error> + 'static
     {
-        DatabaseFuture::new(fun, self.pool.clone())
+        //TODO Remove unwrap()
+        let pool = self.pool.clone();
+        let mut fun = Some(fun);
+        poll_fn(move || blocking(|| (fun.take().unwrap())(pool.get().unwrap()))).then(
+            |future_result| match future_result {
+                Ok(query_result) => match query_result {
+                    Ok(result) => future::ok(result),
+                    Err(error) => future::err(error),
+                },
+                Err(e) => panic!("Error running async database task: {:?}", e),
+            },
+        )
     }
 }
 
@@ -147,8 +108,4 @@ impl<T> AsyncDiesel<T> where T: Connection + 'static {
 mod tests {
     //! Must be conected to a database
     use super::*;
-
-
-
-
 }

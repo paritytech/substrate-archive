@@ -72,9 +72,6 @@ impl<T> Archive<T> where T: System {
                 .clone()
                 .subscribe_blocks(sender.clone()).map_err(|e| println!("{:?}", e))
         );
-        // self.runtime.spawn(self.rpc.subscribe_finalized_heads(sender.clone()).map_err(|e| println!("{:?}", e)));
-        // rt.spawn(rpc.storage_keys(sender).map_err(|e| println!("{:?}", e)));
-        // rt.spawn(rpc.subscribe_events(sender.clone()).map_err(|e| println!("{:?}", e)));
         self.runtime.spawn(
             Self::sync(self.db.clone(), self.rpc.clone(), sender.clone())
                 .map(|_| ())

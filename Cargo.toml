@@ -53,9 +53,7 @@ srml-sudo = { git = "https://github.com/paritytech/substrate", package = "srml-s
 srml-im-online = { git = "https://github.com/paritytech/substrate", package = "srml-im-online", branch = "polkadot-master"}
 srml-treasury = { git = "https://github.com/paritytech/substrate", package = "srml-treasury", branch = "polkadot-master"}
 derive_more = "0.15.0"
-
-[patch.'https://github.com/paritytech/polkadot']
-polkadot-runtime = { git = "https://github.com/insipx/polkadot", branch = "insipx/archive-patches-v0.6" }
+byte-slice-cast = "=0.3.2" # remove once parity-scale-codec is updated
 
 [dev-dependencies]
 node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
