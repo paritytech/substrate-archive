@@ -5,6 +5,7 @@ CREATE TABLE signed_extrinsics (
   hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE,
   from_addr bytea NOT NULL,
   to_addr bytea,
+  module varchar NOT NULL,
   call varchar NOT NULL,
   -- success bool NOT NULL,
   nonce int check (nonce >= 0) NOT NULL,

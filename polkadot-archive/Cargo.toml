@@ -18,3 +18,4 @@ git = "https://github.com/insipx/polkadot"
 package = "polkadot-runtime"
 default-features = false
 branch = "insipx/archive-patches"
+features = ["std"]
