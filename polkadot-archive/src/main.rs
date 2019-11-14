@@ -85,6 +85,12 @@ impl ExtractCall for CallWrapper {
             Call::Treasury(call) => {
                 (Module::Treasury, Box::new(call.clone()))
             },
+            Call::Nicks(call) => {
+                (Module::Nicks, Box::new(call.clone()))
+            },
+            Call::System(call) => {
+                (Module::System, Box::new(call.clone()))
+            },
             Call::Parachains(call) => {
                 (Module::Custom("Parachains".into()), Box::new(ParachainsCallWrapper(call.clone())))
             },
@@ -94,8 +100,6 @@ impl ExtractCall for CallWrapper {
             Call::Registrar(call) => {
                 (Module::Custom("Registrar".into()), Box::new(RegistrarCallWrapper(call.clone())))
             }
-            // Nicks
-            // System
             c @ _ => {
                 warn!("Call Not Handled: {:?}", c);
                 (Module::NotHandled, Box::new(NotHandled))

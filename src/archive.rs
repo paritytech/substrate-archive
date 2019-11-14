@@ -40,7 +40,6 @@ use crate::{
     types::{System, Data, storage::{StorageKeyType, TimestampOp}}
 };
 
-// TODO: the " 'static" constraint will be possible to remove Nov 7,
 // with the hopeful and long-anticipated release of async-await
 pub struct Archive<T: System> {
     rpc: Arc<Rpc<T>>,

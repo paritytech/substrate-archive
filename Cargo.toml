@@ -42,6 +42,7 @@ inherents = { git = "https://github.com/paritytech/substrate/", package = "subst
 
 
 # srml-assets = { git = "https://github.com/paritytech/substrate/", package = "srml-assets", branch="polkadot-master"}
+srml-nicks = {git = "https://github.com/paritytech/substrate/", package = "srml-nicks", branch = "polkadot-master"}
 srml-staking = {git = "https://github.com/paritytech/substrate/", package = "srml-staking", branch = "polkadot-master"}
 srml-grandpa = {git = "https://github.com/paritytech/substrate/", package = "srml-grandpa", branch = "polkadot-master"}
 srml-babe = {git = "https://github.com/paritytech/substrate/", package = "srml-babe", branch = "polkadot-master"}

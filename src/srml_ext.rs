@@ -33,6 +33,8 @@ use srml_im_online::Call as ImOnlineCall;
 use srml_staking::Call as StakingCall;
 use srml_grandpa::Call as GrandpaCall;
 use srml_treasury::Call as TreasuryCall;
+use srml_nicks::Call as NicksCall;
+use srml_system::Call as SystemCall;
 // use runtime_support::dispatch::{IsSubType, Callable};
 use codec::Encode;
 
@@ -42,11 +44,10 @@ pub trait SrmlExt: std::fmt::Debug {
     /// Seperates a call into it's name and parameters
     /// Parameters are SCALE encoded
     fn function(&self) -> Result<(CallName, Parameters), Error>; // name of the function as a string
-
 }
 
 /// Name of the function
-pub type CallName = Into<String>;
+pub type CallName = String;
 /// SCALE Encoded Parameters
 pub type Parameters = Vec<u8>;
 
@@ -83,7 +84,7 @@ impl<T> SrmlExt for AuraCall<T> where T: srml_aura::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             &__phantom_item => {
-                Ok(("".into(), Vec::new()))
+                Ok(("__phantom".into(), Vec::new()))
             }
         }
     }
@@ -93,7 +94,7 @@ impl<T> SrmlExt for BabeCall<T> where T: srml_babe::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             &__phantom_item => {
-                Ok(("".into(), Vec::new()))
+                Ok(("__phantom".into(), Vec::new()))
             }
         }
     }
@@ -106,7 +107,7 @@ impl<T> SrmlExt for SessionCall<T> where T: srml_session::Trait {
                 Ok(("set_keys".into(), vec![keys.encode(), proof.encode()].encode()))
             },
             &__phantom_item => {
-                Ok(("".into(), Vec::new()))
+                Ok(("__phantom".into(), Vec::new()))
             }
         }
     }
@@ -121,7 +122,7 @@ impl<T> SrmlExt for TimestampCall<T> where T: srml_timestamp::Trait {
                 Ok(("set".into(), vec![time.encode()].encode() ))
             },
             &__phantom_item => {
-                Ok(("".into(), Vec::new()))
+                Ok(("__phantom".into(), Vec::new()))
             }
         }
     }
@@ -134,7 +135,7 @@ impl<T> SrmlExt for FinalityCall<T> where T: srml_finality_tracker::Trait {
                 Ok(("final_hint".into(), vec![block.encode()].encode()))
             },
             &__phantom_item => {
-                Ok(("".into(), Vec::new()))
+                Ok(("__phantom".into(), Vec::new()))
             }
         }
     }
@@ -147,7 +148,29 @@ impl<T> SrmlExt for ImOnlineCall<T> where T: srml_im_online::Trait {
                 Ok(("im-online".into(), vec![heartbeat.encode(), signature.encode()].encode()))
             },
             &__phantom_item => {
-                 Ok(("".into(), Vec::new()))
+                 Ok(("__phantom".into(), Vec::new()))
+            }
+        }
+    }
+}
+
+impl<T> SrmlExt for NicksCall<T> where T: srml_nicks::Trait {
+    fn function(&self) -> SrmlResult<FunctionInfo> {
+        match &self {
+            NicksCall::set_name(name) => {
+                Ok(("set_name".into(), vec![name.encode()].encode()))
+            },
+            NicksCall::clear_name() => {
+                Ok(("clear_name".into(), Vec::new()))
+            },
+            NicksCall::kill_name(target) => {
+                Ok(("kill_name".into(), vec![target.encode()].encode()))
+            },
+            NicksCall::force_name(target, name) => {
+                Ok(("force_name".into(), vec![target.encode(), name.encode()].encode()))
+            },
+            &__phantom_item => {
+                Ok(("__phantom".into(), Vec::new()))
             }
         }
     }
@@ -163,7 +186,38 @@ impl<T> SrmlExt for StakingCall<T> where T: srml_staking::Trait {
                 Ok(("bond_extra".into(), vec![max_additional.encode()].encode()))
             },
             &__phantom_item => {
-                Ok(("".into(), Vec::new()))
+                Ok(("__phantom".into(), Vec::new()))
+            }
+        }
+    }
+}
+
+impl<T> SrmlExt for SystemCall<T> where T: srml_system::Trait {
+    fn function(&self) -> SrmlResult<FunctionInfo> {
+        match &self {
+            SystemCall::fill_block() => {
+                Ok(("fill_block".into(), Vec::new()))
+            },
+            SystemCall::remark(remark) => {
+                Ok(("remark".into(), vec![remark.encode()].encode()))
+            },
+            SystemCall::set_heap_pages(pages) => {
+                Ok(("set_heap_pages".into(), vec![pages.encode()].encode()))
+            },
+            SystemCall::set_code(new) => {
+                Ok(("set_code".into(), vec![new.encode()].encode()))
+            },
+            SystemCall::set_storage(items) => {
+                Ok(("set_storage".into(), vec![items.encode()].encode()))
+            },
+            SystemCall::kill_storage(keys) => {
+                Ok(("kill_storage".into(), vec![keys.encode()].encode()))
+            },
+            SystemCall::kill_prefix(prefix) => {
+                Ok(("kill_prefix".into(), vec![prefix.encode()].encode()))
+            },
+            &__phantom_item => {
+                Ok(("__phantom".into(), Vec::new()))
             }
         }
     }
@@ -176,7 +230,7 @@ impl<T> SrmlExt for GrandpaCall<T> where T: srml_grandpa::Trait {
                 Ok(("report_misbehavior".into(), vec![report.encode()].encode()))
             },
             &__phantom_item => {
-                Ok(("".into(), Vec::new()))
+                Ok(("__phantom".into(), Vec::new()))
             }
         }
     }
@@ -192,7 +246,7 @@ impl<T> SrmlExt for SudoCall<T> where T: srml_sudo::Trait {
                 Ok(("set_key".into(), vec![source.encode()].encode()))
             },
             &__phantom_item => {
-                Ok(("".into(), Vec::new()))
+                Ok(("__phantom".into(), Vec::new()))
             }
         }
     }
@@ -211,7 +265,7 @@ impl<T> SrmlExt for TreasuryCall<T> where T: srml_treasury::Trait {
                 Ok(("approve_proposal".into(), vec![proposal_id.encode()].encode()))
             },
             &__phantom_item => {
-                Ok(("".into(), Vec::new()))
+                Ok(("__phantom".into(), Vec::new()))
             }
         }
     }

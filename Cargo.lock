@@ -3740,6 +3740,7 @@ dependencies = [
  "srml-grandpa 2.0.0 (git+https://github.com/paritytech/substrate/?branch=polkadot-master)",
  "srml-im-online 0.1.0 (git+https://github.com/paritytech/substrate/?branch=polkadot-master)",
  "srml-metadata 2.0.0 (git+https://github.com/paritytech/substrate/?branch=polkadot-master)",
+ "srml-nicks 2.0.0 (git+https://github.com/paritytech/substrate/?branch=polkadot-master)",
  "srml-session 2.0.0 (git+https://github.com/paritytech/substrate/?branch=polkadot-master)",
  "srml-staking 2.0.0 (git+https://github.com/paritytech/substrate/?branch=polkadot-master)",
  "srml-sudo 2.0.0 (git+https://github.com/paritytech/substrate/?branch=polkadot-master)",
