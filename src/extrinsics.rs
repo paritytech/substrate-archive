@@ -16,7 +16,7 @@
 
 pub mod v3;
 
-use log::{debug, warn, info};
+use log::{trace, debug, warn, info};
 use runtime_primitives::{
     generic,
     OpaqueExtrinsic,
@@ -43,8 +43,8 @@ pub enum SupportedVersions {
 }
 
 impl SupportedVersions {
-    pub fn is_supported(ver: &u8) -> bool {
-        return *ver >= EARLIEST_TRANSACTION_VERSION && *ver <= LATEST_TRANSACTION_VERSION
+    pub fn is_supported(ver: u8) -> bool {
+        ver >= EARLIEST_TRANSACTION_VERSION && ver <= LATEST_TRANSACTION_VERSION
     }
 }
 
@@ -63,6 +63,12 @@ impl From<&SupportedVersions> for i32 {
             SupportedVersions::Three => 3,
             SupportedVersions::Four => 4,
         }
+    }
+}
+
+impl std::fmt::Display for SupportedVersions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", i32::from(self))
     }
 }
 
@@ -86,9 +92,10 @@ where
     Extra: SignedExtension
 {
     pub fn new(opaque_ext: &OpaqueExtrinsic) -> Result<Self, Error> {
-        let extrinsic = UncheckedExtrinsic::decode(&mut opaque_ext.encode().as_slice())
-            .map_err(|e| Error::from(e))?;
+        trace!("Opaque Extrinsic: {:?}", opaque_ext);
+        let extrinsic = UncheckedExtrinsic::decode(&mut opaque_ext.encode().as_slice())?;
         let version: SupportedVersions = (&extrinsic).into();
+        trace!("Version: {}", version);
         Ok(Self { extrinsic, version })
     }
 
@@ -251,13 +258,6 @@ impl<Address, Call, Signature, Extra: SignedExtension> UncheckedExtrinsic<Addres
         }
     }
 
-    fn version(&self) -> SupportedVersions {
-        match &self {
-            UncheckedExtrinsic::V3(_) => SupportedVersions::Three,
-            UncheckedExtrinsic::V4(_) => SupportedVersions::Four
-        }
-    }
-
     /// Hash of the extrinsic
     fn hash<Hash: HashTrait>(&self) ->  Hash::Output
     where
@@ -333,7 +333,7 @@ where
                     }
                 ))
             },
-            _ => return Err("Invalid transaction version".into())
+            _ => Err("Invalid transaction version".into())
         }
     }
 }

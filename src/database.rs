@@ -70,7 +70,7 @@ impl<T> Insert for Data<T> where T: System + 'static {
             Data::BatchStorage(storage) => {
                 storage.insert(db)
             },
-            o @ _=> {
+            o => {
                 Err(ArchiveError::UnhandledDataType(format!("{:?}", o)))
             }
         }
@@ -183,8 +183,7 @@ where
                 let date_time = item.get_timestamp()?;
                 diesel::update(blocks.filter(hash.eq(item.hash().as_ref())))
                     .set(time.eq(Some(&date_time)))
-                    .execute(&conn)
-                    .map_err(|e| ArchiveError::from(e))?;
+                    .execute(&conn)?;
             }
             Ok(())
         }).map(|_| ());
@@ -212,8 +211,7 @@ impl<T> Insert for Block<T> where T: System + 'static {
                     extrinsics_root: block.header.extrinsics_root().as_ref(),
                     time: None
                 })
-                .execute(&conn)
-                .map_err(|e| ArchiveError::from(e))?;
+                .execute(&conn)?;
 
             let (mut signed_ext, mut unsigned_ext) = (Vec::new(), Vec::new());
             for e in extrinsics.into_iter() {
@@ -225,8 +223,7 @@ impl<T> Insert for Block<T> where T: System + 'static {
 
             diesel::insert_into(inherents::table)
                 .values(unsigned_ext)
-                .execute(&conn)
-                .map_err(|e| ArchiveError::from(e))?;
+                .execute(&conn)?;
 
             diesel::insert_into(signed_extrinsics::table)
                 .values(signed_ext)
@@ -284,22 +281,19 @@ where
                 info!("{}", chunks.len());
                 diesel::insert_into(blocks::table)
                     .values(chunks)
-                    .execute(&conn)
-                    .map_err(|e| ArchiveError::from(e))?;
+                    .execute(&conn)?;
             }
             for chunks in unsigned_ext.as_slice().chunks(2_500) {
                 info!("inserting {} unsigned extrinsics", chunks.len());
                 diesel::insert_into(inherents::table)
                     .values(chunks)
-                    .execute(&conn)
-                    .map_err(|e| ArchiveError::from(e))?;
+                    .execute(&conn)?;
             }
             for chunks in signed_ext.as_slice().chunks(2_500) {
                 info!("inserting {} signed extrinsics", chunks.len());
                 diesel::insert_into(signed_extrinsics::table)
                     .values(chunks)
-                    .execute(&conn)
-                    .map_err(|e| ArchiveError::from(e))?;
+                    .execute(&conn)?;
             }
             Ok(())
         }).map(|_| ());

@@ -54,8 +54,10 @@ impl<T> Archive<T> where T: System {
         let rpc = Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?);
         let db = Database::new()?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
-        let metadata = runtime.block_on(rpc.metadata())?;
-        println!("METADATA: {:?}", metadata.1);
+        match runtime.block_on(rpc.metadata()) {
+            Ok(v) => println!("METADATA: {:?}", v.1),
+            Err(e) => error!("Failed to receive metadata {:?}", e)
+        };
         Ok( Self { rpc, db, runtime })
     }
 
@@ -105,7 +107,7 @@ impl<T> Archive<T> where T: System {
                 Data::SyncProgress(missing_blocks) => {
                     println!("{} blocks missing", missing_blocks);
                 },
-                c @ _ => {
+                c => {
                     tokio::spawn(db.insert(c).map_err(|e| error!("{:?}", e)));
                 }
             };
