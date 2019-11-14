@@ -20,7 +20,7 @@ use runtime_metadata::RuntimeMetadataPrefixed;
 use log::{debug, warn, error, trace};
 use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::join_all};
 use runtime_primitives::traits::Header as HeaderTrait;
-use substrate_primitives::{storage::{StorageKey}, twox_128};
+use substrate_primitives::{storage::StorageKey, twox_128};
 use substrate_rpc_primitives::number::NumberOrHex;
 
 use std::marker::PhantomData;
@@ -40,7 +40,8 @@ use crate::{
 /// Communicate with Substrate node via RPC
 pub struct Rpc<T: System> {
     _marker: PhantomData<T>,
-    url: url::Url
+    url: url::Url,
+    keys: Vec<StorageKey>
 }
 
 impl<T> Rpc<T> where T: System {
@@ -61,6 +62,14 @@ impl<T> Rpc<T> where T: System {
                            })
                        })
             })
+    }
+
+    /// Query all the storage for a block
+    pub fn all_storage(self: Arc<Self>, hash: T::Hash, sender: UnboundedSender<Data<T>>
+    ) -> impl Future<Item = (), Error = ArchiveError>
+    {
+
+
     }
 
     pub fn block_and_timestamp(self: Arc<Self>, hash: T::Hash, sender: UnboundedSender<Data<T>>
@@ -90,11 +99,18 @@ impl<T> Rpc<T> where T: System {
 
 impl<T> Rpc<T> where T: System {
 
-    pub fn new(url: url::Url) -> Self {
-        Self {
-            url,
-            _marker: PhantomData
-        }
+    pub fn new(url: url::Url) -> impl Future<Item = Self, Error = ArchiveError> {
+
+        SubstrateRpc::connect(&url)
+            .and_then(|client: SubstrateRpc<T>| {
+                client.storage_keys(StorageKey(Vec::new()), None)
+            })
+            .map(|keys| {
+                Self {
+                    url, keys,
+                    _marker: PhantomData
+                }
+            })
     }
 
     /// send all new headers back to main thread
@@ -148,10 +164,10 @@ impl<T> Rpc<T> where T: System {
     }
      */
 
-    pub fn metadata(&self) -> impl Future<Item = RuntimeMetadataPrefixed, Error = ArchiveError> {
+    pub fn metadata(&self, hash: Option<T::Hash>) -> impl Future<Item = RuntimeMetadataPrefixed, Error = ArchiveError> {
         SubstrateRpc::connect(&self.url)
             .and_then(move |client: SubstrateRpc<T>| {
-                client.metadata()
+                client.metadata(hash)
             })
     }
 
@@ -173,7 +189,7 @@ impl<T> Rpc<T> where T: System {
                     .and_then(move |data| {
                         debug!("STORAGE: {:?}", data);
                         if let Some(d) = data {
-                            trace!("Sending timestamp for {}", hash);
+                            trace!("Sending storage for {}", hash);
                             sender
                                 .unbounded_send(Data::Storage(Storage::new(d, key_type, hash)))
                                 .map_err(Into::into)

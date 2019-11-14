@@ -51,10 +51,10 @@ impl<T> Archive<T> where T: System {
 
     pub fn new() -> Result<Self, ArchiveError> {
         let mut runtime = Runtime::new()?;
-        let rpc = Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?);
+        let rpc = runtime.block_on(Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?))?;
         let db = Database::new()?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
-        match runtime.block_on(rpc.metadata()) {
+        match runtime.block_on(rpc.metadata(None)) {
             Ok(v) => println!("METADATA: {:?}", v.1),
             Err(e) => error!("Failed to receive metadata {:?}", e)
         };

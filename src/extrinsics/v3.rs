@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use log::error;
 use codec::{Encode, Decode, Input, Error as CodecError};
 use runtime_primitives::traits::{SignedExtension, Extrinsic};
 
@@ -36,8 +37,8 @@ where
     pub fn decode<I: Input>(is_signed: bool, input: &mut I) -> Result<Self, CodecError> {
 
         Ok(UncheckedExtrinsicV3 {
-            signature: if is_signed { Some(Decode::decode(input)?) } else { None },
-            function: Decode::decode(input)?,
+            signature: if is_signed { Some(Decode::decode(input).map_err(|e| { error!("Error decoding Signature V3"); e })?) } else { None },
+            function: Decode::decode(input).map_err(|e| { error!("Error decoding Call V3"); e })?,
         })
     }
 }

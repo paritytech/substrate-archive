@@ -16,7 +16,7 @@
 
 pub mod v3;
 
-use log::{trace, debug, warn, info};
+use log::{error, trace, debug, warn, info};
 use runtime_primitives::{
     generic,
     OpaqueExtrinsic,
@@ -71,6 +71,15 @@ impl std::fmt::Display for SupportedVersions {
         write!(f, "{}", i32::from(self))
     }
 }
+
+/*
+// pub type BasicExtrinsic<C> = ExtrinsicStruct<Vec<u8>, C,
+pub struct ExtrinsicStruct<Address, Call, Signature, Extra> {
+    pub signature: Option<(Address, Signature, Extra)>,
+    function: Call,
+}
+*/
+
 
 #[derive(Debug)]
 pub struct Extrinsic<Address, Call, Signature, Extra: SignedExtension> {
@@ -328,8 +337,8 @@ where
             4 => {
                 Ok(UncheckedExtrinsic::V4(
                     generic::UncheckedExtrinsic { // current version
-                        signature: if is_signed { Some(Decode::decode(input)?) } else { None },
-                        function: Decode::decode(input)?,
+                        signature: if is_signed { Some(Decode::decode(input).map_err(|e| { error!("Error decoding signature; V4"); e })?) } else { None },
+                        function: Decode::decode(input).map_err(|e| { error!("Error decoding call; V4"); e })?,
                     }
                 ))
             },
