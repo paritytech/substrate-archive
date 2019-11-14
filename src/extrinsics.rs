@@ -30,7 +30,6 @@ use self::v3::UncheckedExtrinsicV3;
 use crate::{
     database::models::{InsertInherentOwned, InsertTransactionOwned},
     types::ExtractCall,
-    srml_ext::SrmlExt,
     error::Error
 };
 
@@ -153,6 +152,7 @@ where
                     hash: header.hash().as_ref().to_vec(),
                     from_addr: Vec::new(), // TODO
                     to_addr: Some(Vec::new()), // TODO
+                    module: module.to_string(),
                     call: fn_name,
                     nonce: 0,
                     tx_index: index,

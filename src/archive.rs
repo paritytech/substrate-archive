@@ -31,11 +31,7 @@ use substrate_primitives::{
     twox_128
 };
 
-use std::{
-    sync::Arc,
-    thread,
-    time
-};
+use std::sync::Arc;
 
 use crate::{
     database::Database,
@@ -59,8 +55,8 @@ impl<T> Archive<T> where T: System {
         let rpc = Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?);
         let db = Database::new()?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
-        // let metadata = runtime.block_on(rpc.metadata())?;
-        // debug!("METADATA: {:?}", metadata);
+        let metadata = runtime.block_on(rpc.metadata())?;
+        println!("METADATA: {:?}", metadata.1);
         Ok( Self { rpc, db, runtime })
     }
 
@@ -160,12 +156,8 @@ impl Sync {
                           .collect::<Vec<NumberOrHex<T::BlockNumber>>>()
                   )
               }).and_then(move |blocks| {
-                  let length = blocks.len();
                   rpc0.batch_block_from_number(blocks, sender)
                      .and_then(move |_| {
-                         if length == 0 {
-                             thread::sleep(time::Duration::from_millis(10_000));
-                         }
                          let looped = looped + 1;
                          future::ok((Self {looped}, false ))
                      })

@@ -16,7 +16,7 @@
 
 mod substrate_rpc;
 use self::substrate_rpc::SubstrateRpc;
-
+use runtime_metadata::RuntimeMetadataPrefixed;
 use log::{debug, warn, error, trace};
 use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::join_all};
 use runtime_primitives::traits::Header as HeaderTrait;
@@ -148,7 +148,7 @@ impl<T> Rpc<T> where T: System {
     }
      */
 
-    pub fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
+    pub fn metadata(&self) -> impl Future<Item = RuntimeMetadataPrefixed, Error = ArchiveError> {
         SubstrateRpc::connect(&self.url)
             .and_then(move |client: SubstrateRpc<T>| {
                 client.metadata()

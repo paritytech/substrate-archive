@@ -44,6 +44,7 @@ table! {
         hash -> Bytea,
         from_addr -> Bytea,
         to_addr -> Nullable<Bytea>,
+        module -> Varchar,
         call -> Varchar,
         nonce -> Int4,
         tx_index -> Int4,

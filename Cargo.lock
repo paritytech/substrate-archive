@@ -2250,7 +2250,7 @@ dependencies = [
 [[package]]
 name = "polkadot-parachain"
 version = "0.6.17"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#6362c63978253ac0d5b43fca46ed0b8192f69b0d"
+source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#0b1d996e58ea506411ffe6b74809942d92d277c5"
 dependencies = [
  "derive_more 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2267,7 +2267,7 @@ dependencies = [
 [[package]]
 name = "polkadot-primitives"
 version = "0.6.17"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#6362c63978253ac0d5b43fca46ed0b8192f69b0d"
+source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#0b1d996e58ea506411ffe6b74809942d92d277c5"
 dependencies = [
  "bitvec 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2285,7 +2285,7 @@ dependencies = [
 [[package]]
 name = "polkadot-runtime"
 version = "0.6.17"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#6362c63978253ac0d5b43fca46ed0b8192f69b0d"
+source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#0b1d996e58ea506411ffe6b74809942d92d277c5"
 dependencies = [
  "bitvec 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",

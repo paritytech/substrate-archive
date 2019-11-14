@@ -24,11 +24,11 @@ use log::*;
 use futures::future::{self, Future};
 use diesel::{prelude::*, pg::PgConnection, sql_types::{BigInt, Bytea}} ;
 use codec::Decode;
-use runtime_primitives::traits::{Header, Hash};
+use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 // use runtime_support::dispatch::IsSubType;
 use runtime_primitives::{
-    traits::{Block as BlockTrait, Extrinsic as ExtrinsicTrait},
+    traits::Block as BlockTrait,
     OpaqueExtrinsic
 };
 
@@ -40,9 +40,9 @@ use std::{
 use crate::{
     error::Error as ArchiveError,
     extrinsics::{Extrinsic, DbExtrinsic},
-    types::{BasicExtrinsic, Data, System, Block, Storage, BatchBlock, BatchStorage, ExtractCall},
+    types::{BasicExtrinsic, Data, System, Block, Storage, BatchBlock, BatchStorage},
     database::{
-        models::{InsertBlock, InsertBlockOwned, InsertInherentOwned, InsertTransactionOwned},
+        models::{InsertBlock, InsertBlockOwned},
         schema::{blocks, inherents, signed_extrinsics},
         db_middleware::AsyncDiesel
     },

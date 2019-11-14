@@ -77,14 +77,14 @@ impl<T> SubstrateRpc<T> where T: System {
             .map_err(|e| ArchiveError::from(e))
     }
 
-    pub(crate) fn metadata(&self) -> impl Future<Item = Metadata, Error = ArchiveError> {
+    pub(crate) fn metadata(&self) -> impl Future<Item = RuntimeMetadataPrefixed, Error = ArchiveError> {
         self.state
             .metadata(None)
             .map(|bytes| Decode::decode(&mut &bytes[..]).expect("Decode failed"))
             .map_err(Into::into)
-            .and_then(|meta: RuntimeMetadataPrefixed| {
+            /*.and_then(|meta: RuntimeMetadataPrefixed| {
                 future::result(meta.try_into().map_err(Into::into))
-            })
+            })*/
     }
 
     // TODO: make "Key" and "from" vectors

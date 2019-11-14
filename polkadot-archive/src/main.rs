@@ -27,7 +27,7 @@ use substrate_archive::{
 use polkadot_runtime::{
     Runtime as RuntimeT, Call,
     ParachainsCall, ParachainsTrait,
-    ClaimsCall, ClaimsTrait
+    ClaimsCall, ClaimsTrait, RegistrarCall, RegistrarTrait
 };
 use codec::{Encode, Decode, Input, Error as CodecError};
 
@@ -91,6 +91,11 @@ impl ExtractCall for CallWrapper {
             Call::Claims(call) => {
                 (Module::Custom("Claims".into()), Box::new(ClaimsCallWrapper(call.clone())))
             },
+            Call::Registrar(call) => {
+                (Module::Custom("Registrar".into()), Box::new(RegistrarCallWrapper(call.clone())))
+            }
+            // Nicks
+            // System
             c @ _ => {
                 warn!("Call Not Handled: {:?}", c);
                 (Module::NotHandled, Box::new(NotHandled))
@@ -133,6 +138,62 @@ where
         match &self.0 {
             ClaimsCall::claim(account, signature) => {
                 Ok(("claim".into(), vec![account.encode(), signature.encode()].encode()))
+            },
+            __phantom_item => { // marker
+                warn!("hit phantom item");
+                Ok(("".into(), Vec::new()))
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RegistrarCallWrapper<T: RegistrarTrait>(RegistrarCall<T>);
+
+impl<T> SrmlExt for RegistrarCallWrapper<T>
+where
+    T: RegistrarTrait + std::fmt::Debug
+{
+
+    fn function(&self) -> Result<(String, Vec<u8>), ArchiveError> {
+        match &self.0 {
+            RegistrarCall::register_para(id, info, code, initial_head_data) => {
+                Ok((
+                    "register_para".into(),
+                    vec![id.encode(),
+                         info.encode(),
+                         code.encode(),
+                         initial_head_data.encode()
+                    ].encode()
+                ))
+            },
+            RegistrarCall::deregister_para(id) => {
+                Ok((
+                    "deregister_para".into(),
+                    vec![id.encode()].encode()
+                ))
+            },
+            RegistrarCall::set_thread_count(count) => {
+                Ok((
+                    "set_thread_count".into(),
+                    vec![count.encode()].encode()
+                ))
+            },
+            RegistrarCall::register_parathread(code, initial_head_data) => {
+                Ok((
+                    "register_parathread".into(),
+                    vec![code.encode(), initial_head_data.encode()].encode()
+                ))
+            },
+            RegistrarCall::select_parathread(id, collator, head_hash) => {
+                Ok(("select_parathread".into(), vec![id.encode(), collator.encode(), head_hash.encode()].encode()
+                ))
+            },
+            RegistrarCall::deregister_parathread() => {
+                Ok(("deregister_parathread".into(), Vec::new()))
+            },
+            RegistrarCall::swap(other) => {
+                Ok(("swap".into(), vec![other.encode()].encode()))
             },
             __phantom_item => { // marker
                 warn!("hit phantom item");

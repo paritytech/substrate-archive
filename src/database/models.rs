@@ -90,6 +90,7 @@ pub struct InsertTransaction<'a> {
     pub hash: &'a [u8],
     pub from_addr: &'a [u8],
     pub to_addr: Option<&'a [u8]>,
+    pub module: &'a str,
     pub call: &'a str,
     // pub success: &'a bool,
     pub nonce: &'a i32,
@@ -106,6 +107,7 @@ pub struct InsertTransactionOwned {
     pub hash: Vec<u8>,
     pub from_addr: Vec<u8>,
     pub to_addr: Option<Vec<u8>>,
+    pub module: String,
     pub call: String,
     // pub success: bool,
     pub nonce: i32,
@@ -178,6 +180,8 @@ pub struct SignedExtrinsics {
     from_addr: H256,
     /// the account that is receiving this transaction, if any
     to_addr: Option<H256>,
+    /// The module this extrinsic comes from
+    module: String,
     /// The call this transaction is using
     call: String,
     /// was the transaction succesful?

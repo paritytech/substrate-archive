@@ -16,6 +16,12 @@
 
 //! Extensions to Srml Modules to extract data useful in a database scenario
 
+// TODO: THE NEW WAY:
+// Get name of Module + Name of Call
+// Don't do anything else
+// Call into Storage()
+// Get EVERYTHING WE NEED :)
+
 // use srml_assets::Call as AssetsCall;
 use srml_aura::Call as AuraCall;
 use srml_timestamp::Call as TimestampCall;
@@ -40,7 +46,7 @@ pub trait SrmlExt: std::fmt::Debug {
 }
 
 /// Name of the function
-pub type CallName = String;
+pub type CallName = Into<String>;
 /// SCALE Encoded Parameters
 pub type Parameters = Vec<u8>;
 

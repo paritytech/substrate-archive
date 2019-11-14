@@ -36,10 +36,7 @@
  *     CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use futures::{
-    Async, try_ready,
-    future::{self, Future, poll_fn},
-};
+use futures::future::{self, Future, poll_fn};
 use diesel::{Connection, r2d2::ConnectionManager};
 use r2d2::{Pool, PooledConnection};
 use tokio_threadpool::{blocking, BlockingError};
