@@ -2243,6 +2243,7 @@ dependencies = [
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "polkadot-primitives 0.6.17 (git+https://github.com/insipx/polkadot?branch=insipx/archive-patches)",
  "polkadot-runtime 0.6.17 (git+https://github.com/insipx/polkadot?branch=insipx/archive-patches)",
  "substrate-archive 0.1.0",
 ]
@@ -3732,6 +3733,7 @@ dependencies = [
  "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "primitive-types 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "r2d2 0.8.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "sr-primitives 2.0.0 (git+https://github.com/paritytech/substrate/?branch=polkadot-master)",
  "srml-aura 2.0.0 (git+https://github.com/paritytech/substrate/?branch=polkadot-master)",

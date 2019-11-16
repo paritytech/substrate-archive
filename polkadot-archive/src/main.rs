@@ -29,6 +29,7 @@ use polkadot_runtime::{
     ParachainsCall, ParachainsTrait,
     ClaimsCall, ClaimsTrait, RegistrarCall, RegistrarTrait
 };
+use polkadot_primitives::Signature;
 use codec::{Encode, Decode, Input, Error as CodecError};
 
 
@@ -212,6 +213,7 @@ where
 pub struct Runtime;
 impl System for Runtime {
     type Call = CallWrapper;
+    type Signature = Signature;
     type Index = <RuntimeT as system::Trait>::Index;
     type BlockNumber = <RuntimeT as system::Trait>::BlockNumber;
     type Hash = <RuntimeT as system::Trait>::Hash;

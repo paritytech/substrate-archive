@@ -58,3 +58,4 @@ byte-slice-cast = "=0.3.2" # remove once parity-scale-codec is updated
 
 [dev-dependencies]
 node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
+rand = "0.7"

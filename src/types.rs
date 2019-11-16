@@ -24,7 +24,6 @@ use substrate_primitives::storage::StorageData;
 use runtime_support::Parameter;
 use runtime_primitives::{
     OpaqueExtrinsic,
-    AnySignature,
     generic::{
         Block as BlockT,
         SignedBlock
@@ -50,12 +49,10 @@ use self::storage::StorageKeyType;
 
 /// Format for describing accounts
 pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
-pub type BasicExtrinsic<T>
-    = Extrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra>;
+ pub type BasicExtrinsic<T>
+   = Extrinsic<Address<T>, <T as System>::Call, <T as System>::Signature, <T as System>::SignedExtra>;
 /// A block with OpaqueExtrinsic as extrinsic type
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
-
-// pub type BlockNumber<T> = NumberOrHex<<T as System>::BlockNumber>;
 
 /// Sent from Substrate API to be committed into the Database
 #[derive(Debug, PartialEq, Eq)]
@@ -241,6 +238,8 @@ pub trait ExtractCall {
     fn extract_call(&self) -> (Module, Box<dyn SrmlExt>);
 }
 
+
+
 // TODO: Consider removing this trait and directly using srml_system::Trait
 // Right now this acts as some sort of Shim, in case we need any traits that srml_system::Trait does not specify
 // which can be easily crafted in the type-specific (PolkadotArchive) portion of the code
@@ -253,11 +252,11 @@ pub trait System: Send + Sync + 'static + std::fmt::Debug {
     /// Should implement `ExtractCall` to put call data in a more database-friendly format
     type Call: Encode
         + Decode
-        + PartialEq
-        + Eq
         + Clone
         + std::fmt::Debug
         + ExtractCall;
+
+    type Signature: Decode + Encode + std::fmt::Debug;
 
     /// Account index (aka nonce) type. This stores the number of previous
     /// transactions associated with a sender account.
