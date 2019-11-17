@@ -19,15 +19,21 @@
 use log::warn;
 use failure::Error;
 use substrate_archive::{
-    Archive, System, Module,
+    Archive, System, Module, DecodeExtrinsic,
+    Extrinsic as ArchiveExtrinsic, ExtractExtrinsic,
     ExtractCall, SrmlExt, NotHandled,
     srml::srml_system as system,
     Error as ArchiveError
 };
+use runtime_primitives::{
+    AnySignature,
+    OpaqueExtrinsic,
+    generic
+};
 use polkadot_runtime::{
-    Runtime as RuntimeT, Call,
-    ParachainsCall, ParachainsTrait,
-    ClaimsCall, ClaimsTrait, RegistrarCall, RegistrarTrait
+    Runtime as RuntimeT, Call, Address,
+    ParachainsCall, ParachainsTrait, SignedExtra,
+    ClaimsCall, ClaimsTrait, RegistrarCall, RegistrarTrait,
 };
 use polkadot_primitives::Signature;
 use codec::{Encode, Decode, Input, Error as CodecError};
@@ -38,8 +44,21 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// need to define Encode/Decode for Call New Type
+#[derive(Debug)]
+pub struct ExtrinsicWrapper(OpaqueExtrinsic);
 
+impl DecodeExtrinsic for Extrinsic {
+    fn decode(&self) -> Result<Box<dyn ExtractExtrinsic>, ArchiveError> {
+        let res = ArchiveExtrinsic::<Address, CallWrapper, Signature, SignedExtra>::new(self);
+        if res.is_err() {
+            Ok(Box::new(ArchiveExtrinsic::<Address, CallWrapper, AnySignature, SignedExtra>::new(self)?))
+        } else {
+            Ok(Box::new(res?))
+        }
+    }
+}
+
+// need to define Encode/Decode for Call New Type
 // Passthrough traits (Boilerplate)
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CallWrapper { inner: Call }
@@ -213,13 +232,14 @@ where
 pub struct Runtime;
 impl System for Runtime {
     type Call = CallWrapper;
+    type Extrinsic = ExtrinsicWrapper;
     type Signature = Signature;
+    type Address = Address;
     type Index = <RuntimeT as system::Trait>::Index;
     type BlockNumber = <RuntimeT as system::Trait>::BlockNumber;
     type Hash = <RuntimeT as system::Trait>::Hash;
     type Hashing = <RuntimeT as system::Trait>::Hashing;
     type AccountId = <RuntimeT as system::Trait>::AccountId;
-    type Lookup = <RuntimeT as system::Trait>::Lookup;
     type Header = <RuntimeT as system::Trait>::Header;
     type Event = <RuntimeT as system::Trait>::Event;
     type SignedExtra = polkadot_runtime::SignedExtra;

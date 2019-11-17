@@ -39,8 +39,8 @@ use std::{
 
 use crate::{
     error::Error as ArchiveError,
-    extrinsics::{Extrinsic, DbExtrinsic},
-    types::{BasicExtrinsic, Data, System, Block, Storage, BatchBlock, BatchStorage},
+    extrinsics::{Extrinsic, DbExtrinsic, SplitOpaqueExtrinsic},
+    types::{Data, System, Block, Storage, BatchBlock, BatchStorage, DecodeExtrinsic},
     database::{
         models::{InsertBlock, InsertBlockOwned},
         schema::{blocks, inherents, signed_extrinsics},
@@ -302,21 +302,22 @@ where
 }
 
 fn get_extrinsics<T>(
-    extrinsics: &[OpaqueExtrinsic],
+    extrinsics: &[T::Extrinsic],
     header: &T::Header,
     // db: &AsyncDiesel<PgConnection>,
 ) -> Result<Vec<DbExtrinsic>, ArchiveError> where T: System {
+
     extrinsics
         .iter()
         // enumerate is used here to preserve order/index of extrinsics
         .enumerate()
         .map(|(idx, x)| {
-            Ok((idx, Extrinsic::new(&x)?))
+            Ok((idx, x.decode()?))
         })
-        .collect::<Vec<Result<(usize, BasicExtrinsic<T>), ArchiveError>>>()
+        .collect::<Vec<Result<(usize, SplitOpaqueExtrinsic), ArchiveError>>>()
         .into_iter()
         // we don't want to skip over _all_ extrinsics if decoding one extrinsic does not work
-        .filter_map(|x: Result<(usize, BasicExtrinsic<T>), _>| {
+        .filter_map(|x: Result<(usize, SplitOpaqueExtrinsic), _>| {
             match x {
                 Ok(v) => {
                     let number = (*header.number()).into();

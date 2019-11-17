@@ -81,8 +81,7 @@ impl<T> Archive<T> where T: System {
     fn sync(db: Arc<Database>,
               rpc: Arc<Rpc<T>>,
               sender: UnboundedSender<Data<T>>
-    )
-            -> impl Future<Item = Sync, Error = ()> + 'static
+    ) -> impl Future<Item = Sync, Error = ()> + 'static
     {
         loop_fn(Sync::new(), move |v| {
             let sender0 = sender.clone();

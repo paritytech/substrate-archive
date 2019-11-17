@@ -11,6 +11,7 @@ log = "0.4"
 failure = "0.1"
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 env_logger = "0.7.0"
+runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives", branch = "polkadot-master" }
 substrate-archive = { path = "../" }
 
 [dependencies.polkadot-primitives]

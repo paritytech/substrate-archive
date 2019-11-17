@@ -40,19 +40,27 @@ use runtime_primitives::{
         SignedExtension,
         SimpleArithmetic,
         SimpleBitOps,
-        StaticLookup,
-    },
+    }
 };
 
-use crate::{error::Error, srml_ext::SrmlExt, extrinsics::Extrinsic};
+use crate::{error::Error, srml_ext::SrmlExt, extrinsics::ExtractExtrinsic};
 use self::storage::StorageKeyType;
 
 /// Format for describing accounts
-pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
- pub type BasicExtrinsic<T>
-   = Extrinsic<Address<T>, <T as System>::Call, <T as System>::Signature, <T as System>::SignedExtra>;
+
+// pub type BasicExtrinsic<T>
+//   = Extrinsic<<T as System>::Address, <T as System>::Call, <T as System>::Signature, <T as System>::SignedExtra>;
 /// A block with OpaqueExtrinsic as extrinsic type
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
+
+pub trait DecodeExtrinsic {
+    fn decode(&self) -> Result<Box<dyn ExtractExtrinsic>, Error>;
+}
+
+pub trait ExtractCall {
+    /// module the call is from, IE Timestamp, FinalityTracker
+    fn extract_call(&self) -> (Module, Box<dyn SrmlExt>);
+}
 
 /// Sent from Substrate API to be committed into the Database
 #[derive(Debug, PartialEq, Eq)]
@@ -85,7 +93,6 @@ impl<T: System> Header<T> {
         &self.inner
     }
 }
-
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Block<T: System> {
@@ -232,14 +239,6 @@ pub enum Module {
     NotHandled,
 }
 
-
-pub trait ExtractCall {
-    /// module the call is from, IE Timestamp, FinalityTracker
-    fn extract_call(&self) -> (Module, Box<dyn SrmlExt>);
-}
-
-
-
 // TODO: Consider removing this trait and directly using srml_system::Trait
 // Right now this acts as some sort of Shim, in case we need any traits that srml_system::Trait does not specify
 // which can be easily crafted in the type-specific (PolkadotArchive) portion of the code
@@ -255,9 +254,9 @@ pub trait System: Send + Sync + 'static + std::fmt::Debug {
         + Clone
         + std::fmt::Debug
         + ExtractCall;
-
-    type Signature: Decode + Encode + std::fmt::Debug;
-
+    type Extrinsic: DecodeExtrinsic + std::fmt::Debug;
+    type Signature: Encode + Decode + std::fmt::Debug;
+    type Address: Encode + Decode + std::fmt::Debug;
     /// Account index (aka nonce) type. This stores the number of previous
     /// transactions associated with a sender account.
     type Index: Parameter
@@ -316,7 +315,7 @@ pub trait System: Send + Sync + 'static + std::fmt::Debug {
     /// identity conversion (with the source type being `AccountId`), but other
     /// modules (e.g. Indices module) may provide more functional/efficient
     /// alternatives.
-    type Lookup: StaticLookup<Target = Self::AccountId>;
+    // type Lookup: StaticLookup<Target = Self::AccountId>;
 
     /// The block header.
     type Header: Parameter
