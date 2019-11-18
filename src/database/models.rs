@@ -65,7 +65,7 @@ pub struct InsertInherent<'a> {
     pub parameters: Option<Vec<u8>>,
     // pub success: &'a bool,
     pub in_index: &'a i32,
-    pub transaction_version: &'a i32
+    pub transaction_version: Option<&'a i32>
 }
 
 // for batch inserts where collecting references may not always live long enough
@@ -79,7 +79,7 @@ pub struct InsertInherentOwned {
     pub parameters: Option<Vec<u8>>,
     // pub success: bool,
     pub in_index: i32,
-    pub transaction_version: i32
+    pub transaction_version: Option<i32>
 }
 
 #[derive(Insertable)]
@@ -96,7 +96,7 @@ pub struct InsertTransaction<'a> {
     pub nonce: &'a i32,
     pub tx_index: &'a i32,
     pub signature: &'a [u8],
-    pub transaction_version: &'a i32,
+    pub transaction_version: Option<&'a i32>
 }
 
 #[derive(Insertable, Debug)]
@@ -113,7 +113,7 @@ pub struct InsertTransactionOwned {
     pub nonce: i32,
     pub tx_index: i32,
     pub signature: Vec<u8>,
-    pub transaction_version: i32
+    pub transaction_version: Option<i32>
 }
 
 #[derive(Insertable)]

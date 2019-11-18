@@ -14,11 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{DbExtrinsic, Extrinsic};
+use super::{DbExtrinsic, SplitOpaqueExtrinsic, UncheckedExtrinsic, Extrinsic};
 use crate::{error::Error, types::{System, DecodeExtrinsic}};
+use std::convert::TryInto;
 use codec::Encode;
 use log::error;
-use runtime_primitives::{traits::SignedExtension};
+use runtime_primitives::{traits::{SignedExtension, Header}};
+
 
 pub const LATEST_TRANSACTION_VERSION: u8 = 4;
 pub const EARLIEST_TRANSACTION_VERSION: u8 = 3;
@@ -59,14 +61,13 @@ impl std::fmt::Display for SupportedVersions {
     }
 }
 
-pub fn get_extrinsics<T, Address, Call, Signature, Extra>(
+pub fn get_extrinsics<T>(
     extrinsics: &[T::Extrinsic],
     header: &T::Header,
     // db: &AsyncDiesel<PgConnection>,
 ) -> Result<Vec<DbExtrinsic>, Error>
 where
     T: System,
-    Extra: SignedExtension
 {
 
     extrinsics
@@ -74,16 +75,20 @@ where
         // enumerate is used here to preserve order/index of extrinsics
         .enumerate()
         .map(|(idx, x)| {
-            Ok((idx, x.decode()?.into_extrinsic().unwrap() ))
+            let decoded = x.decode()?;
+            let split = decoded.extract();
+            Ok((idx, split))
         })
-        .collect::<Vec<Result<(usize, Extrinsic<Address, Call, Signature, Extra>), Error>>>()
+        .collect::<Vec<Result<(usize, SplitOpaqueExtrinsic), Error>>>()
         .into_iter()
         // we don't want to skip over _all_ extrinsics if decoding one extrinsic does not work
-        .filter_map(|x: Result<(usize, Extrinsic<Address, Call, Signature, Extra>), _>| {
+        .filter_map(|x: Result<(usize, SplitOpaqueExtrinsic), _>| {
             match x {
                 Ok(v) => {
                     let number = (*header.number()).into();
-                    Some(v.1.database_format(v.0.try_into().unwrap(), header, number))
+                    let ext =
+                        Extrinsic::<T::Address, T::Call, T::Signature, T::SignedExtra>::from_split(v.1).unwrap();
+                    Some(ext.database_format(v.0.try_into().unwrap(), header, number))
                 },
                 Err(e) => {
                     error!("{:?}", e);
@@ -92,6 +97,33 @@ where
             }
         })
         .collect::<Result<Vec<DbExtrinsic>, Error>>()
+}
+
+// TODO: this may be better implemented with From<> rather than custom ExtractExtrinsic trait
+pub fn into_split<Address, Call, Signature, Extra>(ext: &UncheckedExtrinsic<Address, Call, Signature, Extra>
+) -> SplitOpaqueExtrinsic
+where
+    Address: Encode,
+    Call: Encode,
+    Signature: Encode,
+    Extra: SignedExtension + Encode
+{
+    let (signed, call) = ext.split();
+    if let Some(s) = signed {
+        SplitOpaqueExtrinsic {
+            sig: Some(s.0.encode()),
+            addr: Some(s.1.encode()),
+            extra: Some(s.2.encode()),
+            call: call.encode()
+        }
+    } else {
+        SplitOpaqueExtrinsic {
+            sig: None,
+            addr: None,
+            extra: None,
+            call: call.encode(),
+        }
+    }
 }
 
 //TODO There needs to be a better way than verbatim copying code from substrate...

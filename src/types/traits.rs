@@ -39,9 +39,12 @@ use runtime_primitives::{
 };
 
 pub trait DecodeExtrinsic: Send + Sync {
+    fn decode(&self) -> Result<Box<dyn ExtractExtrinsic>, Error>;
+}
 
-    fn decode<Address, Call, Signature, Extra: SignedExtension>(&self
-    ) -> Result<Box<dyn ExtractExtrinsic<Address, Call, Signature, Extra>>, Error>;
+// for signatures/addresses
+pub trait IntoRawBytes {
+    fn into_raw_bytes(&self) -> Vec<u8>;
 }
 
 pub trait ExtractCall {
