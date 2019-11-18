@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{DbExtrinsic, SplitOpaqueExtrinsic, UncheckedExtrinsic, Extrinsic};
-use crate::{error::Error, types::{System, DecodeExtrinsic, GenericBytes}};
+use super::{DbExtrinsic, SplitOpaqueExtrinsic, UncheckedExtrinsic, Extrinsic, ExtractExtrinsic};
+use crate::{error::Error, types::{System, DecodeExtrinsic, GenericBytes, ExtractCall}};
 use std::convert::TryInto;
 use codec::Encode;
 use log::error;
@@ -75,13 +75,13 @@ where
         // enumerate is used here to preserve order/index of extrinsics
         .enumerate()
         .map(|(idx, x)| {
-            let decoded: Extrinsic<T::Generic, T::Call, T::Generic, T::SignedExtra> = x.decode()?.into();
+            let decoded: Box<dyn ExtractExtrinsic<T::Address, T::Call, T::Generic, T::SignedExtra, T::Header>> = x.decode()?;
             Ok((idx, decoded))
         })
-        .collect::<Vec<Result<(usize, Extrinsic<T::Generic, T::Call, T::Generic, T::SignedExtra>), Error>>>()
+        .collect::<Vec<Result<(usize, Box<dyn ExtractExtrinsic<T::Address, T::Call, T::Generic, T::SignedExtra, T::Header>>), Error>>>()
         .into_iter()
         // we don't want to skip over _all_ extrinsics if decoding one extrinsic does not work
-        .filter_map(|x: Result<(usize, Extrinsic<T::Generic, T::Call, T::Generic, T::SignedExtra>), _>| {
+        .filter_map(|x: Result<(usize, Box<dyn ExtractExtrinsic<T::Address, T::Call, T::Generic, T::SignedExtra, T::Header>>), _>| {
             match x {
                 Ok(v) => {
                     let number = (*header.number()).into();
@@ -101,7 +101,7 @@ pub fn into_split<Address, Call, Signature, Extra>(ext: &UncheckedExtrinsic<Addr
 ) -> SplitOpaqueExtrinsic
 where
     Address: Encode,
-    Call: Encode,
+    Call: Encode + ExtractCall,
     Signature: Encode,
     Extra: SignedExtension + Encode
 {

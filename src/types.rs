@@ -22,7 +22,7 @@ use codec::Decode;
 use chrono::{DateTime, Utc, TimeZone};
 use substrate_primitives::storage::StorageData;
 use runtime_primitives::{
-    generic::{Block as BlockT, SignedBlock},
+    MultiSignature, AnySignature, generic::{Block as BlockT, SignedBlock},
 };
 
 pub use self::traits::{ExtractCall, DecodeExtrinsic, System, GenericBytes};
@@ -49,6 +49,19 @@ pub enum Data<T: System> {
     Event(Event<T>),
     SyncProgress(usize),
 }
+
+impl GenericBytes for AnySignature {
+    fn get_generic(&self) -> Vec<u8> {
+        Vec::new()
+    }
+}
+
+impl GenericBytes for MultiSignature {
+    fn get_generic(&self) -> Vec<u8> {
+        Vec::new()
+    }
+}
+
 
 // new types to allow implementing of traits
 #[derive(Debug, PartialEq, Eq)]

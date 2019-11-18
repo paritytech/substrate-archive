@@ -16,13 +16,15 @@
 
 use std::fmt::Debug;
 
-use crate::{error::Error, srml_ext::SrmlExt, extrinsics::UncheckedExtrinsic};
+use crate::{error::Error, srml_ext::SrmlExt, extrinsics::{UncheckedExtrinsic, Extrinsic, ExtractExtrinsic}};
 use super::Module;
 
 use codec::{Encode, Decode};
 use serde::{Serialize, de::DeserializeOwned};
 use runtime_support::Parameter;
 use runtime_primitives::{
+    AnySignature,
+    MultiSignature,
     traits::{
         Bounded,
         CheckEqual,
@@ -58,18 +60,19 @@ impl GenericBytes for Vec<u8> {
 }
 
 pub trait DecodeExtrinsic: Send + Sync {
-    fn decode<Address: GenericBytes, Call, Signature: GenericBytes, Extra: SignedExtension>(&self) -> Result<UncheckedExtrinsic<Address, Call, Signature, Extra>, Error>;
-}
-
-// for signatures/addresses
-pub trait IntoRawBytes {
-    fn into_raw_bytes(&self) -> Vec<u8>;
+    fn decode<Address, Call, Signature, Extra, H>(&self
+    ) -> Result<Box<dyn ExtractExtrinsic<Address, Call, Signature, Extra, H>>, Error>
+    where
+        Address: Decode + Debug + Encode + 'static,
+        Call: Encode + Decode + Debug + ExtractCall,
+        Signature: GenericBytes + 'static,
+        Extra: SignedExtension,
+        H: HeaderTrait;
 }
 
 pub trait ExtractCall {
     /// module the call is from, IE Timestamp, FinalityTracker
     fn extract_call(&self) -> (Module, Box<dyn SrmlExt>);
-
 }
 
 // TODO: Consider removing this trait and directly using srml_system::Trait
@@ -86,7 +89,7 @@ pub trait System: Send + Sync + 'static + Debug {
     type Extrinsic: DecodeExtrinsic + Debug + Serialize + DeserializeOwned + Clone + Eq + PartialEq + Unpin;
     // type Block: BlockTrait + Encode + Decode + Debug;
     type Signature: Encode + Decode + Debug + GenericBytes;
-    type Address: Encode + Decode + Debug + GenericBytes;
+    type Address: Encode + Decode + Debug;
 
     type Generic: GenericBytes;
 
