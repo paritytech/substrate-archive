@@ -33,7 +33,7 @@ table! {
         call -> Varchar,
         parameters -> Nullable<Bytea>,
         in_index -> Int4,
-        transaction_version -> Nullable<Int4>,
+        transaction_version -> Int4,
     }
 }
 
@@ -49,7 +49,7 @@ table! {
         nonce -> Int4,
         tx_index -> Int4,
         signature -> Bytea,
-        transaction_version -> Nullable<Int4>,
+        transaction_version -> Int4,
     }
 }
 

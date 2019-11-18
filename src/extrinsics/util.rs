@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{DbExtrinsic, SplitOpaqueExtrinsic, UncheckedExtrinsic, Extrinsic};
-use crate::{error::Error, types::{System, DecodeExtrinsic}};
+use crate::{error::Error, types::{System, DecodeExtrinsic, GenericBytes}};
 use std::convert::TryInto;
 use codec::Encode;
 use log::error;
@@ -75,13 +75,13 @@ where
         // enumerate is used here to preserve order/index of extrinsics
         .enumerate()
         .map(|(idx, x)| {
-            let decoded = x.decode()?;
+            let decoded: Extrinsic<T::Generic, T::Call, T::Generic, T::SignedExtra> = x.decode()?.into();
             Ok((idx, decoded))
         })
-        .collect::<Vec<Result<(usize, Box<Extrinsic<_, _, _,_>>), Error>>>()
+        .collect::<Vec<Result<(usize, Extrinsic<T::Generic, T::Call, T::Generic, T::SignedExtra>), Error>>>()
         .into_iter()
         // we don't want to skip over _all_ extrinsics if decoding one extrinsic does not work
-        .filter_map(|x: Result<(usize, Box<Extrinsic<_, _, _, _>>), _>| {
+        .filter_map(|x: Result<(usize, Extrinsic<T::Generic, T::Call, T::Generic, T::SignedExtra>), _>| {
             match x {
                 Ok(v) => {
                     let number = (*header.number()).into();

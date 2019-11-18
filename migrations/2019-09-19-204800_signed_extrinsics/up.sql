@@ -11,5 +11,5 @@ CREATE TABLE signed_extrinsics (
   nonce int check (nonce >= 0) NOT NULL,
   tx_index int check (tx_index >= 0) NOT NULL,
   signature bytea NOT NULL,
-  transaction_version int check (transaction_version >= 0)
+  transaction_version int check (transaction_version >= 0) NOT NULL
 );

@@ -25,7 +25,7 @@ use runtime_primitives::{
     generic::{Block as BlockT, SignedBlock},
 };
 
-pub use self::traits::{ExtractCall, DecodeExtrinsic, System};
+pub use self::traits::{ExtractCall, DecodeExtrinsic, System, GenericBytes};
 
 use crate::error::Error;
 use self::storage::StorageKeyType;

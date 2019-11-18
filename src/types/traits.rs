@@ -16,7 +16,7 @@
 
 use std::fmt::Debug;
 
-use crate::{error::Error, srml_ext::SrmlExt, extrinsics::Extrinsic};
+use crate::{error::Error, srml_ext::SrmlExt, extrinsics::UncheckedExtrinsic};
 use super::Module;
 
 use codec::{Encode, Decode};
@@ -37,9 +37,28 @@ use runtime_primitives::{
         SimpleBitOps,
     }
 };
+/*
+pub trait ExtrinsicExt: Send + Sync {
+    type Call: Decode + ExtractCall;
+    type SignaturePayload: Decode;
+    fn call() -> Self::Call;
+    fn signature() -> Self::SignaturePayload;
+    fn is_signed() -> bool;
+}
+ */
+
+pub trait GenericBytes: Send + Sync + Debug + Clone + Encode + Decode {
+    fn get_generic(&self) -> Vec<u8>;
+}
+
+impl GenericBytes for Vec<u8> {
+    fn get_generic(&self) -> Vec<u8> {
+        self.clone()
+    }
+}
 
 pub trait DecodeExtrinsic: Send + Sync {
-    fn decode<Address, Call, Signature, Extra: SignedExtension>(&self) -> Result<Box<Extrinsic<Address, Call, Signature, Extra>>, Error>;
+    fn decode<Address: GenericBytes, Call, Signature: GenericBytes, Extra: SignedExtension>(&self) -> Result<UncheckedExtrinsic<Address, Call, Signature, Extra>, Error>;
 }
 
 // for signatures/addresses
@@ -66,8 +85,10 @@ pub trait System: Send + Sync + 'static + Debug {
     type Call: Encode + Decode + Clone + Debug + ExtractCall; // TODO import Debug
     type Extrinsic: DecodeExtrinsic + Debug + Serialize + DeserializeOwned + Clone + Eq + PartialEq + Unpin;
     // type Block: BlockTrait + Encode + Decode + Debug;
-    type Signature: Encode + Decode + Debug;
-    type Address: Encode + Decode + Debug;
+    type Signature: Encode + Decode + Debug + GenericBytes;
+    type Address: Encode + Decode + Debug + GenericBytes;
+
+    type Generic: GenericBytes;
 
     /// Account index (aka nonce) type. This stores the number of previous
     /// transactions associated with a sender account.
