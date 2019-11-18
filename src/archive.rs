@@ -50,7 +50,6 @@ pub struct Archive<T: System> {
 impl<T> Archive<T> where T: System {
 
     pub fn new() -> Result<Self, ArchiveError> {
-        crate::util::init_logger(log::LevelFilter::Error); // TODO move this into polkadot-archive
         let mut runtime = Runtime::new()?;
         let rpc = runtime.block_on(Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?))?;
         let db = Database::new()?;

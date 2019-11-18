@@ -16,7 +16,7 @@
 
 use std::fmt::Debug;
 
-use crate::{error::Error, srml_ext::SrmlExt, extrinsics::ExtractExtrinsic};
+use crate::{error::Error, srml_ext::SrmlExt, extrinsics::Extrinsic};
 use super::Module;
 
 use codec::{Encode, Decode};
@@ -39,7 +39,7 @@ use runtime_primitives::{
 };
 
 pub trait DecodeExtrinsic: Send + Sync {
-    fn decode(&self) -> Result<Box<dyn ExtractExtrinsic>, Error>;
+    fn decode<Address, Call, Signature, Extra: SignedExtension>(&self) -> Result<Box<Extrinsic<Address, Call, Signature, Extra>>, Error>;
 }
 
 // for signatures/addresses

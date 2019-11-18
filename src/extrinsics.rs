@@ -85,7 +85,7 @@ where
     Extra: SignedExtension + Encode,
 {
     fn extract(&self) -> SplitOpaqueExtrinsic {
-        into_split(&self.extrinsic.as_ref().unwrap())
+        into_split(&self.extrinsic.as_ref().expect("Extract for Extrinsic"))
     }
 }
 
@@ -142,16 +142,14 @@ where
     Signature: Debug + Decode + Encode,
     Extra: SignedExtension
 {
-    /*
     pub fn new(opaque_ext: &OpaqueExtrinsic) -> Result<Self, Error> {
         trace!("Opaque Extrinsic: {:?}", opaque_ext);
         let extrinsic = Some(UncheckedExtrinsic::decode(&mut opaque_ext.encode().as_slice())?);
-        let split_opaque_ext = into_split(extrinsic.unwrap());
+        let split_opaque_ext = into_split(extrinsic.as_ref().expect("Extrinsic::new"));
         // let version: SupportedVersions = (&extrinsic).into();
         // trace!("Version: {}", version);
         Ok(Self { extrinsic, split_opaque_ext })
     }
-    */
 
     pub fn from_split(split_ext: SplitOpaqueExtrinsic) -> Result<Self, Error>
     {
@@ -169,11 +167,11 @@ where
     }
 
     pub fn function(&self) -> &Call {
-        self.extrinsic.as_ref().unwrap().function()
+        self.extrinsic.as_ref().expect("Extrinsic::function()").function()
     }
 
     pub fn version(&self) -> &Option<u8> {
-        &self.extrinsic.as_ref().unwrap().version
+        &self.extrinsic.as_ref().expect("Extrinsic::version()").version
     }
 
     /// return inherent types that may be inserted into a postgres database
@@ -184,7 +182,7 @@ where
         generic::UncheckedExtrinsic<Address, Call, Signature, Extra>: Encode,
         UncheckedExtrinsic<Address, Call, Signature, Extra>: Encode
     {
-        if self.extrinsic.as_ref().unwrap().signature.is_some() {
+        if self.extrinsic.as_ref().expect("Extrinsic::database_format()").signature.is_some() {
             self.format_signed(index, header, number)
         } else {
             self.format_unsigned(index, header, number)
@@ -211,7 +209,7 @@ where
             fn_name = name;
         }
 
-        let transaction_hash = self.extrinsic.as_ref().unwrap().hash::<H::Hashing>().as_ref().to_vec();
+        let transaction_hash = self.extrinsic.as_ref().expect("transaction_hash").hash::<H::Hashing>().as_ref().to_vec();
         info!("TRANSACTION HASH: {:?}", transaction_hash);
 
         Ok(
@@ -278,7 +276,7 @@ where
     );
 
     fn is_signed(&self) -> Option<bool> {
-        self.extrinsic.as_ref().unwrap().is_signed()
+        self.extrinsic.as_ref().expect("Extrinsic::is_signed()").is_signed()
     }
 }
 

@@ -76,19 +76,16 @@ where
         .enumerate()
         .map(|(idx, x)| {
             let decoded = x.decode()?;
-            let split = decoded.extract();
-            Ok((idx, split))
+            Ok((idx, decoded))
         })
-        .collect::<Vec<Result<(usize, SplitOpaqueExtrinsic), Error>>>()
+        .collect::<Vec<Result<(usize, Box<Extrinsic<_, _, _,_>>), Error>>>()
         .into_iter()
         // we don't want to skip over _all_ extrinsics if decoding one extrinsic does not work
-        .filter_map(|x: Result<(usize, SplitOpaqueExtrinsic), _>| {
+        .filter_map(|x: Result<(usize, Box<Extrinsic<_, _, _, _>>), _>| {
             match x {
                 Ok(v) => {
                     let number = (*header.number()).into();
-                    let ext =
-                        Extrinsic::<T::Address, T::Call, T::Signature, T::SignedExtra>::from_split(v.1).unwrap();
-                    Some(ext.database_format(v.0.try_into().unwrap(), header, number))
+                    Some(v.1.database_format(v.0.try_into().unwrap(), header, number))
                 },
                 Err(e) => {
                     error!("{:?}", e);

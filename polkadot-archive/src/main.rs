@@ -16,13 +16,16 @@
 
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
-use log::warn;
+use log::{warn, error};
 use failure::Error;
-use substrate_archive::prelude::*;
+// use substrate_archive::prelude::*;
+use serde::{Deserialize, Serialize};
+
 use substrate_archive::{
     Archive, System, Module, DecodeExtrinsic,
     Extrinsic as ArchiveExtrinsic, ExtractExtrinsic,
     ExtractCall, SrmlExt, NotHandled,
+    init_logger,
     srml::srml_system as system,
     Error as ArchiveError
 };
@@ -42,28 +45,21 @@ use codec::{Encode, Decode, Input, Error as CodecError};
 
 
 fn main() -> Result<(), Error> {
+    // convenience log function from substrate_archive which logs to .local/share/substrate_archive
+    init_logger(log::LevelFilter::Error);
     Archive::<Runtime>::new()?.run()?;
     Ok(())
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtrinsicWrapper(OpaqueExtrinsic);
 
-
-
-impl From<&[OpaqueExtrinsic]> for &[ExtrinsicWrapper] {
-    fn from(ext: &[OpaqueExtrinsic]) -> &[ExtrinsicWrapper] {
-        ext.into_iter().map(|e| {
-            ExtrinsicWrapper(e)
-        })
-    }
-}
-
-impl DecodeExtrinsic for Extrinsic {
-    fn decode(&self) -> Result<Box<dyn ExtractExtrinsic>, ArchiveError> {
-        let res = ArchiveExtrinsic::<Address, CallWrapper, Signature, SignedExtra>::new(self);
+impl DecodeExtrinsic for ExtrinsicWrapper {
+    fn decode(&self) -> Result<Box<ArchiveExtrinsic>, ArchiveError> {
+        let res = ArchiveExtrinsic::<Address, CallWrapper, Signature, SignedExtra>::new(&self.0);
         if res.is_err() {
-            Ok(Box::new(ArchiveExtrinsic::<Address, CallWrapper, AnySignature, SignedExtra>::new(self)?))
+            error!("Did not decode with current Signature, trying AnySignature {:?}", res);
+            Ok(Box::new(ArchiveExtrinsic::<Address, CallWrapper, AnySignature, SignedExtra>::new(&self.0)?))
         } else {
             Ok(Box::new(res?))
         }
