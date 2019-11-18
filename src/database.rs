@@ -22,15 +22,12 @@ pub mod db_middleware;
 
 use log::*;
 use futures::future::{self, Future};
-use diesel::{prelude::*, pg::PgConnection, sql_types::{BigInt, Bytea}} ;
+use diesel::{prelude::*, pg::PgConnection, sql_types::{BigInt, Bytea}};
 use codec::Decode;
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
 // use runtime_support::dispatch::IsSubType;
-use runtime_primitives::{
-    traits::Block as BlockTrait,
-    OpaqueExtrinsic
-};
+use runtime_primitives::traits::Block as _;
 
 use std::{
     env,
@@ -39,8 +36,8 @@ use std::{
 
 use crate::{
     error::Error as ArchiveError,
-    extrinsics::{Extrinsic, DbExtrinsic, SplitOpaqueExtrinsic},
-    types::{Data, System, Block, Storage, BatchBlock, BatchStorage, DecodeExtrinsic},
+    extrinsics::{DbExtrinsic, get_extrinsics},
+    types::{Data, System, Block, Storage, BatchBlock, BatchStorage},
     database::{
         models::{InsertBlock, InsertBlockOwned},
         schema::{blocks, inherents, signed_extrinsics},
@@ -192,14 +189,17 @@ where
     }
 }
 
-impl<T> Insert for Block<T> where T: System + 'static {
+impl<T> Insert for Block<T>
+where
+    T: System + 'static,
+{
 
     fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
 
         let block = self.inner().block.clone();
         info!("HASH: {:X?}", block.header.hash().as_ref());
         info!("Block Num: {:?}", block.header.number());
-        let extrinsics = get_extrinsics::<T>(block.extrinsics(), &block.header)?;
+        let extrinsics = get_extrinsics::<T>(&block.extrinsics, &block.header)?;
         // TODO Optimize
         let fut = db.run(move |conn| {
             diesel::insert_into(blocks::table)
@@ -251,7 +251,7 @@ where
             .map(|block| {
                 let block = block.block.clone();
                 let mut block_ext: Vec<DbExtrinsic>
-                    = get_extrinsics::<T>(block.extrinsics(), &block.header)?;
+                    = get_extrinsics::<T>(&block.extrinsics, &block.header)?;
 
                 extrinsics.append(&mut block_ext);
                 Ok(InsertBlockOwned {
@@ -299,37 +299,6 @@ where
         }).map(|_| ());
         Ok(Box::new(fut))
     }
-}
-
-fn get_extrinsics<T>(
-    extrinsics: &[T::Extrinsic],
-    header: &T::Header,
-    // db: &AsyncDiesel<PgConnection>,
-) -> Result<Vec<DbExtrinsic>, ArchiveError> where T: System {
-
-    extrinsics
-        .iter()
-        // enumerate is used here to preserve order/index of extrinsics
-        .enumerate()
-        .map(|(idx, x)| {
-            Ok((idx, x.decode()?))
-        })
-        .collect::<Vec<Result<(usize, SplitOpaqueExtrinsic), ArchiveError>>>()
-        .into_iter()
-        // we don't want to skip over _all_ extrinsics if decoding one extrinsic does not work
-        .filter_map(|x: Result<(usize, SplitOpaqueExtrinsic), _>| {
-            match x {
-                Ok(v) => {
-                    let number = (*header.number()).into();
-                    Some(v.1.database_format(v.0.try_into().unwrap(), header, number))
-                },
-                Err(e) => {
-                    error!("{:?}", e);
-                    None
-                }
-            }
-        })
-        .collect::<Result<Vec<DbExtrinsic>, ArchiveError>>()
 }
 
 #[cfg(test)]

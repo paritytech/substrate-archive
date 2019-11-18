@@ -15,52 +15,27 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 pub mod storage;
+mod traits;
 
 use substrate_primitives::storage::StorageChangeSet;
-use serde::de::DeserializeOwned;
-use codec::{Encode, Decode};
+use codec::Decode;
 use chrono::{DateTime, Utc, TimeZone};
 use substrate_primitives::storage::StorageData;
-use runtime_support::Parameter;
 use runtime_primitives::{
-    OpaqueExtrinsic,
-    generic::{
-        Block as BlockT,
-        SignedBlock
-    },
-    traits::{
-        Bounded,
-        CheckEqual,
-        Hash,
-        Header as HeaderTrait,
-        MaybeDisplay,
-        MaybeSerializeDeserialize,
-        MaybeSerialize,
-        Member,
-        SignedExtension,
-        SimpleArithmetic,
-        SimpleBitOps,
-    }
+    generic::{Block as BlockT, SignedBlock},
 };
 
-use crate::{error::Error, srml_ext::SrmlExt, extrinsics::ExtractExtrinsic};
+pub use self::traits::{ExtractCall, DecodeExtrinsic, System};
+
+use crate::error::Error;
 use self::storage::StorageKeyType;
 
-/// Format for describing accounts
+// /// Format for describing accounts
 
 // pub type BasicExtrinsic<T>
 //   = Extrinsic<<T as System>::Address, <T as System>::Call, <T as System>::Signature, <T as System>::SignedExtra>;
-/// A block with OpaqueExtrinsic as extrinsic type
-pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
-
-pub trait DecodeExtrinsic {
-    fn decode(&self) -> Result<Box<dyn ExtractExtrinsic>, Error>;
-}
-
-pub trait ExtractCall {
-    /// module the call is from, IE Timestamp, FinalityTracker
-    fn extract_call(&self) -> (Module, Box<dyn SrmlExt>);
-}
+// /// A block with OpaqueExtrinsic as extrinsic type
+pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
 
 /// Sent from Substrate API to be committed into the Database
 #[derive(Debug, PartialEq, Eq)]
@@ -237,96 +212,4 @@ pub enum Module {
     Utility,
     Custom(String), // modules that are not defined within substrate
     NotHandled,
-}
-
-// TODO: Consider removing this trait and directly using srml_system::Trait
-// Right now this acts as some sort of Shim, in case we need any traits that srml_system::Trait does not specify
-// which can be easily crafted in the type-specific (PolkadotArchive) portion of the code
-// Issue is with getting the block number from possible unsigned values that Postgres does not support
-// but using Trait is better
-/// The subset of the `srml_system::Trait` that a client must implement.
-pub trait System: Send + Sync + 'static + std::fmt::Debug {
-
-    /// The Call type
-    /// Should implement `ExtractCall` to put call data in a more database-friendly format
-    type Call: Encode
-        + Decode
-        + Clone
-        + std::fmt::Debug
-        + ExtractCall;
-    type Extrinsic: DecodeExtrinsic + std::fmt::Debug;
-    type Signature: Encode + Decode + std::fmt::Debug;
-    type Address: Encode + Decode + std::fmt::Debug;
-    /// Account index (aka nonce) type. This stores the number of previous
-    /// transactions associated with a sender account.
-    type Index: Parameter
-        + Member
-        + MaybeSerialize
-        + std::fmt::Debug
-        + Default
-        + MaybeDisplay
-        + SimpleArithmetic
-        + Copy;
-
-    /// The block number type used by the runtime.
-    type BlockNumber: Parameter
-        + Member
-        + MaybeSerializeDeserialize
-        + std::fmt::Debug
-        + MaybeDisplay
-        + SimpleArithmetic
-        + Default
-        + Bounded
-        + Copy
-        + std::hash::Hash
-        + Into<i64>;
-
-    /// The output of the `Hashing` function.
-    type Hash: Parameter
-        + Member
-        + MaybeSerializeDeserialize
-        + std::fmt::Debug
-        + MaybeDisplay
-        + SimpleBitOps
-        + Default
-        + Copy
-        + CheckEqual
-        + std::hash::Hash
-        + AsRef<[u8]>
-        + AsMut<[u8]>
-        + std::marker::Unpin;
-
-    /// The hashing system (algorithm) being used in the runtime (e.g. Blake2).
-    type Hashing: Hash<Output = Self::Hash>;
-
-    /// The user account identifier type for the runtime.
-    type AccountId: Parameter
-        + Member
-        + MaybeSerializeDeserialize
-        + std::fmt::Debug
-        + MaybeDisplay
-        + Ord
-        + Default;
-
-    /// Converting trait to take a source type and convert to `AccountId`.
-    ///
-    /// Used to define the type and conversion mechanism for referencing
-    /// accounts in transactions. It's perfectly reasonable for this to be an
-    /// identity conversion (with the source type being `AccountId`), but other
-    /// modules (e.g. Indices module) may provide more functional/efficient
-    /// alternatives.
-    // type Lookup: StaticLookup<Target = Self::AccountId>;
-
-    /// The block header.
-    type Header: Parameter
-        + HeaderTrait<Number = Self::BlockNumber, Hash = Self::Hash>
-        + DeserializeOwned
-        + Clone
-        + Unpin;
-
-    /// The aggregated event type of the runtime.
-    type Event: Parameter + Member;
-
-    /// The `SignedExtension` to the basic transaction logic.
-    type SignedExtra: SignedExtension;
 }

@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-pub mod v3;
-pub mod util;
+mod util;
+pub use self::util::get_extrinsics;
 
 use log::{error, trace, debug, warn, info};
 use runtime_primitives::{
@@ -27,10 +27,7 @@ use codec::{Encode, Decode, Input, Error as CodecError};
 
 use std::fmt;
 
-use self::{
-    util::SupportedVersions,
-    v3::UncheckedExtrinsicV3
-};
+use self::util::{SupportedVersions, encode_with_vec_prefix};
 
 use crate::{
     database::models::{InsertInherentOwned, InsertTransactionOwned},
@@ -38,10 +35,9 @@ use crate::{
     error::Error,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Extrinsic<Address, Call, Signature, Extra: SignedExtension> {
-    extrinsic: UncheckedExtrinsic<Address, Call, Signature, Extra>,
-    version: SupportedVersions
+    extrinsic: UncheckedExtrinsic<Address, Call, Signature, Extra>
 }
 
 /// An extrinsic ready to be inserted into a Database
@@ -52,7 +48,19 @@ pub enum DbExtrinsic {
 }
 
 pub trait ExtractExtrinsic {
+    /// Gets the extrinsic in all of it's parts
     fn extrinsic(&self) -> SplitOpaqueExtrinsic;
+
+    /*
+    /// Consumes and converts into concrete type
+    fn into_extrinsic(&self
+    ) -> Option<&Extrinsic<Address, Call, Signature, Extra>>
+    where
+        Extra: SignedExtension
+    {
+        None
+    }
+    */
 }
 
 // Encoded Extrinsic but everything is split into parts
@@ -73,12 +81,13 @@ impl SplitOpaqueExtrinsic {
     }
 }
 
-impl<Address, Call, Signature, Extra> ExtractExtrinsic for Extrinsic<Address, Call, Signature, Extra>
+impl<Address, Call, Signature, Extra> ExtractExtrinsic<Address, Call, Signature, Extra>
+    for Extrinsic<Address, Call, Signature, Extra>
 where
     Address: Encode,
+    Call: Encode,
     Signature: Encode,
     Extra: SignedExtension + Encode,
-    Call: Encode
 {
     fn extrinsic(&self) -> SplitOpaqueExtrinsic {
         let (signed, call) = self.extrinsic.split();
@@ -98,6 +107,11 @@ where
             }
         }
     }
+
+    fn into_extrinsic(&self
+    ) -> Option<&Extrinsic<Address, Call, Signature, Extra>> {
+        Some(self)
+    }
 }
 
 impl<Address, Call, Signature, Extra> Extrinsic<Address, Call, Signature, Extra>
@@ -110,9 +124,9 @@ where
     pub fn new(opaque_ext: &OpaqueExtrinsic) -> Result<Self, Error> {
         trace!("Opaque Extrinsic: {:?}", opaque_ext);
         let extrinsic = UncheckedExtrinsic::decode(&mut opaque_ext.encode().as_slice())?;
-        let version: SupportedVersions = (&extrinsic).into();
-        trace!("Version: {}", version);
-        Ok(Self { extrinsic, version })
+        // let version: SupportedVersions = (&extrinsic).into();
+        // trace!("Version: {}", version);
+        Ok(Self { extrinsic })
     }
 
     pub fn function(&self) -> &Call {
@@ -120,7 +134,7 @@ where
     }
 
     pub fn version(&self) -> &SupportedVersions {
-        &self.version
+        &self.extrinsic.version.into()
     }
 
     /// return inherent types that may be inserted into a postgres database
@@ -129,7 +143,7 @@ where
         H: Header,
         H::Hashing: HashTrait,
         generic::UncheckedExtrinsic<Address, Call, Signature, Extra>: Encode,
-        UncheckedExtrinsicV3<Address, Call, Signature, Extra>: Encode
+        UncheckedExtrinsic<Address, Call, Signature, Extra>: Encode
     {
         if let Some(b) = self.is_signed() {
             if b {
@@ -148,7 +162,7 @@ where
         H: Header,
         H::Hashing: HashTrait,
         generic::UncheckedExtrinsic<Address, Call, Signature, Extra>: Encode,
-        UncheckedExtrinsicV3<Address, Call, Signature, Extra>: Encode
+        UncheckedExtrinsic<Address, Call, Signature, Extra>: Encode
     {
         info!("SIGNED EXTRINSIC: {:?}", &self);
         let (module, call) = self.function().extract_call();
@@ -233,79 +247,30 @@ where
     }
 }
 
-#[derive(PartialEq, Eq, Clone)]
-pub enum UncheckedExtrinsic<Address, Call, Signature, Extra: SignedExtension> {
-    V3(UncheckedExtrinsicV3<Address, Call, Signature, Extra>),
-    V4(generic::UncheckedExtrinsic<Address, Call, Signature, Extra>),
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct UncheckedExtrinsic<Address, Call, Signature, Extra: SignedExtension> {
+    pub signature: Option<(Address, Signature, Extra)>,
+    pub function: Call,
+    version: usize,
 }
 
-impl<Address, Call, Signature, Extra> std::fmt::Debug
-    for UncheckedExtrinsic<Address, Call, Signature, Extra>
+impl<Address, Call, Signature, Extra> UncheckedExtrinsic<Address, Call, Signature, Extra>
 where
-    Address: std::fmt::Debug,
-    Call: std::fmt::Debug,
     Extra: SignedExtension,
+    Self: Encode
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            UncheckedExtrinsic::V3(e) => {
-                write!(
-                    f,
-                    "UncheckedExtrinsic({:?}, {:?})",
-                    e.signature.as_ref().map(|x| (&x.0, &x.2)),
-                    e.function,
-                )
-            },
-            UncheckedExtrinsic::V4(e) => {
-                write!(f, "{:?}", e)
-            }
-        }
-    }
-}
-
-impl<Address, Call, Signature, Extra: SignedExtension> UncheckedExtrinsic<Address, Call, Signature, Extra> {
-
-    fn split(&self) -> (Option<&(Address, Signature, Extra)>, &Call) {
-        match &self {
-            UncheckedExtrinsic::V3(ext) => {
-                (ext.signature.as_ref(), &ext.function)
-            },
-            UncheckedExtrinsic::V4(ext) => {
-                (ext.signature.as_ref(), &ext.function)
-            }
-        }
-    }
+     fn split(&self) -> (Option<&(Address, Signature, Extra)>, &Call) {
+         (self.signature.as_ref(), &self.function)
+     }
 
     fn function(&self) -> &Call {
-        match &self {
-            UncheckedExtrinsic::V3(ext) => &ext.function,
-            UncheckedExtrinsic::V4(ext) => &ext.function
-        }
+        &self.function
     }
 
-    /// Hash of the extrinsic
-    fn hash<Hash: HashTrait>(&self) ->  Hash::Output
-    where
-        generic::UncheckedExtrinsic<Address, Call, Signature, Extra>: Encode,
-        UncheckedExtrinsicV3<Address, Call, Signature, Extra>: Encode,
-    {
-        match &self {
-            UncheckedExtrinsic::V3(e)
-                => Hash::hash_of::<UncheckedExtrinsicV3<Address, Call, Signature, Extra>>(e),
-            UncheckedExtrinsic::V4(e)
-                => Hash::hash_of::<generic::UncheckedExtrinsic<Address, Call, Signature, Extra>>(e),
-        }
+    fn hash<Hash: HashTrait>(&self) -> Hash::Output {
+        Hash::hash_of::<UncheckedExtrinsic<Address, Call, Signature, Extra>>(self)
     }
-}
 
-impl<A, C, S, E: SignedExtension> From<&UncheckedExtrinsic<A, C, S, E>> for SupportedVersions
-{
-    fn from(ext: &UncheckedExtrinsic<A, C, S, E>) -> SupportedVersions {
-        match ext {
-            UncheckedExtrinsic::V3(_) => SupportedVersions::Three,
-            UncheckedExtrinsic::V4(_) => SupportedVersions::Four
-        }
-    }
 }
 
 impl<Address, Call, Signature, Extra: SignedExtension> ExtrinsicTrait
@@ -319,10 +284,7 @@ impl<Address, Call, Signature, Extra: SignedExtension> ExtrinsicTrait
     );
 
     fn is_signed(&self) -> Option<bool> {
-        match &self {
-            UncheckedExtrinsic::V3(ext) => ext.is_signed(),
-            UncheckedExtrinsic::V4(ext) => ext.is_signed()
-        }
+        Some(self.signature.is_some())
     }
 }
 
@@ -346,24 +308,18 @@ where
 
         let is_signed = version & 0b1000_0000 != 0;
         let version = version & 0b0111_1111;
-        match version {
-            3 => {
-                Ok(UncheckedExtrinsic::V3(UncheckedExtrinsicV3::decode(is_signed, input)?))
-            },
-            4 => {
-                Ok(UncheckedExtrinsic::V4(
-                    generic::UncheckedExtrinsic { // current version
-                        signature: if is_signed { Some(Decode::decode(input).map_err(|e| { error!("Error decoding signature; V4"); e })?) } else { None },
-                        function: Decode::decode(input).map_err(|e| { error!("Error decoding call; V4"); e })?,
-                    }
-                ))
-            },
-            _ => Err("Invalid transaction version".into())
-        }
+
+        trace!("VERSION: {}", version);
+        Ok(Self {
+            signature: if is_signed { Some(Decode::decode(input).map_err(|e| { error!("Error decoding signature"); e })?) } else { None },
+            function: Decode::decode(input).map_err(|e| { error!("Error decoding call"); e })?,
+            version: version,
+        })
     }
 }
 
-impl<Address, Call, Signature, Extra> Encode for UncheckedExtrinsic<Address, Call, Signature, Extra>
+impl<Address, Call, Signature, Extra: SignedExtension> Encode
+    for UncheckedExtrinsic<Address, Call, Signature, Extra>
 where
     Address: Encode,
     Signature: Encode,
@@ -371,11 +327,18 @@ where
     Extra: SignedExtension
 {
     fn encode(&self) -> Vec<u8> {
-        match self {
-            UncheckedExtrinsic::V3(e) => e.encode(),
-            UncheckedExtrinsic::V4(e) => e.encode()
-        }
+        encode_with_vec_prefix::<Self, _>(|v| {
+            match self.signature.as_ref() {
+                Some(s) => {
+                    v.push(3 | 0b1000_0000);
+                    s.encode_to(v);
+                }
+                None => {
+                    v.push(3 & 0b0111_1111);
+                }
+            }
+            self.function.encode_to(v);
+        })
     }
 }
 
-// NEED TO IMPL ENCODE HERE

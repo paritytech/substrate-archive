@@ -41,3 +41,7 @@ pub mod srml {
     pub use srml_finality_tracker::Call as FinalityCall;
     pub use srml_im_online::Call as ImOnlineCall;
 }
+
+pub mod prelude {
+    pub use serde::{Serialize, Deserialize};
+}

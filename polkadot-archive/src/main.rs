@@ -18,6 +18,7 @@
 
 use log::warn;
 use failure::Error;
+use substrate_archive::prelude::*;
 use substrate_archive::{
     Archive, System, Module, DecodeExtrinsic,
     Extrinsic as ArchiveExtrinsic, ExtractExtrinsic,
@@ -25,6 +26,7 @@ use substrate_archive::{
     srml::srml_system as system,
     Error as ArchiveError
 };
+
 use runtime_primitives::{
     AnySignature,
     OpaqueExtrinsic,
@@ -44,8 +46,18 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ExtrinsicWrapper(OpaqueExtrinsic);
+
+
+
+impl From<&[OpaqueExtrinsic]> for &[ExtrinsicWrapper] {
+    fn from(ext: &[OpaqueExtrinsic]) -> &[ExtrinsicWrapper] {
+        ext.into_iter().map(|e| {
+            ExtrinsicWrapper(e)
+        })
+    }
+}
 
 impl DecodeExtrinsic for Extrinsic {
     fn decode(&self) -> Result<Box<dyn ExtractExtrinsic>, ArchiveError> {
