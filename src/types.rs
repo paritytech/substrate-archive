@@ -25,7 +25,7 @@ use runtime_primitives::{
     MultiSignature, AnySignature, generic::{Block as BlockT, SignedBlock},
 };
 
-pub use self::traits::{ExtractCall, DecodeExtrinsic, System, GenericBytes};
+pub use self::traits::{ExtractCall, DecodeExtrinsic, System, ExtrinsicExt};
 
 use crate::error::Error;
 use self::storage::StorageKeyType;
@@ -49,19 +49,19 @@ pub enum Data<T: System> {
     Event(Event<T>),
     SyncProgress(usize),
 }
+#[derive(Debug)]
+pub enum DbExtrinsic<T: System> {
+    Signed(SignedExtrinsic),
+    NotSigned(Box<dyn ExtractCall>),
 
-impl GenericBytes for AnySignature {
-    fn get_generic(&self) -> Vec<u8> {
-        Vec::new()
-    }
 }
 
-impl GenericBytes for MultiSignature {
-    fn get_generic(&self) -> Vec<u8> {
-        Vec::new()
-    }
+pub struct SignedExtrinsic {
+    pub signature: Vec<u8>,
+    pub address: Vec<u8>,
+    pub extra: Vec<u8>,
+    pub call: Box<dyn ExtractCall>,
 }
-
 
 // new types to allow implementing of traits
 #[derive(Debug, PartialEq, Eq)]

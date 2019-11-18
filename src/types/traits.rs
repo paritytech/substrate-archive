@@ -17,7 +17,7 @@
 use std::fmt::Debug;
 
 use crate::{error::Error, srml_ext::SrmlExt, extrinsics::{UncheckedExtrinsic, Extrinsic, ExtractExtrinsic}};
-use super::Module;
+use super::{Module, DbExtrinsic};
 
 use codec::{Encode, Decode};
 use serde::{Serialize, de::DeserializeOwned};
@@ -39,35 +39,20 @@ use runtime_primitives::{
         SimpleBitOps,
     }
 };
-/*
-pub trait ExtrinsicExt: Send + Sync {
-    type Call: Decode + ExtractCall;
-    type SignaturePayload: Decode;
-    fn call() -> Self::Call;
-    fn signature() -> Self::SignaturePayload;
-    fn is_signed() -> bool;
-}
- */
 
-pub trait GenericBytes: Send + Sync + Debug + Clone + Encode + Decode {
-    fn get_generic(&self) -> Vec<u8>;
+pub trait ToDatabaseExtrinsic {
+    fn to_database(&self) -> DbExtrinsic;
 }
 
-impl GenericBytes for Vec<u8> {
-    fn get_generic(&self) -> Vec<u8> {
-        self.clone()
-    }
+pub trait ExtractExtrinsic {
+    fn extract_extrinsic(&self) -> Box<dyn ExtrinsicExt>;
 }
 
-pub trait DecodeExtrinsic: Send + Sync {
-    fn decode<Address, Call, Signature, Extra, H>(&self
-    ) -> Result<Box<dyn ExtractExtrinsic<Address, Call, Signature, Extra, H>>, Error>
-    where
-        Address: Decode + Debug + Encode + 'static,
-        Call: Encode + Decode + Debug + ExtractCall,
-        Signature: GenericBytes + 'static,
-        Extra: SignedExtension,
-        H: HeaderTrait;
+pub trait ExtrinsicExt: Debug {
+    type Address;
+    type Extra;
+    fn signature(&self) -> Option<(Self::Address, Vec<u8>, Self::Extra)>;
+    fn call(&self) -> Box<dyn ExtractCall>;
 }
 
 pub trait ExtractCall {

@@ -21,7 +21,7 @@ use failure::Error;
 // use substrate_archive::prelude::*;
 use serde::{Deserialize, Serialize};
 use substrate_archive::{
-    Archive, System, Module, DecodeExtrinsic, GenericBytes,
+    Archive, System, Module, ExtrinsicExt,
     Extrinsic as ArchiveExtrinsic, ExtractExtrinsic,
     ExtractCall, SrmlExt, NotHandled,
     init_logger,
@@ -50,6 +50,8 @@ fn main() -> Result<(), Error> {
     Archive::<Runtime>::new()?.run()?;
     Ok(())
 }
+
+
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtrinsicWrapper(OpaqueExtrinsic);
