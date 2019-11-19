@@ -38,8 +38,8 @@ table! {
 }
 
 table! {
-    signed_extrinsics (transaction_hash) {
-        transaction_hash -> Bytea,
+    signed_extrinsics (id) {
+        id -> Int4,
         block_num -> Int8,
         hash -> Bytea,
         from_addr -> Bytea,

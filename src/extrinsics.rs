@@ -20,7 +20,6 @@ use runtime_primitives::{
     generic::UncheckedExtrinsic,
 };
 use codec::{Decode, Input, Error as CodecError};
-use std::convert::TryInto;
 
 use crate::{
     error::Error,
@@ -61,10 +60,9 @@ where
         let is_signed = version & 0b1000_0000 != 0;
         let version = version & 0b0111_1111;
 
-        trace!("VERSION: {}", version);
         Ok(Self {
-            signature: if is_signed { Some(Decode::decode(input).map_err(|e| { error!("Error decoding signature"); e })?) } else { None },
-            function: Decode::decode(input).map_err(|e| { error!("Error decoding call"); e })?,
+            signature: if is_signed { Some(Decode::decode(input).map_err(|e| { warn!("Error decoding signature"); e })?) } else { None },
+            function: Decode::decode(input).map_err(|e| { warn!("Error decoding call"); e })?,
             version,
         })
     }
@@ -234,7 +232,8 @@ where
             match x {
                 Ok(v) => {
                     let number = (*header.number()).into();
-                    Some(v.1.database_format(v.0.try_into().unwrap(), header, number))
+                    let index: i32 = v.0 as i32;
+                    Some(v.1.database_format(index, header, number))
                 },
                 Err(e) => {
                     error!("{:?}", e);
@@ -243,4 +242,21 @@ where
             }
         })
         .collect::<Result<Vec<DbExtrinsic>, Error>>()
+}
+
+impl<Address, Call, Signature, Extra> std::fmt::Debug
+	for OldExtrinsic<Address, Call, Signature, Extra>
+where
+	Address: std::fmt::Debug,
+	Call: std::fmt::Debug,
+	Extra: SignedExtension,
+{
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(
+			f,
+			"UncheckedExtrinsic({:?}, {:?})",
+			self.signature.as_ref().map(|x| (&x.0, &x.2)),
+			self.function,
+		)
+	}
 }

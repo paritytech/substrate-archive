@@ -34,6 +34,8 @@ use srml_staking::Call as StakingCall;
 use srml_grandpa::Call as GrandpaCall;
 use srml_treasury::Call as TreasuryCall;
 use srml_nicks::Call as NicksCall;
+use srml_elections_phragmen::Call as ElectionsPhragmenCall;
+use srml_balances::Call as BalancesCall;
 use srml_system::Call as SystemCall;
 // use runtime_support::dispatch::{IsSubType, Callable};
 use codec::Encode;
@@ -93,6 +95,56 @@ impl<T> SrmlExt for AuraCall<T> where T: srml_aura::Trait {
 impl<T> SrmlExt for BabeCall<T> where T: srml_babe::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
+            &__phantom_item => {
+                Ok(("__phantom".into(), Vec::new()))
+            }
+        }
+    }
+}
+
+impl<T> SrmlExt for BalancesCall<T> where T: srml_balances::Trait {
+    fn function(&self) -> SrmlResult<FunctionInfo> {
+        match &self {
+            BalancesCall::transfer(dest, value) => {
+                Ok(("transfer".into(), vec![dest.encode(), value.encode()].encode()))
+            },
+            BalancesCall::set_balance(who, new_free, new_reserved) => {
+                Ok(("set_balance".into(), vec![who.encode(), new_free.encode(), new_reserved.encode()].encode()))
+            },
+            BalancesCall::force_transfer(source, dest, value) => {
+                Ok(("force_transfer".into(), vec![source.encode(), dest.encode(), value.encode()].encode()))
+            },
+            &__phantom_item => {
+                Ok(("__phantom".into(), Vec::new()))
+            }
+        }
+    }
+}
+
+impl<T> SrmlExt for ElectionsPhragmenCall<T> where T: srml_elections_phragmen::Trait {
+    fn function(&self) -> SrmlResult<FunctionInfo> {
+        match &self {
+            ElectionsPhragmenCall::vote(votes, value) => {
+                Ok(("vote".into(), vec![votes.encode(), value.encode()].encode()))
+            },
+            ElectionsPhragmenCall::remove_voter() => {
+                Ok(("remove_voter".into(), Vec::new()))
+            },
+            ElectionsPhragmenCall::report_defunct_voter(target) => {
+                Ok(("report_defunct_voter".into(), vec![target.encode()].encode()))
+            },
+            ElectionsPhragmenCall::submit_candidacy() => {
+                Ok(("submit_candidacy".into(), Vec::new()))
+            },
+            ElectionsPhragmenCall::set_desired_member_count(count) => {
+                Ok(("set_desired_member_count".into(), vec![count.encode()].encode()))
+            },
+            ElectionsPhragmenCall::remove_member(who) => {
+                Ok(("remove_member".into(), vec![who.encode()].encode()))
+            },
+            ElectionsPhragmenCall::set_term_duration(count) => {
+                Ok(("set_term_duration".into(), vec![count.encode()].encode()))
+            },
             &__phantom_item => {
                 Ok(("__phantom".into(), Vec::new()))
             }

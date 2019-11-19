@@ -53,6 +53,8 @@ srml-finality-tracker = { git = "https://github.com/paritytech/substrate", packa
 srml-sudo = { git = "https://github.com/paritytech/substrate", package = "srml-sudo", branch = "polkadot-master"}
 srml-im-online = { git = "https://github.com/paritytech/substrate", package = "srml-im-online", branch = "polkadot-master"}
 srml-treasury = { git = "https://github.com/paritytech/substrate", package = "srml-treasury", branch = "polkadot-master"}
+srml-elections-phragmen = { git = "https://github.com/paritytech/substrate", package = "srml-elections-phragmen", branch = "polkadot-master"}
+srml-balances = { git = "https://github.com/paritytech/substrate", package = "srml-balances", branch = "polkadot-master"}
 derive_more = "0.15.0"
 byte-slice-cast = "=0.3.2" # remove once parity-scale-codec is updated
 

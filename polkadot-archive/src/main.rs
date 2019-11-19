@@ -56,12 +56,12 @@ impl ToDatabaseExtrinsic for ExtrinsicWrapper {
     fn to_database(&self) -> Result<RawExtrinsic, ArchiveError> {
         let opaque = &self.0;
 
-        let res: Result<UncheckedExtrinsic::<Address, CallWrapper, Signature, SignedExtra>, _>
-            = Decode::decode(&mut opaque.0.as_slice());
+        let res: Result<OldExtrinsic::<Address, CallWrapper, Signature, SignedExtra>, _>
+            = Decode::decode(&mut opaque.encode().as_slice());
         if res.is_err() {
-            error!("Did not decode with current Signature, trying AnySignature {:?}", res);
+            warn!("Did not decode with current Signature, trying AnySignature {:?}", res);
             let ext: OldExtrinsic::<Address, CallWrapper, AnySignature, SignedExtra>
-                = Decode::decode(&mut opaque.0.as_slice())?;
+                = Decode::decode(&mut opaque.encode().as_slice())?;
             Ok(ext.into())
         } else {
             Ok(res?.into())
@@ -104,8 +104,17 @@ impl ExtractCall for CallWrapper {
             Call::Babe(call) => {
                 (Module::Babe, Box::new(call.clone()))
             },
+            Call::Balances(call) => {
+                (Module::Balances, Box::new(call.clone()))
+            },
+            Call::ElectionsPhragmen(call) => {
+                (Module::ElectionsPhragmen, Box::new(call.clone()))
+            },
             Call::Staking(call) => {
                 (Module::Staking, Box::new(call.clone()))
+            },
+            Call::Sudo(call) => {
+                (Module::Sudo, Box::new(call.clone()))
             },
             Call::Session(call) => {
                 (Module::Session, Box::new(call.clone()))
