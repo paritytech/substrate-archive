@@ -16,11 +16,10 @@
 
 mod substrate_rpc;
 use self::substrate_rpc::SubstrateRpc;
-use runtime_metadata::RuntimeMetadataPrefixed;
 use log::{debug, warn, error, trace};
-use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::join_all};
+use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::{self, join_all}};
 use runtime_primitives::traits::Header as HeaderTrait;
-use substrate_primitives::{storage::{StorageKey}, twox_128};
+use substrate_primitives::{storage::StorageKey, twox_128};
 use substrate_rpc_primitives::number::NumberOrHex;
 
 use std::marker::PhantomData;
@@ -40,7 +39,19 @@ use crate::{
 /// Communicate with Substrate node via RPC
 pub struct Rpc<T: System> {
     _marker: PhantomData<T>,
-    url: url::Url
+    url: url::Url,
+    keys: Vec<StorageKey>,
+    metadata: Metadata
+}
+
+impl<T> Rpc<T> where T: System {
+    pub fn metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    pub fn keys(&self) -> &Vec<StorageKey> {
+        &self.keys
+    }
 }
 
 impl<T> Rpc<T> where T: System {
@@ -61,6 +72,14 @@ impl<T> Rpc<T> where T: System {
                            })
                        })
             })
+    }
+
+    /// get all the storage for a single block
+    pub fn all_storage(self: Arc<Self>, /*hash: T::Hash,*/ _sender: UnboundedSender<Data<T>>
+    ) -> impl Future<Item = (), Error = ArchiveError>
+    {
+        println!("USED KEYS: {:?}", self.keys);
+        future::ok(())
     }
 
     pub fn block_and_timestamp(self: Arc<Self>, hash: T::Hash, sender: UnboundedSender<Data<T>>
@@ -90,11 +109,20 @@ impl<T> Rpc<T> where T: System {
 
 impl<T> Rpc<T> where T: System {
 
-    pub fn new(url: url::Url) -> Self {
-        Self {
-            url,
-            _marker: PhantomData
-        }
+    pub fn new(url: url::Url) -> impl Future<Item = Self, Error = ArchiveError> {
+
+        SubstrateRpc::connect(&url)
+            .and_then(|client: SubstrateRpc<T>| {
+                client.storage_keys(StorageKey(Vec::new()), None)
+                      .join(client.metadata(None))
+            })
+            .map(|(keys, metadata)| {
+                let keys = metadata.keys(keys);
+                Self {
+                    url, keys, metadata,
+                    _marker: PhantomData
+                }
+            })
     }
 
     /// send all new headers back to main thread
@@ -147,13 +175,18 @@ impl<T> Rpc<T> where T: System {
             })
     }
      */
-
-    pub fn metadata(&self) -> impl Future<Item = RuntimeMetadataPrefixed, Error = ArchiveError> {
+/*
+    pub fn refresh_metadata(&mut self, hash: Option<T::Hash>) -> impl Future<Item = (), Error = ArchiveError> {
         SubstrateRpc::connect(&self.url)
             .and_then(move |client: SubstrateRpc<T>| {
-                client.metadata()
+                client.metadata(hash)
+                      .and_then(|m| {
+                          self.metadata = m;
+                          future::ok(())
+                      })
             })
     }
+*/
 
     // TODO: make "Key" and "from" vectors
     // TODO: Merge 'from' and 'key' via a macro_derive on StorageKeyType, to auto-generate storage keys
@@ -173,7 +206,7 @@ impl<T> Rpc<T> where T: System {
                     .and_then(move |data| {
                         debug!("STORAGE: {:?}", data);
                         if let Some(d) = data {
-                            trace!("Sending timestamp for {}", hash);
+                            trace!("Sending storage for {}", hash);
                             sender
                                 .unbounded_send(Data::Storage(Storage::new(d, key_type, hash)))
                                 .map_err(Into::into)

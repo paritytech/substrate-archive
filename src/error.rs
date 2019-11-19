@@ -43,7 +43,7 @@ pub enum Error {
     DbConnection(#[fail(cause)] ConnectionError),
     #[fail(display = "Environment: {}", _0)]
     Environment(#[fail(cause)] EnvironmentError),
-    #[fail(display = "Codec: {}", _0)]
+    #[fail(display = "Codec: {:?}", _0)]
     Codec(#[fail(cause)] CodecError),
     #[fail(display = "Db Pool {}", _0)]
     DbPool(#[fail(cause)] R2d2Error),

@@ -86,10 +86,12 @@ impl<T> AsyncDiesel<T> where T: Connection + 'static {
         T: Send + 'static,
         E: From<BlockingError> + From<r2d2::Error> + 'static
     {
-        //TODO Remove unwrap()
+        // TODO Remove unwrap()
         let pool = self.pool.clone();
         let mut fun = Some(fun);
-        poll_fn(move || blocking(|| (fun.take().unwrap())(pool.get().unwrap()))).then(
+        poll_fn(move
+                || blocking(|| (fun.take().expect("Made some; qed"))(pool.get().expect("Pool should clone"))))
+            .then(
             |future_result| match future_result {
                 Ok(query_result) => match query_result {
                     Ok(result) => future::ok(result),

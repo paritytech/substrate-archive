@@ -16,7 +16,7 @@
 
 //! A simple shim over the Substrate Rpc
 
-use futures::{Future, Stream, future};
+use futures::{future, Future, Stream};
 use jsonrpc_core_client::{RpcChannel, transports::ws};
 use codec::Decode;
 use runtime_metadata::RuntimeMetadataPrefixed;
@@ -77,14 +77,14 @@ impl<T> SubstrateRpc<T> where T: System {
             .map_err(|e| ArchiveError::from(e))
     }
 
-    pub(crate) fn metadata(&self) -> impl Future<Item = RuntimeMetadataPrefixed, Error = ArchiveError> {
+    pub(crate) fn metadata(&self, hash: Option<T::Hash>) -> impl Future<Item = Metadata, Error = ArchiveError> {
         self.state
-            .metadata(None)
+            .metadata(hash)
             .map(|bytes| Decode::decode(&mut &bytes[..]).expect("Decode failed"))
             .map_err(Into::into)
-            /*.and_then(|meta: RuntimeMetadataPrefixed| {
+            .and_then(|meta: RuntimeMetadataPrefixed| {
                 future::result(meta.try_into().map_err(Into::into))
-            })*/
+            })
     }
 
     // TODO: make "Key" and "from" vectors
@@ -101,6 +101,14 @@ impl<T> SubstrateRpc<T> where T: System {
         // let hash: T::Hash = Decode::decode(&mut hash.as_slice()).unwrap();
         self.state
             .storage(key, Some(hash))
+            .map_err(Into::into)
+    }
+
+    pub(crate) fn storage_keys(&self, prefix: StorageKey, hash: Option<T::Hash>
+    ) -> impl Future<Item = Vec<StorageKey>, Error = ArchiveError>
+    {
+        self.state
+            .storage_keys(prefix, hash)
             .map_err(Into::into)
     }
 

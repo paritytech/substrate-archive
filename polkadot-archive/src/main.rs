@@ -16,29 +16,60 @@
 
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
-use log::warn;
+use log::{warn, error};
 use failure::Error;
+// use substrate_archive::prelude::*;
+use serde::{Deserialize, Serialize};
 use substrate_archive::{
-    Archive, System, Module,
+    Archive, System, Module, RawExtrinsic,
+    OldExtrinsic, ToDatabaseExtrinsic,
     ExtractCall, SrmlExt, NotHandled,
+    init_logger,
     srml::srml_system as system,
     Error as ArchiveError
 };
-use polkadot_runtime::{
-    Runtime as RuntimeT, Call,
-    ParachainsCall, ParachainsTrait,
-    ClaimsCall, ClaimsTrait, RegistrarCall, RegistrarTrait
+use runtime_primitives::{
+    AnySignature,
+    OpaqueExtrinsic,
+    generic::UncheckedExtrinsic,
 };
+use polkadot_runtime::{
+    Runtime as RuntimeT, Call, Address,
+    ParachainsCall, ParachainsTrait, SignedExtra,
+    ClaimsCall, ClaimsTrait, RegistrarCall, RegistrarTrait,
+};
+use polkadot_primitives::Signature;
 use codec::{Encode, Decode, Input, Error as CodecError};
 
+use std::fmt::Debug;
 
 fn main() -> Result<(), Error> {
+    // convenience log function from substrate_archive which logs to .local/share/substrate_archive
+    init_logger(log::LevelFilter::Error);
     Archive::<Runtime>::new()?.run()?;
     Ok(())
 }
 
-// need to define Encode/Decode for Call New Type
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExtrinsicWrapper(OpaqueExtrinsic);
+impl ToDatabaseExtrinsic for ExtrinsicWrapper {
+    fn to_database(&self) -> Result<RawExtrinsic, ArchiveError> {
+        let opaque = &self.0;
 
+        let res: Result<OldExtrinsic::<Address, CallWrapper, Signature, SignedExtra>, _>
+            = Decode::decode(&mut opaque.encode().as_slice());
+        if res.is_err() {
+            warn!("Did not decode with current Signature, trying AnySignature {:?}", res);
+            let ext: OldExtrinsic::<Address, CallWrapper, AnySignature, SignedExtra>
+                = Decode::decode(&mut opaque.encode().as_slice())?;
+            Ok(ext.into())
+        } else {
+            Ok(res?.into())
+        }
+    }
+}
+
+// need to define Encode/Decode for Call New Type
 // Passthrough traits (Boilerplate)
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CallWrapper { inner: Call }
@@ -73,8 +104,17 @@ impl ExtractCall for CallWrapper {
             Call::Babe(call) => {
                 (Module::Babe, Box::new(call.clone()))
             },
+            Call::Balances(call) => {
+                (Module::Balances, Box::new(call.clone()))
+            },
+            Call::ElectionsPhragmen(call) => {
+                (Module::ElectionsPhragmen, Box::new(call.clone()))
+            },
             Call::Staking(call) => {
                 (Module::Staking, Box::new(call.clone()))
+            },
+            Call::Sudo(call) => {
+                (Module::Sudo, Box::new(call.clone()))
             },
             Call::Session(call) => {
                 (Module::Session, Box::new(call.clone()))
@@ -212,12 +252,14 @@ where
 pub struct Runtime;
 impl System for Runtime {
     type Call = CallWrapper;
+    type Extrinsic = ExtrinsicWrapper;
+    type Signature = Signature;
+    type Address = Address;
     type Index = <RuntimeT as system::Trait>::Index;
     type BlockNumber = <RuntimeT as system::Trait>::BlockNumber;
     type Hash = <RuntimeT as system::Trait>::Hash;
     type Hashing = <RuntimeT as system::Trait>::Hashing;
     type AccountId = <RuntimeT as system::Trait>::AccountId;
-    type Lookup = <RuntimeT as system::Trait>::Lookup;
     type Header = <RuntimeT as system::Trait>::Header;
     type Event = <RuntimeT as system::Trait>::Event;
     type SignedExtra = polkadot_runtime::SignedExtra;

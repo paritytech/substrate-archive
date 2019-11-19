@@ -29,7 +29,8 @@ mod metadata;
 
 pub use archive::Archive;
 
-pub use types::{System, Module, ExtractCall};
+pub use extrinsics::{RawExtrinsic, OldExtrinsic};
+pub use types::{System, Module, ExtractCall, ToDatabaseExtrinsic};
 pub use srml_ext::{SrmlExt, NotHandled};
 pub use error::Error;
 
@@ -40,3 +41,5 @@ pub mod srml {
     pub use srml_finality_tracker::Call as FinalityCall;
     pub use srml_im_online::Call as ImOnlineCall;
 }
+
+pub use util::init_logger;

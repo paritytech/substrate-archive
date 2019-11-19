@@ -51,19 +51,17 @@ impl<T> Archive<T> where T: System {
 
     pub fn new() -> Result<Self, ArchiveError> {
         let mut runtime = Runtime::new()?;
-        let rpc = Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?);
+        let rpc = runtime.block_on(Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?))?;
         let db = Database::new()?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
-        match runtime.block_on(rpc.metadata()) {
-            Ok(v) => println!("METADATA: {:?}", v.1),
-            Err(e) => error!("Failed to receive metadata {:?}", e)
-        };
+        debug!("METADATA: {}", rpc.metadata());
+        debug!("KEYS: {:?}", rpc.keys());
         Ok( Self { rpc, db, runtime })
     }
 
     pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
-        crate::util::init_logger(log::LevelFilter::Error); // TODO move this into polkadot-archive
+        // self.runtime.block_on(self.rpc.clone().all_storage(sender.clone()))?;
         self.runtime.spawn(
             self.rpc
                 .clone()
@@ -82,8 +80,7 @@ impl<T> Archive<T> where T: System {
     fn sync(db: Arc<Database>,
               rpc: Arc<Rpc<T>>,
               sender: UnboundedSender<Data<T>>
-    )
-            -> impl Future<Item = Sync, Error = ()> + 'static
+    ) -> impl Future<Item = Sync, Error = ()> + 'static
     {
         loop_fn(Sync::new(), move |v| {
             let sender0 = sender.clone();

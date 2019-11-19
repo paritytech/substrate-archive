@@ -14,295 +14,33 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-pub mod v3;
-
-use log::{trace, debug, warn, info};
+use log::{error, trace, warn, debug};
 use runtime_primitives::{
-    generic,
-    OpaqueExtrinsic,
-    traits::{SignedExtension, Extrinsic as ExtrinsicTrait, Header, Hash as HashTrait}
+    traits::{SignedExtension, Header},
+    generic::UncheckedExtrinsic,
 };
-use codec::{Encode, Decode, Input, Error as CodecError};
+use codec::{Decode, Input, Error as CodecError};
 
-use std::fmt;
-
-use self::v3::UncheckedExtrinsicV3;
 use crate::{
-    database::models::{InsertInherentOwned, InsertTransactionOwned},
-    types::ExtractCall,
-    error::Error
+    error::Error,
+    database::models::{InsertTransactionOwned, InsertInherentOwned},
+    types::{ExtractCall, System, ToDatabaseExtrinsic},
 };
 
 const LATEST_TRANSACTION_VERSION: u8 = 4;
-const EARLIEST_TRANSACTION_VERSION: u8 = 3;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum SupportedVersions {
-    Three,
-    Four
-}
-
-impl SupportedVersions {
-    pub fn is_supported(ver: u8) -> bool {
-        ver >= EARLIEST_TRANSACTION_VERSION && ver <= LATEST_TRANSACTION_VERSION
-    }
-}
-
-impl From<SupportedVersions> for u8 {
-    fn from(ver: SupportedVersions) -> u8 {
-        match ver {
-            SupportedVersions::Three => 3,
-            SupportedVersions::Four => 4
-        }
-    }
-}
-
-impl From<&SupportedVersions> for i32 {
-    fn from(ver: &SupportedVersions) -> i32 {
-        match ver {
-            SupportedVersions::Three => 3,
-            SupportedVersions::Four => 4,
-        }
-    }
-}
-
-impl std::fmt::Display for SupportedVersions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", i32::from(self))
-    }
-}
-
-#[derive(Debug)]
-pub struct Extrinsic<Address, Call, Signature, Extra: SignedExtension> {
-    extrinsic: UncheckedExtrinsic<Address, Call, Signature, Extra>,
-    version: SupportedVersions
-}
-
-#[derive(Debug)]
-pub enum DbExtrinsic {
-    Signed(InsertTransactionOwned),
-    NotSigned(InsertInherentOwned)
-}
-
-impl<Address, Call, Signature, Extra> Extrinsic<Address, Call, Signature, Extra>
-where
-    Address: fmt::Debug + Decode,
-    Call: fmt::Debug + ExtractCall + Decode,
-    Signature: fmt::Debug + Decode,
-    Extra: SignedExtension
-{
-    pub fn new(opaque_ext: &OpaqueExtrinsic) -> Result<Self, Error> {
-        trace!("Opaque Extrinsic: {:?}", opaque_ext);
-        let extrinsic = UncheckedExtrinsic::decode(&mut opaque_ext.encode().as_slice())?;
-        let version: SupportedVersions = (&extrinsic).into();
-        trace!("Version: {}", version);
-        Ok(Self { extrinsic, version })
-    }
-
-    pub fn function(&self) -> &Call {
-        self.extrinsic.function()
-    }
-
-    pub fn version(&self) -> &SupportedVersions {
-        &self.version
-    }
-
-    /// return inherent types that may be inserted into a postgres database
-    pub fn database_format<H>(&self, index: i32, header: &H, number: i64) -> Result<DbExtrinsic, Error>
-    where
-        H: Header,
-        H::Hashing: HashTrait,
-        generic::UncheckedExtrinsic<Address, Call, Signature, Extra>: Encode,
-        UncheckedExtrinsicV3<Address, Call, Signature, Extra>: Encode
-    {
-        if let Some(b) = self.is_signed() {
-            if b {
-                self.format_signed(index, header, number)
-            } else {
-                self.format_unsigned(index, header, number)
-            }
-        } else {
-            // TODO: if is_signed is just None, does that 100% mean the extrinsic exists/is not signed?
-            self.format_unsigned(index, header, number)
-        }
-    }
-
-    fn format_signed<H>(&self, index: i32, header: &H, number: i64) -> Result<DbExtrinsic, Error>
-    where
-        H: Header,
-        H::Hashing: HashTrait,
-        generic::UncheckedExtrinsic<Address, Call, Signature, Extra>: Encode,
-        UncheckedExtrinsicV3<Address, Call, Signature, Extra>: Encode
-    {
-        info!("SIGNED EXTRINSIC: {:?}", &self);
-        let (module, call) = self.function().extract_call();
-        let res = call.function();
-        let (fn_name, params);
-        if res.is_err() {
-            warn!("Call not found, formatting as raw rust. Call: {:?}", &self);
-            fn_name = format!("{:?}", &self);
-            params = Vec::new();
-        } else {
-            let (name, p) = res?;
-            fn_name = name;
-            params = p;
-        }
-
-        let transaction_hash = self.extrinsic.hash::<H::Hashing>().as_ref().to_vec();
-        info!("TRANSACTION HASH: {:?}", transaction_hash);
-
-        Ok(
-            DbExtrinsic::Signed (
-                InsertTransactionOwned {
-                    transaction_hash: transaction_hash.to_vec(), // TODO
-                    block_num: number,
-                    hash: header.hash().as_ref().to_vec(),
-                    from_addr: Vec::new(), // TODO
-                    to_addr: Some(Vec::new()), // TODO
-                    module: module.to_string(),
-                    call: fn_name,
-                    nonce: 0,
-                    tx_index: index,
-                    signature: Vec::new(), // TODO
-                    transaction_version: i32::from(self.version()),
-                }
-            )
-        )
-    }
-
-    fn format_unsigned<H>(&self, index: i32, header: &H, number: i64) -> Result<DbExtrinsic, Error>
-    where
-        H: Header
-    {
-        let (module, call) = self.function().extract_call();
-        let res = call.function();
-        let (fn_name, params);
-        if res.is_err() {
-            debug!("Call not found, formatting as raw rust. Call: {:?}", &self);
-            fn_name = format!("{:?}", &self);
-            params = Vec::new();
-        } else {
-            let (name, p) = res?;
-            fn_name = name;
-            params = p;
-        }
-
-        Ok(
-            DbExtrinsic::NotSigned (
-                InsertInherentOwned {
-                    hash: header.hash().as_ref().to_vec(),
-                    block_num: number,
-                    module: module.to_string(),
-                    call: fn_name,
-                    parameters: Some(params),
-                    in_index: index,
-                    transaction_version: i32::from(self.version())
-                }
-            )
-        )
-    }
-}
-
-impl<Address, Call, Signature, Extra> ExtrinsicTrait for Extrinsic<Address, Call, Signature, Extra>
+/// A Backwards-Compatible Extrinsic
+pub struct OldExtrinsic<Address, Call, Signature, Extra>
 where
     Extra: SignedExtension
 {
-    type Call = Call;
-    type SignaturePayload = (
-        Address,
-        Signature,
-        Extra
-    );
-
-    fn is_signed(&self) -> Option<bool> {
-        self.extrinsic.is_signed()
-    }
-}
-
-#[derive(PartialEq, Eq, Clone)]
-enum UncheckedExtrinsic<Address, Call, Signature, Extra: SignedExtension> {
-    V3(UncheckedExtrinsicV3<Address, Call, Signature, Extra>),
-    V4(generic::UncheckedExtrinsic<Address, Call, Signature, Extra>),
-}
-
-impl<Address, Call, Signature, Extra> std::fmt::Debug
-    for UncheckedExtrinsic<Address, Call, Signature, Extra>
-where
-    Address: std::fmt::Debug,
-    Call: std::fmt::Debug,
-    Extra: SignedExtension,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            UncheckedExtrinsic::V3(e) => {
-                write!(
-                    f,
-                    "UncheckedExtrinsic({:?}, {:?})",
-                    e.signature.as_ref().map(|x| (&x.0, &x.2)),
-                    e.function,
-                )
-            },
-            UncheckedExtrinsic::V4(e) => {
-                write!(f, "{:?}", e)
-            }
-        }
-    }
-}
-
-impl<Address, Call, Signature, Extra: SignedExtension> UncheckedExtrinsic<Address, Call, Signature, Extra> {
-
-    fn function(&self) -> &Call {
-        match &self {
-            UncheckedExtrinsic::V3(ext) => &ext.function,
-            UncheckedExtrinsic::V4(ext) => &ext.function
-        }
-    }
-
-    /// Hash of the extrinsic
-    fn hash<Hash: HashTrait>(&self) ->  Hash::Output
-    where
-        generic::UncheckedExtrinsic<Address, Call, Signature, Extra>: Encode,
-        UncheckedExtrinsicV3<Address, Call, Signature, Extra>: Encode,
-    {
-        match &self {
-            UncheckedExtrinsic::V3(e)
-                => Hash::hash_of::<UncheckedExtrinsicV3<Address, Call, Signature, Extra>>(e),
-            UncheckedExtrinsic::V4(e)
-                => Hash::hash_of::<generic::UncheckedExtrinsic<Address, Call, Signature, Extra>>(e),
-        }
-    }
-}
-
-impl<A, C, S, E: SignedExtension> From<&UncheckedExtrinsic<A, C, S, E>> for SupportedVersions
-{
-    fn from(ext: &UncheckedExtrinsic<A, C, S, E>) -> SupportedVersions {
-        match ext {
-            UncheckedExtrinsic::V3(_) => SupportedVersions::Three,
-            UncheckedExtrinsic::V4(_) => SupportedVersions::Four
-        }
-    }
-}
-
-impl<Address, Call, Signature, Extra: SignedExtension> ExtrinsicTrait
-    for UncheckedExtrinsic<Address, Call, Signature, Extra>
-{
-    type Call = Call;
-    type SignaturePayload = (
-        Address,
-        Signature,
-        Extra
-    );
-
-    fn is_signed(&self) -> Option<bool> {
-        match &self {
-            UncheckedExtrinsic::V3(ext) => ext.is_signed(),
-            UncheckedExtrinsic::V4(ext) => ext.is_signed()
-        }
-    }
+    pub signature: Option<(Address, Signature, Extra)>,
+    pub function: Call,
+    pub version: u8,
 }
 
 impl<Address, Call, Signature, Extra> Decode
-    for UncheckedExtrinsic<Address, Call, Signature, Extra>
+    for OldExtrinsic<Address, Call, Signature, Extra>
 where
     Address: Decode,
     Signature: Decode,
@@ -321,36 +59,204 @@ where
 
         let is_signed = version & 0b1000_0000 != 0;
         let version = version & 0b0111_1111;
-        match version {
-            3 => {
-                Ok(UncheckedExtrinsic::V3(UncheckedExtrinsicV3::decode(is_signed, input)?))
-            },
-            4 => {
-                Ok(UncheckedExtrinsic::V4(
-                    generic::UncheckedExtrinsic { // current version
-                        signature: if is_signed { Some(Decode::decode(input)?) } else { None },
-                        function: Decode::decode(input)?,
-                    }
-                ))
-            },
-            _ => Err("Invalid transaction version".into())
-        }
+
+        Ok(Self {
+            signature: if is_signed { Some(Decode::decode(input).map_err(|e| { warn!("Error decoding signature"); e })?) } else { None },
+            function: Decode::decode(input).map_err(|e| { warn!("Error decoding call"); e })?,
+            version,
+        })
     }
 }
-
-impl<Address, Call, Signature, Extra> Encode for UncheckedExtrinsic<Address, Call, Signature, Extra>
+// implement conversion between extrinsics and RawExtrinsic
+impl<Address, Call, Signature, Extra> From<OldExtrinsic<Address, Call, Signature, Extra>> for RawExtrinsic
 where
-    Address: Encode,
-    Signature: Encode,
-    Call: Encode,
-    Extra: SignedExtension
+    Extra: SignedExtension,
+    Call: ExtractCall + std::fmt::Debug + 'static
 {
-    fn encode(&self) -> Vec<u8> {
-        match self {
-            UncheckedExtrinsic::V3(e) => e.encode(),
-            UncheckedExtrinsic::V4(e) => e.encode()
+    fn from(ext: OldExtrinsic<Address, Call, Signature, Extra>) -> RawExtrinsic {
+        if ext.signature.is_some() {
+            RawExtrinsic::Signed(SignedExtrinsic {
+                signature: Vec::new(),
+                address: Vec::new(),
+                call: Box::new(ext.function),
+                version: ext.version
+            })
+        } else {
+            RawExtrinsic::NotSigned(NotSignedExtrinsic {
+                call: Box::new(ext.function),
+                version: ext.version
+            })
         }
     }
 }
 
-// NEED TO IMPL ENCODE HERE
+
+impl<Address, Call, Signature, Extra> From<UncheckedExtrinsic<Address, Call, Signature, Extra>> for RawExtrinsic
+where
+    Extra: SignedExtension,
+    Call: ExtractCall + std::fmt::Debug + 'static
+{
+    fn from(ext: UncheckedExtrinsic<Address, Call, Signature, Extra>) -> RawExtrinsic {
+        if ext.signature.is_some() {
+            RawExtrinsic::Signed(SignedExtrinsic {
+                signature: Vec::new(),
+                address: Vec::new(),
+                call: Box::new(ext.function),
+                version: LATEST_TRANSACTION_VERSION
+            })
+        } else {
+            RawExtrinsic::NotSigned(NotSignedExtrinsic {
+                call: Box::new(ext.function),
+                version: LATEST_TRANSACTION_VERSION
+            })
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SignedExtrinsic {
+    pub signature: Vec<u8>,
+    pub address: Vec<u8>,
+    // pub extra: Extra, // TODO: We don't even collect this yet
+    pub call: Box<dyn ExtractCall>,
+    version: u8,
+}
+
+#[derive(Debug)]
+pub struct NotSignedExtrinsic {
+    pub call: Box<dyn ExtractCall>,
+    pub version: u8,
+}
+
+#[derive(Debug)]
+pub enum RawExtrinsic {
+    Signed(SignedExtrinsic),
+    NotSigned(NotSignedExtrinsic),
+}
+
+impl RawExtrinsic {
+
+    pub fn database_format<H>(&self, index: i32, header: &H, number: i64) -> Result<DbExtrinsic, Error>
+        where H: Header
+    {
+        match self {
+            RawExtrinsic::Signed(ext) => {
+                let (module, call) = ext.call.extract_call();
+                let res = call.function();
+
+                let fn_name = if res.is_err() {
+                    warn!("Call not found, formatting as raw rust. Call: {:?}", &self);
+                    format!("{:?}", &self)
+                } else {
+                    let (name, _p) = res?;
+                    name
+                };
+
+                Ok(DbExtrinsic::Signed(InsertTransactionOwned {
+                    // transaction_hash: Vec::new(),
+                    block_num: number,
+                    hash: header.hash().as_ref().to_vec(),
+                    from_addr: Vec::new(), // TODO
+                    to_addr: Some(Vec::new()), // TODO
+                    module: module.to_string(),
+                    call: fn_name,
+                    nonce: 0,
+                    tx_index: index,
+                    signature: Vec::new(), // TODO
+                    transaction_version: i32::from(self.version()),
+                }))
+            },
+
+            RawExtrinsic::NotSigned(ext) => {
+                let (module, call) = ext.call.extract_call();
+                let res = call.function();
+                let (fn_name, params) = if res.is_err() {
+                    debug!("Call not found, formatting as raw rust. Call: {:?}", &self);
+                    (format!("{:?}", &self), Vec::new())
+                } else {
+                    res?
+                };
+
+                Ok(DbExtrinsic::NotSigned(InsertInherentOwned {
+                    hash: header.hash().as_ref().to_vec(),
+                    block_num: number,
+                    module: module.to_string(),
+                    call: fn_name,
+                    parameters: Some(params),
+                    in_index: index,
+                    transaction_version: i32::from(self.version())
+                }))
+            }
+        }
+    }
+
+    fn version(&self) -> u8 {
+        match self {
+            RawExtrinsic::Signed(v) => {
+                v.version
+            },
+            RawExtrinsic::NotSigned(v) => {
+                v.version
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum DbExtrinsic {
+    Signed(InsertTransactionOwned),
+    NotSigned(InsertInherentOwned)
+}
+
+
+pub fn get_extrinsics<T>(
+    extrinsics: &[T::Extrinsic],
+    header: &T::Header,
+    // db: &AsyncDiesel<PgConnection>,
+) -> Result<Vec<DbExtrinsic>, Error>
+where
+    T: System,
+{
+    extrinsics
+        .iter()
+        // enumerate is used here to preserve order/index of extrinsics
+        .enumerate()
+        .map(|(idx, x)| {
+            let decoded: RawExtrinsic = x.to_database()?;
+            Ok((idx, decoded))
+        })
+        .collect::<Vec<Result<(usize, RawExtrinsic), Error>>>()
+        .into_iter()
+        // we don't want to skip over _all_ extrinsics if decoding one extrinsic does not work
+        .filter_map(|x: Result<(usize, RawExtrinsic), _>| {
+            match x {
+                Ok(v) => {
+                    let number = (*header.number()).into();
+                    let index: i32 = v.0 as i32;
+                    Some(v.1.database_format(index, header, number))
+                },
+                Err(e) => {
+                    error!("{:?}", e);
+                    None
+                }
+            }
+        })
+        .collect::<Result<Vec<DbExtrinsic>, Error>>()
+}
+
+impl<Address, Call, Signature, Extra> std::fmt::Debug
+	for OldExtrinsic<Address, Call, Signature, Extra>
+where
+	Address: std::fmt::Debug,
+	Call: std::fmt::Debug,
+	Extra: SignedExtension,
+{
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(
+			f,
+			"UncheckedExtrinsic({:?}, {:?})",
+			self.signature.as_ref().map(|x| (&x.0, &x.2)),
+			self.function,
+		)
+	}
+}

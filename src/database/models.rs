@@ -85,7 +85,7 @@ pub struct InsertInherentOwned {
 #[derive(Insertable)]
 #[table_name="signed_extrinsics"]
 pub struct InsertTransaction<'a> {
-    pub transaction_hash: &'a [u8],
+    // pub transaction_hash: &'a [u8],
     pub block_num: &'a i64,
     pub hash: &'a [u8],
     pub from_addr: &'a [u8],
@@ -96,13 +96,13 @@ pub struct InsertTransaction<'a> {
     pub nonce: &'a i32,
     pub tx_index: &'a i32,
     pub signature: &'a [u8],
-    pub transaction_version: &'a i32,
+    pub transaction_version: &'a i32
 }
 
 #[derive(Insertable, Debug)]
 #[table_name="signed_extrinsics"]
 pub struct InsertTransactionOwned {
-    pub transaction_hash: Vec<u8>,
+    // pub transaction_hash: Vec<u8>,
     pub block_num: i64,
     pub hash: Vec<u8>,
     pub from_addr: Vec<u8>,
@@ -172,8 +172,10 @@ pub struct Inherents {
 /// Signed Extrinsics (More like traditional transactions)
 #[derive(Queryable, PartialEq, Debug)]
 pub struct SignedExtrinsics {
-    /// Hash of the transaction, primary key
-    transaction_hash: H256,
+    /// SQL-only id
+    id: i32,
+    // /// Hash of the transaction, primary key
+    // transaction_hash: H256,
     /// the block this transaction was created in
     block_num: i64,
     /// the account that originated this transaction
