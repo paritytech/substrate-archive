@@ -136,15 +136,15 @@ impl<T> SrmlExt for ElectionsPhragmenCall<T> where T: srml_elections_phragmen::T
             ElectionsPhragmenCall::submit_candidacy() => {
                 Ok(("submit_candidacy".into(), Vec::new()))
             },
-            ElectionsPhragmenCall::set_desired_member_count(count) => {
+            /*ElectionsPhragmenCall::set_desired_member_count(count) => {
                 Ok(("set_desired_member_count".into(), vec![count.encode()].encode()))
-            },
+            },*/
             ElectionsPhragmenCall::remove_member(who) => {
                 Ok(("remove_member".into(), vec![who.encode()].encode()))
             },
-            ElectionsPhragmenCall::set_term_duration(count) => {
+            /*ElectionsPhragmenCall::set_term_duration(count) => {
                 Ok(("set_term_duration".into(), vec![count.encode()].encode()))
-            },
+            },*/
             &__phantom_item => {
                 Ok(("__phantom".into(), Vec::new()))
             }
