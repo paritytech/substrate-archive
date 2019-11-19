@@ -29,8 +29,8 @@ mod metadata;
 
 pub use archive::Archive;
 
-pub use extrinsics::{Extrinsic, ExtractExtrinsic, UncheckedExtrinsic};
-pub use types::{System, Module, ExtractCall, DecodeExtrinsic, GenericBytes};
+pub use extrinsics::{RawExtrinsic, OldExtrinsic};
+pub use types::{System, Module, ExtractCall, ToDatabaseExtrinsic};
 pub use srml_ext::{SrmlExt, NotHandled};
 pub use error::Error;
 

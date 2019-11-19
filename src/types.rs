@@ -21,11 +21,9 @@ use substrate_primitives::storage::StorageChangeSet;
 use codec::Decode;
 use chrono::{DateTime, Utc, TimeZone};
 use substrate_primitives::storage::StorageData;
-use runtime_primitives::{
-    MultiSignature, AnySignature, generic::{Block as BlockT, SignedBlock},
-};
+use runtime_primitives::generic::{Block as BlockT, SignedBlock};
 
-pub use self::traits::{ExtractCall, DecodeExtrinsic, System, ExtrinsicExt};
+pub use self::traits::{ExtractCall, System, ExtrinsicExt, ToDatabaseExtrinsic};
 
 use crate::error::Error;
 use self::storage::StorageKeyType;
@@ -48,19 +46,6 @@ pub enum Data<T: System> {
     Storage(Storage<T>),
     Event(Event<T>),
     SyncProgress(usize),
-}
-#[derive(Debug)]
-pub enum DbExtrinsic<T: System> {
-    Signed(SignedExtrinsic),
-    NotSigned(Box<dyn ExtractCall>),
-
-}
-
-pub struct SignedExtrinsic {
-    pub signature: Vec<u8>,
-    pub address: Vec<u8>,
-    pub extra: Vec<u8>,
-    pub call: Box<dyn ExtractCall>,
 }
 
 // new types to allow implementing of traits

@@ -16,15 +16,13 @@
 
 use std::fmt::Debug;
 
-use crate::{error::Error, srml_ext::SrmlExt, extrinsics::{UncheckedExtrinsic, Extrinsic, ExtractExtrinsic}};
-use super::{Module, DbExtrinsic};
+use crate::{error::Error, srml_ext::SrmlExt, extrinsics::RawExtrinsic};
+use super::Module;
 
 use codec::{Encode, Decode};
 use serde::{Serialize, de::DeserializeOwned};
 use runtime_support::Parameter;
 use runtime_primitives::{
-    AnySignature,
-    MultiSignature,
     traits::{
         Bounded,
         CheckEqual,
@@ -39,13 +37,16 @@ use runtime_primitives::{
         SimpleBitOps,
     }
 };
+/*
+pub trait ExtractExtrinsic {
+    type F: Fn<Address, Call, Signature, Extra>(&OpaqueExtrinsic) -> UncheckedExtrinsic<Address, Call, Signature, Extra>;
+    fn extract() -> Vec<Self::F>;
+}
+ */
+
 
 pub trait ToDatabaseExtrinsic {
-    fn to_database(&self) -> DbExtrinsic;
-}
-
-pub trait ExtractExtrinsic {
-    fn extract_extrinsic(&self) -> Box<dyn ExtrinsicExt>;
+    fn to_database(&self) -> Result<RawExtrinsic, Error>;
 }
 
 pub trait ExtrinsicExt: Debug {
@@ -55,7 +56,7 @@ pub trait ExtrinsicExt: Debug {
     fn call(&self) -> Box<dyn ExtractCall>;
 }
 
-pub trait ExtractCall {
+pub trait ExtractCall: std::fmt::Debug {
     /// module the call is from, IE Timestamp, FinalityTracker
     fn extract_call(&self) -> (Module, Box<dyn SrmlExt>);
 }
@@ -71,12 +72,21 @@ pub trait System: Send + Sync + 'static + Debug {
     /// The Call type
     /// Should implement `ExtractCall` to put call data in a more database-friendly format
     type Call: Encode + Decode + Clone + Debug + ExtractCall; // TODO import Debug
-    type Extrinsic: DecodeExtrinsic + Debug + Serialize + DeserializeOwned + Clone + Eq + PartialEq + Unpin;
-    // type Block: BlockTrait + Encode + Decode + Debug;
-    type Signature: Encode + Decode + Debug + GenericBytes;
-    type Address: Encode + Decode + Debug;
 
-    type Generic: GenericBytes;
+    /// the Opaque Extrinsic Type
+    type Extrinsic: Send
+        + Sync + ToDatabaseExtrinsic
+        + Debug
+        + Serialize
+        + DeserializeOwned
+        + Clone
+        + Eq
+        + PartialEq
+        + Unpin;
+
+    // type Block: BlockTrait + Encode + Decode + Debug;
+    type Signature: Encode + Decode + Debug;
+    type Address: Encode + Decode + Debug;
 
     /// Account index (aka nonce) type. This stores the number of previous
     /// transactions associated with a sender account.

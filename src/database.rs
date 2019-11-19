@@ -26,12 +26,10 @@ use diesel::{prelude::*, pg::PgConnection, sql_types::{BigInt, Bytea}};
 use codec::Decode;
 use runtime_primitives::traits::Header;
 use dotenv::dotenv;
-// use runtime_support::dispatch::IsSubType;
-use runtime_primitives::traits::Block as _;
 
 use std::{
     env,
-    convert::{TryFrom, TryInto}
+    convert::TryFrom
 };
 
 use crate::{

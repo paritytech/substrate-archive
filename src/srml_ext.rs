@@ -58,19 +58,6 @@ pub type Parameters = Vec<u8>;
 pub type FunctionInfo = (CallName, Parameters);
 type SrmlResult<T> = Result<T, Error>;
 
-#[derive(Debug)]
-pub enum DbExtrinsic<T: System> {
-    Signed(SignedExtrinsic),
-    NotSigned(Box<dyn ExtractCall>)
-}
-
-pub struct SignedExtrinsic {
-
-    pub signature: Vec<u8>,
-    pub hash: Vec<u8>,
-    pub call: Box<dyn ExtractCall>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NotHandled;
 

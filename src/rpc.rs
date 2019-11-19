@@ -75,7 +75,7 @@ impl<T> Rpc<T> where T: System {
     }
 
     /// get all the storage for a single block
-    pub fn all_storage(self: Arc<Self>, /*hash: T::Hash,*/ sender: UnboundedSender<Data<T>>
+    pub fn all_storage(self: Arc<Self>, /*hash: T::Hash,*/ _sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
         println!("USED KEYS: {:?}", self.keys);

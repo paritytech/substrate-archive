@@ -21,18 +21,17 @@ use failure::Error;
 // use substrate_archive::prelude::*;
 use serde::{Deserialize, Serialize};
 use substrate_archive::{
-    Archive, System, Module, ExtrinsicExt,
-    Extrinsic as ArchiveExtrinsic, ExtractExtrinsic,
+    Archive, System, Module, RawExtrinsic,
+    OldExtrinsic, ToDatabaseExtrinsic,
     ExtractCall, SrmlExt, NotHandled,
     init_logger,
     srml::srml_system as system,
     Error as ArchiveError
 };
 use runtime_primitives::{
-    traits::{SignedExtension, Header},
     AnySignature,
     OpaqueExtrinsic,
-    generic
+    generic::UncheckedExtrinsic,
 };
 use polkadot_runtime::{
     Runtime as RuntimeT, Call, Address,
@@ -51,32 +50,21 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtrinsicWrapper(OpaqueExtrinsic);
+impl ToDatabaseExtrinsic for ExtrinsicWrapper {
+    fn to_database(&self) -> Result<RawExtrinsic, ArchiveError> {
+        let opaque = &self.0;
 
-impl DecodeExtrinsic for ExtrinsicWrapper {
-    fn decode<Address, Call, Signature, Extra, H>(&self
-    ) -> Result<Box<dyn ExtractExtrinsic<Address, Call, Signature, Extra, H>>, ArchiveError>
-    where
-        Address: Decode + Debug + Encode + 'static,
-        Call: Encode + Decode + Debug + ExtractCall,
-        Signature: GenericBytes + 'static,
-        Extra: SignedExtension,
-        H: Header,
-    {
-        // let res: Result<ArchiveExtrinsic::<Address, CallWrapper, Signature, SignedExtra>, _>
-        //   = Decode::decode(&mut (self.0).0.as_slice());
-        let res = ArchiveExtrinsic::<Address, CallWrapper, Signature, SignedExtra>::new(&self.0);
+        let res: Result<UncheckedExtrinsic::<Address, CallWrapper, Signature, SignedExtra>, _>
+            = Decode::decode(&mut opaque.0.as_slice());
         if res.is_err() {
             error!("Did not decode with current Signature, trying AnySignature {:?}", res);
-            // let ext: ArchiveExtrinsic::<Address, CallWrapper, AnySignature, SignedExtra>
-            //    = Decode::decode(&mut (self.0).0.as_slice())?;
-            let ext = ArchiveExtrinsic::<Address, CallWrapper, AnySignature, SignedExtra>::new(&self.0)?;
-            Ok(Box::new(ext))
+            let ext: OldExtrinsic::<Address, CallWrapper, AnySignature, SignedExtra>
+                = Decode::decode(&mut opaque.0.as_slice())?;
+            Ok(ext.into())
         } else {
-            Ok(Box::new(res?))
+            Ok(res?.into())
         }
     }
 }
@@ -256,7 +244,6 @@ pub struct Runtime;
 impl System for Runtime {
     type Call = CallWrapper;
     type Extrinsic = ExtrinsicWrapper;
-    type Generic = Vec<u8>;
     type Signature = Signature;
     type Address = Address;
     type Index = <RuntimeT as system::Trait>::Index;
