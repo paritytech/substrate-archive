@@ -61,19 +61,25 @@ impl Metadata {
         let mut other_keys = Vec::new();
         for module in self.inner.modules() {
             trace!("MODULE: {:?}", module.name());
-            for (call, _) in module.calls() {
-                trace!("CALL: {:?}", call);
-                trace!("Combined: {}", format!("{} {}", module.name(), call.as_str()));
+            for (key, map) in module.storage_keys() {
+                trace!("STORAGE: {:?}", key);
+                trace!("STORAGE MAP {:?}", map);
+                trace!("Module: {:?}", module);
+                // trace!("Combined: {}", format!("{} {}", module.name(), key.as_str()));
+                /*
                 other_keys.push(
                     twox_128(format!("{} {}", module.name(), call.as_str()).as_bytes()).to_vec()
                 )
+                */
             }
         }
-
+        other_keys
+        /*
         keys.into_iter().filter_map(|k| {
-            other_keys.iter().find(|other| other == &&k.0)
+            other_keys.iter().find(|&&other| other == &&k.0)
                 .map(|k| StorageKey(k.to_vec()))
         }).collect::<Vec<StorageKey>>()
+*/
     }
 }
 

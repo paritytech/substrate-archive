@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use log::{error, trace, warn, debug};
+use log::{error, warn, debug};
+use serde_json::json;
 use runtime_primitives::{
     traits::{SignedExtension, Header},
     generic::UncheckedExtrinsic,
@@ -59,14 +60,17 @@ where
 
         let is_signed = version & 0b1000_0000 != 0;
         let version = version & 0b0111_1111;
+        let signature = if is_signed {
+            Some(Decode::decode(input).map_err(|e|  { warn!("Error decoding signature"); e })?)
+        } else {
+            None
+        };
+        let function = Decode::decode(input).map_err(|e| { warn!("Error decoding call"); e })?;
 
-        Ok(Self {
-            signature: if is_signed { Some(Decode::decode(input).map_err(|e| { warn!("Error decoding signature"); e })?) } else { None },
-            function: Decode::decode(input).map_err(|e| { warn!("Error decoding call"); e })?,
-            version,
-        })
+        Ok(Self { signature, function, version })
     }
 }
+
 // implement conversion between extrinsics and RawExtrinsic
 impl<Address, Call, Signature, Extra> From<OldExtrinsic<Address, Call, Signature, Extra>> for RawExtrinsic
 where
@@ -144,12 +148,11 @@ impl RawExtrinsic {
                 let (module, call) = ext.call.extract_call();
                 let res = call.function();
 
-                let fn_name = if res.is_err() {
+                let (fn_name, params) = if res.is_err() {
                     warn!("Call not found, formatting as raw rust. Call: {:?}", &self);
-                    format!("{:?}", &self)
+                    (format!("{:?}", &self), json!({}))
                 } else {
-                    let (name, _p) = res?;
-                    name
+                    res?
                 };
 
                 Ok(DbExtrinsic::Signed(InsertTransactionOwned {
@@ -160,19 +163,19 @@ impl RawExtrinsic {
                     to_addr: Some(Vec::new()), // TODO
                     module: module.to_string(),
                     call: fn_name,
+                    parameters: Some(params),
                     nonce: 0,
                     tx_index: index,
                     signature: Vec::new(), // TODO
                     transaction_version: i32::from(self.version()),
                 }))
             },
-
             RawExtrinsic::NotSigned(ext) => {
                 let (module, call) = ext.call.extract_call();
                 let res = call.function();
                 let (fn_name, params) = if res.is_err() {
                     debug!("Call not found, formatting as raw rust. Call: {:?}", &self);
-                    (format!("{:?}", &self), Vec::new())
+                    (format!("{:?}", &self), json!({}))
                 } else {
                     res?
                 };

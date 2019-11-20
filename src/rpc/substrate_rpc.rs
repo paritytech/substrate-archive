@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A simple shim over the Substrate Rpc
-
+use log::trace;
 use futures::{future, Future, Stream};
 use jsonrpc_core_client::{RpcChannel, transports::ws};
 use codec::Decode;
@@ -83,18 +83,17 @@ impl<T> SubstrateRpc<T> where T: System {
             .map(|bytes| Decode::decode(&mut &bytes[..]).expect("Decode failed"))
             .map_err(Into::into)
             .and_then(|meta: RuntimeMetadataPrefixed| {
+                trace!("Runtime Metadata Prefixed: {:?}", meta);
                 future::result(meta.try_into().map_err(Into::into))
             })
     }
 
     // TODO: make "Key" and "from" vectors
-    // TODO: Merge 'from' and 'key' via a macro_derive on StorageKeyType, to auto-generate storage keys
     /// Get a storage item
     /// must provide the key, hash of the block to get storage from, as well as the key type
     pub(crate) fn storage(&self,
                           key: StorageKey,
                           hash: T::Hash,
-                          // from: StorageKeyType
     ) -> impl Future<Item = Option<StorageData>, Error = ArchiveError>
     {
         // let hash: Vec<u8> = hash.encode();
@@ -148,7 +147,6 @@ mod tests {
     use crate::{
         tests::Runtime,
         types::*,
-        types::storage::{StorageKeyType, TimestampOp}
     };
     use substrate_primitives::{
         storage::StorageKey,

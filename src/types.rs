@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-pub mod storage;
 mod traits;
 
 use substrate_primitives::storage::StorageChangeSet;
@@ -26,7 +25,6 @@ use runtime_primitives::generic::{Block as BlockT, SignedBlock};
 pub use self::traits::{ExtractCall, System, ExtrinsicExt, ToDatabaseExtrinsic};
 
 use crate::error::Error;
-use self::storage::StorageKeyType;
 
 // /// Format for describing accounts
 
@@ -104,7 +102,6 @@ impl<T: System> BatchBlock<T> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Storage<T: System> {
     data: StorageData,
-    key_type: StorageKeyType,
     hash: T::Hash // TODO use T:Hash
 }
 
@@ -113,16 +110,12 @@ where
     T: System
 {
 
-    pub fn new(data: StorageData, key_type: StorageKeyType, hash: T::Hash) -> Self {
-        Self { data, key_type, hash }
+    pub fn new(data: StorageData, hash: T::Hash) -> Self {
+        Self { data, hash }
     }
 
     pub fn data(&self) -> &StorageData {
         &self.data
-    }
-
-    pub fn key_type(&self) -> &StorageKeyType {
-        &self.key_type
     }
 
     pub fn hash(&self) -> &T::Hash {

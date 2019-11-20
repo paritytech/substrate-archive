@@ -22,7 +22,9 @@
 // Call into Storage()
 // Get EVERYTHING WE NEED :)
 
-// use srml_assets::Call as AssetsCall;
+use log::trace;
+use serde_json::{json, Value};
+use serde::{Serialize};
 use srml_aura::Call as AuraCall;
 use srml_timestamp::Call as TimestampCall;
 use srml_finality_tracker::Call as FinalityCall;
@@ -30,7 +32,7 @@ use srml_sudo::Call as SudoCall;
 use srml_babe::Call as BabeCall;
 use srml_session::Call as SessionCall;
 use srml_im_online::Call as ImOnlineCall;
-use srml_staking::Call as StakingCall;
+use srml_staking::{Call as StakingCall, RewardDestination};
 use srml_grandpa::Call as GrandpaCall;
 use srml_treasury::Call as TreasuryCall;
 use srml_nicks::Call as NicksCall;
@@ -51,7 +53,7 @@ pub trait SrmlExt: std::fmt::Debug {
 /// Name of the function
 pub type CallName = String;
 /// SCALE Encoded Parameters
-pub type Parameters = Vec<u8>;
+pub type Parameters = Value;
 
 // TODO: look to store parameters in something other than SCALE
 // like raw bit-array
@@ -86,7 +88,7 @@ impl<T> SrmlExt for AuraCall<T> where T: srml_aura::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({})))
             }
         }
     }
@@ -96,7 +98,7 @@ impl<T> SrmlExt for BabeCall<T> where T: srml_babe::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({})))
             }
         }
     }
@@ -106,16 +108,30 @@ impl<T> SrmlExt for BalancesCall<T> where T: srml_balances::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             BalancesCall::transfer(dest, value) => {
-                Ok(("transfer".into(), vec![dest.encode(), value.encode()].encode()))
+                let val = json!([
+                    { "dest": dest.encode(), "encoded": true },
+                    { "value": value },
+                ]);
+                Ok(("transfer".into(), val))
             },
             BalancesCall::set_balance(who, new_free, new_reserved) => {
-                Ok(("set_balance".into(), vec![who.encode(), new_free.encode(), new_reserved.encode()].encode()))
+                let val = json!([
+                    { "who": who.encode(), "encoded": true },
+                    { "new_free": new_free },
+                    { "new_reserved": new_reserved }
+                ]);
+                Ok(("set_balance".into(), val))
             },
             BalancesCall::force_transfer(source, dest, value) => {
-                Ok(("force_transfer".into(), vec![source.encode(), dest.encode(), value.encode()].encode()))
+                let val = json!([
+                    { "source": source.encode(), "encoded": true },
+                    { "dest": dest.encode(), "encoded": true },
+                    { "value": value }
+                ]);
+                Ok(("force_transfer".into(), val))
             },
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({})))
             }
         }
     }
@@ -125,28 +141,38 @@ impl<T> SrmlExt for ElectionsPhragmenCall<T> where T: srml_elections_phragmen::T
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             ElectionsPhragmenCall::vote(votes, value) => {
-                Ok(("vote".into(), vec![votes.encode(), value.encode()].encode()))
+                let val = json!([
+                    { "votes": votes },
+                    { "value": value }
+                ]);
+                Ok(("vote".into(), val))
             },
             ElectionsPhragmenCall::remove_voter() => {
-                Ok(("remove_voter".into(), Vec::new()))
+                Ok(("remove_voter".into(), json!({})))
             },
             ElectionsPhragmenCall::report_defunct_voter(target) => {
-                Ok(("report_defunct_voter".into(), vec![target.encode()].encode()))
+                let val = json!([
+                    { "target": target.encode(), "encoded": true }
+                ]);
+                Ok(("report_defunct_voter".into(), val))
             },
             ElectionsPhragmenCall::submit_candidacy() => {
-                Ok(("submit_candidacy".into(), Vec::new()))
+                Ok(("submit_candidacy".into(), json!({}) ))
             },
             /*ElectionsPhragmenCall::set_desired_member_count(count) => {
                 Ok(("set_desired_member_count".into(), vec![count.encode()].encode()))
             },*/
             ElectionsPhragmenCall::remove_member(who) => {
-                Ok(("remove_member".into(), vec![who.encode()].encode()))
+                let val = json!([
+                    {"who": who.encode(), "encoded": true }
+                ]);
+                Ok(("remove_member".into(), val))
             },
             /*ElectionsPhragmenCall::set_term_duration(count) => {
                 Ok(("set_term_duration".into(), vec![count.encode()].encode()))
             },*/
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({})))
             }
         }
     }
@@ -156,10 +182,14 @@ impl<T> SrmlExt for SessionCall<T> where T: srml_session::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             SessionCall::set_keys(keys, proof) => {
-                Ok(("set_keys".into(), vec![keys.encode(), proof.encode()].encode()))
+                let val = json!([
+                    { "keys": keys.encode(), "encoded": true },
+                    { "proof": proof }
+                ]);
+                Ok(("set_keys".into(), val))
             },
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({}) ))
             }
         }
     }
@@ -171,10 +201,13 @@ impl<T> SrmlExt for TimestampCall<T> where T: srml_timestamp::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             TimestampCall::set(time) => {
-                Ok(("set".into(), vec![time.encode()].encode() ))
+                let val = json!([
+                    { "time": time.encode(), "encoded": true }
+                ]);
+                Ok(("set".into(), val ))
             },
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({}) ))
             }
         }
     }
@@ -184,10 +217,13 @@ impl<T> SrmlExt for FinalityCall<T> where T: srml_finality_tracker::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             FinalityCall::final_hint(block) => {
-                Ok(("final_hint".into(), vec![block.encode()].encode()))
+                let val = json!([
+                    { "block": block }
+                ]);
+                Ok(("final_hint".into(), val))
             },
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({}) ))
             }
         }
     }
@@ -197,10 +233,14 @@ impl<T> SrmlExt for ImOnlineCall<T> where T: srml_im_online::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             ImOnlineCall::heartbeat(heartbeat, signature) => {
-                Ok(("im-online".into(), vec![heartbeat.encode(), signature.encode()].encode()))
+                let val = json!([
+                    { "heartbeat": heartbeat.encode(), "encoded": true },
+                    { "signature": signature.encode(), "encoded": true }
+                ]);
+                Ok(("im-online".into(), val))
             },
             &__phantom_item => {
-                 Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({}) ))
             }
         }
     }
@@ -210,19 +250,29 @@ impl<T> SrmlExt for NicksCall<T> where T: srml_nicks::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             NicksCall::set_name(name) => {
-                Ok(("set_name".into(), vec![name.encode()].encode()))
+                let val = json!([
+                    { "name": name }
+                ]);
+                Ok(("set_name".into(), val))
             },
             NicksCall::clear_name() => {
-                Ok(("clear_name".into(), Vec::new()))
+                Ok(("clear_name".into(), json!({}) ))
             },
             NicksCall::kill_name(target) => {
-                Ok(("kill_name".into(), vec![target.encode()].encode()))
+                let val = json!([
+                    { "target": target.encode(), "encoded": true }
+                ]);
+                Ok(("kill_name".into(), val))
             },
             NicksCall::force_name(target, name) => {
-                Ok(("force_name".into(), vec![target.encode(), name.encode()].encode()))
+                let val = json!([
+                    { "name": name },
+                    { "target": target.encode() }
+                ]);
+                Ok(("force_name".into(), val))
             },
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({ }) ))
             }
         }
     }
@@ -232,13 +282,34 @@ impl<T> SrmlExt for StakingCall<T> where T: srml_staking::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             StakingCall::bond(controller, value, payee) => {
-                Ok(("bond".into(), vec![controller.encode(), value.encode(), payee.encode()].encode()))
+                #[derive(Serialize)]
+                #[serde(remote = "RewardDestination")]
+                enum RewardDestinationDef {
+                    Staked,
+                    Stash,
+                    Controller
+                }
+                #[derive(Serialize)]
+                struct Payee {
+                    #[serde(with = "RewardDestinationDef")]
+                    payee: RewardDestination
+                }
+                let p = serde_json::to_string(&Payee { payee: *payee }).expect("payee should not fail to des; qed");
+                let val = json!([
+                    { "controller": controller.encode(), "encoded": true },
+                    { "value": value },
+                    { "payee": p }
+                ]);
+                Ok(("bond".into(), val))
             },
             StakingCall::bond_extra(max_additional) => {
-                Ok(("bond_extra".into(), vec![max_additional.encode()].encode()))
+                let val = json!([
+                    { "max_additional": max_additional }
+                ]);
+                Ok(("bond_extra".into(), val))
             },
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({}) ))
             }
         }
     }
@@ -248,28 +319,46 @@ impl<T> SrmlExt for SystemCall<T> where T: srml_system::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             SystemCall::fill_block() => {
-                Ok(("fill_block".into(), Vec::new()))
+                Ok(("fill_block".into(), json!({}) ))
             },
             SystemCall::remark(remark) => {
-                Ok(("remark".into(), vec![remark.encode()].encode()))
+                let val = json!([
+                    { "remark": remark }
+                ]);
+                Ok(("remark".into(), val))
             },
             SystemCall::set_heap_pages(pages) => {
-                Ok(("set_heap_pages".into(), vec![pages.encode()].encode()))
+                let val = json!([
+                    { "pages": pages }
+                ]);
+                Ok(("set_heap_pages".into(), val))
             },
             SystemCall::set_code(new) => {
-                Ok(("set_code".into(), vec![new.encode()].encode()))
+                let val = json!([
+                    { "new": new }
+                ]);
+                Ok(("set_code".into(), val))
             },
             SystemCall::set_storage(items) => {
-                Ok(("set_storage".into(), vec![items.encode()].encode()))
+                let val = json!([
+                    { "items": items }
+                ]);
+                Ok(("set_storage".into(), val))
             },
             SystemCall::kill_storage(keys) => {
-                Ok(("kill_storage".into(), vec![keys.encode()].encode()))
+                let val = json!([
+                    { "keys": keys }
+                ]);
+                Ok(("kill_storage".into(), val))
             },
             SystemCall::kill_prefix(prefix) => {
-                Ok(("kill_prefix".into(), vec![prefix.encode()].encode()))
+                let val = json!([
+                    { "prefix": prefix }
+                ]);
+                Ok(("kill_prefix".into(), val))
             },
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({}) ))
             }
         }
     }
@@ -279,10 +368,13 @@ impl<T> SrmlExt for GrandpaCall<T> where T: srml_grandpa::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             GrandpaCall::report_misbehavior(report) => {
-                Ok(("report_misbehavior".into(), vec![report.encode()].encode()))
+                let val = json!([
+                    { "report": report }
+                ]);
+                Ok(("report_misbehavior".into(), val))
             },
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({}) ))
             }
         }
     }
@@ -292,13 +384,21 @@ impl<T> SrmlExt for SudoCall<T> where T: srml_sudo::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             SudoCall::sudo(proposal) => {
-                Ok(("sudo".into(), vec![proposal.encode()].encode()))
+                let val = json!([
+                    { "proposal": proposal.encode(), "encoded": true }
+                ]);
+                // let public_call: T::Proposal =
+                trace!("PROPOSAL: {:?}", proposal);
+                Ok(("sudo".into(), val))
             },
-            SudoCall::set_key(source) => {
-                Ok(("set_key".into(), vec![source.encode()].encode()))
+            SudoCall::set_key(new) => {
+                let val = json!([
+                    { "new": new.encode(), "encoded": true }
+                ]);
+                Ok(("set_key".into(), val))
             },
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({}) ))
             }
         }
     }
@@ -308,16 +408,26 @@ impl<T> SrmlExt for TreasuryCall<T> where T: srml_treasury::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             TreasuryCall::propose_spend(value, beneficiary) => {
-                Ok(("propose_spend".into(), vec![value.encode(), beneficiary.encode()].encode()))
+                let val = json!([
+                    { "value": value },
+                    { "beneficiary": beneficiary.encode(), "encoded": true }
+                ]);
+                Ok(("propose_spend".into(), val))
             },
             TreasuryCall::reject_proposal(proposal_id) => {
-                Ok(("reject_proposal".into(), vec![proposal_id.encode()].encode()))
+                let val = json!([
+                    { "proposal_id": proposal_id }
+                ]);
+                Ok(("reject_proposal".into(), val))
             },
             TreasuryCall::approve_proposal(proposal_id) => {
-                Ok(("approve_proposal".into(), vec![proposal_id.encode()].encode()))
+                let val = json!([
+                    { "proposal_id": proposal_id }
+                ]);
+                Ok(("approve_proposal".into(), val))
             },
             &__phantom_item => {
-                Ok(("__phantom".into(), Vec::new()))
+                Ok(("__phantom".into(), json!({}) ))
             }
         }
     }

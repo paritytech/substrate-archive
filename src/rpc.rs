@@ -27,7 +27,6 @@ use std::sync::Arc;
 
 use crate::{
     types::{
-        storage::{StorageKeyType, TimestampOp},
         Data, System, SubstrateBlock,
         Block, BatchBlock, BatchStorage,
         Header, Storage,
@@ -99,8 +98,7 @@ impl<T> Rpc<T> where T: System {
                         let timestamp_key = b"Timestamp Now";
                         let storage_key = twox_128(timestamp_key);
                         let key = StorageKey(storage_key.to_vec());
-                        let key_type = StorageKeyType::Timestamp(TimestampOp::Now);
-                        rpc.storage(sender2, key, hash, key_type)
+                        rpc.storage(sender2, key, hash)
                     })
             })
     }
@@ -196,7 +194,6 @@ impl<T> Rpc<T> where T: System {
                           sender: UnboundedSender<Data<T>>,
                           key: StorageKey,
                           hash: T::Hash,
-                          key_type: StorageKeyType
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
         SubstrateRpc::connect(&self.url)
@@ -208,7 +205,7 @@ impl<T> Rpc<T> where T: System {
                         if let Some(d) = data {
                             trace!("Sending storage for {}", hash);
                             sender
-                                .unbounded_send(Data::Storage(Storage::new(d, key_type, hash)))
+                                .unbounded_send(Data::Storage(Storage::new(d, hash)))
                                 .map_err(Into::into)
                         } else {
                             warn!("Storage Item does not exist!");
@@ -222,22 +219,20 @@ impl<T> Rpc<T> where T: System {
                          sender: UnboundedSender<Data<T>>,
                          keys: Vec<StorageKey>,
                          hashes: Vec<T::Hash>,
-                         key_types: Vec<StorageKeyType>
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
-        assert!(hashes.len() == keys.len() && keys.len() == key_types.len()); // TODO remove assertion
+        assert!(hashes.len() == keys.len()); // TODO remove assertion
         // TODO: too many clones
         SubstrateRpc::connect(&self.url)
             .and_then(move |client: SubstrateRpc<T>| {
                 let mut futures = Vec::new();
                 for (idx, hash) in hashes.into_iter().enumerate() {
                     let key = keys[idx].clone();
-                    let key_type = key_types[idx].clone();
                     futures.push(
                         client.storage(key.clone(), hash)
                               .map(move |data| {
                                   if let Some(d) = data {
-                                      Ok(Storage::new(d, key_type, hash))
+                                      Ok(Storage::new(d, hash))
                                   } else {
                                       let err = format!("Storage item {:?} does not exist!", key);
                                       Err(ArchiveError::DataNotFound(err))

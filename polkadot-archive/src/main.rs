@@ -20,6 +20,7 @@ use log::{warn, error};
 use failure::Error;
 // use substrate_archive::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use substrate_archive::{
     Archive, System, Module, RawExtrinsic,
     OldExtrinsic, ToDatabaseExtrinsic,
@@ -149,6 +150,12 @@ impl ExtractCall for CallWrapper {
     }
 }
 
+// Sudo module should be implemented manually because it wraps other calls
+// this enables the wrapped calls to also be decoded
+/////////////////
+// Sudo Module //
+/////////////////
+
 ////////////////////
 // Custom Modules //
 ////////////////////
@@ -159,14 +166,17 @@ impl<T> SrmlExt for ParachainsCallWrapper<T>
 where
     T: ParachainsTrait + std::fmt::Debug
 {
-    fn function(&self) -> Result<(String, Vec<u8>), ArchiveError> {
+    fn function(&self) -> Result<(String, Value), ArchiveError> {
         match &self.0 {
             ParachainsCall::set_heads(heads) => {
-                Ok(( "set_heads".into(), vec![heads.encode()].encode() ))
+                let val = json!([
+                    { "heads": heads.encode(), "encoded": true }
+                ]);
+                Ok(( "set_heads".into(), val ))
             },
             __phantom_item => { // marker
                 warn!("hit phantom item");
-                Ok(("".into(), Vec::new()))
+                Ok(("".into(), json!({}) ))
             }
         }
     }
@@ -179,14 +189,18 @@ impl<T> SrmlExt for ClaimsCallWrapper<T>
 where
     T: ClaimsTrait + std::fmt::Debug
 {
-    fn function(&self) -> Result<(String, Vec<u8>), ArchiveError> {
+    fn function(&self) -> Result<(String, Value), ArchiveError> {
         match &self.0 {
             ClaimsCall::claim(account, signature) => {
-                Ok(("claim".into(), vec![account.encode(), signature.encode()].encode()))
+                let val = json!([
+                    { "account": account },
+                    { "signature": signature.encode(), "encoded": true } // TODO Implements Serialize on Master!
+                ]);
+                Ok(("claim".into(), val))
             },
             __phantom_item => { // marker
                 warn!("hit phantom item");
-                Ok(("".into(), Vec::new()))
+                Ok(("".into(), json!({}) ))
             }
         }
     }
@@ -200,49 +214,56 @@ where
     T: RegistrarTrait + std::fmt::Debug
 {
 
-    fn function(&self) -> Result<(String, Vec<u8>), ArchiveError> {
+    fn function(&self) -> Result<(String, Value), ArchiveError> {
         match &self.0 {
             RegistrarCall::register_para(id, info, code, initial_head_data) => {
-                Ok((
-                    "register_para".into(),
-                    vec![id.encode(),
-                         info.encode(),
-                         code.encode(),
-                         initial_head_data.encode()
-                    ].encode()
-                ))
+                let val = json!([
+                    { "id": id },
+                    { "info": info.encode(), "encoded": true }, // TODO implements Serialize on next release
+                    { "code": code },
+                    { "initial_head_data": initial_head_data }
+                ]);
+                Ok(("register_para".into(), val))
             },
             RegistrarCall::deregister_para(id) => {
-                Ok((
-                    "deregister_para".into(),
-                    vec![id.encode()].encode()
-                ))
+                let val = json!([
+                    { "id": id }
+                ]);
+                Ok(("deregister_para".into(), val ))
             },
             RegistrarCall::set_thread_count(count) => {
-                Ok((
-                    "set_thread_count".into(),
-                    vec![count.encode()].encode()
-                ))
+                let val = json!([
+                    { "count": count }
+                ]);
+                Ok(( "set_thread_count".into(), val))
             },
             RegistrarCall::register_parathread(code, initial_head_data) => {
-                Ok((
-                    "register_parathread".into(),
-                    vec![code.encode(), initial_head_data.encode()].encode()
-                ))
+                let val = json!([
+                    { "code": code },
+                    { "initial_head_data": initial_head_data }
+                ]);
+                Ok(( "register_parathread".into(), val ))
             },
             RegistrarCall::select_parathread(id, collator, head_hash) => {
-                Ok(("select_parathread".into(), vec![id.encode(), collator.encode(), head_hash.encode()].encode()
-                ))
+                let val = json!([
+                    { "id": id },
+                    { "collator": collator },
+                    { "head_hash": head_hash }
+                ]);
+                Ok(("select_parathread".into(), val ))
             },
             RegistrarCall::deregister_parathread() => {
-                Ok(("deregister_parathread".into(), Vec::new()))
+                Ok(("deregister_parathread".into(), json!({}) ))
             },
             RegistrarCall::swap(other) => {
-                Ok(("swap".into(), vec![other.encode()].encode()))
+                let val = json!([
+                    { "other": other }
+                ]);
+                Ok(("swap".into(), val))
             },
             __phantom_item => { // marker
                 warn!("hit phantom item");
-                Ok(("".into(), Vec::new()))
+                Ok(("".into(), json!({}) ))
             }
         }
     }

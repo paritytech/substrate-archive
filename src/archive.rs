@@ -37,7 +37,7 @@ use crate::{
     database::Database,
     rpc::Rpc,
     error::Error as ArchiveError,
-    types::{System, Data, storage::{StorageKeyType, TimestampOp}}
+    types::{System, Data}
 };
 
 // with the hopeful and long-anticipated release of async-await
@@ -170,10 +170,7 @@ impl Sync {
                 let keys = std::iter::repeat(StorageKey(storage_key.to_vec()))
                     .take(hashes.len())
                     .collect::<Vec<StorageKey>>();
-                let key_types = std::iter::repeat(StorageKeyType::Timestamp(TimestampOp::Now))
-                    .take(hashes.len())
-                    .collect::<Vec<StorageKeyType>>();
-                rpc1.batch_storage(sender1, keys, hashes, key_types)
+                rpc1.batch_storage(sender1, keys, hashes)
             });
         missing_timestamps.join(missing_blocks)
                           .map_err(|e| error!("{:?}", e))
