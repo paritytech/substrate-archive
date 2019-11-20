@@ -248,18 +248,18 @@ where
 }
 
 impl<Address, Call, Signature, Extra> std::fmt::Debug
-	for OldExtrinsic<Address, Call, Signature, Extra>
+    for OldExtrinsic<Address, Call, Signature, Extra>
 where
-	Address: std::fmt::Debug,
-	Call: std::fmt::Debug,
-	Extra: SignedExtension,
+    Address: std::fmt::Debug,
+    Call: std::fmt::Debug,
+    Extra: SignedExtension,
 {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(
-			f,
-			"UncheckedExtrinsic({:?}, {:?})",
-			self.signature.as_ref().map(|x| (&x.0, &x.2)),
-			self.function,
-		)
-	}
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "UncheckedExtrinsic({:?}, {:?})",
+            self.signature.as_ref().map(|x| (&x.0, &x.2)),
+            self.function,
+        )
+    }
 }

@@ -27,18 +27,20 @@ use substrate_archive::{
     ExtractCall, SrmlExt, NotHandled,
     init_logger,
     paint::paint_system as system,
+    // paint::paint_sudo::{Trait as SudoTrait, Call as SudoCall},
     Error as ArchiveError
 };
 use runtime_primitives::{
     AnySignature,
     OpaqueExtrinsic,
-    generic::UncheckedExtrinsic,
+    // generic::UncheckedExtrinsic,
 };
 use polkadot_runtime::{
     Runtime as RuntimeT, Call, Address,
     ParachainsCall, ParachainsTrait, SignedExtra,
     ClaimsCall, ClaimsTrait, RegistrarCall, RegistrarTrait,
 };
+
 use polkadot_primitives::Signature;
 use codec::{Encode, Decode, Input, Error as CodecError};
 
@@ -152,10 +154,48 @@ impl ExtractCall for CallWrapper {
 
 // Sudo module should be implemented manually because it wraps other calls
 // this enables the wrapped calls to also be decoded
+// if this is not done, Sudo will still be committed to the database but with the entire Call SCALE-encoded
+/*
 /////////////////
 // Sudo Module //
 /////////////////
+#[derive(Debug, Clone, PartialEq)]
+pub struct SudoCallWrapper<T: SudoTrait>(SudoCall<T>);
 
+impl<T> SrmlExt for SudoCallWrapper<T>
+where
+    T: SudoTrait + Debug
+{
+    fn function(&self) -> Result<(String, Value), ArchiveError> {
+        match &self.0 {
+            SudoCall::sudo(proposal) => {
+                let sudo: CallWrapper = Decode::decode(&mut proposal)?;
+                let (module, call) = sudo.extract_call();
+                let (fn_name, params) = call.function()?;
+                let val = json!([
+                    {
+                        "proposal": {
+                            "module": module,
+                            "function": fn_name,
+                            "parameters": params
+                        }
+                    }
+                ]);
+                Ok(("proposal".into(), val))
+            },
+            SudoCall::set_key(new) => {
+                let val = json!([
+                    { "new": new.encode(), "encoded": true }
+                ]);
+                Ok(("set_key".into(), val))
+            },
+            &__phantom_item => {
+                Ok(("__phantom".into(), json!({}) ))
+            }
+        }
+    }
+}
+*/
 ////////////////////
 // Custom Modules //
 ////////////////////
@@ -164,7 +204,7 @@ pub struct ParachainsCallWrapper<T: ParachainsTrait>(ParachainsCall<T>);
 
 impl<T> SrmlExt for ParachainsCallWrapper<T>
 where
-    T: ParachainsTrait + std::fmt::Debug
+    T: ParachainsTrait + Debug
 {
     fn function(&self) -> Result<(String, Value), ArchiveError> {
         match &self.0 {
@@ -187,7 +227,7 @@ pub struct ClaimsCallWrapper<T: ClaimsTrait>(ClaimsCall<T>);
 
 impl<T> SrmlExt for ClaimsCallWrapper<T>
 where
-    T: ClaimsTrait + std::fmt::Debug
+    T: ClaimsTrait + Debug
 {
     fn function(&self) -> Result<(String, Value), ArchiveError> {
         match &self.0 {
@@ -211,7 +251,7 @@ pub struct RegistrarCallWrapper<T: RegistrarTrait>(RegistrarCall<T>);
 
 impl<T> SrmlExt for RegistrarCallWrapper<T>
 where
-    T: RegistrarTrait + std::fmt::Debug
+    T: RegistrarTrait + Debug
 {
 
     fn function(&self) -> Result<(String, Value), ArchiveError> {
