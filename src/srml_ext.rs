@@ -25,20 +25,20 @@
 use log::trace;
 use serde_json::{json, Value};
 use serde::{Serialize};
-use srml_aura::Call as AuraCall;
-use srml_timestamp::Call as TimestampCall;
-use srml_finality_tracker::Call as FinalityCall;
-use srml_sudo::Call as SudoCall;
-use srml_babe::Call as BabeCall;
-use srml_session::Call as SessionCall;
-use srml_im_online::Call as ImOnlineCall;
-use srml_staking::{Call as StakingCall, RewardDestination};
-use srml_grandpa::Call as GrandpaCall;
-use srml_treasury::Call as TreasuryCall;
-use srml_nicks::Call as NicksCall;
-use srml_elections_phragmen::Call as ElectionsPhragmenCall;
-use srml_balances::Call as BalancesCall;
-use srml_system::Call as SystemCall;
+use paint_aura::Call as AuraCall;
+use paint_timestamp::Call as TimestampCall;
+use paint_finality_tracker::Call as FinalityCall;
+use paint_sudo::Call as SudoCall;
+use paint_babe::Call as BabeCall;
+use paint_session::Call as SessionCall;
+use paint_im_online::Call as ImOnlineCall;
+use paint_staking::{Call as StakingCall, RewardDestination};
+use paint_grandpa::Call as GrandpaCall;
+use paint_treasury::Call as TreasuryCall;
+use paint_nicks::Call as NicksCall;
+use paint_elections_phragmen::Call as ElectionsPhragmenCall;
+use paint_balances::Call as BalancesCall;
+use paint_system::Call as SystemCall;
 // use runtime_support::dispatch::{IsSubType, Callable};
 use codec::Encode;
 
@@ -73,7 +73,7 @@ impl SrmlExt for NotHandled {
 }
 
 /*
-impl<T> SrmlExt for AssetsCall<T> where T: srml_assets::Trait {
+impl<T> SrmlExt for AssetsCall<T> where T: paint_assets::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             AssetsCall::balances(b) => {
@@ -84,7 +84,7 @@ impl<T> SrmlExt for AssetsCall<T> where T: srml_assets::Trait {
 }
  */
 
-impl<T> SrmlExt for AuraCall<T> where T: srml_aura::Trait {
+impl<T> SrmlExt for AuraCall<T> where T: paint_aura::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             &__phantom_item => {
@@ -94,7 +94,7 @@ impl<T> SrmlExt for AuraCall<T> where T: srml_aura::Trait {
     }
 }
 
-impl<T> SrmlExt for BabeCall<T> where T: srml_babe::Trait {
+impl<T> SrmlExt for BabeCall<T> where T: paint_babe::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             &__phantom_item => {
@@ -104,7 +104,7 @@ impl<T> SrmlExt for BabeCall<T> where T: srml_babe::Trait {
     }
 }
 
-impl<T> SrmlExt for BalancesCall<T> where T: srml_balances::Trait {
+impl<T> SrmlExt for BalancesCall<T> where T: paint_balances::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             BalancesCall::transfer(dest, value) => {
@@ -137,7 +137,7 @@ impl<T> SrmlExt for BalancesCall<T> where T: srml_balances::Trait {
     }
 }
 
-impl<T> SrmlExt for ElectionsPhragmenCall<T> where T: srml_elections_phragmen::Trait {
+impl<T> SrmlExt for ElectionsPhragmenCall<T> where T: paint_elections_phragmen::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             ElectionsPhragmenCall::vote(votes, value) => {
@@ -178,7 +178,7 @@ impl<T> SrmlExt for ElectionsPhragmenCall<T> where T: srml_elections_phragmen::T
     }
 }
 
-impl<T> SrmlExt for SessionCall<T> where T: srml_session::Trait {
+impl<T> SrmlExt for SessionCall<T> where T: paint_session::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             SessionCall::set_keys(keys, proof) => {
@@ -197,7 +197,7 @@ impl<T> SrmlExt for SessionCall<T> where T: srml_session::Trait {
 
 // matching exhaustively on &__phantom_item allows the compiler to implicitly
 // check making sure all Call types are covered
-impl<T> SrmlExt for TimestampCall<T> where T: srml_timestamp::Trait {
+impl<T> SrmlExt for TimestampCall<T> where T: paint_timestamp::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             TimestampCall::set(time) => {
@@ -213,7 +213,7 @@ impl<T> SrmlExt for TimestampCall<T> where T: srml_timestamp::Trait {
     }
 }
 
-impl<T> SrmlExt for FinalityCall<T> where T: srml_finality_tracker::Trait {
+impl<T> SrmlExt for FinalityCall<T> where T: paint_finality_tracker::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             FinalityCall::final_hint(block) => {
@@ -229,7 +229,7 @@ impl<T> SrmlExt for FinalityCall<T> where T: srml_finality_tracker::Trait {
     }
 }
 
-impl<T> SrmlExt for ImOnlineCall<T> where T: srml_im_online::Trait {
+impl<T> SrmlExt for ImOnlineCall<T> where T: paint_im_online::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             ImOnlineCall::heartbeat(heartbeat, signature) => {
@@ -246,7 +246,7 @@ impl<T> SrmlExt for ImOnlineCall<T> where T: srml_im_online::Trait {
     }
 }
 
-impl<T> SrmlExt for NicksCall<T> where T: srml_nicks::Trait {
+impl<T> SrmlExt for NicksCall<T> where T: paint_nicks::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             NicksCall::set_name(name) => {
@@ -278,7 +278,7 @@ impl<T> SrmlExt for NicksCall<T> where T: srml_nicks::Trait {
     }
 }
 
-impl<T> SrmlExt for StakingCall<T> where T: srml_staking::Trait {
+impl<T> SrmlExt for StakingCall<T> where T: paint_staking::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             StakingCall::bond(controller, value, payee) => {
@@ -315,7 +315,7 @@ impl<T> SrmlExt for StakingCall<T> where T: srml_staking::Trait {
     }
 }
 
-impl<T> SrmlExt for SystemCall<T> where T: srml_system::Trait {
+impl<T> SrmlExt for SystemCall<T> where T: paint_system::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             SystemCall::fill_block() => {
@@ -364,7 +364,7 @@ impl<T> SrmlExt for SystemCall<T> where T: srml_system::Trait {
     }
 }
 
-impl<T> SrmlExt for GrandpaCall<T> where T: srml_grandpa::Trait {
+impl<T> SrmlExt for GrandpaCall<T> where T: paint_grandpa::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             GrandpaCall::report_misbehavior(report) => {
@@ -380,7 +380,7 @@ impl<T> SrmlExt for GrandpaCall<T> where T: srml_grandpa::Trait {
     }
 }
 
-impl<T> SrmlExt for SudoCall<T> where T: srml_sudo::Trait {
+impl<T> SrmlExt for SudoCall<T> where T: paint_sudo::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             SudoCall::sudo(proposal) => {
@@ -404,7 +404,7 @@ impl<T> SrmlExt for SudoCall<T> where T: srml_sudo::Trait {
     }
 }
 
-impl<T> SrmlExt for TreasuryCall<T> where T: srml_treasury::Trait {
+impl<T> SrmlExt for TreasuryCall<T> where T: paint_treasury::Trait {
     fn function(&self) -> SrmlResult<FunctionInfo> {
         match &self {
             TreasuryCall::propose_spend(value, beneficiary) => {

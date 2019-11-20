@@ -26,7 +26,7 @@ use substrate_archive::{
     OldExtrinsic, ToDatabaseExtrinsic,
     ExtractCall, SrmlExt, NotHandled,
     init_logger,
-    srml::srml_system as system,
+    paint::paint_system as system,
     Error as ArchiveError
 };
 use runtime_primitives::{
