@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Extensions to Srml Modules to extract data useful in a database scenario
+//! Extensions to Paint Modules to extract data useful in a database scenario
 
 // TODO: THE NEW WAY:
 // Get name of Module + Name of Call
@@ -44,7 +44,7 @@ use codec::Encode;
 
 use crate::error::Error;
 
-pub trait SrmlExt: std::fmt::Debug {
+pub trait PaintExt: std::fmt::Debug {
     /// Seperates a call into it's name and parameters
     /// Parameters are SCALE encoded
     fn function(&self) -> Result<(CallName, Parameters), Error>; // name of the function as a string
@@ -60,21 +60,21 @@ pub type Parameters = Value;
 // problem is for modules that contain data other than simple u32's (ex: sudo)
 /// Convenience type
 pub type FunctionInfo = (CallName, Parameters);
-type SrmlResult<T> = Result<T, Error>;
+type PaintResult<T> = Result<T, Error>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NotHandled;
 
 
-impl SrmlExt for NotHandled {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl PaintExt for NotHandled {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         Err(Error::UnhandledCallType)
     }
 }
 
 /*
-impl<T> SrmlExt for AssetsCall<T> where T: paint_assets::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for AssetsCall<T> where T: paint_assets::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             AssetsCall::balances(b) => {
                 Ok(("balances".into(), b.encode()))
@@ -84,8 +84,8 @@ impl<T> SrmlExt for AssetsCall<T> where T: paint_assets::Trait {
 }
  */
 
-impl<T> SrmlExt for AuraCall<T> where T: paint_aura::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for AuraCall<T> where T: paint_aura::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             &__phantom_item => {
                 Ok(("__phantom".into(), json!({})))
@@ -94,8 +94,8 @@ impl<T> SrmlExt for AuraCall<T> where T: paint_aura::Trait {
     }
 }
 
-impl<T> SrmlExt for BabeCall<T> where T: paint_babe::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for BabeCall<T> where T: paint_babe::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             &__phantom_item => {
                 Ok(("__phantom".into(), json!({})))
@@ -104,8 +104,8 @@ impl<T> SrmlExt for BabeCall<T> where T: paint_babe::Trait {
     }
 }
 
-impl<T> SrmlExt for BalancesCall<T> where T: paint_balances::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for BalancesCall<T> where T: paint_balances::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             BalancesCall::transfer(dest, value) => {
                 let val = json!([
@@ -137,8 +137,8 @@ impl<T> SrmlExt for BalancesCall<T> where T: paint_balances::Trait {
     }
 }
 
-impl<T> SrmlExt for ElectionsPhragmenCall<T> where T: paint_elections_phragmen::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for ElectionsPhragmenCall<T> where T: paint_elections_phragmen::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             ElectionsPhragmenCall::vote(votes, value) => {
                 let val = json!([
@@ -178,8 +178,8 @@ impl<T> SrmlExt for ElectionsPhragmenCall<T> where T: paint_elections_phragmen::
     }
 }
 
-impl<T> SrmlExt for SessionCall<T> where T: paint_session::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for SessionCall<T> where T: paint_session::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             SessionCall::set_keys(keys, proof) => {
                 let val = json!([
@@ -197,8 +197,8 @@ impl<T> SrmlExt for SessionCall<T> where T: paint_session::Trait {
 
 // matching exhaustively on &__phantom_item allows the compiler to implicitly
 // check making sure all Call types are covered
-impl<T> SrmlExt for TimestampCall<T> where T: paint_timestamp::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for TimestampCall<T> where T: paint_timestamp::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             TimestampCall::set(time) => {
                 let val = json!([
@@ -213,8 +213,8 @@ impl<T> SrmlExt for TimestampCall<T> where T: paint_timestamp::Trait {
     }
 }
 
-impl<T> SrmlExt for FinalityCall<T> where T: paint_finality_tracker::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for FinalityCall<T> where T: paint_finality_tracker::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             FinalityCall::final_hint(block) => {
                 let val = json!([
@@ -229,8 +229,8 @@ impl<T> SrmlExt for FinalityCall<T> where T: paint_finality_tracker::Trait {
     }
 }
 
-impl<T> SrmlExt for ImOnlineCall<T> where T: paint_im_online::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for ImOnlineCall<T> where T: paint_im_online::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             ImOnlineCall::heartbeat(heartbeat, signature) => {
                 let val = json!([
@@ -246,8 +246,8 @@ impl<T> SrmlExt for ImOnlineCall<T> where T: paint_im_online::Trait {
     }
 }
 
-impl<T> SrmlExt for NicksCall<T> where T: paint_nicks::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for NicksCall<T> where T: paint_nicks::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             NicksCall::set_name(name) => {
                 let val = json!([
@@ -278,8 +278,8 @@ impl<T> SrmlExt for NicksCall<T> where T: paint_nicks::Trait {
     }
 }
 
-impl<T> SrmlExt for StakingCall<T> where T: paint_staking::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for StakingCall<T> where T: paint_staking::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             StakingCall::bond(controller, value, payee) => {
                 #[derive(Serialize)]
@@ -315,8 +315,8 @@ impl<T> SrmlExt for StakingCall<T> where T: paint_staking::Trait {
     }
 }
 
-impl<T> SrmlExt for SystemCall<T> where T: paint_system::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for SystemCall<T> where T: paint_system::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             SystemCall::fill_block() => {
                 Ok(("fill_block".into(), json!({}) ))
@@ -364,8 +364,8 @@ impl<T> SrmlExt for SystemCall<T> where T: paint_system::Trait {
     }
 }
 
-impl<T> SrmlExt for GrandpaCall<T> where T: paint_grandpa::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for GrandpaCall<T> where T: paint_grandpa::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             GrandpaCall::report_misbehavior(report) => {
                 let val = json!([
@@ -380,8 +380,8 @@ impl<T> SrmlExt for GrandpaCall<T> where T: paint_grandpa::Trait {
     }
 }
 
-impl<T> SrmlExt for SudoCall<T> where T: paint_sudo::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for SudoCall<T> where T: paint_sudo::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             SudoCall::sudo(proposal) => {
                 let val = json!([
@@ -404,8 +404,8 @@ impl<T> SrmlExt for SudoCall<T> where T: paint_sudo::Trait {
     }
 }
 
-impl<T> SrmlExt for TreasuryCall<T> where T: paint_treasury::Trait {
-    fn function(&self) -> SrmlResult<FunctionInfo> {
+impl<T> PaintExt for TreasuryCall<T> where T: paint_treasury::Trait {
+    fn function(&self) -> PaintResult<FunctionInfo> {
         match &self {
             TreasuryCall::propose_spend(value, beneficiary) => {
                 let val = json!([

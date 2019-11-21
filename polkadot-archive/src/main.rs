@@ -24,7 +24,7 @@ use serde_json::{json, Value};
 use substrate_archive::{
     Archive, System, Module, RawExtrinsic,
     OldExtrinsic, ToDatabaseExtrinsic,
-    ExtractCall, SrmlExt, NotHandled,
+    ExtractCall, PaintExt, NotHandled,
     init_logger,
     paint::paint_system as system,
     // paint::paint_sudo::{Trait as SudoTrait, Call as SudoCall},
@@ -93,7 +93,7 @@ impl Decode for CallWrapper {
 
 // define all calls/inherents that you want tracked by the archive node
 impl ExtractCall for CallWrapper {
-    fn extract_call(&self) -> (Module, Box<dyn SrmlExt>) {
+    fn extract_call(&self) -> (Module, Box<dyn PaintExt>) {
         match &self.inner {
             Call::Timestamp(call) => {
                 (Module::Timestamp, Box::new(call.clone()))
@@ -162,7 +162,7 @@ impl ExtractCall for CallWrapper {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SudoCallWrapper<T: SudoTrait>(SudoCall<T>);
 
-impl<T> SrmlExt for SudoCallWrapper<T>
+impl<T> PaintExt for SudoCallWrapper<T>
 where
     T: SudoTrait + Debug
 {
@@ -202,7 +202,7 @@ where
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParachainsCallWrapper<T: ParachainsTrait>(ParachainsCall<T>);
 
-impl<T> SrmlExt for ParachainsCallWrapper<T>
+impl<T> PaintExt for ParachainsCallWrapper<T>
 where
     T: ParachainsTrait + Debug
 {
@@ -225,7 +225,7 @@ where
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaimsCallWrapper<T: ClaimsTrait>(ClaimsCall<T>);
 
-impl<T> SrmlExt for ClaimsCallWrapper<T>
+impl<T> PaintExt for ClaimsCallWrapper<T>
 where
     T: ClaimsTrait + Debug
 {
@@ -249,7 +249,7 @@ where
 #[derive(Debug)]
 pub struct RegistrarCallWrapper<T: RegistrarTrait>(RegistrarCall<T>);
 
-impl<T> SrmlExt for RegistrarCallWrapper<T>
+impl<T> PaintExt for RegistrarCallWrapper<T>
 where
     T: RegistrarTrait + Debug
 {

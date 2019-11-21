@@ -16,7 +16,7 @@
 
 use std::fmt::Debug;
 
-use crate::{error::Error, srml_ext::SrmlExt, extrinsics::RawExtrinsic};
+use crate::{error::Error, paint_ext::PaintExt, extrinsics::RawExtrinsic};
 use super::Module;
 
 use codec::{Encode, Decode};
@@ -58,7 +58,7 @@ pub trait ExtrinsicExt: Debug {
 
 pub trait ExtractCall: std::fmt::Debug {
     /// module the call is from, IE Timestamp, FinalityTracker
-    fn extract_call(&self) -> (Module, Box<dyn SrmlExt>);
+    fn extract_call(&self) -> (Module, Box<dyn PaintExt>);
 }
 
 // TODO: Consider removing this trait and directly using srml_system::Trait
