@@ -22,7 +22,7 @@ primitive-types = "0.5"
 dotenv = "0.14"
 url = "1.7"
 serde = { version = "1.0.41", features = ["derive"] }
-serde_json = { version = "1.0.41" }
+serde_json = { version = "1.0.41", features = ["arbitrary_precision"] }
 r2d2 = "0.8"
 tokio-threadpool = "0.1"
 dirs = "2.0.2"
@@ -31,7 +31,6 @@ fern = { version = "0.5", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 jsonrpc-core-client = { version = "14.0", features = ["ws"] }
-
 runtime-metadata = { git = "https://github.com/paritytech/substrate/", package = "paint-metadata", branch = "polkadot-master" }
 paint-system = { git = "https://github.com/paritytech/substrate/", package = "paint-system", branch="polkadot-master"}
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch="polkadot-master"}

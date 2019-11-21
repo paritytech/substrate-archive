@@ -26,11 +26,7 @@ pub use self::traits::{ExtractCall, System, ExtrinsicExt, ToDatabaseExtrinsic};
 
 use crate::error::Error;
 
-// /// Format for describing accounts
-
-// pub type BasicExtrinsic<T>
-//   = Extrinsic<<T as System>::Address, <T as System>::Call, <T as System>::Signature, <T as System>::SignedExtra>;
-// /// A block with OpaqueExtrinsic as extrinsic type
+/// A generic substrate block
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
 
 /// Sent from Substrate API to be committed into the Database
@@ -47,6 +43,7 @@ pub enum Data<T: System> {
 }
 
 // new types to allow implementing of traits
+// NewType for Header
 #[derive(Debug, PartialEq, Eq)]
 pub struct Header<T: System> {
     inner: T::Header
@@ -65,6 +62,7 @@ impl<T: System> Header<T> {
     }
 }
 
+/// NewType for Block
 #[derive(Debug, PartialEq, Eq)]
 pub struct Block<T: System> {
     inner: SubstrateBlock<T>
@@ -83,6 +81,7 @@ impl<T: System> Block<T> {
     }
 }
 
+/// NewType for committing many blocks to the database at once
 #[derive(Debug, PartialEq, Eq)]
 pub struct BatchBlock<T: System> {
     inner: Vec<SubstrateBlock<T>>
@@ -99,6 +98,7 @@ impl<T: System> BatchBlock<T> {
     }
 }
 
+/// newType for Storage Data
 #[derive(Debug, PartialEq, Eq)]
 pub struct Storage<T: System> {
     data: StorageData,
@@ -129,6 +129,7 @@ where
     }
 }
 
+/// NewType for committing many storage items into the database at once
 #[derive(Debug, PartialEq, Eq)]
 pub struct BatchStorage<T: System> {
     inner: Vec<Storage<T>>,
@@ -151,6 +152,7 @@ where
     }
 }
 
+/// NewType for committing Events to the database
 #[derive(Debug, PartialEq, Eq)]
 pub struct Event<T: System> {
     change_set: StorageChangeSet<T::Hash>
@@ -167,6 +169,11 @@ impl<T: System> Event<T> {
     }
 }
 
+/// Official Paint Modules in Substrate
+/// Custom modules can be added with `Module::Custom("MyModule")`
+/// Modules not handled by Substrate Archive default to `Module::NotHandled`
+/// This occurs if the module is not an official substrate module, and has not been described
+/// in the clients implmentation of substrate-archive
 #[derive(Debug, PartialEq, Eq, Clone, derive_more::Display)]
 pub enum Module {
     Assets,

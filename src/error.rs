@@ -18,6 +18,7 @@ use failure::Fail;
 use codec::Error as CodecError;
 use futures::sync::mpsc::SendError;
 use jsonrpc_core_client::RpcError as JsonRpcError;
+// use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
 use std::io::Error as IoError;
 use url::ParseError;
 use diesel::result::{Error as DieselError, ConnectionError};

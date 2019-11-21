@@ -14,7 +14,7 @@ env_logger = "0.7.0"
 runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives", branch = "polkadot-master" }
 substrate-archive = { path = "../" }
 serde = {  version = "1.0.41", features = ["derive"] }
-serde_json = { version = "1.0.41" }
+serde_json = { version = "1.0.41", features = ["arbitrary_precision"] }
 
 [dependencies.polkadot-primitives]
 git = "https://github.com/insipx/polkadot"

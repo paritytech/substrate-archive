@@ -37,5 +37,6 @@ pub use error::Error;
 pub mod rpc;
 pub mod paint {
     pub use paint_system;
+    pub use paint_sudo;
 }
 pub use util::init_logger;
