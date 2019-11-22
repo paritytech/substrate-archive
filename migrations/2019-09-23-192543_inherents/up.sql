@@ -6,7 +6,7 @@ CREATE TABLE inherents (
   block_num bigint check (block_num >= 0 and block_num < '9223372036854775807'::bigint) NOT NULL,
   module varchar NOT NULL,
   call varchar NOT NULL,
-  parameters bytea,
+  parameters jsonb,
   -- success bool NOT NULL,
   in_index int check (in_index >= 0) NOT NULL,
   transaction_version int check (transaction_version >= 0) NOT NULL

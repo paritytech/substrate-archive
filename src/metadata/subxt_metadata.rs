@@ -170,6 +170,10 @@ impl ModuleMetadata {
         self.calls.iter()
     }
 
+    pub fn storage_keys(&self) -> impl Iterator<Item = (&String, &StorageMetadata)> {
+        self.storage.iter()
+    }
+
     pub fn event(&self, index: u8) -> Result<&ModuleEventMetadata, MetadataError> {
         self.events
             .get(&index)

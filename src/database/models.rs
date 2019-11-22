@@ -17,6 +17,7 @@
 //! Database Type Models for Substrate/SubstrateChain/Polkadot Types
 
 use primitive_types::{H256 as SubstrateH256, H512 as SubstrateH512};
+use serde_json::Value;
 // use codec::Decode;
 use diesel::sql_types::{Binary};
 use diesel::backend::Backend;
@@ -62,7 +63,7 @@ pub struct InsertInherent<'a> {
     pub block_num: &'a i64,
     pub module: &'a str,
     pub call: &'a str,
-    pub parameters: Option<Vec<u8>>,
+    pub parameters: Option<&'a Value>,
     // pub success: &'a bool,
     pub in_index: &'a i32,
     pub transaction_version: &'a i32
@@ -76,7 +77,7 @@ pub struct InsertInherentOwned {
     pub block_num: i64,
     pub module: String,
     pub call: String,
-    pub parameters: Option<Vec<u8>>,
+    pub parameters: Option<Value>,
     // pub success: bool,
     pub in_index: i32,
     pub transaction_version: i32
@@ -92,6 +93,7 @@ pub struct InsertTransaction<'a> {
     pub to_addr: Option<&'a [u8]>,
     pub module: &'a str,
     pub call: &'a str,
+    pub parameters: Option<Value>,
     // pub success: &'a bool,
     pub nonce: &'a i32,
     pub tx_index: &'a i32,
@@ -109,6 +111,7 @@ pub struct InsertTransactionOwned {
     pub to_addr: Option<Vec<u8>>,
     pub module: String,
     pub call: String,
+    pub parameters: Option<Value>,
     // pub success: bool,
     pub nonce: i32,
     pub tx_index: i32,
@@ -162,7 +165,7 @@ pub struct Inherents {
     module: String,
     /// Call within the module inherant used
     call: String,
-    parameters: Option<Vec<u8>>,
+    parameters: Option<String>,
     /// Was the call succesful?
     // success: bool,
     /// Index of the inherant within a block

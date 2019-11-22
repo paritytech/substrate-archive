@@ -24,22 +24,19 @@ mod util;
 mod extrinsics;
 #[cfg(test)]
 mod tests;
-mod srml_ext;
+mod paint_ext;
 mod metadata;
 
-pub use archive::Archive;
 
+pub use archive::Archive;
 pub use extrinsics::{RawExtrinsic, OldExtrinsic};
 pub use types::{System, Module, ExtractCall, ToDatabaseExtrinsic};
-pub use srml_ext::{SrmlExt, NotHandled};
+pub use paint_ext::{PaintExt, NotHandled};
 pub use error::Error;
 
 pub mod rpc;
-pub mod srml {
-    pub use srml_system;
-    pub use srml_timestamp::Call as TimestampCall;
-    pub use srml_finality_tracker::Call as FinalityCall;
-    pub use srml_im_online::Call as ImOnlineCall;
+pub mod paint {
+    pub use paint_system;
+    pub use paint_sudo;
 }
-
 pub use util::init_logger;

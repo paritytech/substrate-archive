@@ -23,7 +23,7 @@ mod subxt_metadata;
 use log::*;
 use runtime_metadata::RuntimeMetadataPrefixed;
 use substrate_primitives::{
-    twox_128,
+    // twox_128,
     storage::StorageKey
 };
 
@@ -58,22 +58,28 @@ impl Metadata {
 
     /// get storage keys for all possible values of storage for one block
     pub fn keys(&self, keys: Vec<StorageKey>) -> Vec<StorageKey> {
-        let mut other_keys = Vec::new();
+        let other_keys = Vec::new();
         for module in self.inner.modules() {
             trace!("MODULE: {:?}", module.name());
-            for (call, _) in module.calls() {
-                trace!("CALL: {:?}", call);
-                trace!("Combined: {}", format!("{} {}", module.name(), call.as_str()));
+            for (key, map) in module.storage_keys() {
+                trace!("STORAGE: {:?}", key);
+                trace!("STORAGE MAP {:?}", map);
+                trace!("Module: {:?}", module);
+                // trace!("Combined: {}", format!("{} {}", module.name(), key.as_str()));
+                /*
                 other_keys.push(
                     twox_128(format!("{} {}", module.name(), call.as_str()).as_bytes()).to_vec()
                 )
+                */
             }
         }
-
+        other_keys
+        /*
         keys.into_iter().filter_map(|k| {
-            other_keys.iter().find(|other| other == &&k.0)
+            other_keys.iter().find(|&&other| other == &&k.0)
                 .map(|k| StorageKey(k.to_vec()))
         }).collect::<Vec<StorageKey>>()
+*/
     }
 }
 

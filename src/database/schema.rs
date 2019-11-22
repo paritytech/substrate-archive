@@ -31,7 +31,7 @@ table! {
         block_num -> Int8,
         module -> Varchar,
         call -> Varchar,
-        parameters -> Nullable<Bytea>,
+        parameters -> Nullable<Jsonb>,
         in_index -> Int4,
         transaction_version -> Int4,
     }
@@ -46,6 +46,7 @@ table! {
         to_addr -> Nullable<Bytea>,
         module -> Varchar,
         call -> Varchar,
+        parameters -> Nullable<Jsonb>,
         nonce -> Int4,
         tx_index -> Int4,
         signature -> Bytea,
