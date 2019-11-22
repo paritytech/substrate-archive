@@ -65,7 +65,13 @@ where
         } else {
             None
         };
-        let function = Decode::decode(input).map_err(|e| { warn!("Error decoding call"); e })?;
+        let mut bytes: Vec<u8> = Vec::new();
+        while input.remaining_len()?.expect("Failed unwrapping length in Decode") > 0 {
+            let byte = input.read_byte()?;
+            bytes.push(byte);
+        }
+        log::trace!("bytes read from decoding extrinsic: {:X?}", bytes);
+        let function = Decode::decode(&mut bytes.as_slice()).map_err(|e| { warn!("Error decoding call"); e })?;
 
         Ok(Self { signature, function, version })
     }
@@ -154,7 +160,6 @@ impl RawExtrinsic {
                 } else {
                     res?
                 };
-
                 Ok(DbExtrinsic::Signed(InsertTransactionOwned {
                     // transaction_hash: Vec::new(),
                     block_num: number,
@@ -179,7 +184,6 @@ impl RawExtrinsic {
                 } else {
                     res?
                 };
-
                 Ok(DbExtrinsic::NotSigned(InsertInherentOwned {
                     hash: header.hash().as_ref().to_vec(),
                     block_num: number,
@@ -225,7 +229,34 @@ where
         // enumerate is used here to preserve order/index of extrinsics
         .enumerate()
         .map(|(idx, x)| {
+            debug!("Decoding Extrinsic in block: {:?}", header.number());
             let decoded: RawExtrinsic = x.to_database()?;
+            match &decoded {
+                RawExtrinsic::Signed(ext) => {
+                    let (module, call) = ext.call.extract_call();
+                    let res = call.function();
+
+                    let (fn_name, _params) = if res.is_err() {
+                        // warn!("Call not found, formatting as raw rust. Call: {:?}", &self);
+                        (format!("{:?}", ext), json!({}))
+                    } else {
+                        res?
+                    };
+                    log::trace!("Decoded: {}:{}", module, fn_name);
+                },
+                RawExtrinsic::NotSigned(ext) => {
+                    let (module, call) = ext.call.extract_call();
+                    let res = call.function();
+
+                    let (fn_name, _params) = if res.is_err() {
+                        // warn!("Call not found, formatting as raw rust. Call: {:?}", &self);
+                        (format!("{:?}", ext), json!({}))
+                    } else {
+                        res?
+                    };
+                    log::trace!("Decoded: {}:{}", module, fn_name);
+                }
+            }
             Ok((idx, decoded))
         })
         .collect::<Vec<Result<(usize, RawExtrinsic), Error>>>()
