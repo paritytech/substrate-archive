@@ -21,7 +21,10 @@ use runtime_primitives::{
     generic::UncheckedExtrinsic,
 };
 use codec::{Decode, Input, Error as CodecError};
-
+use polkadot_runtime::{
+    RegistrarCall,
+    Runtime as RuntimeT
+};
 use crate::{
     error::Error,
     database::models::{InsertTransactionOwned, InsertInherentOwned},
@@ -70,7 +73,15 @@ where
             let byte = input.read_byte()?;
             bytes.push(byte);
         }
+
         log::trace!("bytes read from decoding extrinsic: {:X?}", bytes);
+
+        if bytes[0] == 0x16 {
+            let mut bytes = &bytes[1..];
+            let reg: Result<RegistrarCall<RuntimeT>, _> = Decode::decode(&mut bytes).map_err(|_| warn!("Did not decode"));
+            log::trace!("REGISTRAR CALL: {:?}", reg);
+        }
+
         let function = Decode::decode(&mut bytes.as_slice()).map_err(|e| { warn!("Error decoding call"); e })?;
 
         Ok(Self { signature, function, version })

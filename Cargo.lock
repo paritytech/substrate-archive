@@ -4065,6 +4065,7 @@ dependencies = [
  "paint-timestamp",
  "paint-treasury",
  "parity-scale-codec",
+ "polkadot-runtime",
  "primitive-types 0.5.1",
  "r2d2",
  "rand 0.7.2",
