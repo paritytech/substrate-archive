@@ -133,7 +133,6 @@ impl<T> Rpc<T> where T: System {
                       .and_then(|stream| {
                           stream
                               .for_each(move |head| {
-
                                   sender.unbounded_send(Data::Header(Header::new(head)))
                                         .map_err(|e| ArchiveError::from(e))
                           })

@@ -1253,8 +1253,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc-client-transports"
 version = "14.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d389a085cb2184604dff060390cadb8cba1f063c7fd0ad710272c163c88b9f20"
+source = "git+https://github.com/paritytech/jsonrpc#591e916c9acb713d8c9fba36d3c7ee59ec8034e8"
 dependencies = [
  "failure",
  "futures",
@@ -1271,8 +1270,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc-core"
 version = "14.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34651edf3417637cc45e70ed0182ecfa9ced0b7e8131805fccf7400d989845ca"
+source = "git+https://github.com/paritytech/jsonrpc#591e916c9acb713d8c9fba36d3c7ee59ec8034e8"
 dependencies = [
  "futures",
  "log 0.4.8",
@@ -1284,8 +1282,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc-core-client"
 version = "14.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dbaec1d57271ff952f24ca79d37d716cfd749c855b058d9aa5f053a6b8ae4ef"
+source = "git+https://github.com/paritytech/jsonrpc#591e916c9acb713d8c9fba36d3c7ee59ec8034e8"
 dependencies = [
  "jsonrpc-client-transports",
 ]
@@ -1293,8 +1290,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc-derive"
 version = "14.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5d5c31575cc70a8b21542599028472c80a9248394aeea4d8918a045a0ab08a3"
+source = "git+https://github.com/paritytech/jsonrpc#591e916c9acb713d8c9fba36d3c7ee59ec8034e8"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2 1.0.6",
@@ -1305,8 +1301,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc-pubsub"
 version = "14.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ee1b8da0b9219a231c4b7cbc7110bfdb457cbcd8d90a6224d0b3cab8aae8443"
+source = "git+https://github.com/paritytech/jsonrpc#591e916c9acb713d8c9fba36d3c7ee59ec8034e8"
 dependencies = [
  "jsonrpc-core",
  "log 0.4.8",
@@ -4976,7 +4971,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
 dependencies = [
- "rand 0.7.2",
+ "rand 0.3.23",
 ]
 
 [[package]]
@@ -5293,19 +5288,15 @@ dependencies = [
 
 [[package]]
 name = "websocket"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b255b190f412e45000c35be7fe9b48b39a2ac5eb90d093d421694e5dae8b335c"
+checksum = "413b37840b9e27b340ce91b319ede10731de8c72f5bc4cb0206ec1ca4ce581d0"
 dependencies = [
- "base64 0.10.1",
- "bitflags",
- "byteorder 1.3.2",
  "bytes",
  "futures",
  "hyper",
  "native-tls",
  "rand 0.6.5",
- "sha1",
  "tokio-codec",
  "tokio-io",
  "tokio-reactor",
@@ -5313,6 +5304,27 @@ dependencies = [
  "tokio-tls",
  "unicase",
  "url 1.7.2",
+ "websocket-base",
+]
+
+[[package]]
+name = "websocket-base"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e3810f0d00c4dccb54c30a4eee815e703232819dec7b007db115791c42aa374"
+dependencies = [
+ "base64 0.10.1",
+ "bitflags",
+ "byteorder 1.3.2",
+ "bytes",
+ "futures",
+ "native-tls",
+ "rand 0.6.5",
+ "sha1",
+ "tokio-codec",
+ "tokio-io",
+ "tokio-tcp",
+ "tokio-tls",
 ]
 
 [[package]]

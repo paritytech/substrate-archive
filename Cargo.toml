@@ -30,7 +30,7 @@ dirs = "2.0.2"
 fern = { version = "0.5", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
-jsonrpc-core-client = { version = "14.0", features = ["ws"] }
+jsonrpc-core-client = { branch = "master", git = "https://github.com/paritytech/jsonrpc", features = ["ws", "arbitrary_precision"] }
 runtime-metadata = { git = "https://github.com/paritytech/substrate/", package = "paint-metadata", branch = "polkadot-master" }
 paint-system = { git = "https://github.com/paritytech/substrate/", package = "paint-system", branch="polkadot-master"}
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch="polkadot-master"}
@@ -56,6 +56,13 @@ paint-treasury = { git = "https://github.com/paritytech/substrate", package = "p
 paint-elections-phragmen = { git = "https://github.com/paritytech/substrate", package = "paint-elections-phragmen", branch = "polkadot-master"}
 paint-balances = { git = "https://github.com/paritytech/substrate", package = "paint-balances", branch = "polkadot-master"}
 derive_more = "0.15.0"
+
+[patch.crates-io]
+jsonrpc-core-client = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["ws", "arbitrary_precision"] }
+jsonrpc-client-transports = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["ws", "arbitrary_precision"] }
+jsonrpc-core = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["arbitrary_precision"] }
+jsonrpc-derive = { git = "https://github.com/paritytech/jsonrpc", branch = "master" }
+jsonrpc-pubsub = { git = "https://github.com/paritytech/jsonrpc", branch = "master" }
 
 [dev-dependencies]
 node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
