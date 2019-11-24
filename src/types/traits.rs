@@ -75,7 +75,8 @@ pub trait System: Send + Sync + 'static + Debug {
 
     /// the Opaque Extrinsic Type
     type Extrinsic: Send
-        + Sync + ToDatabaseExtrinsic
+        + Sync
+        + ToDatabaseExtrinsic
         + Debug
         + Serialize
         + DeserializeOwned
@@ -83,6 +84,7 @@ pub trait System: Send + Sync + 'static + Debug {
         + Eq
         + PartialEq
         + Unpin;
+    // require Iter
 
     // type Block: BlockTrait + Encode + Decode + Debug;
     type Signature: Encode + Decode + Debug;

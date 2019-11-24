@@ -143,7 +143,6 @@ impl ExtractCall for CallWrapper {
             Call::Registrar(call) => {
                 (Module::Custom("Registrar".into()), Box::new(RegistrarCallWrapper(call.clone())))
             },
-            //ElectionsPhragmen
             c @ _ => {
                 warn!("Call Not Handled: {:?}", c);
                 (Module::NotHandled, Box::new(NotHandled))

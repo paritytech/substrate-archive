@@ -78,12 +78,13 @@ where
 
         if bytes[0] == 0x16 {
             let mut bytes = &bytes[1..];
+            log::trace!("BYTES WITHOUT 0x16: {:?}", bytes);
             let reg: Result<RegistrarCall<RuntimeT>, _> = Decode::decode(&mut bytes).map_err(|_| warn!("Did not decode"));
             log::trace!("REGISTRAR CALL: {:?}", reg);
         }
 
+        log::trace!("bytes read from decoding extrinsic: {:X?}", bytes);
         let function = Decode::decode(&mut bytes.as_slice()).map_err(|e| { warn!("Error decoding call"); e })?;
-
         Ok(Self { signature, function, version })
     }
 }

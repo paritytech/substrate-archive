@@ -70,6 +70,7 @@ jsonrpc-client-transports = { git = "https://github.com/paritytech/jsonrpc", bra
 jsonrpc-core = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["arbitrary_precision"] }
 jsonrpc-derive = { git = "https://github.com/paritytech/jsonrpc", branch = "master" }
 jsonrpc-pubsub = { git = "https://github.com/paritytech/jsonrpc", branch = "master" }
+codec = { git = "https://github.com/insipx/parity-scale-codec", branch = "insipx/debugging", package = "parity-scale-codec" }
 
 [dev-dependencies]
 node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
