@@ -54,21 +54,22 @@ where
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
         debug!("METADATA: {}", rpc.metadata());
         debug!("KEYS: {:?}", rpc.keys());
+        debug!("PROPERTIES: {:?}", rpc.properties());
         Ok(Self { rpc, db, runtime })
     }
 
     pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
-        // self.runtime.block_on(self.rpc.clone().all_storage(sender.clone()))?;
-        self.runtime.spawn(
-            self.rpc
-                .clone()
-                .subscribe_blocks(sender.clone())
-                .map_err(|e| println!("{:?}", e)),
-        );
+        let data_in = Self::handle_data(receiver, self.db.clone());
+        let blocks = self
+            .rpc
+            .clone()
+            .subscribe_blocks(sender.clone())
+            .map_err(|e| println!("{:?}", e));
+
         self.runtime
             .spawn(Self::sync(self.db.clone(), self.rpc.clone(), sender.clone()).map(|_| ()));
-        tokio::run(Self::handle_data(receiver, self.db.clone()));
+        tokio::run(data_in.join(blocks).map(|_| ()));
         Ok(())
     }
 
@@ -82,13 +83,7 @@ where
         loop_fn(Sync::new(), move |v| {
             let sender0 = sender.clone();
             v.sync(db.clone(), rpc.clone(), sender0.clone())
-                .and_then(move |(sync, done)| {
-                    if done {
-                        Ok(Loop::Break(sync))
-                    } else {
-                        Ok(Loop::Continue(sync))
-                    }
-                })
+                .and_then(move |(sync, _done)| Ok(Loop::Continue(sync)))
         })
     }
 
@@ -113,11 +108,15 @@ where
 #[derive(Debug, PartialEq, Eq)]
 struct Sync {
     looped: usize,
+    missing: usize, // missing timestamps + blocks
 }
 
 impl Sync {
     fn new() -> Self {
-        Self { looped: 0 }
+        Self {
+            looped: 0,
+            missing: 0,
+        }
     }
 
     fn sync<T>(
@@ -135,8 +134,9 @@ impl Sync {
         info!("Looped: {}", looped);
 
         let missing_blocks = db
-            .query_missing_blocks()
+            .query_missing_blocks(None)
             .and_then(move |blocks| {
+                let missing = blocks.len();
                 match sender0
                     .unbounded_send(Data::SyncProgress(blocks.len()))
                     .map_err(Into::into)
@@ -144,19 +144,21 @@ impl Sync {
                     Ok(()) => (),
                     Err(e) => return future::err(e),
                 }
-                future::ok(
+                future::ok((
                     blocks
                         .into_iter()
                         .take(100_000) // just do 100K blocks at a time
                         .map(|b| NumberOrHex::Hex(U256::from(b)))
                         .collect::<Vec<NumberOrHex<T::BlockNumber>>>(),
-                )
+                    missing,
+                ))
             })
-            .and_then(move |blocks| {
+            .and_then(move |(blocks, missing)| {
                 rpc0.batch_block_from_number(blocks, sender)
                     .and_then(move |_| {
-                        let looped = looped + 1;
-                        future::ok((Self { looped }, false))
+                        // let looped = looped + 1;
+                        // future::ok((Self { looped }, false))
+                        future::ok(missing)
                     })
             });
 
@@ -165,16 +167,24 @@ impl Sync {
                 "Launching timestamp insertion thread for {} items",
                 hashes.len()
             );
+            let missing = hashes.len();
             let timestamp_key = b"Timestamp Now";
             let storage_key = twox_128(timestamp_key);
             let keys = std::iter::repeat(StorageKey(storage_key.to_vec()))
                 .take(hashes.len())
                 .collect::<Vec<StorageKey>>();
             rpc1.batch_storage(sender1, keys, hashes)
+                .and_then(move |_| future::ok(missing))
         });
+
         missing_timestamps
             .join(missing_blocks)
             .map_err(|e| error!("{:?}", e))
-            .map(|(_, b)| b)
+            .map(move |(t, b)| {
+                let looped = looped + 1;
+                let missing = t + b;
+                let done = missing == 0;
+                (Self { looped, missing }, done)
+            })
     }
 }

@@ -21,6 +21,7 @@ use futures::{Future, Stream, sync::mpsc::UnboundedSender, future::{self, join_a
 use runtime_primitives::traits::Header as HeaderTrait;
 use substrate_primitives::{storage::StorageKey, twox_128};
 use substrate_rpc_primitives::number::NumberOrHex;
+use substrate_rpc_api::system::Properties;
 
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -40,7 +41,8 @@ pub struct Rpc<T: System> {
     _marker: PhantomData<T>,
     url: url::Url,
     keys: Vec<StorageKey>,
-    metadata: Metadata
+    metadata: Metadata,
+    properties: Properties,
 }
 
 impl<T> Rpc<T> where T: System {
@@ -50,6 +52,10 @@ impl<T> Rpc<T> where T: System {
 
     pub fn keys(&self) -> &Vec<StorageKey> {
         &self.keys
+    }
+
+    pub fn properties(&self) -> &Properties {
+       &self.properties
     }
 }
 
@@ -67,7 +73,7 @@ impl<T> Rpc<T> where T: System {
                        .and_then(|stream| {
                            stream.for_each(move |head| {
                                let sender0 = sender.clone();
-                               rpc.clone().block(head.hash(), sender0)
+                               rpc.clone().block(Some(head.hash()), sender0)
                            })
                        })
             })
@@ -112,15 +118,21 @@ impl<T> Rpc<T> where T: System {
         SubstrateRpc::connect(&url)
             .and_then(|client: SubstrateRpc<T>| {
                 client.storage_keys(StorageKey(Vec::new()), None)
-                      .join(client.metadata(None))
+                    .join3(client.metadata(None), client.properties())
             })
-            .map(|(keys, metadata)| {
+            .map(|(keys, metadata, props)| {
                 let keys = metadata.keys(keys);
+                let properties = props;
                 Self {
-                    url, keys, metadata,
+                    url, keys, metadata, properties,
                     _marker: PhantomData
                 }
             })
+    }
+
+    /// get a raw connection to the substrate rpc
+    pub fn raw(&self) -> impl Future<Item = SubstrateRpc<T>, Error = ArchiveError> {
+        SubstrateRpc::connect(&self.url)
     }
 
     /// send all new headers back to main thread
@@ -252,13 +264,13 @@ impl<T> Rpc<T> where T: System {
     }
 
     /// Fetch a block by hash from Substrate RPC
-    pub fn block(&self, hash: T::Hash, sender: UnboundedSender<Data<T>>
+    pub fn block(&self, hash: Option<T::Hash>, sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
     {
         SubstrateRpc::connect(&self.url)
             .and_then(move |client: SubstrateRpc<T>| {
                 client.
-                    block(Some(hash))
+                    block(hash)
                     .and_then(move |block| {
                         Self::send_block(block.clone(), sender)
                     })

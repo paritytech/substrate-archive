@@ -22,7 +22,12 @@ use codec::Decode;
 use runtime_metadata::RuntimeMetadataPrefixed;
 use substrate_primitives::storage::{StorageKey, StorageData};
 use substrate_rpc_primitives::number::NumberOrHex;
-use substrate_rpc_api::{author::AuthorClient, chain::ChainClient, state::StateClient};
+use substrate_rpc_api::{
+    author::AuthorClient,
+    chain::ChainClient,
+    state::StateClient,
+    system::{SystemClient, Properties}
+};
 
 use std::convert::TryInto;
 
@@ -37,7 +42,8 @@ impl<T: System> From<RpcChannel> for SubstrateRpc<T> {
         Self {
             state: channel.clone().into(),
             chain: channel.clone().into(),
-            author: channel.into(),
+            author: channel.clone().into(),
+            system: channel.clone().into()
         }
     }
 }
@@ -48,6 +54,7 @@ pub struct SubstrateRpc<T: System> {
     chain: ChainClient<T::BlockNumber, T::Hash, <T as System>::Header, SubstrateBlock<T>>,
     #[allow(dead_code)] // TODO remove
     author: AuthorClient<T::Hash, T::Hash>, // TODO get types right
+    system: SystemClient<T::Hash, T::BlockNumber>
 }
 
 impl<T> SubstrateRpc<T> where T: System {
@@ -100,6 +107,12 @@ impl<T> SubstrateRpc<T> where T: System {
         // let hash: T::Hash = Decode::decode(&mut hash.as_slice()).unwrap();
         self.state
             .storage(key, Some(hash))
+            .map_err(Into::into)
+    }
+
+    pub(crate) fn properties(&self) -> impl Future<Item = Properties, Error = ArchiveError> {
+        self.system
+            .system_properties()
             .map_err(Into::into)
     }
 

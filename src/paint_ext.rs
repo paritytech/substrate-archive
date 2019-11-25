@@ -397,6 +397,13 @@ impl<T> PaintExt for SudoCall<T> where T: paint_sudo::Trait {
                 ]);
                 Ok(("set_key".into(), val))
             },
+            SudoCall::sudo_as(who, proposal) => {
+                let val = json!([
+                    {"who": who.encode(), "encoded": true},
+                    {"proposal": proposal.encode(), "encoded": true}
+                ]);
+                Ok(("sudo_as".into(), val))
+            },
             &__phantom_item => {
                 Ok(("__phantom".into(), json!({}) ))
             }

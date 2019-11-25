@@ -95,7 +95,8 @@ impl Database {
         }
     }
 
-    pub fn query_missing_blocks(&self
+    pub fn query_missing_blocks(&self,
+                                latest: Option<usize> // latest block
     ) -> impl Future<Item = Vec<u64>, Error = ArchiveError>
     {
         #[derive(QueryableByName, PartialEq, Debug)]
@@ -106,7 +107,7 @@ impl Database {
         };
 
         self.db.run(move |conn| {
-            let blocks: Vec<Blocks> = queries::missing_blocks().load(&conn)?;
+            let blocks: Vec<Blocks> = queries::missing_blocks(latest).load(&conn)?;
             Ok(blocks
                 .iter()
                 .map(|b| u64::try_from(b.block_num).expect("Block number should never be negative; qed"))
@@ -182,7 +183,7 @@ where
             }
             Ok(())
         }).map(|_| ());
-
+        info!("Done Inserting timestamps!");
         Ok(Box::new(fut))
     }
 }
@@ -276,23 +277,25 @@ where
         // batch insert everything we've formatted/collected into the database 10,000 items at a time
         let fut = db.run(move |conn| {
             for chunks in blocks.as_slice().chunks(10_000) {
-                info!("{}", chunks.len());
+                info!("{} blocks to insert", chunks.len());
                 diesel::insert_into(blocks::table)
                     .values(chunks)
                     .execute(&conn)?;
             }
             for chunks in unsigned_ext.as_slice().chunks(2_500) {
-                info!("inserting {} unsigned extrinsics", chunks.len());
+                info!("{} unsigned extrinsics to insert", chunks.len());
                 diesel::insert_into(inherents::table)
                     .values(chunks)
                     .execute(&conn)?;
             }
             for chunks in signed_ext.as_slice().chunks(2_500) {
-                info!("inserting {} signed extrinsics", chunks.len());
+                info!("{} signed extrinsics to insert", chunks.len());
                 diesel::insert_into(signed_extrinsics::table)
                     .values(chunks)
                     .execute(&conn)?;
             }
+
+            info!("Done Inserting Blocks and Extrinsics!");
             Ok(())
         }).map(|_| ());
         Ok(Box::new(fut))

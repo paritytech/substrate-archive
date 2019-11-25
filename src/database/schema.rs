@@ -42,14 +42,10 @@ table! {
         id -> Int4,
         block_num -> Int8,
         hash -> Bytea,
-        from_addr -> Bytea,
-        to_addr -> Nullable<Bytea>,
         module -> Varchar,
         call -> Varchar,
         parameters -> Nullable<Jsonb>,
-        nonce -> Int4,
         tx_index -> Int4,
-        signature -> Bytea,
         transaction_version -> Int4,
     }
 }

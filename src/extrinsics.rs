@@ -176,14 +176,14 @@ impl RawExtrinsic {
                     // transaction_hash: Vec::new(),
                     block_num: number,
                     hash: header.hash().as_ref().to_vec(),
-                    from_addr: Vec::new(), // TODO
-                    to_addr: Some(Vec::new()), // TODO
+                    // from_addr: Vec::new(), // TODO
+                    // to_addr: Some(Vec::new()), // TODO
                     module: module.to_string(),
                     call: fn_name,
                     parameters: Some(params),
-                    nonce: 0,
+                    // nonce: 0,
                     tx_index: index,
-                    signature: Vec::new(), // TODO
+                    // signature: Vec::new(), // TODO
                     transaction_version: i32::from(self.version()),
                 }))
             },
@@ -277,7 +277,7 @@ where
         .filter_map(|x: Result<(usize, RawExtrinsic), _>| {
             match x {
                 Ok(v) => {
-                    let number = (*header.number()).into();
+                    let number: i64 = (*header.number()).into();
                     let index: i32 = v.0 as i32;
                     Some(v.1.database_format(index, header, number))
                 },
