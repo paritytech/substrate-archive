@@ -32,7 +32,7 @@ pub fn create_dir(path: std::path::PathBuf) {
     }
 }
 
-pub fn init_logger(level: log::LevelFilter) {
+pub fn init_logger(std: log::LevelFilter, file_lvl: log::LevelFilter) {
     let colors = ColoredLevelConfig::new()
         .info(Color::Green)
         .warn(Color::Yellow)
@@ -61,15 +61,15 @@ pub fn init_logger(level: log::LevelFilter) {
         .chain(
             fern::Dispatch::new()
             .level(log::LevelFilter::Info)
-            .level_for("substrate_archive", log::LevelFilter::Trace)
+            .level_for("substrate_archive", file_lvl)
             // .level_for("cratename", log::LevelFilter::Trace)
             // .level_for("crate_name", log::LevelFilter::Trace)
             // .level_for("crate_name", log::LevelFilter::Trace)
-            .chain(fern::log_file(log_dir).expect("Failed to create edb.logs file"))
+            .chain(fern::log_file(log_dir).expect("Failed to create substrate_archive.logs file"))
         )
         .chain(
             fern::Dispatch::new()
-            .level(level)
+            .level(std)
             .chain(std::io::stdout())
         )
         .apply().expect("Could not init logging");

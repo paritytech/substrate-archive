@@ -112,7 +112,7 @@ pub trait System: Send + Sync + 'static + Debug {
         + Bounded
         + Copy
         + std::hash::Hash
-        + Into<i64>;
+        + Into<u64>;
 
     /// The output of the `Hashing` function.
     type Hash: Parameter

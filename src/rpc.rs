@@ -29,8 +29,7 @@ use std::sync::Arc;
 use crate::{
     types::{
         Data, System, SubstrateBlock,
-        Block, BatchBlock, BatchStorage,
-        Header, Storage,
+        Block, Header, Storage,
     },
     metadata::Metadata,
     error::{Error as ArchiveError},
@@ -135,6 +134,13 @@ impl<T> Rpc<T> where T: System {
         SubstrateRpc::connect(&self.url)
     }
 
+    pub fn latest_block(&self) -> impl Future<Item = Option<SubstrateBlock<T>>, Error = ArchiveError> {
+        SubstrateRpc::connect(&self.url)
+            .and_then(|client: SubstrateRpc<T>| {
+                client.block(None)
+            })
+    }
+
     /// send all new headers back to main thread
     pub fn subscribe_new_heads(&self, sender: UnboundedSender<Data<T>>
     ) -> impl Future<Item = (), Error = ArchiveError>
@@ -227,10 +233,9 @@ impl<T> Rpc<T> where T: System {
     }
 
     pub fn batch_storage(&self,
-                         sender: UnboundedSender<Data<T>>,
                          keys: Vec<StorageKey>,
                          hashes: Vec<T::Hash>,
-    ) -> impl Future<Item = (), Error = ArchiveError>
+    ) -> impl Future<Item = Vec<Storage<T>>, Error = ArchiveError>
     {
         assert!(hashes.len() == keys.len()); // TODO remove assertion
         // TODO: too many clones
@@ -252,13 +257,11 @@ impl<T> Rpc<T> where T: System {
                     );
                 }
                 join_all(futures)
-                    .and_then(move |data| {
-                        let data = data.into_iter().filter_map(|d| {
+                    .map(move |data| {
+                        data.into_iter().filter_map(|d| {
                             if d.is_err() { error!("{:?}", d); }
                             d.ok()
-                        }).collect::<Vec<Storage<T>>>();
-                        sender.unbounded_send(Data::BatchStorage(BatchStorage::new(data)))
-                            .map_err(Into::into)
+                        }).collect::<Vec<Storage<T>>>()
                     })
             })
     }
@@ -294,10 +297,8 @@ impl<T> Rpc<T> where T: System {
             })
     }
 
-    pub fn batch_block_from_number(&self,
-                                          numbers: Vec<NumberOrHex<T::BlockNumber>>,
-                                          sender: UnboundedSender<Data<T>>
-    ) -> impl Future<Item = (), Error = ArchiveError>
+    pub fn batch_block_from_number(&self, numbers: Vec<NumberOrHex<T::BlockNumber>>,
+    ) -> impl Future<Item = Vec<SubstrateBlock<T>>, Error = ArchiveError>
     {
         SubstrateRpc::connect(&self.url)
             .and_then(move |client: SubstrateRpc<T>| {
@@ -314,10 +315,8 @@ impl<T> Rpc<T> where T: System {
                     );
                 }
                 join_all(futures)
-                    .and_then(move |blocks| {
-                        let blocks = blocks.into_iter().filter_map(|b| b).collect::<Vec<SubstrateBlock<T>>>();
-                        sender.unbounded_send(Data::BatchBlock(BatchBlock::new(blocks)))
-                            .map_err(Into::into)
+                    .map(move |blocks| {
+                        blocks.into_iter().filter_map(|b| b).collect::<Vec<SubstrateBlock<T>>>()
                     })
             })
     }

@@ -15,20 +15,24 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Common Sql queries on Archive Database abstracted into rust functions
-
-pub(crate) fn missing_blocks(latest: Option<usize>) -> diesel::query_builder::SqlQuery {
+pub(crate) fn missing_blocks(latest: Option<u64>) -> diesel::query_builder::SqlQuery {
     let query = if let Some(latest) = latest {
-        format!("\
+        let q = format!(
+            "
 SELECT generate_series
-FROM (SELECT 0 as a, {} as z FROM blocks) x, generate_series(a, z)
+FROM generate_series('0'::bigint, '{}'::bigint)
 WHERE
-NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
-", latest)
-    } else { // take largest block from the db
-"SELECT generate_series
+NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)",
+            latest
+        );
+        q
+    } else {
+        // take largest block from the db
+        "SELECT generate_series
 FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
 WHERE
-NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)".to_string()
+NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)"
+            .to_string()
     };
 
     diesel::sql_query(&query)
@@ -51,11 +55,9 @@ pub(crate) fn head() -> diesel::query_builder::SqlQuery {
     unimplemented!()
 }
 
-
 #[cfg(test)]
 mod tests {
     //! Must be connected to a postgres database
     use super::*;
     // use diesel::test_transaction;
-
 }

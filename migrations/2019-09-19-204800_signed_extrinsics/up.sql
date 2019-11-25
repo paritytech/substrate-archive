@@ -8,7 +8,7 @@ CREATE TABLE signed_extrinsics (
   -- to_addr bytea,
   module varchar NOT NULL,
   call varchar NOT NULL,
-  parameters jsonb,
+  parameters jsonb NOT NULL,
   -- success bool NOT NULL,
   -- nonce int check (nonce >= 0) NOT NULL,
   tx_index int check (tx_index >= 0) NOT NULL,

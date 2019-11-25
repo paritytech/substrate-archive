@@ -19,11 +19,12 @@
 
 use futures::{
     future::{self, loop_fn, Loop},
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{self, UnboundedReceiver},
     Future, Stream,
 };
 use log::*;
-use substrate_primitives::{storage::StorageKey, twox_128, U256};
+use runtime_primitives::traits::Header;
+use substrate_primitives::U256;
 use substrate_rpc_primitives::number::NumberOrHex;
 use tokio::runtime::Runtime;
 
@@ -33,7 +34,7 @@ use crate::{
     database::Database,
     error::Error as ArchiveError,
     rpc::Rpc,
-    types::{Data, System},
+    types::{BatchBlock, Data, SubstrateBlock, System},
 };
 
 // with the hopeful and long-anticipated release of async-await
@@ -65,25 +66,32 @@ where
             .rpc
             .clone()
             .subscribe_blocks(sender.clone())
-            .map_err(|e| println!("{:?}", e));
+            .map_err(|e| error!("{:?}", e));
 
-        self.runtime
-            .spawn(Self::sync(self.db.clone(), self.rpc.clone(), sender.clone()).map(|_| ()));
-        tokio::run(data_in.join(blocks).map(|_| ()));
+        self.runtime.spawn(Self::sync(self.rpc.clone(), self.db.clone()).map(|_| ()));
+        tokio::run(blocks.join(data_in).map(|_| ()));
         Ok(())
     }
 
     // TODO return a float between 0 and 1 corresponding to percent of database that is up-to-date?
     /// Verification task that ensures all blocks are in the database
-    fn sync(
-        db: Arc<Database>,
-        rpc: Arc<Rpc<T>>,
-        sender: UnboundedSender<Data<T>>,
-    ) -> impl Future<Item = Sync, Error = ()> + 'static {
+    fn sync(rpc: Arc<Rpc<T>>, db: Arc<Database>) -> impl Future<Item = Sync, Error = ()> {
         loop_fn(Sync::new(), move |v| {
-            let sender0 = sender.clone();
-            v.sync(db.clone(), rpc.clone(), sender0.clone())
-                .and_then(move |(sync, _done)| Ok(Loop::Continue(sync)))
+            let (db, rpc) = (db.clone(), rpc.clone());
+            rpc.clone()
+               .latest_block()
+               .map_err(|e| error!("{:?}", e))
+               .map(move |latest| *latest.expect("should be latest; qed").block.header.number())
+               .and_then(move |latest| {
+                   v.sync(db.clone(), latest.into(), rpc.clone())
+                    .and_then(move |(sync, done)| {
+                        if  done {
+                            Ok(Loop::Break(sync))
+                        } else {
+                            Ok(Loop::Continue(sync))
+                        }
+                    })
+               })
         })
     }
 
@@ -97,7 +105,7 @@ where
                     println!("{} blocks missing", missing_blocks);
                 }
                 c => {
-                    tokio::spawn(db.insert(c).map_err(|e| error!("{:?}", e)));
+                    tokio::spawn(db.insert(c).map_err(|e| error!("{:?}", e)).map(|_| ()));
                 }
             };
             future::ok(())
@@ -105,11 +113,7 @@ where
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct Sync {
-    looped: usize,
-    missing: usize, // missing timestamps + blocks
-}
+#[derive(Debug, PartialEq, Eq)] struct Sync {looped: usize, missing: usize, // missing timestamps + blocks}
 
 impl Sync {
     fn new() -> Self {
@@ -122,67 +126,50 @@ impl Sync {
     fn sync<T>(
         self,
         db: Arc<Database>,
+        latest: u64,
         rpc: Arc<Rpc<T>>,
-        sender: UnboundedSender<Data<T>>,
     ) -> impl Future<Item = (Self, bool), Error = ()> + 'static
     where
         T: System + std::fmt::Debug + 'static,
     {
-        let (sender0, sender1) = (sender.clone(), sender.clone());
-        let (rpc0, rpc1) = (rpc.clone(), rpc.clone());
+        let rpc0 = rpc.clone();
         let looped = self.looped;
         info!("Looped: {}", looped);
-
+        info!("latest: {}", latest);
         let missing_blocks = db
-            .query_missing_blocks(None)
+            .query_missing_blocks(Some(latest))
             .and_then(move |blocks| {
-                let missing = blocks.len();
-                match sender0
-                    .unbounded_send(Data::SyncProgress(blocks.len()))
-                    .map_err(Into::into)
-                {
-                    Ok(()) => (),
-                    Err(e) => return future::err(e),
+                let mut futures = Vec::new();
+                for chunk in blocks.chunks(100_000) {
+                    futures.push({
+                        let b = chunk
+                            .iter()
+                            .map(|b| NumberOrHex::Hex(U256::from(*b)))
+                            .collect::<Vec<NumberOrHex<T::BlockNumber>>>();
+                        rpc0.clone().batch_block_from_number(b)
+                    });
                 }
-                future::ok((
-                    blocks
-                        .into_iter()
-                        .take(100_000) // just do 100K blocks at a time
-                        .map(|b| NumberOrHex::Hex(U256::from(b)))
-                        .collect::<Vec<NumberOrHex<T::BlockNumber>>>(),
-                    missing,
-                ))
-            })
-            .and_then(move |(blocks, missing)| {
-                rpc0.batch_block_from_number(blocks, sender)
-                    .and_then(move |_| {
-                        // let looped = looped + 1;
-                        // future::ok((Self { looped }, false))
-                        future::ok(missing)
-                    })
+                future::join_all(futures)
             });
 
-        let missing_timestamps = db.query_missing_timestamps::<T>().and_then(move |hashes| {
-            info!(
-                "Launching timestamp insertion thread for {} items",
-                hashes.len()
-            );
-            let missing = hashes.len();
-            let timestamp_key = b"Timestamp Now";
-            let storage_key = twox_128(timestamp_key);
-            let keys = std::iter::repeat(StorageKey(storage_key.to_vec()))
-                .take(hashes.len())
-                .collect::<Vec<StorageKey>>();
-            rpc1.batch_storage(sender1, keys, hashes)
-                .and_then(move |_| future::ok(missing))
-        });
-
-        missing_timestamps
-            .join(missing_blocks)
+        missing_blocks
             .map_err(|e| error!("{:?}", e))
-            .map(move |(t, b)| {
+            .and_then(move |b| {
+                let blocks = b
+                    .into_iter()
+                    .flat_map(|b_inner| b_inner.into_iter())
+                    .collect::<Vec<SubstrateBlock<T>>>();
+                let missing = blocks.len();
+                let b = db
+                    .insert(Data::BatchBlock(BatchBlock::<T>::new(blocks)))
+                    .map_err(|e| error!("{:?}", e));
+
+                b.join(future::ok(missing))
+            })
+            .map(move |(b, missing)| {
                 let looped = looped + 1;
-                let missing = t + b;
+                info!("Inserted {} blocks", missing);
+                let missing = b;
                 let done = missing == 0;
                 (Self { looped, missing }, done)
             })

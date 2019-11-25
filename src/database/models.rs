@@ -148,8 +148,8 @@ pub struct Blocks {
     pub state_root: H256,
     /// root of the extrinsics trie
     pub extrinsics_root: H256,
-    /// timestamp
-    pub time: Option<DateTime<Utc>>
+    // /// timestamp
+    // pub time: Option<DateTime<Utc>>
 }
 
 /// Inherents (not signed) extrinsics

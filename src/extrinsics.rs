@@ -277,7 +277,7 @@ where
         .filter_map(|x: Result<(usize, RawExtrinsic), _>| {
             match x {
                 Ok(v) => {
-                    let number: i64 = (*header.number()).into();
+                    let number = (*header.number()).into() as i64;
                     let index: i32 = v.0 as i32;
                     Some(v.1.database_format(index, header, number))
                 },
