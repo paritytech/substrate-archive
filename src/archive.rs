@@ -113,7 +113,11 @@ where
     }
 }
 
-#[derive(Debug, PartialEq, Eq)] struct Sync {looped: usize, missing: usize, // missing timestamps + blocks}
+#[derive(Debug, PartialEq, Eq)]
+struct Sync {
+    looped: usize,
+    missing: usize, // missing timestamps + blocks
+}
 
 impl Sync {
     fn new() -> Self {

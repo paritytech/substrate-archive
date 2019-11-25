@@ -42,7 +42,7 @@ pub struct InsertBlock<'a> {
     pub block_num: &'a i64,
     pub state_root: &'a [u8],
     pub extrinsics_root: &'a [u8],
-    pub time: Option<&'a DateTime<Utc>>
+    // pub time: Option<&'a DateTime<Utc>>
 }
 
 #[derive(Insertable, AsChangeset)]
@@ -53,7 +53,7 @@ pub struct InsertBlockOwned {
     pub block_num: i64,
     pub state_root: Vec<u8>,
     pub extrinsics_root: Vec<u8>,
-    pub time: Option<DateTime<Utc>>
+    // pub time: Option<DateTime<Utc>>
 }
 
 #[derive(Insertable)]
@@ -223,22 +223,9 @@ pub struct Accounts {
     active: bool
 }
 
-
 /// NewType for custom Queryable trait on Substrates H256 type
 #[derive(FromSqlRow, PartialEq, Debug)]
 pub struct H256(SubstrateH256);
-
-/*
-impl Queryable<Binary, DB> for H256 {
-    type Row = Binary;
-
-    fn build(row: Self::Row) -> Self {
-        let vec: Vec<u8> = row::from_sql();
-        H256(Substrate::H256::from_slice(vec.as_slice()))
-    }
-}
-*/
-
 
 /// NewType for custom Queryable trait on Substrates H512 type
 #[derive(FromSqlRow, PartialEq, Debug)]
@@ -273,17 +260,6 @@ where
         Ok(H512(SubstrateH512::from_slice(vec.as_slice())))
     }
 }
-/*
-impl<DB> FromSql<Binary, DB> for EncodedUint
-where
-    DB: Backend,
-    *const [u8]: FromSql<Binary, DB>
-{
-    fn from_sql(bytes: Option<&DB::RawValue>) -> deserialize::Result<Self> {
-        Vec::from_sql(bytes)?
-    }
-}
-*/
 
 impl H256 {
     /// Get the H256 back into substrate type
@@ -314,17 +290,3 @@ where
         Ok(H256(SubstrateH256::from_slice(vec.as_slice())))
     }
 }
-
-// Can Either :
-// Make Generic over System::Type
-//    Therefore, make the external program implement Queryable on types (IE: polkadot-archive)
-//
-// Use Diesel types instead of Parity Types -- convert to other types somewhere else along the way
-//
-// Use concrete primitives -- requires assumptions -- OK for mvp?
-//
-// OR just don't use any types at all and encode everything as a Vec<u8>.
-// This loses some meaning for the type, but it is the easiest and fastest way to implement a form of
-// generalization of chains
-// it just leaves the type conversions up to the end user
-// which isn't the most ergonomic thing
