@@ -22,6 +22,7 @@ use jsonrpc_core_client::RpcError as JsonRpcError;
 use crate::metadata::Error as MetadataError;
 use diesel::result::{ConnectionError, Error as DieselError};
 use r2d2::Error as R2d2Error;
+use serde_json::Error as SerdeError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
@@ -52,6 +53,8 @@ pub enum Error {
     ThreadPool(#[fail(cause)] BlockingError),
     #[fail(display = "Int Conversion Error: {}", _0)]
     IntConversion(#[fail(cause)] TryFromIntError),
+    #[fail(display = "Serialization: {}", _0)]
+    Serialize(#[fail(cause)] SerdeError),
 
     #[fail(display = "Call type unhandled, not committing to database")]
     UnhandledCallType,
@@ -63,6 +66,12 @@ pub enum Error {
     DataNotFound(String),
     #[fail(display = "Metadata {}", _0)]
     Metadata(MetadataError),
+}
+
+impl From<SerdeError> for Error {
+    fn from(err: SerdeError) -> Error {
+        Error::Serialize(err)
+    }
 }
 
 impl From<MetadataError> for Error {

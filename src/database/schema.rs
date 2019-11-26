@@ -20,6 +20,7 @@ table! {
         block_num -> Int8,
         state_root -> Bytea,
         extrinsics_root -> Bytea,
+        time -> Nullable<Timestamptz>,
     }
 }
 

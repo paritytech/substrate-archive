@@ -22,7 +22,6 @@ use futures::{
     sync::mpsc::{self, UnboundedReceiver},
     Future, Stream,
 };
-use log::*;
 use runtime_primitives::traits::Header;
 use substrate_primitives::U256;
 use substrate_rpc_primitives::number::NumberOrHex;
@@ -53,9 +52,9 @@ where
         let rpc = runtime.block_on(Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?))?;
         let db = Database::new()?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
-        debug!("METADATA: {}", rpc.metadata());
-        debug!("KEYS: {:?}", rpc.keys());
-        debug!("PROPERTIES: {:?}", rpc.properties());
+        log::debug!("METADATA: {}", rpc.metadata());
+        log::debug!("KEYS: {:?}", rpc.keys());
+        log::debug!("PROPERTIES: {:?}", rpc.properties());
         Ok(Self { rpc, db, runtime })
     }
 
@@ -66,7 +65,7 @@ where
             .rpc
             .clone()
             .subscribe_blocks(sender.clone())
-            .map_err(|e| error!("{:?}", e));
+            .map_err(|e| log::error!("{:?}", e));
 
         self.runtime
             .spawn(Self::sync(self.rpc.clone(), self.db.clone()).map(|_| ()));
@@ -81,7 +80,7 @@ where
             let (db, rpc) = (db.clone(), rpc.clone());
             rpc.clone()
                 .latest_block()
-                .map_err(|e| error!("{:?}", e))
+                .map_err(|e| log::error!("{:?}", e))
                 .map(move |latest| {
                     *latest
                         .expect("should always be a latest; qed")
@@ -112,7 +111,7 @@ where
                     println!("{} blocks missing", missing_blocks);
                 }
                 c => {
-                    tokio::spawn(db.insert(c).map_err(|e| error!("{:?}", e)).map(|_| ()));
+                    tokio::spawn(db.insert(c).map_err(|e| log::error!("{:?}", e)).map(|_| ()));
                 }
             };
             future::ok(())
@@ -164,7 +163,7 @@ impl Sync {
             });
 
         missing_blocks
-            .map_err(|e| error!("{:?}", e))
+            .map_err(|e| log::error!("{:?}", e))
             .and_then(move |b| {
                 let blocks = b
                     .into_iter()
@@ -173,7 +172,7 @@ impl Sync {
                 let missing = blocks.len();
                 let b = db
                     .insert(Data::BatchBlock(BatchBlock::<T>::new(blocks)))
-                    .map_err(|e| error!("{:?}", e));
+                    .map_err(|e| log::error!("{:?}", e));
 
                 b.join(future::ok(missing))
             })

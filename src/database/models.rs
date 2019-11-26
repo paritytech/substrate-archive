@@ -42,7 +42,7 @@ pub struct InsertBlock<'a> {
     pub block_num: &'a i64,
     pub state_root: &'a [u8],
     pub extrinsics_root: &'a [u8],
-    // pub time: Option<&'a DateTime<Utc>>
+    pub time: Option<&'a DateTime<Utc>>,
 }
 
 #[derive(Insertable, AsChangeset)]
@@ -53,7 +53,7 @@ pub struct InsertBlockOwned {
     pub block_num: i64,
     pub state_root: Vec<u8>,
     pub extrinsics_root: Vec<u8>,
-    // pub time: Option<DateTime<Utc>>
+    pub time: Option<DateTime<Utc>>,
 }
 
 #[derive(Insertable)]
@@ -70,7 +70,7 @@ pub struct InsertInherent<'a> {
 }
 
 // for batch inserts where collecting references may not always live long enough
-#[derive(Insertable, Debug)]
+#[derive(Insertable, Clone, Debug)]
 #[table_name = "inherents"]
 pub struct InsertInherentOwned {
     pub hash: Vec<u8>,
@@ -101,7 +101,7 @@ pub struct InsertTransaction<'a> {
     pub transaction_version: &'a i32,
 }
 
-#[derive(Insertable, Debug)]
+#[derive(Insertable, Debug, Clone)]
 #[table_name = "signed_extrinsics"]
 pub struct InsertTransactionOwned {
     // pub transaction_hash: Vec<u8>,
@@ -169,7 +169,7 @@ pub struct Blocks {
     /// root of the extrinsics trie
     pub extrinsics_root: H256,
     // /// timestamp
-    // pub time: Option<DateTime<Utc>>
+    pub time: Option<DateTime<Utc>>,
 }
 
 /// Inherents (not signed) extrinsics

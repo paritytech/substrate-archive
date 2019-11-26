@@ -17,15 +17,19 @@
 use crate::{
     database::models::{InsertInherentOwned, InsertTransactionOwned},
     error::Error,
-    types::{ExtractCall, System, ToDatabaseExtrinsic},
+    types::{ExtractCall, Module, System, ToDatabaseExtrinsic},
+    util,
 };
+use chrono::{DateTime, TimeZone, Utc};
 use codec::{Decode, Error as CodecError, Input};
 use log::{debug, error, warn};
 use runtime_primitives::{
     generic::UncheckedExtrinsic,
     traits::{Header, SignedExtension},
 };
+use serde::Deserialize;
 use serde_json::json;
+use std::{collections::HashMap, fmt::Debug, iter::FromIterator};
 
 const LATEST_TRANSACTION_VERSION: u8 = 4;
 
@@ -78,8 +82,7 @@ where
         log::trace!("bytes read from decoding extrinsic: {:X?}", bytes);
 
         if bytes[0] == 0x16 {
-            let mut bytes = &bytes[1..];
-            log::trace!("BYTES WITHOUT 0x16: {:?}", bytes);
+            log::trace!("BYTES WITHOUT 0x16: {:?}", &bytes[1..]);
         }
 
         log::trace!("bytes read from decoding extrinsic: {:X?}", bytes);
@@ -208,7 +211,7 @@ impl RawExtrinsic {
                 } else {
                     res?
                 };
-                Ok(DbExtrinsic::NotSigned(InsertInherentOwned {
+                let ext = InsertInherentOwned {
                     hash: header.hash().as_ref().to_vec(),
                     block_num: number,
                     module: module.to_string(),
@@ -216,7 +219,35 @@ impl RawExtrinsic {
                     parameters: Some(params),
                     in_index: index,
                     transaction_version: i32::from(self.version()),
-                }))
+                };
+                let extra = Extra {
+                    time: self.try_get_timestamp()?,
+                };
+                Ok(DbExtrinsic::NotSigned(ext, extra))
+            }
+        }
+    }
+
+    fn try_get_timestamp(&self) -> Result<Option<DateTime<Utc>>, Error> {
+        match self {
+            RawExtrinsic::Signed(_) => Ok(None),
+            RawExtrinsic::NotSigned(v) => {
+                let (module, call) = v.call.extract_call();
+                let (fn_name, params) = call.function()?;
+
+                if module == Module::Timestamp && fn_name == "set" {
+                    #[derive(Deserialize)]
+                    pub struct Time {
+                        time: Vec<u8>,
+                        encoded: bool,
+                    }
+                    let mut time = serde_json::from_value::<Vec<Time>>(params)?;
+                    // TODO makes an assumption about the type
+                    let unix_time: i64 = Decode::decode(&mut time[0].time.as_slice())?;
+                    Ok(Some(Utc.timestamp_millis(unix_time)))
+                } else {
+                    Ok(None)
+                }
             }
         }
     }
@@ -230,69 +261,110 @@ impl RawExtrinsic {
 }
 
 #[derive(Debug)]
-pub enum DbExtrinsic {
-    Signed(InsertTransactionOwned),
-    NotSigned(InsertInherentOwned),
+pub struct Extrinsics(pub Vec<DbExtrinsic>);
+#[derive(Debug)]
+pub struct Extras(pub Vec<Extra>);
+
+impl FromIterator<Extra> for Extras {
+    fn from_iter<I: IntoIterator<Item = Extra>>(iter: I) -> Self {
+        let mut items = Extras(Vec::new());
+
+        for i in iter {
+            items.0.push(i)
+        }
+        items
+    }
 }
 
-pub fn get_extrinsics<T>(
-    extrinsics: &[T::Extrinsic],
-    header: &T::Header,
-    // db: &AsyncDiesel<PgConnection>,
-) -> Result<Vec<DbExtrinsic>, Error>
-where
-    T: System,
-{
-    extrinsics
-        .iter()
-        // enumerate is used here to preserve order/index of extrinsics
-        .enumerate()
-        .map(|(idx, x)| {
-            debug!("Decoding Extrinsic in block: {:?}", header.number());
-            let decoded: RawExtrinsic = x.to_database()?;
-            match &decoded {
-                RawExtrinsic::Signed(ext) => {
-                    let (module, call) = ext.call.extract_call();
-                    let res = call.function();
+impl FromIterator<DbExtrinsic> for Extrinsics {
+    fn from_iter<I: IntoIterator<Item = DbExtrinsic>>(iter: I) -> Self {
+        let mut items = Extrinsics(Vec::new());
 
-                    let (fn_name, _params) = if res.is_err() {
-                        // warn!("Call not found, formatting as raw rust. Call: {:?}", &self);
-                        (format!("{:?}", ext), json!({}))
-                    } else {
-                        res?
-                    };
-                    log::trace!("Decoded: {}:{}", module, fn_name);
-                }
-                RawExtrinsic::NotSigned(ext) => {
-                    let (module, call) = ext.call.extract_call();
-                    let res = call.function();
+        for i in iter {
+            items.0.push(i)
+        }
+        items
+    }
+}
 
-                    let (fn_name, _params) = if res.is_err() {
-                        // warn!("Call not found, formatting as raw rust. Call: {:?}", &self);
-                        (format!("{:?}", ext), json!({}))
-                    } else {
-                        res?
-                    };
-                    log::trace!("Decoded: {}:{}", module, fn_name);
+impl Extrinsics {
+    pub fn extra(&self) -> Extras {
+        self.0
+            .iter()
+            .cloned()
+            .filter_map(|v| match v {
+                DbExtrinsic::NotSigned(_, e) => Some(e),
+                _ => None,
+            })
+            .collect::<Extras>()
+    }
+}
+
+impl Extras {
+    pub fn time(&self) -> Option<DateTime<Utc>> {
+        self.0
+            .iter()
+            .find(|x| x.time.is_some())
+            .map(|x| x.time)
+            .expect("Nested options; qed") // TODO replace with flatten() when stabilized
+                                           // .flatten()
+    }
+}
+
+/// any extra that may be immediately decoded and added to a block
+#[derive(Debug, Clone)]
+pub struct Extra {
+    time: Option<DateTime<Utc>>,
+}
+
+impl Extra {
+    pub fn time(&self) -> Option<DateTime<Utc>> {
+        self.time
+    }
+}
+
+/// An Extrinsic that was decoded from the System Extrinsic type
+#[derive(Debug, Clone)]
+pub enum DbExtrinsic {
+    Signed(InsertTransactionOwned),
+    NotSigned(InsertInherentOwned, Extra),
+}
+
+impl DbExtrinsic {
+    pub fn decode<T>(
+        extrinsics: &[T::Extrinsic],
+        header: &T::Header,
+        // db: &AsyncDiesel<PgConnection>,
+    ) -> Result<Extrinsics, Error>
+    where
+        T: System,
+    {
+        extrinsics
+            .iter()
+            // enumerate is used here to preserve order/index of extrinsics
+            .enumerate()
+            .map(|(idx, x)| {
+                debug!("Decoding Extrinsic in block: {:?}", header.number());
+                let decoded: RawExtrinsic = x.to_database()?;
+                log::trace!("{}", util::log_extrinsics(&decoded));
+                Ok((idx, decoded))
+            })
+            .collect::<Vec<Result<(usize, RawExtrinsic), Error>>>()
+            .into_iter()
+            // we don't want to skip over _all_ extrinsics if decoding one extrinsic does not work
+            .filter_map(|x: Result<(usize, RawExtrinsic), _>| match x {
+                Ok(v) => {
+                    let number = (*header.number()).into() as i64;
+                    let index: i32 = v.0 as i32;
+                    Some(v.1.database_format(index, header, number))
                 }
-            }
-            Ok((idx, decoded))
-        })
-        .collect::<Vec<Result<(usize, RawExtrinsic), Error>>>()
-        .into_iter()
-        // we don't want to skip over _all_ extrinsics if decoding one extrinsic does not work
-        .filter_map(|x: Result<(usize, RawExtrinsic), _>| match x {
-            Ok(v) => {
-                let number = (*header.number()).into() as i64;
-                let index: i32 = v.0 as i32;
-                Some(v.1.database_format(index, header, number))
-            }
-            Err(e) => {
-                error!("{:?}", e);
-                None
-            }
-        })
-        .collect::<Result<Vec<DbExtrinsic>, Error>>()
+                Err(e) => {
+                    error!("{:?}", e);
+                    None
+                }
+            })
+            .collect::<Result<Extrinsics, Error>>()
+    }
 }
 
 impl<Address, Call, Signature, Extra> std::fmt::Debug
