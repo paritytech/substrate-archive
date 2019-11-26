@@ -40,7 +40,7 @@ use crate::{
         schema::{blocks, inherents, signed_extrinsics},
     },
     error::Error as ArchiveError,
-    extrinsics::{get_extrinsics, DbExtrinsic},
+    extrinsics::{DbExtrinsic, Extra, Extras, Extrinsics},
     queries,
     types::{BatchBlock, BatchStorage, Block, Data, Storage, System},
 };
@@ -111,34 +111,6 @@ impl Database {
                 .collect::<Vec<u64>>())
         })
     }
-
-    pub fn query_missing_timestamps<T>(
-        &self,
-    ) -> impl Future<Item = Vec<T::Hash>, Error = ArchiveError>
-    where
-        T: System,
-    {
-        #[derive(QueryableByName, PartialEq, Debug)]
-        pub struct Hashes {
-            #[column_name = "hash"]
-            #[sql_type = "Bytea"]
-            pub hash: Vec<u8>,
-        };
-
-        self.db.run(move |conn| {
-            let blocks: Vec<Hashes> = queries::missing_timestamp().load(&conn)?;
-            Ok(blocks
-                .iter()
-                .map(|b| {
-                    let old_hash = b.hash.clone();
-                    let hash: T::Hash = Decode::decode(&mut b.hash.as_slice())
-                        .expect("Immediate Decoding/Encoding should be infallible");
-                    assert!(hash.as_ref() == old_hash.as_slice());
-                    hash
-                })
-                .collect::<Vec<T::Hash>>())
-        })
-    }
 }
 
 // TODO Make storage insertions generic over any type of insertin
@@ -200,7 +172,8 @@ where
         let block = self.inner().block.clone();
         info!("HASH: {:X?}", block.header.hash().as_ref());
         info!("Block Num: {:?}", block.header.number());
-        let extrinsics = get_extrinsics::<T>(&block.extrinsics, &block.header)?;
+        let extrinsics = DbExtrinsic::decode::<T>(&block.extrinsics, &block.header)?;
+        let time = extrinsics.extra().time();
         // TODO Optimize
         let fut = db.run(move |conn| {
             diesel::insert_into(blocks::table)
@@ -210,17 +183,18 @@ where
                     block_num: &((*block.header.number()).into() as i64),
                     state_root: block.header.state_root().as_ref(),
                     extrinsics_root: block.header.extrinsics_root().as_ref(),
+                    time: extrinsics.extra().time().as_ref(),
                 })
                 .on_conflict(blocks::hash)
                 .do_nothing()
                 .execute(&conn)?;
 
             let (mut signed_ext, mut unsigned_ext) = (Vec::new(), Vec::new());
-            let len = extrinsics.len() + 1; // 1 for the block
-            for e in extrinsics.into_iter() {
+            let len = extrinsics.0.len() + 1; // 1 for the block
+            for e in extrinsics.0.into_iter() {
                 match e {
                     DbExtrinsic::Signed(e) => signed_ext.push(e),
-                    DbExtrinsic::NotSigned(e) => unsigned_ext.push(e),
+                    DbExtrinsic::NotSigned(e, _) => unsigned_ext.push(e),
                 }
             }
 
@@ -243,23 +217,24 @@ where
     T: System,
 {
     fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-        let mut extrinsics: Vec<DbExtrinsic> = Vec::new();
+        let mut extrinsics: Extrinsics = Extrinsics(Vec::new());
         info!("Batch inserting {} blocks into DB", self.inner().len());
         let blocks = self
             .inner()
             .iter()
             .map(|block| {
                 let block = block.block.clone();
-                let mut block_ext: Vec<DbExtrinsic> =
-                    get_extrinsics::<T>(&block.extrinsics, &block.header)?;
+                let mut block_ext: Extrinsics =
+                    DbExtrinsic::decode::<T>(&block.extrinsics, &block.header)?;
 
-                extrinsics.append(&mut block_ext);
+                extrinsics.0.append(&mut block_ext.0);
                 Ok(InsertBlockOwned {
                     parent_hash: block.header.parent_hash().as_ref().to_vec(),
                     hash: block.header.hash().as_ref().to_vec(),
                     block_num: (*block.header.number()).into() as i64,
                     state_root: block.header.state_root().as_ref().to_vec(),
                     extrinsics_root: block.header.extrinsics_root().as_ref().to_vec(),
+                    time: block_ext.extra().time(),
                 })
             })
             // .filter_map(|b: Result<_, ArchiveError>| b.ok())
@@ -267,10 +242,10 @@ where
 
         let (mut signed_ext, mut unsigned_ext) = (Vec::new(), Vec::new());
 
-        for e in extrinsics.into_iter() {
+        for e in extrinsics.0.into_iter() {
             match e {
-                DbExtrinsic::Signed(e) => signed_ext.push(e),
-                DbExtrinsic::NotSigned(e) => unsigned_ext.push(e),
+                DbExtrinsic::Signed(v) => signed_ext.push(v),
+                DbExtrinsic::NotSigned(v, _) => unsigned_ext.push(v),
             }
         }
 

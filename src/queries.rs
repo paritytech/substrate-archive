@@ -38,15 +38,6 @@ NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)"
     diesel::sql_query(&query)
 }
 
-pub(crate) fn missing_timestamp() -> diesel::query_builder::SqlQuery {
-    let query = "\
-SELECT hash
-FROM blocks
-WHERE block_num > 0 AND time IS NULL
-";
-    diesel::sql_query(query) // block_num must be > 0 because genesis block will not have timestamp
-}
-
 // Get the latest block in the database
 // this might not be up-to-date right as the node starts,
 // but will soon start collecting the latest heads
