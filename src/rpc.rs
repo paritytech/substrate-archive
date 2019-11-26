@@ -42,7 +42,7 @@ pub struct Rpc<T: System> {
     url: url::Url,
     keys: Vec<StorageKey>,
     metadata: Metadata,
-    properties: Properties,
+    // properties: Properties,
 }
 
 impl<T> Rpc<T>
@@ -56,10 +56,11 @@ where
     pub fn keys(&self) -> &Vec<StorageKey> {
         &self.keys
     }
-
-    pub fn properties(&self) -> &Properties {
-        &self.properties
-    }
+    /*
+        pub fn properties(&self) -> &Properties {
+            &self.properties
+        }
+    */
 }
 
 impl<T> Rpc<T>
@@ -124,16 +125,14 @@ where
             .and_then(|client: SubstrateRpc<T>| {
                 client
                     .storage_keys(StorageKey(Vec::new()), None)
-                    .join3(client.metadata(None), client.properties())
+                    .join(client.metadata(None))
             })
-            .map(|(keys, metadata, props)| {
+            .map(|(keys, metadata)| {
                 let keys = metadata.keys(keys);
-                let properties = props;
                 Self {
                     url,
                     keys,
                     metadata,
-                    properties,
                     _marker: PhantomData,
                 }
             })

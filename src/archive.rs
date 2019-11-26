@@ -54,7 +54,7 @@ where
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
         log::debug!("METADATA: {}", rpc.metadata());
         log::debug!("KEYS: {:?}", rpc.keys());
-        log::debug!("PROPERTIES: {:?}", rpc.properties());
+        // log::debug!("PROPERTIES: {:?}", rpc.properties());
         Ok(Self { rpc, db, runtime })
     }
 
@@ -82,6 +82,7 @@ where
                 .latest_block()
                 .map_err(|e| log::error!("{:?}", e))
                 .map(move |latest| {
+                    log::debug!("Latest Block: {:?}", latest);
                     *latest
                         .expect("should always be a latest; qed")
                         .block
@@ -146,10 +147,10 @@ impl Sync {
         let looped = self.looped;
         log::info!("Looped: {}", looped);
         log::info!("latest: {}", latest);
-        let missing_blocks = db
-            .query_missing_blocks(Some(latest))
+        db.query_missing_blocks(Some(latest))
             .and_then(move |blocks| {
                 let mut futures = Vec::new();
+                log::info!("Fetching {} blocks from rpc", blocks.len());
                 for chunk in blocks.chunks(100_000) {
                     futures.push({
                         let b = chunk
@@ -160,15 +161,14 @@ impl Sync {
                     });
                 }
                 future::join_all(futures)
-            });
-
-        missing_blocks
+            })
             .map_err(|e| log::error!("{:?}", e))
             .and_then(move |b| {
                 let blocks = b
                     .into_iter()
                     .flat_map(|b_inner| b_inner.into_iter())
                     .collect::<Vec<SubstrateBlock<T>>>();
+                log::info!("inserting {} blocks", blocks.len());
                 let missing = blocks.len();
                 let b = db
                     .insert(Data::BatchBlock(BatchBlock::<T>::new(blocks)))
