@@ -17,7 +17,6 @@
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
 use failure::Error;
-use log::{error, warn};
 // use substrate_archive::prelude::*;
 use polkadot_runtime::{
     Address, Call, ClaimsCall, ClaimsTrait, ParachainsCall, ParachainsTrait, RegistrarCall,
@@ -56,7 +55,7 @@ impl ToDatabaseExtrinsic for ExtrinsicWrapper {
         let res: Result<OldExtrinsic<Address, CallWrapper, Signature, SignedExtra>, _> =
             Decode::decode(&mut opaque.encode().as_slice());
         if res.is_err() {
-            warn!(
+            log::warn!(
                 "Did not decode with current Signature, trying AnySignature {:?}",
                 res
             );
@@ -118,7 +117,7 @@ impl ExtractCall for CallWrapper {
                 Box::new(RegistrarCallWrapper(call.clone())),
             ),
             c @ _ => {
-                warn!("Call Not Handled: {:?}", c);
+                log::warn!("Call Not Handled: {:?}", c);
                 (Module::NotHandled, Box::new(NotHandled))
             }
         }
@@ -189,7 +188,7 @@ where
             }
             __phantom_item => {
                 // marker
-                warn!("hit phantom item");
+                log::warn!("hit phantom item");
                 Ok(("".into(), json!({})))
             }
         }
@@ -214,7 +213,7 @@ where
             }
             __phantom_item => {
                 // marker
-                warn!("hit phantom item");
+                log::warn!("hit phantom item");
                 Ok(("".into(), json!({})))
             }
         }
@@ -266,7 +265,7 @@ where
             }
             __phantom_item => {
                 // marker
-                warn!("hit phantom item");
+                log::warn!("hit phantom item");
                 Ok(("".into(), json!({})))
             }
         }
