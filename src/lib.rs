@@ -14,29 +14,29 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-#[macro_use] extern crate diesel;
-mod types;
-mod error;
+#[macro_use]
+extern crate diesel;
 mod archive;
 mod database;
-mod queries;
-mod util;
+mod error;
 mod extrinsics;
+mod metadata;
+mod paint_ext;
+mod queries;
 #[cfg(test)]
 mod tests;
-mod paint_ext;
-mod metadata;
-
+mod types;
+mod util;
 
 pub use archive::Archive;
-pub use extrinsics::{RawExtrinsic, OldExtrinsic};
-pub use types::{System, Module, ExtractCall, ToDatabaseExtrinsic};
-pub use paint_ext::{PaintExt, NotHandled};
 pub use error::Error;
+pub use extrinsics::{OldExtrinsic, RawExtrinsic};
+pub use frame_ext::{FrameExt, NotHandled};
+pub use types::{ExtractCall, Module, System, ToDatabaseExtrinsic};
 
 pub mod rpc;
-pub mod paint {
-    pub use paint_system;
+pub mod frame {
+    pub use frame_system;
     pub use paint_sudo;
 }
 pub use util::init_logger;
