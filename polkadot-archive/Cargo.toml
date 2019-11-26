@@ -17,6 +17,7 @@ serde = {  version = "1.0.41", features = ["derive"] }
 serde_json = { version = "1.0.41", features = ["arbitrary_precision"] }
 
 [dependencies.polkadot-primitives]
+# path = "../../polkadot/primitives"
 git = "https://github.com/insipx/polkadot"
 package = "polkadot-primitives"
 default-features = false
@@ -24,6 +25,7 @@ branch = "insipx/archive-patches"
 features = ["std"]
 
 [dependencies.polkadot-runtime]
+# path = "../../polkadot/runtime"
 git = "https://github.com/insipx/polkadot"
 package = "polkadot-runtime"
 default-features = false

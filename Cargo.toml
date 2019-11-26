@@ -31,30 +31,30 @@ fern = { version = "0.5", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 jsonrpc-core-client = { branch = "master", git = "https://github.com/paritytech/jsonrpc", features = ["ws", "arbitrary_precision"] }
-runtime-metadata = { git = "https://github.com/paritytech/substrate/", package = "paint-metadata", branch = "polkadot-master" }
-paint-system = { git = "https://github.com/paritytech/substrate/", package = "paint-system", branch="polkadot-master"}
+runtime-metadata = { git = "https://github.com/paritytech/substrate/", package = "frame-metadata", branch = "polkadot-master" }
+frame-system = { git = "https://github.com/paritytech/substrate/", package = "frame-system", branch="polkadot-master"}
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch="polkadot-master"}
 substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives", branch="polkadot-master"}
 substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives", branch="polkadot-master"}
 runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives", branch="polkadot-master"}
-runtime-support = { git = "https://github.com/paritytech/substrate/", package = "paint-support", branch="polkadot-master"}
+runtime-support = { git = "https://github.com/paritytech/substrate/", package = "frame-support", branch="polkadot-master"}
 inherents = { git = "https://github.com/paritytech/substrate/", package = "substrate-inherents", branch="polkadot-master"}
 
 
-# paint-assets = { git = "https://github.com/paritytech/substrate/", package = "paint-assets", branch="polkadot-master"}
-paint-nicks = {git = "https://github.com/paritytech/substrate/", package = "paint-nicks", branch = "polkadot-master"}
-paint-staking = {git = "https://github.com/paritytech/substrate/", package = "paint-staking", branch = "polkadot-master"}
-paint-grandpa = {git = "https://github.com/paritytech/substrate/", package = "paint-grandpa", branch = "polkadot-master"}
-paint-babe = {git = "https://github.com/paritytech/substrate/", package = "paint-babe", branch = "polkadot-master"}
-paint-session = { git = "https://github.com/paritytech/substrate/", package = "paint-session", branch = "polkadot-master"}
-paint-aura = { git = "https://github.com/paritytech/substrate/", package = "paint-aura", branch = "polkadot-master"}
-paint-timestamp = { git = "https://github.com/paritytech/substrate/", package = "paint-timestamp", branch = "polkadot-master"}
-paint-finality-tracker = { git = "https://github.com/paritytech/substrate", package = "paint-finality-tracker", branch = "polkadot-master"}
-paint-sudo = { git = "https://github.com/paritytech/substrate", package = "paint-sudo", branch = "polkadot-master"}
-paint-im-online = { git = "https://github.com/paritytech/substrate", package = "paint-im-online", branch = "polkadot-master"}
-paint-treasury = { git = "https://github.com/paritytech/substrate", package = "paint-treasury", branch = "polkadot-master"}
-paint-elections-phragmen = { git = "https://github.com/paritytech/substrate", package = "paint-elections-phragmen", branch = "polkadot-master"}
-paint-balances = { git = "https://github.com/paritytech/substrate", package = "paint-balances", branch = "polkadot-master"}
+# pallet-assets = { git = "https://github.com/paritytech/substrate/", package = "pallet-assets", branch="polkadot-master"}
+pallet-nicks = {git = "https://github.com/paritytech/substrate/", package = "pallet-nicks", branch = "polkadot-master"}
+pallet-staking = {git = "https://github.com/paritytech/substrate/", package = "pallet-staking", branch = "polkadot-master"}
+pallet-grandpa = {git = "https://github.com/paritytech/substrate/", package = "pallet-grandpa", branch = "polkadot-master"}
+pallet-babe = {git = "https://github.com/paritytech/substrate/", package = "pallet-babe", branch = "polkadot-master"}
+pallet-session = { git = "https://github.com/paritytech/substrate/", package = "pallet-session", branch = "polkadot-master"}
+pallet-aura = { git = "https://github.com/paritytech/substrate/", package = "pallet-aura", branch = "polkadot-master"}
+pallet-timestamp = { git = "https://github.com/paritytech/substrate/", package = "pallet-timestamp", branch = "polkadot-master"}
+pallet-finality-tracker = { git = "https://github.com/paritytech/substrate", package = "pallet-finality-tracker", branch = "polkadot-master"}
+pallet-sudo = { git = "https://github.com/paritytech/substrate", package = "pallet-sudo", branch = "polkadot-master"}
+pallet-im-online = { git = "https://github.com/paritytech/substrate", package = "pallet-im-online", branch = "polkadot-master"}
+pallet-treasury = { git = "https://github.com/paritytech/substrate", package = "pallet-treasury", branch = "polkadot-master"}
+pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", package = "pallet-elections-phragmen", branch = "polkadot-master"}
+pallet-balances = { git = "https://github.com/paritytech/substrate", package = "pallet-balances", branch = "polkadot-master"}
 derive_more = "0.15.0"
 
 [patch.crates-io]
@@ -63,6 +63,7 @@ jsonrpc-client-transports = { git = "https://github.com/paritytech/jsonrpc", bra
 jsonrpc-core = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["arbitrary_precision"] }
 jsonrpc-derive = { git = "https://github.com/paritytech/jsonrpc", branch = "master" }
 jsonrpc-pubsub = { git = "https://github.com/paritytech/jsonrpc", branch = "master" }
+codec = { git = "https://github.com/insipx/parity-scale-codec", branch = "insipx/debugging", package = "parity-scale-codec" }
 
 [dev-dependencies]
 node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }

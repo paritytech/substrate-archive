@@ -14,19 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use failure::Fail;
 use codec::Error as CodecError;
+use failure::Fail;
 use futures::sync::mpsc::SendError;
 use jsonrpc_core_client::RpcError as JsonRpcError;
 // use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
-use std::io::Error as IoError;
-use url::ParseError;
-use diesel::result::{Error as DieselError, ConnectionError};
-use std::env::VarError as EnvironmentError;
-use tokio_threadpool::BlockingError;
-use r2d2::Error as R2d2Error;
-use std::num::TryFromIntError;
 use crate::metadata::Error as MetadataError;
+use diesel::result::{ConnectionError, Error as DieselError};
+use r2d2::Error as R2d2Error;
+use std::env::VarError as EnvironmentError;
+use std::io::Error as IoError;
+use std::num::TryFromIntError;
+use tokio_threadpool::BlockingError;
+use url::ParseError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -38,7 +38,7 @@ pub enum Error {
     Io(#[fail(cause)] IoError),
     #[fail(display = "Parse: {}", _0)]
     Parse(#[fail(cause)] ParseError),
-    #[fail(display  = "Db: {}", _0)]
+    #[fail(display = "Db: {}", _0)]
     Db(#[fail(cause)] DieselError),
     #[fail(display = "Db Connection: {}", _0)]
     DbConnection(#[fail(cause)] ConnectionError),

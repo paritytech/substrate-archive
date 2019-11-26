@@ -16,34 +16,22 @@
 
 use std::fmt::Debug;
 
-use crate::{error::Error, paint_ext::PaintExt, extrinsics::RawExtrinsic};
 use super::Module;
+use crate::{error::Error, extrinsics::RawExtrinsic, frame_ext::FrameExt};
 
-use codec::{Encode, Decode};
-use serde::{Serialize, de::DeserializeOwned};
-use runtime_support::Parameter;
-use runtime_primitives::{
-    traits::{
-        Bounded,
-        CheckEqual,
-        Hash,
-        Header as HeaderTrait,
-        MaybeDisplay,
-        MaybeSerializeDeserialize,
-        MaybeSerialize,
-        Member,
-        SignedExtension,
-        SimpleArithmetic,
-        SimpleBitOps,
-    }
+use codec::{Decode, Encode};
+use runtime_primitives::traits::{
+    Bounded, CheckEqual, Hash, Header as HeaderTrait, MaybeDisplay, MaybeSerialize,
+    MaybeSerializeDeserialize, Member, SignedExtension, SimpleArithmetic, SimpleBitOps,
 };
+use runtime_support::Parameter;
+use serde::{de::DeserializeOwned, Serialize};
 /*
 pub trait ExtractExtrinsic {
     type F: Fn<Address, Call, Signature, Extra>(&OpaqueExtrinsic) -> UncheckedExtrinsic<Address, Call, Signature, Extra>;
     fn extract() -> Vec<Self::F>;
 }
  */
-
 
 pub trait ToDatabaseExtrinsic {
     fn to_database(&self) -> Result<RawExtrinsic, Error>;
@@ -58,7 +46,7 @@ pub trait ExtrinsicExt: Debug {
 
 pub trait ExtractCall: std::fmt::Debug {
     /// module the call is from, IE Timestamp, FinalityTracker
-    fn extract_call(&self) -> (Module, Box<dyn PaintExt>);
+    fn extract_call(&self) -> (Module, Box<dyn FrameExt>);
 }
 
 // TODO: Consider removing this trait and directly using srml_system::Trait
@@ -68,14 +56,14 @@ pub trait ExtractCall: std::fmt::Debug {
 // but using Trait is better
 /// The subset of the `srml_system::Trait` that a client must implement.
 pub trait System: Send + Sync + 'static + Debug {
-
     /// The Call type
     /// Should implement `ExtractCall` to put call data in a more database-friendly format
-    type Call: Encode + Decode + Clone + Debug + ExtractCall; // TODO import Debug
+    type Call: Encode + Decode + Clone + Debug + ExtractCall;
 
     /// the Opaque Extrinsic Type
     type Extrinsic: Send
-        + Sync + ToDatabaseExtrinsic
+        + Sync
+        + ToDatabaseExtrinsic
         + Debug
         + Serialize
         + DeserializeOwned
@@ -83,6 +71,7 @@ pub trait System: Send + Sync + 'static + Debug {
         + Eq
         + PartialEq
         + Unpin;
+    // require Iter
 
     // type Block: BlockTrait + Encode + Decode + Debug;
     type Signature: Encode + Decode + Debug;
@@ -110,7 +99,7 @@ pub trait System: Send + Sync + 'static + Debug {
         + Bounded
         + Copy
         + std::hash::Hash
-        + Into<i64>;
+        + Into<u64>;
 
     /// The output of the `Hashing` function.
     type Hash: Parameter

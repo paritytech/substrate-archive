@@ -16,21 +16,21 @@
 
 mod traits;
 
-use substrate_primitives::storage::StorageChangeSet;
+use chrono::{DateTime, TimeZone, Utc};
 use codec::Decode;
-use chrono::{DateTime, Utc, TimeZone};
-use substrate_primitives::storage::StorageData;
 use runtime_primitives::generic::{Block as BlockT, SignedBlock};
+use substrate_primitives::storage::StorageChangeSet;
+use substrate_primitives::storage::StorageData;
 
-pub use self::traits::{ExtractCall, System, ExtrinsicExt, ToDatabaseExtrinsic};
+pub use self::traits::{ExtractCall, ExtrinsicExt, System, ToDatabaseExtrinsic};
 
-use crate::error::Error;
+use crate::{error::Error, metadata::subxt_metadata::StorageMetadata};
 
 /// A generic substrate block
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
 
 /// Sent from Substrate API to be committed into the Database
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum Data<T: System> {
     Header(Header<T>),
     FinalizedHead(Header<T>),
@@ -44,17 +44,14 @@ pub enum Data<T: System> {
 
 // new types to allow implementing of traits
 // NewType for Header
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct Header<T: System> {
-    inner: T::Header
+    inner: T::Header,
 }
 
 impl<T: System> Header<T> {
-
     pub fn new(header: T::Header) -> Self {
-        Self {
-            inner: header
-        }
+        Self { inner: header }
     }
 
     pub fn inner(&self) -> &T::Header {
@@ -63,17 +60,14 @@ impl<T: System> Header<T> {
 }
 
 /// NewType for Block
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct Block<T: System> {
-    inner: SubstrateBlock<T>
+    inner: SubstrateBlock<T>,
 }
 
 impl<T: System> Block<T> {
-
     pub fn new(block: SubstrateBlock<T>) -> Self {
-        Self {
-            inner: block
-        }
+        Self { inner: block }
     }
 
     pub fn inner(&self) -> &SubstrateBlock<T> {
@@ -82,13 +76,12 @@ impl<T: System> Block<T> {
 }
 
 /// NewType for committing many blocks to the database at once
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct BatchBlock<T: System> {
-    inner: Vec<SubstrateBlock<T>>
+    inner: Vec<SubstrateBlock<T>>,
 }
 
 impl<T: System> BatchBlock<T> {
-
     pub fn new(blocks: Vec<SubstrateBlock<T>>) -> Self {
         Self { inner: blocks }
     }
@@ -99,19 +92,22 @@ impl<T: System> BatchBlock<T> {
 }
 
 /// newType for Storage Data
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct Storage<T: System> {
     data: StorageData,
-    hash: T::Hash // TODO use T:Hash
+    hash: T::Hash,
+    // meta: StorageMetadata,
 }
 
 impl<T> Storage<T>
 where
-    T: System
+    T: System,
 {
-
-    pub fn new(data: StorageData, hash: T::Hash) -> Self {
-        Self { data, hash }
+    pub fn new(data: StorageData, hash: T::Hash /* meta: StorageMetadata */) -> Self {
+        Self {
+            data,
+            hash, /*, meta */
+        }
     }
 
     pub fn data(&self) -> &StorageData {
@@ -121,6 +117,11 @@ where
     pub fn hash(&self) -> &T::Hash {
         &self.hash
     }
+    /*
+        pub fn metadata(&self) -> &StorageMetadata {
+            &self.meta
+        }
+    */
 
     pub fn get_timestamp(&self) -> Result<DateTime<Utc>, Error> {
         // TODO: check if storage key type is actually from the timestamp module
@@ -130,14 +131,14 @@ where
 }
 
 /// NewType for committing many storage items into the database at once
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct BatchStorage<T: System> {
     inner: Vec<Storage<T>>,
 }
 
 impl<T> BatchStorage<T>
 where
-    T: System
+    T: System,
 {
     pub fn new(data: Vec<Storage<T>>) -> Self {
         Self { inner: data }
@@ -155,11 +156,10 @@ where
 /// NewType for committing Events to the database
 #[derive(Debug, PartialEq, Eq)]
 pub struct Event<T: System> {
-    change_set: StorageChangeSet<T::Hash>
+    change_set: StorageChangeSet<T::Hash>,
 }
 
 impl<T: System> Event<T> {
-
     pub fn new(change_set: StorageChangeSet<T::Hash>) -> Self {
         Self { change_set }
     }

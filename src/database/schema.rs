@@ -20,7 +20,17 @@ table! {
         block_num -> Int8,
         state_root -> Bytea,
         extrinsics_root -> Bytea,
-        time -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    events (id) {
+        id -> Int4,
+        block_num -> Int8,
+        hash -> Bytea,
+        module -> Varchar,
+        event -> Varchar,
+        parameters -> Jsonb,
     }
 }
 
@@ -42,25 +52,36 @@ table! {
         id -> Int4,
         block_num -> Int8,
         hash -> Bytea,
-        from_addr -> Bytea,
-        to_addr -> Nullable<Bytea>,
         module -> Varchar,
         call -> Varchar,
-        parameters -> Nullable<Jsonb>,
-        nonce -> Int4,
+        parameters -> Jsonb,
         tx_index -> Int4,
-        signature -> Bytea,
         transaction_version -> Int4,
     }
 }
 
+table! {
+    storage (id) {
+        id -> Int4,
+        block_num -> Int8,
+        hash -> Bytea,
+        module -> Varchar,
+        function -> Varchar,
+        parameters -> Jsonb,
+    }
+}
+
 joinable!(accounts -> blocks (create_hash));
+joinable!(events -> blocks (hash));
 joinable!(inherents -> blocks (hash));
 joinable!(signed_extrinsics -> blocks (hash));
+joinable!(storage -> blocks (hash));
 
 allow_tables_to_appear_in_same_query!(
     accounts,
     blocks,
+    events,
     inherents,
     signed_extrinsics,
+    storage,
 );

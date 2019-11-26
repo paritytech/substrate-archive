@@ -18,33 +18,19 @@
 // archive will use subxt soon
 // but wanted to use metadata types to test
 
+use codec::{Decode, Encode, EncodeAsRef, HasCompact};
 use failure::Fail;
-use codec::{
-    Decode,
-    Encode,
-    EncodeAsRef,
-    HasCompact
-};
 use runtime_metadata::{
-    DecodeDifferent,
-    RuntimeMetadata,
-    RuntimeMetadataPrefixed,
-    StorageEntryModifier,
-    StorageEntryType,
-    StorageHasher,
-    META_RESERVED,
+    DecodeDifferent, RuntimeMetadata, RuntimeMetadataPrefixed, StorageEntryModifier,
+    StorageEntryType, StorageHasher, META_RESERVED,
 };
 use std::{
-    collections::{
-        HashMap,
-        HashSet,
-    },
+    collections::{HashMap, HashSet},
     convert::TryFrom,
     marker::PhantomData,
     str::FromStr,
 };
 use substrate_primitives::storage::StorageKey;
-
 
 #[derive(Clone)]
 pub struct Encoded(pub Vec<u8>);
@@ -56,11 +42,9 @@ impl Encode for Encoded {
 }
 
 pub fn compact<T: HasCompact>(t: T) -> Encoded {
-    let encodable: <<T as HasCompact>::Type as EncodeAsRef<'_, T>>::RefType =
-        From::from(&t);
+    let encodable: <<T as HasCompact>::Type as EncodeAsRef<'_, T>>::RefType = From::from(&t);
     Encoded(encodable.encode())
 }
-
 
 #[derive(Debug, Clone, derive_more::Display)]
 pub enum MetadataError {
@@ -190,9 +174,7 @@ pub struct StorageMetadata {
 }
 
 impl StorageMetadata {
-    pub fn get_map<K: Encode, V: Decode + Clone>(
-        &self,
-    ) -> Result<StorageMap<K, V>, MetadataError> {
+    pub fn get_map<K: Encode, V: Decode + Clone>(&self) -> Result<StorageMap<K, V>, MetadataError> {
         match &self.ty {
             StorageEntryType::Map { hasher, .. } => {
                 let prefix = self.prefix.as_bytes().to_vec();
@@ -224,12 +206,8 @@ impl<K: Encode, V: Decode + Clone> StorageMap<K, V> {
         let mut bytes = self.prefix.clone();
         bytes.extend(key.encode());
         let hash = match self.hasher {
-            StorageHasher::Blake2_128 => {
-                substrate_primitives::blake2_128(&bytes).to_vec()
-            }
-            StorageHasher::Blake2_256 => {
-                substrate_primitives::blake2_256(&bytes).to_vec()
-            }
+            StorageHasher::Blake2_128 => substrate_primitives::blake2_128(&bytes).to_vec(),
+            StorageHasher::Blake2_256 => substrate_primitives::blake2_256(&bytes).to_vec(),
             StorageHasher::Twox128 => substrate_primitives::twox_128(&bytes).to_vec(),
             StorageHasher::Twox256 => substrate_primitives::twox_256(&bytes).to_vec(),
             StorageHasher::Twox64Concat => substrate_primitives::twox_64(&bytes).to_vec(),
@@ -403,9 +381,7 @@ fn convert_module(
     })
 }
 
-fn convert_event(
-    event: runtime_metadata::EventMetadata,
-) -> Result<ModuleEventMetadata, Error> {
+fn convert_event(event: runtime_metadata::EventMetadata) -> Result<ModuleEventMetadata, Error> {
     let name = convert(event.name)?;
     let mut arguments = HashSet::new();
     for arg in convert(event.arguments)? {

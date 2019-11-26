@@ -16,39 +16,32 @@
 
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
-use log::{warn, error};
 use failure::Error;
 // use substrate_archive::prelude::*;
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use substrate_archive::{
-    Archive, System, Module, RawExtrinsic,
-    OldExtrinsic, ToDatabaseExtrinsic,
-    ExtractCall, PaintExt, NotHandled,
-    init_logger,
-    paint::paint_system as system,
-    // paint::paint_sudo::{Trait as SudoTrait, Call as SudoCall},
-    Error as ArchiveError
+use polkadot_runtime::{
+    Address, Call, ClaimsCall, ClaimsTrait, ParachainsCall, ParachainsTrait, RegistrarCall,
+    RegistrarTrait, Runtime as RuntimeT, SignedExtra,
 };
 use runtime_primitives::{
     AnySignature,
     OpaqueExtrinsic,
     // generic::UncheckedExtrinsic,
 };
-use polkadot_runtime::{
-    Runtime as RuntimeT, Call, Address,
-    ParachainsCall, ParachainsTrait, SignedExtra,
-    ClaimsCall, ClaimsTrait, RegistrarCall, RegistrarTrait,
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use substrate_archive::{
+    frame::frame_system as system, init_logger, Archive, Error as ArchiveError, ExtractCall,
+    FrameExt, Module, NotHandled, OldExtrinsic, RawExtrinsic, System, ToDatabaseExtrinsic,
 };
 
+use codec::{Decode, Encode, Error as CodecError, Input};
 use polkadot_primitives::Signature;
-use codec::{Encode, Decode, Input, Error as CodecError};
 
 use std::fmt::Debug;
 
 fn main() -> Result<(), Error> {
     // convenience log function from substrate_archive which logs to .local/share/substrate_archive
-    init_logger(log::LevelFilter::Error);
+    init_logger(log::LevelFilter::Error, log::LevelFilter::Error);
     Archive::<Runtime>::new()?.run()?;
     Ok(())
 }
@@ -59,12 +52,15 @@ impl ToDatabaseExtrinsic for ExtrinsicWrapper {
     fn to_database(&self) -> Result<RawExtrinsic, ArchiveError> {
         let opaque = &self.0;
 
-        let res: Result<OldExtrinsic::<Address, CallWrapper, Signature, SignedExtra>, _>
-            = Decode::decode(&mut opaque.encode().as_slice());
+        let res: Result<OldExtrinsic<Address, CallWrapper, Signature, SignedExtra>, _> =
+            Decode::decode(&mut opaque.encode().as_slice());
         if res.is_err() {
-            warn!("Did not decode with current Signature, trying AnySignature {:?}", res);
-            let ext: OldExtrinsic::<Address, CallWrapper, AnySignature, SignedExtra>
-                = Decode::decode(&mut opaque.encode().as_slice())?;
+            log::warn!(
+                "Did not decode with current Signature, trying AnySignature {:?}",
+                res
+            );
+            let ext: OldExtrinsic<Address, CallWrapper, AnySignature, SignedExtra> =
+                Decode::decode(&mut opaque.encode().as_slice())?;
             Ok(ext.into())
         } else {
             Ok(res?.into())
@@ -75,7 +71,9 @@ impl ToDatabaseExtrinsic for ExtrinsicWrapper {
 // need to define Encode/Decode for Call New Type
 // Passthrough traits (Boilerplate)
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct CallWrapper { inner: Call }
+pub struct CallWrapper {
+    inner: Call,
+}
 impl Encode for CallWrapper {
     fn encode(&self) -> Vec<u8> {
         self.inner.encode()
@@ -85,67 +83,41 @@ impl Encode for CallWrapper {
 impl Decode for CallWrapper {
     fn decode<I: Input>(input: &mut I) -> Result<Self, CodecError> {
         let decoded: Call = Decode::decode(input)?;
-        Ok(CallWrapper {
-            inner: decoded
-        })
+        Ok(CallWrapper { inner: decoded })
     }
 }
 
 // define all calls/inherents that you want tracked by the archive node
 impl ExtractCall for CallWrapper {
-    fn extract_call(&self) -> (Module, Box<dyn PaintExt>) {
+    fn extract_call(&self) -> (Module, Box<dyn FrameExt>) {
         match &self.inner {
-            Call::Timestamp(call) => {
-                (Module::Timestamp, Box::new(call.clone()))
-            },
-            Call::FinalityTracker(call) => {
-                (Module::FinalityTracker, Box::new(call.clone()))
-            },
-            Call::ImOnline(call) => {
-                (Module::ImOnline, Box::new(call.clone()))
-            },
-            Call::Babe(call) => {
-                (Module::Babe, Box::new(call.clone()))
-            },
-            Call::Balances(call) => {
-                (Module::Balances, Box::new(call.clone()))
-            },
-            Call::ElectionsPhragmen(call) => {
-                (Module::ElectionsPhragmen, Box::new(call.clone()))
-            },
-            Call::Staking(call) => {
-                (Module::Staking, Box::new(call.clone()))
-            },
-            Call::Sudo(call) => {
-                (Module::Sudo, Box::new(call.clone()))
-            },
-            Call::Session(call) => {
-                (Module::Session, Box::new(call.clone()))
-            },
-            Call::Grandpa(call) => {
-                (Module::Grandpa, Box::new(call.clone()))
-            },
-            Call::Treasury(call) => {
-                (Module::Treasury, Box::new(call.clone()))
-            },
-            Call::Nicks(call) => {
-                (Module::Nicks, Box::new(call.clone()))
-            },
-            Call::System(call) => {
-                (Module::System, Box::new(call.clone()))
-            },
-            Call::Parachains(call) => {
-                (Module::Custom("Parachains".into()), Box::new(ParachainsCallWrapper(call.clone())))
-            },
-            Call::Claims(call) => {
-                (Module::Custom("Claims".into()), Box::new(ClaimsCallWrapper(call.clone())))
-            },
-            Call::Registrar(call) => {
-                (Module::Custom("Registrar".into()), Box::new(RegistrarCallWrapper(call.clone())))
-            },
-            //ElectionsPhragmen
+            Call::Timestamp(call) => (Module::Timestamp, Box::new(call.clone())),
+            Call::FinalityTracker(call) => (Module::FinalityTracker, Box::new(call.clone())),
+            Call::ImOnline(call) => (Module::ImOnline, Box::new(call.clone())),
+            Call::Babe(call) => (Module::Babe, Box::new(call.clone())),
+            Call::Balances(call) => (Module::Balances, Box::new(call.clone())),
+            Call::ElectionsPhragmen(call) => (Module::ElectionsPhragmen, Box::new(call.clone())),
+            Call::Staking(call) => (Module::Staking, Box::new(call.clone())),
+            Call::Sudo(call) => (Module::Sudo, Box::new(call.clone())),
+            Call::Session(call) => (Module::Session, Box::new(call.clone())),
+            Call::Grandpa(call) => (Module::Grandpa, Box::new(call.clone())),
+            Call::Treasury(call) => (Module::Treasury, Box::new(call.clone())),
+            Call::Nicks(call) => (Module::Nicks, Box::new(call.clone())),
+            Call::System(call) => (Module::System, Box::new(call.clone())),
+            Call::Parachains(call) => (
+                Module::Custom("Parachains".into()),
+                Box::new(ParachainsCallWrapper(call.clone())),
+            ),
+            Call::Claims(call) => (
+                Module::Custom("Claims".into()),
+                Box::new(ClaimsCallWrapper(call.clone())),
+            ),
+            Call::Registrar(call) => (
+                Module::Custom("Registrar".into()),
+                Box::new(RegistrarCallWrapper(call.clone())),
+            ),
             c @ _ => {
-                warn!("Call Not Handled: {:?}", c);
+                log::warn!("Call Not Handled: {:?}", c);
                 (Module::NotHandled, Box::new(NotHandled))
             }
         }
@@ -162,7 +134,7 @@ impl ExtractCall for CallWrapper {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SudoCallWrapper<T: SudoTrait>(SudoCall<T>);
 
-impl<T> PaintExt for SudoCallWrapper<T>
+impl<T> FrameExt for SudoCallWrapper<T>
 where
     T: SudoTrait + Debug
 {
@@ -202,9 +174,9 @@ where
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParachainsCallWrapper<T: ParachainsTrait>(ParachainsCall<T>);
 
-impl<T> PaintExt for ParachainsCallWrapper<T>
+impl<T> FrameExt for ParachainsCallWrapper<T>
 where
-    T: ParachainsTrait + Debug
+    T: ParachainsTrait + Debug,
 {
     fn function(&self) -> Result<(String, Value), ArchiveError> {
         match &self.0 {
@@ -212,11 +184,12 @@ where
                 let val = json!([
                     { "heads": heads.encode(), "encoded": true }
                 ]);
-                Ok(( "set_heads".into(), val ))
-            },
-            __phantom_item => { // marker
-                warn!("hit phantom item");
-                Ok(("".into(), json!({}) ))
+                Ok(("set_heads".into(), val))
+            }
+            __phantom_item => {
+                // marker
+                log::warn!("hit phantom item");
+                Ok(("".into(), json!({})))
             }
         }
     }
@@ -225,9 +198,9 @@ where
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaimsCallWrapper<T: ClaimsTrait>(ClaimsCall<T>);
 
-impl<T> PaintExt for ClaimsCallWrapper<T>
+impl<T> FrameExt for ClaimsCallWrapper<T>
 where
-    T: ClaimsTrait + Debug
+    T: ClaimsTrait + Debug,
 {
     fn function(&self) -> Result<(String, Value), ArchiveError> {
         match &self.0 {
@@ -237,10 +210,11 @@ where
                     { "signature": signature.encode(), "encoded": true } // TODO Implements Serialize on Master!
                 ]);
                 Ok(("claim".into(), val))
-            },
-            __phantom_item => { // marker
-                warn!("hit phantom item");
-                Ok(("".into(), json!({}) ))
+            }
+            __phantom_item => {
+                // marker
+                log::warn!("hit phantom item");
+                Ok(("".into(), json!({})))
             }
         }
     }
@@ -249,11 +223,10 @@ where
 #[derive(Debug)]
 pub struct RegistrarCallWrapper<T: RegistrarTrait>(RegistrarCall<T>);
 
-impl<T> PaintExt for RegistrarCallWrapper<T>
+impl<T> FrameExt for RegistrarCallWrapper<T>
 where
-    T: RegistrarTrait + Debug
+    T: RegistrarTrait + Debug,
 {
-
     fn function(&self) -> Result<(String, Value), ArchiveError> {
         match &self.0 {
             RegistrarCall::register_para(id, info, code, initial_head_data) => {
@@ -264,46 +237,36 @@ where
                     { "initial_head_data": initial_head_data }
                 ]);
                 Ok(("register_para".into(), val))
-            },
+            }
             RegistrarCall::deregister_para(id) => {
-                let val = json!([
-                    { "id": id }
-                ]);
-                Ok(("deregister_para".into(), val ))
-            },
+                let val = json!([{ "id": id }]);
+                Ok(("deregister_para".into(), val))
+            }
             RegistrarCall::set_thread_count(count) => {
-                let val = json!([
-                    { "count": count }
-                ]);
-                Ok(( "set_thread_count".into(), val))
-            },
+                let val = json!([{ "count": count }]);
+                Ok(("set_thread_count".into(), val))
+            }
             RegistrarCall::register_parathread(code, initial_head_data) => {
-                let val = json!([
-                    { "code": code },
-                    { "initial_head_data": initial_head_data }
-                ]);
-                Ok(( "register_parathread".into(), val ))
-            },
+                let val = json!([{ "code": code }, { "initial_head_data": initial_head_data }]);
+                Ok(("register_parathread".into(), val))
+            }
             RegistrarCall::select_parathread(id, collator, head_hash) => {
-                let val = json!([
-                    { "id": id },
-                    { "collator": collator },
-                    { "head_hash": head_hash }
-                ]);
-                Ok(("select_parathread".into(), val ))
-            },
+                let val = json!([{ "id": id }, { "collator": collator }, {
+                    "head_hash": head_hash
+                }]);
+                Ok(("select_parathread".into(), val))
+            }
             RegistrarCall::deregister_parathread() => {
-                Ok(("deregister_parathread".into(), json!({}) ))
-            },
+                Ok(("deregister_parathread".into(), json!({})))
+            }
             RegistrarCall::swap(other) => {
-                let val = json!([
-                    { "other": other }
-                ]);
+                let val = json!([{ "other": other }]);
                 Ok(("swap".into(), val))
-            },
-            __phantom_item => { // marker
-                warn!("hit phantom item");
-                Ok(("".into(), json!({}) ))
+            }
+            __phantom_item => {
+                // marker
+                log::warn!("hit phantom item");
+                Ok(("".into(), json!({})))
             }
         }
     }

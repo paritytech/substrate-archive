@@ -18,25 +18,19 @@
 // substrate-archive will eventually use substrate-subxt once refactoring
 // the way extrinsics are crawled from the substrate RPC
 
-mod subxt_metadata;
+pub mod subxt_metadata;
 
 use log::*;
 use runtime_metadata::RuntimeMetadataPrefixed;
-use substrate_primitives::{
-    // twox_128,
-    storage::StorageKey
-};
+use substrate_primitives::storage::StorageKey;
 
-use std::{
-    convert::TryFrom,
-    fmt
-};
+use std::{convert::TryFrom, fmt};
 
-pub use self::subxt_metadata::{ Metadata as SubxtMetadata, Error};
+pub use self::subxt_metadata::{Error, Metadata as SubxtMetadata};
 use crate::error::Error as ArchiveError;
 
 pub struct Metadata {
-    inner: SubxtMetadata
+    inner: SubxtMetadata,
 }
 
 impl fmt::Display for Metadata {
@@ -51,9 +45,7 @@ impl Metadata {
     }
 
     pub fn from_subxt(meta: SubxtMetadata) -> Metadata {
-        Metadata {
-            inner: meta
-        }
+        Metadata { inner: meta }
     }
 
     /// get storage keys for all possible values of storage for one block
@@ -75,11 +67,11 @@ impl Metadata {
         }
         other_keys
         /*
-        keys.into_iter().filter_map(|k| {
-            other_keys.iter().find(|&&other| other == &&k.0)
-                .map(|k| StorageKey(k.to_vec()))
-        }).collect::<Vec<StorageKey>>()
-*/
+                keys.into_iter().filter_map(|k| {
+                    other_keys.iter().find(|&&other| other == &&k.0)
+                        .map(|k| StorageKey(k.to_vec()))
+                }).collect::<Vec<StorageKey>>()
+        */
     }
 }
 
@@ -88,9 +80,7 @@ impl TryFrom<RuntimeMetadataPrefixed> for Metadata {
 
     fn try_from(metadata: RuntimeMetadataPrefixed) -> Result<Self, Self::Error> {
         let metadata = SubxtMetadata::try_from(metadata).map_err(|e| ArchiveError::from(e))?;
-        Ok(Self {
-            inner: metadata
-        })
+        Ok(Self { inner: metadata })
     }
 }
 
@@ -98,8 +88,8 @@ impl TryFrom<RuntimeMetadataPrefixed> for Metadata {
 mod tests {
 
     use super::*;
-    use subxt_metadata::ModuleMetadata;
     use rand::Rng;
+    use subxt_metadata::ModuleMetadata;
     /*
     fn create_test_modules() -> Vec<ModuleMetadata> {
         let mut calls = Vec::new();
