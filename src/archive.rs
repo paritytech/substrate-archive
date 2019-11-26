@@ -144,8 +144,8 @@ impl Sync {
     {
         let rpc0 = rpc.clone();
         let looped = self.looped;
-        info!("Looped: {}", looped);
-        info!("latest: {}", latest);
+        log::info!("Looped: {}", looped);
+        log::info!("latest: {}", latest);
         let missing_blocks = db
             .query_missing_blocks(Some(latest))
             .and_then(move |blocks| {
@@ -178,7 +178,7 @@ impl Sync {
             })
             .map(move |(b, missing)| {
                 let looped = looped + 1;
-                info!("Inserted {} blocks", missing);
+                log::info!("Inserted {} blocks", missing);
                 let missing = b;
                 let done = missing == 0;
                 (Self { looped, missing }, done)
