@@ -57,13 +57,6 @@ pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", p
 pallet-balances = { git = "https://github.com/paritytech/substrate", package = "pallet-balances", branch = "polkadot-master"}
 derive_more = "0.15.0"
 
-[dependencies.polkadot-runtime]
-git = "https://github.com/insipx/polkadot"
-package = "polkadot-runtime"
-default-features = false
-branch = "insipx/archive-patches"
-features = ["std"]
-
 [patch.crates-io]
 jsonrpc-core-client = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["ws", "arbitrary_precision"] }
 jsonrpc-client-transports = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["ws", "arbitrary_precision"] }

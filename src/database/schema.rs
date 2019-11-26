@@ -66,7 +66,7 @@ table! {
         block_num -> Int8,
         hash -> Bytea,
         module -> Varchar,
-        key -> Varchar,
+        function -> Varchar,
         parameters -> Jsonb,
     }
 }

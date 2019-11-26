@@ -312,7 +312,7 @@ where
 
 impl<T> FrameExt for SystemCall<T>
 where
-    T: pallet_system::Trait,
+    T: frame_system::Trait,
 {
     fn function(&self) -> FrameResult<FunctionInfo> {
         match &self {

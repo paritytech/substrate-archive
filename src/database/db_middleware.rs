@@ -36,8 +36,8 @@
  *     CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use futures::future::{self, Future, poll_fn};
-use diesel::{Connection, r2d2::ConnectionManager};
+use diesel::{r2d2::ConnectionManager, Connection};
+use futures::future::{self, poll_fn, Future};
 use r2d2::{Pool, PooledConnection};
 use tokio_threadpool::{blocking, BlockingError};
 
@@ -45,7 +45,7 @@ use crate::error::Error as ArchiveError;
 /// Allows for creating asyncronous database requests
 #[derive(Debug)]
 pub struct AsyncDiesel<T: Connection + 'static> {
-    pool: Pool<ConnectionManager<T>>
+    pool: Pool<ConnectionManager<T>>,
 }
 
 impl<T> Clone for AsyncDiesel<T>
@@ -60,15 +60,20 @@ where
 }
 
 // TODO: " 'static " should be removable once async/await is released nov 7
-impl<T> AsyncDiesel<T> where T: Connection + 'static {
-
+impl<T> AsyncDiesel<T>
+where
+    T: Connection + 'static,
+{
     /// Create a new instance of an asyncronous diesel
     pub fn new(db_url: &str) -> Result<Self, ArchiveError> {
         Self::new_pool(db_url, r2d2::Builder::default())
     }
 
     /// create a new instance of asyncronous diesel, using custom ConnectionManager
-    pub fn new_pool(db_url: &str, builder: r2d2::Builder<ConnectionManager<T>>) -> Result<Self, ArchiveError> {
+    pub fn new_pool(
+        db_url: &str,
+        builder: r2d2::Builder<ConnectionManager<T>>,
+    ) -> Result<Self, ArchiveError> {
         let manager = ConnectionManager::new(db_url);
         let pool = builder.build(manager)?;
         Ok(AsyncDiesel { pool })
@@ -79,27 +84,28 @@ impl<T> AsyncDiesel<T> where T: Connection + 'static {
     pub fn run<F, R, E>(&self, fun: F) -> impl Future<Item = R, Error = E>
     where
         F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
-        + Send
-        + std::marker::Unpin // not critical until Nov 7
-        + 'static,
+            + Send
+            + std::marker::Unpin
+            + 'static,
         R: 'static,
         T: Send + 'static,
-        E: From<BlockingError> + From<r2d2::Error> + 'static
+        E: From<BlockingError> + From<r2d2::Error> + 'static,
     {
         // TODO Remove unwrap()
         let pool = self.pool.clone();
         let mut fun = Some(fun);
-        poll_fn(move
-                || blocking(|| (fun.take().expect("Made some; qed"))(pool.get().expect("Pool should clone"))))
-            .then(
-            |future_result| match future_result {
-                Ok(query_result) => match query_result {
-                    Ok(result) => future::ok(result),
-                    Err(error) => future::err(error),
-                },
-                Err(e) => panic!("Error running async database task: {:?}", e),
+        poll_fn(move || {
+            blocking(|| {
+                (fun.take().expect("Made some; qed"))(pool.get().expect("Pool should clone"))
+            })
+        })
+        .then(|future_result| match future_result {
+            Ok(query_result) => match query_result {
+                Ok(result) => future::ok(result),
+                Err(error) => future::err(error),
             },
-        )
+            Err(e) => panic!("Error running async database task: {:?}", e),
+        })
     }
 }
 

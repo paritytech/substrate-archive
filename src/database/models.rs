@@ -19,13 +19,13 @@
 use primitive_types::{H256 as SubstrateH256, H512 as SubstrateH512};
 use serde_json::Value;
 // use codec::Decode;
-use diesel::sql_types::{Binary};
+use chrono::{offset::Utc, DateTime};
 use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
-use diesel::{Queryable, AsChangeset};
-use chrono::{offset::Utc, DateTime};
+use diesel::sql_types::Binary;
+use diesel::{AsChangeset, Queryable};
 
-use super::schema::{blocks, inherents, signed_extrinsics, accounts};
+use super::schema::{accounts, blocks, inherents, signed_extrinsics, storage};
 
 // TODO: Make generic
 
@@ -35,7 +35,7 @@ use super::schema::{blocks, inherents, signed_extrinsics, accounts};
 /// it is encoded with parity_scale_codec (u32/etc)
 /// to make up for PostgreSQL's lack of an unsigned data type
 #[derive(Insertable, AsChangeset)]
-#[table_name="blocks"]
+#[table_name = "blocks"]
 pub struct InsertBlock<'a> {
     pub parent_hash: &'a [u8],
     pub hash: &'a [u8],
@@ -46,7 +46,7 @@ pub struct InsertBlock<'a> {
 }
 
 #[derive(Insertable, AsChangeset)]
-#[table_name="blocks"]
+#[table_name = "blocks"]
 pub struct InsertBlockOwned {
     pub parent_hash: Vec<u8>,
     pub hash: Vec<u8>,
@@ -57,7 +57,7 @@ pub struct InsertBlockOwned {
 }
 
 #[derive(Insertable)]
-#[table_name="inherents"]
+#[table_name = "inherents"]
 pub struct InsertInherent<'a> {
     pub hash: &'a [u8],
     pub block_num: &'a i64,
@@ -66,12 +66,12 @@ pub struct InsertInherent<'a> {
     pub parameters: Option<&'a Value>,
     // pub success: &'a bool,
     pub in_index: &'a i32,
-    pub transaction_version: &'a i32
+    pub transaction_version: &'a i32,
 }
 
 // for batch inserts where collecting references may not always live long enough
 #[derive(Insertable, Debug)]
-#[table_name="inherents"]
+#[table_name = "inherents"]
 pub struct InsertInherentOwned {
     pub hash: Vec<u8>,
     pub block_num: i64,
@@ -80,11 +80,11 @@ pub struct InsertInherentOwned {
     pub parameters: Option<Value>,
     // pub success: bool,
     pub in_index: i32,
-    pub transaction_version: i32
+    pub transaction_version: i32,
 }
 
 #[derive(Insertable)]
-#[table_name="signed_extrinsics"]
+#[table_name = "signed_extrinsics"]
 pub struct InsertTransaction<'a> {
     // pub transaction_hash: &'a [u8],
     pub block_num: &'a i64,
@@ -98,11 +98,11 @@ pub struct InsertTransaction<'a> {
     // pub nonce: &'a i32,
     pub tx_index: &'a i32,
     // pub signature: &'a [u8],
-    pub transaction_version: &'a i32
+    pub transaction_version: &'a i32,
 }
 
 #[derive(Insertable, Debug)]
-#[table_name="signed_extrinsics"]
+#[table_name = "signed_extrinsics"]
 pub struct InsertTransactionOwned {
     // pub transaction_hash: Vec<u8>,
     pub block_num: i64,
@@ -116,11 +116,11 @@ pub struct InsertTransactionOwned {
     // pub nonce: i32,
     pub tx_index: i32,
     // pub signature: Vec<u8>,
-    pub transaction_version: i32
+    pub transaction_version: i32,
 }
 
 #[derive(Insertable)]
-#[table_name="accounts"]
+#[table_name = "accounts"]
 pub struct InsertAccount<'a> {
     address: &'a [u8],
     free_balance: &'a i64,
@@ -130,17 +130,17 @@ pub struct InsertAccount<'a> {
     create_hash: &'a [u8],
     created: &'a i64,
     updated: &'a i64,
-    active: &'a bool
+    active: &'a bool,
 }
 
 #[derive(Insertable)]
-#[table_name="storage"]
+#[table_name = "storage"]
 pub struct InsertStorage<'a> {
     pub block_num: &'a i64,
     pub hash: &'a [u8],
     pub module: &'a str,
     pub function: &'a str,
-    pub parameters: &'a Value
+    pub parameters: &'a Value,
 }
 
 #[derive(Insertable)]
@@ -150,7 +150,7 @@ pub struct InsertStorageOwned {
     pub hash: Vec<u8>,
     pub module: String,
     pub function: String,
-    pub parameters: Value
+    pub parameters: Value,
 }
 
 type EncodedData = Vec<u8>;
@@ -216,7 +216,7 @@ pub struct SignedExtrinsics {
     /// Index of the transaction within the block it originated in
     tx_index: usize,
     /// signature of the transaction
-    signature: H512
+    signature: H512,
 }
 
 /// Accounts  on thechain
@@ -240,7 +240,7 @@ pub struct Accounts {
     /// Block that this account was last updated
     updated: i64,
     /// whether this account is active
-    active: bool
+    active: bool,
 }
 
 /// NewType for custom Queryable trait on Substrates H256 type
@@ -273,7 +273,7 @@ impl From<SubstrateH512> for H512 {
 impl<DB> FromSql<Binary, DB> for H512
 where
     DB: Backend,
-    *const [u8]: FromSql<Binary, DB>
+    *const [u8]: FromSql<Binary, DB>,
 {
     fn from_sql(bytes: Option<&DB::RawValue>) -> deserialize::Result<Self> {
         let vec: &Vec<u8> = &Vec::from_sql(bytes)?;
@@ -303,7 +303,7 @@ impl From<SubstrateH256> for H256 {
 impl<DB> FromSql<Binary, DB> for H256
 where
     DB: Backend,
-    *const [u8]: FromSql<Binary, DB>
+    *const [u8]: FromSql<Binary, DB>,
 {
     fn from_sql(bytes: Option<&DB::RawValue>) -> deserialize::Result<Self> {
         let vec: &Vec<u8> = &Vec::from_sql(bytes)?;

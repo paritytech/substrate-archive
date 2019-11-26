@@ -3075,8 +3075,8 @@ dependencies = [
  "failure",
  "log 0.4.8",
  "parity-scale-codec",
- "polkadot-primitives 0.6.18",
- "polkadot-runtime 0.6.18",
+ "polkadot-primitives",
+ "polkadot-runtime",
  "serde",
  "serde_json",
  "sr-primitives",
@@ -3101,22 +3101,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-parachain"
-version = "0.6.18"
-dependencies = [
- "derive_more 0.14.1",
- "lazy_static",
- "log 0.4.8",
- "parity-scale-codec",
- "parking_lot 0.7.1",
- "serde",
- "shared_memory",
- "sr-std",
- "substrate-primitives",
- "wasmi 0.4.5",
-]
-
-[[package]]
 name = "polkadot-primitives"
 version = "0.6.18"
 source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#e29b9a87ce5d85f2b987090325fdb10896a4dca5"
@@ -3124,24 +3108,7 @@ dependencies = [
  "bitvec",
  "pallet-babe",
  "parity-scale-codec",
- "polkadot-parachain 0.6.18 (git+https://github.com/insipx/polkadot?branch=insipx/archive-patches)",
- "serde",
- "sr-api",
- "sr-primitives",
- "sr-std",
- "sr-version",
- "substrate-application-crypto",
- "substrate-primitives",
-]
-
-[[package]]
-name = "polkadot-primitives"
-version = "0.6.18"
-dependencies = [
- "bitvec",
- "pallet-babe",
- "parity-scale-codec",
- "polkadot-parachain 0.6.18",
+ "polkadot-parachain",
  "serde",
  "sr-api",
  "sr-primitives",
@@ -3186,66 +3153,8 @@ dependencies = [
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-treasury",
  "parity-scale-codec",
- "polkadot-parachain 0.6.18 (git+https://github.com/insipx/polkadot?branch=insipx/archive-patches)",
- "polkadot-primitives 0.6.18 (git+https://github.com/insipx/polkadot?branch=insipx/archive-patches)",
- "rustc-hex",
- "safe-mix",
- "serde",
- "serde_derive",
- "sr-api",
- "sr-io",
- "sr-primitives",
- "sr-staking-primitives",
- "sr-std",
- "sr-version",
- "substrate-authority-discovery-primitives",
- "substrate-block-builder-runtime-api",
- "substrate-consensus-babe-primitives",
- "substrate-inherents",
- "substrate-offchain-primitives",
- "substrate-primitives",
- "substrate-serializer",
- "substrate-session",
- "substrate-transaction-pool-runtime-api",
- "substrate-wasm-builder-runner 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "polkadot-runtime"
-version = "0.6.18"
-dependencies = [
- "bitvec",
- "frame-executive",
- "frame-support",
- "frame-system",
- "frame-system-rpc-runtime-api",
- "log 0.3.9",
- "pallet-authority-discovery",
- "pallet-authorship",
- "pallet-babe",
- "pallet-balances",
- "pallet-collective",
- "pallet-democracy",
- "pallet-elections-phragmen",
- "pallet-finality-tracker",
- "pallet-grandpa",
- "pallet-im-online",
- "pallet-indices",
- "pallet-membership",
- "pallet-nicks",
- "pallet-offences",
- "pallet-randomness-collective-flip",
- "pallet-session",
- "pallet-staking",
- "pallet-staking-reward-curve",
- "pallet-sudo",
- "pallet-timestamp",
- "pallet-transaction-payment",
- "pallet-transaction-payment-rpc-runtime-api",
- "pallet-treasury",
- "parity-scale-codec",
- "polkadot-parachain 0.6.18",
- "polkadot-primitives 0.6.18",
+ "polkadot-parachain",
+ "polkadot-primitives",
  "rustc-hex",
  "safe-mix",
  "serde",
@@ -4273,7 +4182,6 @@ dependencies = [
  "pallet-timestamp",
  "pallet-treasury",
  "parity-scale-codec",
- "polkadot-runtime 0.6.18 (git+https://github.com/insipx/polkadot?branch=insipx/archive-patches)",
  "primitive-types 0.5.1",
  "r2d2",
  "rand 0.7.2",

@@ -20,8 +20,8 @@ mod archive;
 mod database;
 mod error;
 mod extrinsics;
+mod frame_ext;
 mod metadata;
-mod paint_ext;
 mod queries;
 #[cfg(test)]
 mod tests;
@@ -37,6 +37,6 @@ pub use types::{ExtractCall, Module, System, ToDatabaseExtrinsic};
 pub mod rpc;
 pub mod frame {
     pub use frame_system;
-    pub use paint_sudo;
+    pub use pallet_sudo;
 }
 pub use util::init_logger;

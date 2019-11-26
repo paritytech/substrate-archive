@@ -14,12 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 //! Default Runtime for tests
+use crate::{ExtractCall, Module, NotHandled, SrmlExt, System};
+use codec::{Decode, Encode, Error as CodecError, Input};
 #[cfg(test)]
-
-use node_runtime::{Runtime as RuntimeT, SignedExtra, Call};
+use node_runtime::{Call, Runtime as RuntimeT, SignedExtra};
 use srml_system::Trait;
-use codec::{Encode, Decode, Input, Error as CodecError};
-use crate::{ System, ExtractCall, Module, SrmlExt, NotHandled};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Runtime;
@@ -37,7 +36,9 @@ impl System for Runtime {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct CallWrapper { inner: Call }
+pub struct CallWrapper {
+    inner: Call,
+}
 impl Encode for CallWrapper {
     fn encode(&self) -> Vec<u8> {
         self.inner.encode()
@@ -47,9 +48,7 @@ impl Encode for CallWrapper {
 impl Decode for CallWrapper {
     fn decode<I: Input>(input: &mut I) -> Result<Self, CodecError> {
         let decoded: Call = Decode::decode(input)?;
-        Ok(CallWrapper {
-            inner: decoded
-        })
+        Ok(CallWrapper { inner: decoded })
     }
 }
 
@@ -57,12 +56,8 @@ impl Decode for CallWrapper {
 impl ExtractCall for CallWrapper {
     fn extract_call(&self) -> (Module, &dyn SrmlExt) {
         match &self.inner {
-            Call::Timestamp(call) => {
-                (Module::Timestamp, call)
-            },
-            Call::FinalityTracker(call) => {
-                (Module::FinalityTracker, call)
-            },
+            Call::Timestamp(call) => (Module::Timestamp, call),
+            Call::FinalityTracker(call) => (Module::FinalityTracker, call),
             _ => {
                 println!("Unsupported Module");
                 (Module::NotHandled, &NotHandled)

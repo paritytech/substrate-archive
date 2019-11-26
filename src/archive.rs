@@ -68,7 +68,8 @@ where
             .subscribe_blocks(sender.clone())
             .map_err(|e| error!("{:?}", e));
 
-        self.runtime.spawn(Self::sync(self.rpc.clone(), self.db.clone()).map(|_| ()));
+        self.runtime
+            .spawn(Self::sync(self.rpc.clone(), self.db.clone()).map(|_| ()));
         tokio::run(blocks.join(data_in).map(|_| ()));
         Ok(())
     }
@@ -79,19 +80,25 @@ where
         loop_fn(Sync::new(), move |v| {
             let (db, rpc) = (db.clone(), rpc.clone());
             rpc.clone()
-               .latest_block()
-               .map_err(|e| error!("{:?}", e))
-               .map(move |latest| *latest.expect("should be latest; qed").block.header.number())
-               .and_then(move |latest| {
-                   v.sync(db.clone(), latest.into(), rpc.clone())
-                    .and_then(move |(sync, done)| {
-                        if  done {
-                            Ok(Loop::Break(sync))
-                        } else {
-                            Ok(Loop::Continue(sync))
-                        }
-                    })
-               })
+                .latest_block()
+                .map_err(|e| error!("{:?}", e))
+                .map(move |latest| {
+                    *latest
+                        .expect("should always be a latest; qed")
+                        .block
+                        .header
+                        .number()
+                })
+                .and_then(move |latest| {
+                    v.sync(db.clone(), latest.into(), rpc.clone())
+                        .and_then(move |(sync, done)| {
+                            if done {
+                                Ok(Loop::Break(sync))
+                            } else {
+                                Ok(Loop::Continue(sync))
+                            }
+                        })
+                })
         })
     }
 
