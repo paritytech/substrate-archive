@@ -133,6 +133,26 @@ pub struct InsertAccount<'a> {
     active: &'a bool
 }
 
+#[derive(Insertable)]
+#[table_name="storage"]
+pub struct InsertStorage<'a> {
+    pub block_num: &'a i64,
+    pub hash: &'a [u8],
+    pub module: &'a str,
+    pub function: &'a str,
+    pub parameters: &'a Value
+}
+
+#[derive(Insertable)]
+#[table_name = "storage"]
+pub struct InsertStorageOwned {
+    pub block_num: i64,
+    pub hash: Vec<u8>,
+    pub module: String,
+    pub function: String,
+    pub parameters: Value
+}
+
 type EncodedData = Vec<u8>;
 
 /// The table for accounts

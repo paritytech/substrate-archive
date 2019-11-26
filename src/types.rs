@@ -102,6 +102,7 @@ impl<T: System> BatchBlock<T> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Storage<T: System> {
     data: StorageData,
+    meta: StorageMetadata,
     hash: T::Hash // TODO use T:Hash
 }
 

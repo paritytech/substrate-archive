@@ -71,7 +71,7 @@ pub trait System: Send + Sync + 'static + Debug {
 
     /// The Call type
     /// Should implement `ExtractCall` to put call data in a more database-friendly format
-    type Call: Encode + Decode + Clone + Debug + ExtractCall; // TODO import Debug
+    type Call: Parameter + Clone + Debug + ExtractCall;
 
     /// the Opaque Extrinsic Type
     type Extrinsic: Send

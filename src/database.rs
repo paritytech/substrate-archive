@@ -153,7 +153,7 @@ where
     T: System
 {
     fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-        use self::schema::blocks::dsl::{blocks, hash, time};
+        use self::schema::blocks::dsl::{blocks, hash};
         let date_time = self.get_timestamp()?;
         let hsh = self.hash().clone();
         let fut = db.run(move |conn| {
@@ -175,7 +175,7 @@ where
     T: System
 {
     fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-        use self::schema::blocks::dsl::{blocks, hash, time};
+        use self::schema::blocks::dsl::{blocks, hash};
         debug!("Inserting {} items via Batch Storage", self.inner().len());
         let storage: Vec<Storage<T>> = self.consume();
         let fut = db.run(move |conn| {
