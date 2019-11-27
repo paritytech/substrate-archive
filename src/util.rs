@@ -13,22 +13,20 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
-use log::*;
 use fern::colors::{Color, ColoredLevelConfig};
+use log::*;
 
 // panics if it fails because of anything other than the directory already exists
 pub fn create_dir(path: std::path::PathBuf) {
     match std::fs::create_dir(path) {
-        Err(e) => {
-            match e.kind() {
-                std::io::ErrorKind::AlreadyExists => (),
-                _ => {
-                    error!("{}", e);
-                    std::process::exit(0x0100);
-                }
+        Err(e) => match e.kind() {
+            std::io::ErrorKind::AlreadyExists => (),
+            _ => {
+                error!("{}", e);
+                std::process::exit(0x0100);
             }
         },
-        Ok(_) => ()
+        Ok(_) => (),
     }
 }
 
@@ -40,8 +38,7 @@ pub fn init_logger(level: log::LevelFilter) {
         .debug(Color::Blue)
         .trace(Color::Magenta);
 
-    let mut log_dir = dirs::data_local_dir()
-        .expect("failed to find local data dir for logs");
+    let mut log_dir = dirs::data_local_dir().expect("failed to find local data dir for logs");
     log_dir.push("substrate_archive");
     create_dir(log_dir.clone());
     log_dir.push("archive.logs");
@@ -49,35 +46,32 @@ pub fn init_logger(level: log::LevelFilter) {
     fern::Dispatch::new()
         .format(move |out, message, record| {
             out.finish(format_args!(
-                    "{} [{}][{}] {} ::{};{}",
-                    chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
-                    record.target(),
-                    colors.color(record.level()),
-                    message,
-                    format_opt(record.file().map(|s| s.to_string())),
-                    format_opt(record.line().map(|n| n.to_string()))
-                ))
+                "{} [{}][{}] {} ::{};{}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                colors.color(record.level()),
+                message,
+                format_opt(record.file().map(|s| s.to_string())),
+                format_opt(record.line().map(|n| n.to_string()))
+            ))
         })
         .chain(
             fern::Dispatch::new()
-            .level(log::LevelFilter::Info)
-            .level_for("substrate_archive", log::LevelFilter::Trace)
-            // .level_for("cratename", log::LevelFilter::Trace)
-            // .level_for("crate_name", log::LevelFilter::Trace)
-            // .level_for("crate_name", log::LevelFilter::Trace)
-            .chain(fern::log_file(log_dir).expect("Failed to create edb.logs file"))
+                .level(log::LevelFilter::Info)
+                .level_for("substrate_archive", log::LevelFilter::Trace)
+                // .level_for("cratename", log::LevelFilter::Trace)
+                // .level_for("crate_name", log::LevelFilter::Trace)
+                // .level_for("crate_name", log::LevelFilter::Trace)
+                .chain(fern::log_file(log_dir).expect("Failed to create edb.logs file")),
         )
-        .chain(
-            fern::Dispatch::new()
-            .level(level)
-            .chain(std::io::stdout())
-        )
-        .apply().expect("Could not init logging");
+        .chain(fern::Dispatch::new().level(level).chain(std::io::stdout()))
+        .apply()
+        .expect("Could not init logging");
 }
 
 fn format_opt(file: Option<String>) -> String {
     match file {
         None => "".to_string(),
-        Some(f) => f.to_string()
+        Some(f) => f.to_string(),
     }
 }

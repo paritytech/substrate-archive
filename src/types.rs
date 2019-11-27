@@ -16,42 +16,29 @@
 
 pub mod storage;
 
-use substrate_primitives::storage::StorageChangeSet;
-use serde::de::DeserializeOwned;
-use codec::{Encode, Decode};
-use chrono::{DateTime, Utc, TimeZone};
-use substrate_primitives::storage::StorageData;
-use runtime_support::Parameter;
+use chrono::{DateTime, TimeZone, Utc};
+use codec::{Decode, Encode};
 use runtime_primitives::{
-    OpaqueExtrinsic,
-    AnySignature,
-    generic::{
-        Block as BlockT,
-        SignedBlock
-    },
+    generic::{Block as BlockT, SignedBlock},
     traits::{
-        Bounded,
-        CheckEqual,
-        Hash,
-        Header as HeaderTrait,
-        MaybeDisplay,
-        MaybeSerializeDeserialize,
-        MaybeSerialize,
-        Member,
-        SignedExtension,
-        SimpleArithmetic,
-        SimpleBitOps,
+        Bounded, CheckEqual, Hash, Header as HeaderTrait, MaybeDisplay, MaybeSerialize,
+        MaybeSerializeDeserialize, Member, SignedExtension, SimpleArithmetic, SimpleBitOps,
         StaticLookup,
     },
+    AnySignature, OpaqueExtrinsic,
 };
+use runtime_support::Parameter;
+use serde::de::DeserializeOwned;
+use substrate_primitives::storage::StorageChangeSet;
+use substrate_primitives::storage::StorageData;
 
-use crate::{error::Error, srml_ext::SrmlExt, extrinsics::Extrinsic};
 use self::storage::StorageKeyType;
+use crate::{error::Error, extrinsics::Extrinsic, srml_ext::SrmlExt};
 
 /// Format for describing accounts
 pub type Address<T> = <<T as System>::Lookup as StaticLookup>::Source;
-pub type BasicExtrinsic<T>
-    = Extrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra>;
+pub type BasicExtrinsic<T> =
+    Extrinsic<Address<T>, <T as System>::Call, AnySignature, <T as System>::SignedExtra>;
 /// A block with OpaqueExtrinsic as extrinsic type
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
 
@@ -73,15 +60,12 @@ pub enum Data<T: System> {
 // new types to allow implementing of traits
 #[derive(Debug, PartialEq, Eq)]
 pub struct Header<T: System> {
-    inner: T::Header
+    inner: T::Header,
 }
 
 impl<T: System> Header<T> {
-
     pub fn new(header: T::Header) -> Self {
-        Self {
-            inner: header
-        }
+        Self { inner: header }
     }
 
     pub fn inner(&self) -> &T::Header {
@@ -89,18 +73,14 @@ impl<T: System> Header<T> {
     }
 }
 
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct Block<T: System> {
-    inner: SubstrateBlock<T>
+    inner: SubstrateBlock<T>,
 }
 
 impl<T: System> Block<T> {
-
     pub fn new(block: SubstrateBlock<T>) -> Self {
-        Self {
-            inner: block
-        }
+        Self { inner: block }
     }
 
     pub fn inner(&self) -> &SubstrateBlock<T> {
@@ -110,11 +90,10 @@ impl<T: System> Block<T> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct BatchBlock<T: System> {
-    inner: Vec<SubstrateBlock<T>>
+    inner: Vec<SubstrateBlock<T>>,
 }
 
 impl<T: System> BatchBlock<T> {
-
     pub fn new(blocks: Vec<SubstrateBlock<T>>) -> Self {
         Self { inner: blocks }
     }
@@ -128,16 +107,19 @@ impl<T: System> BatchBlock<T> {
 pub struct Storage<T: System> {
     data: StorageData,
     key_type: StorageKeyType,
-    hash: T::Hash // TODO use T:Hash
+    hash: T::Hash, // TODO use T:Hash
 }
 
 impl<T> Storage<T>
 where
-    T: System
+    T: System,
 {
-
     pub fn new(data: StorageData, key_type: StorageKeyType, hash: T::Hash) -> Self {
-        Self { data, key_type, hash }
+        Self {
+            data,
+            key_type,
+            hash,
+        }
     }
 
     pub fn data(&self) -> &StorageData {
@@ -166,7 +148,7 @@ pub struct BatchStorage<T: System> {
 
 impl<T> BatchStorage<T>
 where
-    T: System
+    T: System,
 {
     pub fn new(data: Vec<Storage<T>>) -> Self {
         Self { inner: data }
@@ -183,11 +165,10 @@ where
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Event<T: System> {
-    change_set: StorageChangeSet<T::Hash>
+    change_set: StorageChangeSet<T::Hash>,
 }
 
 impl<T: System> Event<T> {
-
     pub fn new(change_set: StorageChangeSet<T::Hash>) -> Self {
         Self { change_set }
     }
@@ -234,7 +215,6 @@ pub enum Module {
     NotHandled,
 }
 
-
 pub trait ExtractCall {
     /// module the call is from, IE Timestamp, FinalityTracker
     fn extract_call(&self) -> (Module, Box<dyn SrmlExt>);
@@ -247,16 +227,9 @@ pub trait ExtractCall {
 // but using Trait is better
 /// The subset of the `srml_system::Trait` that a client must implement.
 pub trait System: Send + Sync + 'static + std::fmt::Debug {
-
     /// The Call type
     /// Should implement `ExtractCall` to put call data in a more database-friendly format
-    type Call: Encode
-        + Decode
-        + PartialEq
-        + Eq
-        + Clone
-        + std::fmt::Debug
-        + ExtractCall;
+    type Call: Encode + Decode + PartialEq + Eq + Clone + std::fmt::Debug + ExtractCall;
 
     /// Account index (aka nonce) type. This stores the number of previous
     /// transactions associated with a sender account.

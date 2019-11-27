@@ -43,11 +43,9 @@ pub(crate) fn head() -> diesel::query_builder::SqlQuery {
     unimplemented!()
 }
 
-
 #[cfg(test)]
 mod tests {
     //! Must be connected to a postgres database
     use super::*;
     // use diesel::test_transaction;
-
 }

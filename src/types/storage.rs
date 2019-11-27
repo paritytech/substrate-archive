@@ -54,7 +54,7 @@ pub enum StorageKeyType {
     Sudo(SudoOp),
     System(SystemOp),
     Timestamp(TimestampOp),
-    Treasury(TreasuryOp)
+    Treasury(TreasuryOp),
 }
 
 #[allow(dead_code)]
@@ -62,20 +62,20 @@ pub enum StorageKeyType {
 pub enum AssetsOp {
     Balances,
     NextAssetId,
-    TotalSupply
+    TotalSupply,
 }
 
 #[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AuraOp {
     LastTimestamp,
-    Authorities
+    Authorities,
 }
 
 #[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AuthorityDiscoveryOp {
-    Keys
+    Keys,
 }
 
 #[allow(dead_code)]
@@ -83,7 +83,7 @@ pub enum AuthorityDiscoveryOp {
 pub enum AuthorshipOp {
     Uncles,
     Author,
-    DidSetUncles
+    DidSetUncles,
 }
 
 #[allow(dead_code)]
@@ -93,7 +93,7 @@ pub enum BalancesOp {
     Vesting,
     FreeBalance,
     ReservedBalance,
-    Locks
+    Locks,
 }
 
 #[allow(dead_code)]
@@ -103,7 +103,7 @@ pub enum CollectiveOp {
     ProposalOf,
     Voting,
     ProposalCount,
-    Members
+    Members,
 }
 
 #[allow(dead_code)]
@@ -115,7 +115,7 @@ pub enum ContractsOp {
     CodeStorage,
     AccountCounter,
     ContractInfoOf,
-    GasPrice
+    GasPrice,
 }
 
 // ---- Council has no storage -----
@@ -161,7 +161,7 @@ pub enum ElectionsOp {
     CandidateCount,
     // temporary state (only relevent during finalization/presentation)
     NextFinalize,
-    Leaderboard
+    Leaderboard,
 }
 
 #[allow(dead_code)]
@@ -177,7 +177,7 @@ pub enum ElectionsPhragmenOp {
     ElectionRounds,
     VotesOf,
     StakeOf,
-    Candidates
+    Candidates,
 }
 
 // -- Executive keeps no storage --
@@ -189,7 +189,7 @@ pub enum FinalityTrackerOp {
     OrderedHints,
     Median,
     Update,
-    Initialized
+    Initialized,
 }
 
 #[allow(dead_code)]
@@ -214,7 +214,7 @@ pub enum GrandpaOp {
     NextForced,
     Stalled,
     CurrentSetId,
-    SetIdSession
+    SetIdSession,
 }
 
 #[allow(dead_code)]
@@ -222,7 +222,7 @@ pub enum GrandpaOp {
 pub enum ImOnlineOp {
     GossipAt,
     Keys,
-    ReceivedHeartbeats
+    ReceivedHeartbeats,
 }
 
 #[allow(dead_code)]
@@ -235,7 +235,7 @@ pub enum IndicesOp {
 #[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum MembershipOp {
-    Members
+    Members,
 }
 
 // --- Metadata keeps no storage --
@@ -254,7 +254,7 @@ pub enum ScoredPoolOp {
     Pool,
     CandidateExists,
     Members,
-    MemberCount
+    MemberCount,
 }
 
 #[allow(dead_code)]
@@ -266,7 +266,7 @@ pub enum SessionOp {
     QueuedKeys,
     DisabledValidators,
     NextKeys,
-    KeyOwner
+    KeyOwner,
 }
 
 #[allow(dead_code)]
@@ -296,7 +296,7 @@ pub enum StakingOp {
 #[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SudoOp {
-    Key
+    Key,
 }
 
 #[allow(dead_code)]
@@ -352,7 +352,7 @@ pub enum SystemOp {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TimestampOp {
     Now,
-    DidUpdate
+    DidUpdate,
 }
 
 #[allow(dead_code)]
@@ -360,5 +360,5 @@ pub enum TimestampOp {
 pub enum TreasuryOp {
     ProposalCount,
     Proposals,
-    Approvals
+    Approvals,
 }

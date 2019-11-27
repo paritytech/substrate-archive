@@ -56,9 +56,4 @@ joinable!(accounts -> blocks (create_hash));
 joinable!(inherents -> blocks (hash));
 joinable!(signed_extrinsics -> blocks (hash));
 
-allow_tables_to_appear_in_same_query!(
-    accounts,
-    blocks,
-    inherents,
-    signed_extrinsics,
-);
+allow_tables_to_appear_in_same_query!(accounts, blocks, inherents, signed_extrinsics,);

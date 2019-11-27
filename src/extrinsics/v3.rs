@@ -14,16 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use codec::{Encode, Decode, Input, Error as CodecError};
-use runtime_primitives::traits::{SignedExtension, Extrinsic};
+use codec::{Decode, Encode, Error as CodecError, Input};
+use runtime_primitives::traits::{Extrinsic, SignedExtension};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UncheckedExtrinsicV3<Address, Call, Signature, Extra>
 where
-    Extra: SignedExtension
+    Extra: SignedExtension,
 {
     pub signature: Option<(Address, Signature, Extra)>,
-    pub function: Call
+    pub function: Call,
 }
 
 impl<Address, Call, Signature, Extra> UncheckedExtrinsicV3<Address, Call, Signature, Extra>
@@ -31,12 +31,15 @@ where
     Address: Decode,
     Signature: Decode,
     Call: Decode,
-    Extra: SignedExtension
+    Extra: SignedExtension,
 {
     pub fn decode<I: Input>(is_signed: bool, input: &mut I) -> Result<Self, CodecError> {
-
         Ok(UncheckedExtrinsicV3 {
-            signature: if is_signed { Some(Decode::decode(input)?) } else { None },
+            signature: if is_signed {
+                Some(Decode::decode(input)?)
+            } else {
+                None
+            },
             function: Decode::decode(input)?,
         })
     }
@@ -47,11 +50,7 @@ impl<Address, Call, Signature, Extra: SignedExtension> Extrinsic
 {
     type Call = Call;
 
-    type SignaturePayload = (
-        Address,
-        Signature,
-        Extra,
-    );
+    type SignaturePayload = (Address, Signature, Extra);
 
     fn is_signed(&self) -> Option<bool> {
         Some(self.signature.is_some())
@@ -64,7 +63,7 @@ where
     Address: Encode,
     Signature: Encode,
     Call: Encode,
-    Extra: SignedExtension
+    Extra: SignedExtension,
 {
     fn encode(&self) -> Vec<u8> {
         encode_with_vec_prefix::<Self, _>(|v| {
@@ -81,7 +80,6 @@ where
         })
     }
 }
-
 
 //TODO There needs to be a better way than verbatim copying code from substrate...
 fn encode_with_vec_prefix<T: Encode, F: Fn(&mut Vec<u8>)>(encoder: F) -> Vec<u8> {

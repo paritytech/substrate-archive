@@ -36,12 +36,12 @@
  *     CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+use diesel::{r2d2::ConnectionManager, Connection};
 use futures::{
-    task::{Poll, Context},
     future::Future,
+    task::{Context, Poll},
 };
 use futures01::Async;
-use diesel::{Connection, r2d2::ConnectionManager};
 use r2d2::{Pool, PooledConnection};
 use tokio_threadpool::{blocking, BlockingError};
 
@@ -49,25 +49,24 @@ use core::pin::Pin;
 
 use crate::error::Error as ArchiveError;
 
-
 struct DatabaseFuture<T, F, R, E>
 where
     T: Connection + 'static,
-    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
+    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>,
 {
     fun: Option<F>,
-    pool: Pool<ConnectionManager<T>>
+    pool: Pool<ConnectionManager<T>>,
 }
 
 impl<T, F, R, E> DatabaseFuture<T, F, R, E>
 where
     T: Connection + 'static,
-F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
+    F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>,
 {
     fn new(fun: F, pool: Pool<ConnectionManager<T>>) -> Self {
         Self {
             fun: Some(fun),
-            pool
+            pool,
         }
     }
 }
@@ -77,10 +76,10 @@ impl<T, F, R, E> Future for DatabaseFuture<T, F, R, E>
 where
     T: Connection + 'static,
     F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
-    + Send
-    + std::marker::Unpin
-    + 'static,
-    E: From<BlockingError> + From<r2d2::Error>
+        + Send
+        + std::marker::Unpin
+        + 'static,
+    E: From<BlockingError> + From<r2d2::Error>,
 {
     type Output = Result<R, E>;
 
@@ -90,11 +89,17 @@ where
         // need to take() to avoid shared-reference borrowing constraints
         // this is safe because we do not meddle with self-referential references
 
-        match blocking(|| (self.fun.take().expect("Only way to create database future is to instantiate with a concrete Fn"))(pool))
-        {
+        match blocking(|| {
+            (self
+                .fun
+                .take()
+                .expect("Only way to create database future is to instantiate with a concrete Fn"))(
+                pool,
+            )
+        }) {
             Ok(Async::Ready(t)) => Poll::Ready(t),
             Ok(Async::NotReady) => Poll::Pending,
-            Err(e) => Poll::Ready(Err(e.into()))
+            Err(e) => Poll::Ready(Err(e.into())),
         }
     }
 }
@@ -102,7 +107,7 @@ where
 /// Allows for creating asyncronous database requests
 #[derive(Debug)]
 pub struct AsyncDiesel<T: Connection + 'static> {
-    pool: Pool<ConnectionManager<T>>
+    pool: Pool<ConnectionManager<T>>,
 }
 
 impl<T> Clone for AsyncDiesel<T>
@@ -117,15 +122,20 @@ where
 }
 
 // TODO: " 'static " should be removable once async/await is released nov 7
-impl<T> AsyncDiesel<T> where T: Connection {
-
+impl<T> AsyncDiesel<T>
+where
+    T: Connection,
+{
     /// Create a new instance of an asyncronous diesel
     pub fn new(db_url: &str) -> Result<Self, ArchiveError> {
         Self::new_pool(db_url, r2d2::Builder::default())
     }
 
     /// create a new instance of asyncronous diesel, using custom ConnectionManager
-    pub fn new_pool(db_url: &str, builder: r2d2::Builder<ConnectionManager<T>>) -> Result<Self, ArchiveError> {
+    pub fn new_pool(
+        db_url: &str,
+        builder: r2d2::Builder<ConnectionManager<T>>,
+    ) -> Result<Self, ArchiveError> {
         let manager = ConnectionManager::new(db_url);
         let pool = builder.build(manager)?;
         Ok(AsyncDiesel { pool })
@@ -136,11 +146,11 @@ impl<T> AsyncDiesel<T> where T: Connection {
     pub async fn run<F, R, E>(&self, fun: F) -> Result<R, E>
     where
         F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
-        + Send
-        + 'static
-        + std::marker::Unpin,
+            + Send
+            + 'static
+            + std::marker::Unpin,
         T: Send,
-        E: From<BlockingError> + From<r2d2::Error>
+        E: From<BlockingError> + From<r2d2::Error>,
     {
         DatabaseFuture::new(fun, self.pool.clone()).await
     }
@@ -150,5 +160,4 @@ impl<T> AsyncDiesel<T> where T: Connection {
 mod tests {
     //! Must be conected to a database
     use super::*;
-
 }

@@ -16,21 +16,16 @@
 
 //! Specify types for a specific Blockchain -- E.G Kusama/Polkadot and run the archive node with these types
 
-use log::warn;
+use codec::{Decode, Encode, Error as CodecError, Input};
 use failure::Error;
-use substrate_archive::{
-    Archive, System, Module,
-    ExtractCall, SrmlExt, NotHandled,
-    srml::srml_system as system,
-    Error as ArchiveError
-};
+use log::warn;
 use polkadot_runtime::{
-    Runtime as RuntimeT, Call,
-    ParachainsCall, ParachainsTrait,
-    ClaimsCall, ClaimsTrait
+    Call, ClaimsCall, ClaimsTrait, ParachainsCall, ParachainsTrait, Runtime as RuntimeT,
 };
-use codec::{Encode, Decode, Input, Error as CodecError};
-
+use substrate_archive::{
+    srml::srml_system as system, Archive, Error as ArchiveError, ExtractCall, Module, NotHandled,
+    SrmlExt, System,
+};
 
 fn main() -> Result<(), Error> {
     Archive::<Runtime>::new()?.run()?;
@@ -41,7 +36,9 @@ fn main() -> Result<(), Error> {
 
 // Passthrough traits (Boilerplate)
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct CallWrapper { inner: Call }
+pub struct CallWrapper {
+    inner: Call,
+}
 impl Encode for CallWrapper {
     fn encode(&self) -> Vec<u8> {
         self.inner.encode()
@@ -51,9 +48,7 @@ impl Encode for CallWrapper {
 impl Decode for CallWrapper {
     fn decode<I: Input>(input: &mut I) -> Result<Self, CodecError> {
         let decoded: Call = Decode::decode(input)?;
-        Ok(CallWrapper {
-            inner: decoded
-        })
+        Ok(CallWrapper { inner: decoded })
     }
 }
 
@@ -61,36 +56,22 @@ impl Decode for CallWrapper {
 impl ExtractCall for CallWrapper {
     fn extract_call(&self) -> (Module, Box<dyn SrmlExt>) {
         match &self.inner {
-            Call::Timestamp(call) => {
-                (Module::Timestamp, Box::new(call.clone()))
-            },
-            Call::FinalityTracker(call) => {
-                (Module::FinalityTracker, Box::new(call.clone()))
-            },
-            Call::ImOnline(call) => {
-                (Module::ImOnline, Box::new(call.clone()))
-            },
-            Call::Babe(call) => {
-                (Module::Babe, Box::new(call.clone()))
-            },
-            Call::Staking(call) => {
-                (Module::Staking, Box::new(call.clone()))
-            },
-            Call::Session(call) => {
-                (Module::Session, Box::new(call.clone()))
-            },
-            Call::Grandpa(call) => {
-                (Module::Grandpa, Box::new(call.clone()))
-            },
-            Call::Treasury(call) => {
-                (Module::Treasury, Box::new(call.clone()))
-            },
-            Call::Parachains(call) => {
-                (Module::Custom("Parachains".into()), Box::new(ParachainsCallWrapper(call.clone())))
-            },
-            Call::Claims(call) => {
-                (Module::Custom("Claims".into()), Box::new(ClaimsCallWrapper(call.clone())))
-            },
+            Call::Timestamp(call) => (Module::Timestamp, Box::new(call.clone())),
+            Call::FinalityTracker(call) => (Module::FinalityTracker, Box::new(call.clone())),
+            Call::ImOnline(call) => (Module::ImOnline, Box::new(call.clone())),
+            Call::Babe(call) => (Module::Babe, Box::new(call.clone())),
+            Call::Staking(call) => (Module::Staking, Box::new(call.clone())),
+            Call::Session(call) => (Module::Session, Box::new(call.clone())),
+            Call::Grandpa(call) => (Module::Grandpa, Box::new(call.clone())),
+            Call::Treasury(call) => (Module::Treasury, Box::new(call.clone())),
+            Call::Parachains(call) => (
+                Module::Custom("Parachains".into()),
+                Box::new(ParachainsCallWrapper(call.clone())),
+            ),
+            Call::Claims(call) => (
+                Module::Custom("Claims".into()),
+                Box::new(ClaimsCallWrapper(call.clone())),
+            ),
             c @ _ => {
                 warn!("Call Not Handled: {:?}", c);
                 (Module::NotHandled, Box::new(NotHandled))
@@ -107,14 +88,15 @@ pub struct ParachainsCallWrapper<T: ParachainsTrait>(ParachainsCall<T>);
 
 impl<T> SrmlExt for ParachainsCallWrapper<T>
 where
-    T: ParachainsTrait + std::fmt::Debug
+    T: ParachainsTrait + std::fmt::Debug,
 {
     fn function(&self) -> Result<(String, Vec<u8>), ArchiveError> {
         match &self.0 {
             ParachainsCall::set_heads(heads) => {
-                Ok(( "set_heads".into(), vec![heads.encode()].encode() ))
-            },
-            __phantom_item => { // marker
+                Ok(("set_heads".into(), vec![heads.encode()].encode()))
+            }
+            __phantom_item => {
+                // marker
                 warn!("hit phantom item");
                 Ok(("".into(), Vec::new()))
             }
@@ -127,14 +109,16 @@ pub struct ClaimsCallWrapper<T: ClaimsTrait>(ClaimsCall<T>);
 
 impl<T> SrmlExt for ClaimsCallWrapper<T>
 where
-    T: ClaimsTrait + std::fmt::Debug
+    T: ClaimsTrait + std::fmt::Debug,
 {
     fn function(&self) -> Result<(String, Vec<u8>), ArchiveError> {
         match &self.0 {
-            ClaimsCall::claim(account, signature) => {
-                Ok(("claim".into(), vec![account.encode(), signature.encode()].encode()))
-            },
-            __phantom_item => { // marker
+            ClaimsCall::claim(account, signature) => Ok((
+                "claim".into(),
+                vec![account.encode(), signature.encode()].encode(),
+            )),
+            __phantom_item => {
+                // marker
                 warn!("hit phantom item");
                 Ok(("".into(), Vec::new()))
             }
