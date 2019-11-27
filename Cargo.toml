@@ -14,8 +14,11 @@ members = [
 
 [dependencies]
 log = "0.4"
-futures = "0.1"
-tokio = "0.1"
+futures01 = { version = "0.1" }
+futures = { version = "0.3.1", features = ["compat"] }
+futures-util = "0.3.1"
+tokio-threadpool = "0.1"
+# tokio = "0.1"
 failure = "0.1"
 chrono = "0.4"
 primitive-types = "0.5"
@@ -24,8 +27,11 @@ url = "1.7"
 serde = { version = "1.0.41", features = ["derive"] }
 serde_json = { version = "1.0.41", features = ["arbitrary_precision"] }
 r2d2 = "0.8"
-tokio-threadpool = "0.1"
 dirs = "2.0.2"
+derive_more = "0.15.0"
+async-trait = "0.1.17"
+async-stream = "0.1.2"
+async-std = "0.99.12"
 
 fern = { version = "0.5", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }

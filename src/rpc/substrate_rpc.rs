@@ -16,9 +16,12 @@
 
 //! A simple shim over the Substrate Rpc
 use codec::Decode;
-use futures::{future, Future, Stream};
+use futures::{
+    compat::{Future01CompatExt, Stream01CompatExt},
+    future::TryFutureExt,
+    stream::{Stream, TryStreamExt},
+};
 use jsonrpc_core_client::{transports::ws, RpcChannel};
-use log::trace;
 use runtime_metadata::RuntimeMetadataPrefixed;
 use substrate_primitives::storage::{StorageData, StorageKey};
 use substrate_rpc_api::{
@@ -62,84 +65,89 @@ where
     T: System,
 {
     /// instantiate new client
-    pub fn connect(url: &url::Url) -> impl Future<Item = Self, Error = ArchiveError> {
-        ws::connect(url).map_err(Into::into)
+    pub(crate) async fn connect(url: &url::Url) -> Result<Self, ArchiveError> {
+        ws::connect(url)
+            .compat()
+            .map_err(|e| ArchiveError::from(e))
+            .await
     }
 
     /// send all new headers back to main thread
-    pub(crate) fn subscribe_new_heads(
+    pub(crate) async fn subscribe_new_heads(
         &self,
-    ) -> impl Future<Item = impl Stream<Item = T::Header, Error = ArchiveError>, Error = ArchiveError>
-    {
-        self.chain
+    ) -> Result<impl Stream<Item = Result<T::Header, ArchiveError>>, ArchiveError> {
+        let stream = self
+            .chain
             .subscribe_new_heads()
-            .map(|s| s.map_err(Into::into))
+            .compat()
             .map_err(|e| ArchiveError::from(e))
+            .await?;
+
+        Ok(stream.compat().map_err(|e| ArchiveError::from(e)))
     }
 
     /// send all finalized headers back to main thread
-    pub(crate) fn subscribe_finalized_heads(
+    pub(crate) async fn subscribe_finalized_heads(
         &self,
-    ) -> impl Future<Item = impl Stream<Item = T::Header, Error = ArchiveError>, Error = ArchiveError>
-    {
-        self.chain
-            .subscribe_finalized_heads()
-            .map(|s| s.map_err(Into::into))
-            .map_err(|e| ArchiveError::from(e))
+    ) -> Result<impl Stream<Item = Result<T::Header, ArchiveError>>, ArchiveError> {
+        let stream = self.chain.subscribe_finalized_heads().compat().await?;
+        Ok(stream.compat().map_err(|e| ArchiveError::from(e)))
     }
 
-    pub(crate) fn metadata(
-        &self,
-        hash: Option<T::Hash>,
-    ) -> impl Future<Item = Metadata, Error = ArchiveError> {
-        self.state
-            .metadata(hash)
-            .map(|bytes| Decode::decode(&mut &bytes[..]).expect("Decode failed"))
-            .map_err(Into::into)
-            .and_then(|meta: RuntimeMetadataPrefixed| {
-                trace!("Runtime Metadata Prefixed: {:?}", meta);
-                future::result(meta.try_into().map_err(Into::into))
-            })
+    pub(crate) async fn metadata(&self) -> Result<Metadata, ArchiveError> {
+        let metadata_bytes = self.state.metadata(None).compat().await?;
+        let metadata: RuntimeMetadataPrefixed =
+            Decode::decode(&mut &metadata_bytes[..]).expect("Decode failed");
+        metadata.try_into().map_err(Into::into)
     }
 
     // TODO: make "Key" and "from" vectors
     /// Get a storage item
     /// must provide the key, hash of the block to get storage from, as well as the key type
-    pub(crate) fn storage(
+    pub(crate) async fn storage(
         &self,
         key: StorageKey,
         hash: T::Hash,
-    ) -> impl Future<Item = Option<StorageData>, Error = ArchiveError> {
+        // from: StorageKeyType
+    ) -> Result<Option<StorageData>, ArchiveError> {
         // let hash: Vec<u8> = hash.encode();
         // let hash: T::Hash = Decode::decode(&mut hash.as_slice()).unwrap();
-        self.state.storage(key, Some(hash)).map_err(Into::into)
+        self.state
+            .storage(key, Some(hash))
+            .compat()
+            .map_err(Into::into)
+            .await
     }
 
-    pub(crate) fn properties(&self) -> impl Future<Item = Properties, Error = ArchiveError> {
-        self.system.system_properties().map_err(Into::into)
+    pub(crate) async fn properties(&self) -> Result<Properties, ArchiveError> {
+        self.system.system_properties().compat().map_err(Into::into).await
     }
 
-    pub(crate) fn storage_keys(
+    pub(crate) async fn storage_keys(
         &self,
         prefix: StorageKey,
         hash: Option<T::Hash>,
-    ) -> impl Future<Item = Vec<StorageKey>, Error = ArchiveError> {
-        self.state.storage_keys(prefix, hash).map_err(Into::into)
+    ) -> Result<Vec<StorageKey>, ArchiveError> {
+        self.state.storage_keys(prefix, hash).compat().map_err(Into::into).await
     }
 
     /// Fetch a block by hash from Substrate RPC
-    pub(crate) fn block(
+    pub(crate) async fn block(
         &self,
         hash: Option<T::Hash>,
-    ) -> impl Future<Item = Option<SubstrateBlock<T>>, Error = ArchiveError> {
-        self.chain.block(hash).map_err(Into::into)
+    ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
+        self.chain.block(hash).compat().map_err(Into::into).await
     }
 
-    pub(crate) fn hash(
+    pub(crate) async fn hash(
         &self,
         number: NumberOrHex<T::BlockNumber>,
-    ) -> impl Future<Item = Option<T::Hash>, Error = ArchiveError> {
-        self.chain.block_hash(Some(number)).map_err(Into::into)
+    ) -> Result<Option<T::Hash>, ArchiveError> {
+        self.chain
+            .block_hash(Some(number))
+            .compat()
+            .map_err(Into::into)
+            .await
     }
 
     /// unsubscribe from finalized heads
@@ -158,7 +166,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tests::Runtime, types::*};
+    use crate::{
+        tests::Runtime,
+        types::*,
+    };
     use std::str::FromStr;
     use substrate_primitives::{storage::StorageKey, twox_128};
     use substrate_primitives::{H256, U256};

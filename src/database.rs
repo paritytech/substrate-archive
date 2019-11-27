@@ -20,6 +20,7 @@ pub mod db_middleware;
 pub mod models;
 pub mod schema;
 
+use async_trait::async_trait;
 use codec::Decode;
 use diesel::{
     pg::PgConnection,
@@ -27,7 +28,7 @@ use diesel::{
     sql_types::{BigInt, Bytea},
 };
 use dotenv::dotenv;
-use futures::future::{self, Future};
+use futures::future::Future;
 use log::*;
 use runtime_primitives::traits::Header;
 
@@ -45,24 +46,26 @@ use crate::{
     types::{BatchBlock, BatchStorage, Block, Data, Storage, System},
 };
 
-pub type DbFuture = Box<dyn Future<Item = usize, Error = ArchiveError> + Send>;
+pub type DbReturn = Result<(), ArchiveError>;
 
-/// Trait for inserting into the database
-/// returns number of items inserted
-pub trait Insert {
-    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError>;
+#[async_trait]
+pub trait Insert: Sync {
+    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn
+    where
+        Self: Sized;
 }
 
+#[async_trait]
 impl<T> Insert for Data<T>
 where
     T: System + 'static,
 {
-    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
         match self {
-            Data::Block(block) => block.insert(db),
-            Data::Storage(storage) => storage.insert(db),
-            Data::BatchBlock(blocks) => blocks.insert(db),
-            Data::BatchStorage(storage) => storage.insert(db),
+            Data::Block(block) => block.insert(db).await,
+            Data::Storage(storage) => storage.insert(db).await,
+            Data::BatchBlock(blocks) => blocks.insert(db).await,
+            Data::BatchStorage(storage) => storage.insert(db).await,
             o => Err(ArchiveError::UnhandledDataType(format!("{:?}", o))),
         }
     }
@@ -83,17 +86,11 @@ impl Database {
         Ok(Self { db })
     }
 
-    pub fn insert(&self, data: impl Insert) -> DbFuture {
-        match data.insert(self.db.clone()) {
-            Ok(v) => v,
-            Err(e) => Box::new(future::err(e)),
-        }
+    pub async fn insert(&self, data: impl Insert) -> Result<(), ArchiveError> {
+        data.insert(self.db.clone()).await
     }
 
-    pub fn query_missing_blocks(
-        &self,
-        latest: Option<u64>, // latest block
-    ) -> impl Future<Item = Vec<u64>, Error = ArchiveError> {
+    pub async fn query_missing_blocks(&self, latest: Option<u64>) -> Result<Vec<u64>, ArchiveError> {
         #[derive(QueryableByName, PartialEq, Debug)]
         pub struct Blocks {
             #[column_name = "generate_series"]
@@ -102,52 +99,56 @@ impl Database {
         };
 
         self.db.run(move |conn| {
-            let blocks: Vec<Blocks> = queries::missing_blocks(latest).load(&conn)?;
-            Ok(blocks
-                .iter()
-                .map(|b| {
-                    u64::try_from(b.block_num).expect("Block number should never be negative; qed")
-                })
-                .collect::<Vec<u64>>())
-        })
+                let blocks: Vec<Blocks> = queries::missing_blocks(latest).load(&conn)?;
+                Ok(blocks
+                    .iter()
+                    .map(|b| {
+                        u64::try_from(b.block_num)
+                            .expect("Block number should never be negative; qed")
+                    })
+                    .collect::<Vec<u64>>())
+            })
+            .await
     }
 }
 
 // TODO Make storage insertions generic over any type of insertin
 // not only timestamps
+#[async_trait]
 impl<T> Insert for Storage<T>
 where
     T: System,
 {
-    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-        // use self::schema::blocks::dsl::{blocks, hash};
+    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
+        use self::schema::blocks::dsl::{blocks, hash, time};
         let date_time = self.get_timestamp()?;
         let hsh = self.hash().clone();
-        let fut = db.run(move |conn| {
+        db.run(move |conn| {
             trace!("inserting timestamp for: {}", hsh);
             let len = 1;
             // WARN this just inserts a timestamp
             /*
             diesel::update(blocks.filter(hash.eq(hsh.as_ref())))
                 .set(time.eq(Some(&date_time)))
-                .execute(&conn)?;
-            */
-            Ok(len)
-        });
-
-        Ok(Box::new(fut))
+                .execute(&conn)
+                .map_err(|e| ArchiveError::from(e))?;
+             */
+            Ok(())
+        })
+        .await
     }
 }
 
+#[async_trait]
 impl<T> Insert for BatchStorage<T>
 where
     T: System,
 {
-    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-        use self::schema::blocks::dsl::{blocks, hash};
+    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
+        use self::schema::blocks::dsl::{blocks, hash, time};
         debug!("Inserting {} items via Batch Storage", self.inner().len());
         let storage: Vec<Storage<T>> = self.consume();
-        let fut = db.run(move |conn| {
+        db.run(move |conn| {
             let len = storage.len();
             for item in storage.into_iter() {
                 let date_time = item.get_timestamp()?;
@@ -157,25 +158,26 @@ where
                     .execute(&conn)?;
                  */
             }
-            Ok(len)
-        });
-        info!("Done Inserting timestamps!");
-        Ok(Box::new(fut))
+            info!("Done inserting storage!");
+            Ok(())
+        })
+        .await
     }
 }
 
+#[async_trait]
 impl<T> Insert for Block<T>
 where
     T: System + 'static,
 {
-    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
+    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
         let block = self.inner().block.clone();
         info!("HASH: {:X?}", block.header.hash().as_ref());
         info!("Block Num: {:?}", block.header.number());
         let extrinsics = DbExtrinsic::decode::<T>(&block.extrinsics, &block.header)?;
         let time = extrinsics.extra().time();
         // TODO Optimize
-        let fut = db.run(move |conn| {
+        db.run(move |conn| {
             diesel::insert_into(blocks::table)
                 .values(InsertBlock {
                     parent_hash: block.header.parent_hash().as_ref(),
@@ -205,27 +207,28 @@ where
             diesel::insert_into(signed_extrinsics::table)
                 .values(signed_ext)
                 .execute(&conn)?;
-            Ok(len)
-        });
 
-        Ok(Box::new(fut))
+            Ok(())
+        })
+        .await
     }
 }
 
+#[async_trait]
 impl<T> Insert for BatchBlock<T>
 where
     T: System,
 {
-    fn insert(self, db: AsyncDiesel<PgConnection>) -> Result<DbFuture, ArchiveError> {
-        let mut extrinsics: Extrinsics = Extrinsics(Vec::new());
+    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
+        let mut extrinsics: Vec<DbExtrinsic> = Vec::new();
         info!("Batch inserting {} blocks into DB", self.inner().len());
         let blocks = self
             .inner()
             .iter()
             .map(|block| {
                 let block = block.block.clone();
-                let mut block_ext: Extrinsics =
-                    DbExtrinsic::decode::<T>(&block.extrinsics, &block.header)?;
+                let mut block_ext: Vec<DbExtrinsic> =
+                    get_extrinsics::<T>(block.extrinsics(), &block.header)?;
 
                 extrinsics.0.append(&mut block_ext.0);
                 Ok(InsertBlockOwned {
@@ -250,7 +253,7 @@ where
         }
 
         // batch insert everything we've formatted/collected into the database 10,000 items at a time
-        let fut = db.run(move |conn| {
+        db.run(move |conn| {
             let len = blocks.len() + unsigned_ext.len() + signed_ext.len();
             for chunks in blocks.as_slice().chunks(10_000) {
                 info!("{} blocks to insert", chunks.len());
@@ -272,11 +275,9 @@ where
                     .values(chunks)
                     .execute(&conn)?;
             }
-
-            info!("Done {} Inserting Blocks and Extrinsics", len);
-            Ok(len)
-        });
-        Ok(Box::new(fut))
+            Ok(())
+        })
+        .await
     }
 }
 

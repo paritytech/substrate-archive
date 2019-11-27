@@ -40,7 +40,7 @@ use diesel::{r2d2::ConnectionManager, Connection};
 use futures::future::{self, poll_fn, Future};
 use r2d2::{Pool, PooledConnection};
 use tokio_threadpool::{blocking, BlockingError};
-
+// TODO after merge, before push: https://docs.rs/tokio/0.2.1/tokio/task/fn.spawn_blocking.html
 use crate::error::Error as ArchiveError;
 /// Allows for creating asyncronous database requests
 #[derive(Debug)]
@@ -81,7 +81,7 @@ where
 
     /// Run a database operation asyncronously
     /// The closure is supplied with a 'ConnectionManager instance' for connecting to the DB
-    pub fn run<F, R, E>(&self, fun: F) -> impl Future<Item = R, Error = E>
+    pub async fn run<F, R, E>(&self, fun: F) -> Result<R, E>
     where
         F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
             + Send

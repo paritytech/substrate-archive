@@ -128,8 +128,8 @@ impl From<IoError> for Error {
     }
 }
 
-impl<T> From<SendError<T>> for Error {
-    fn from(err: SendError<T>) -> Error {
+impl<T> From<TrySendError<T>> for Error {
+    fn from(err: TrySendError<T>) -> Error {
         Error::Send(err.to_string())
     }
 }

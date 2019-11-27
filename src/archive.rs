@@ -17,17 +17,24 @@
 //! Spawning of all tasks happens in this module
 //! Nowhere else is anything ever spawned
 
+use log::*;
+// use tokio::runtime::Runtime;
+use async_std::task;
+use async_stream::try_stream;
 use futures::{
-    future::{self, loop_fn, Loop},
-    sync::mpsc::{self, UnboundedReceiver},
-    Future, Stream,
+    channel::mpsc::{self, Receiver, Sender, UnboundedReceiver, UnboundedSender},
+    executor,
+    future,
+    task::{Context, Poll, Waker},
+    Future, FutureExt, Stream, StreamExt,
 };
 use runtime_primitives::traits::Header;
 use substrate_primitives::U256;
 use substrate_rpc_primitives::number::NumberOrHex;
-use tokio::runtime::Runtime;
 
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc, thread, time};
+
+use core::pin::Pin;
 
 use crate::{
     database::Database,
@@ -40,7 +47,6 @@ use crate::{
 pub struct Archive<T: System> {
     rpc: Arc<Rpc<T>>,
     db: Arc<Database>,
-    runtime: Runtime,
 }
 
 impl<T> Archive<T>
@@ -48,14 +54,13 @@ where
     T: System,
 {
     pub fn new() -> Result<Self, ArchiveError> {
-        let mut runtime = Runtime::new()?;
-        let rpc = runtime.block_on(Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?))?;
+        let rpc = executor::block_on(Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?))?;
         let db = Database::new()?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
         log::debug!("METADATA: {}", rpc.metadata());
         log::debug!("KEYS: {:?}", rpc.keys());
         // log::debug!("PROPERTIES: {:?}", rpc.properties());
-        Ok(Self { rpc, db, runtime })
+        Ok(Self { rpc, db })
     }
 
     pub fn run(mut self) -> Result<(), ArchiveError> {
@@ -73,7 +78,13 @@ where
         Ok(())
     }
 
-    // TODO return a float between 0 and 1 corresponding to percent of database that is up-to-date?
+    async fn blocks(rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>) {
+        match rpc.subscribe_blocks(sender).await {
+            Ok(_) => (),
+            Err(e) => error!("{:?}", e),
+        };
+    }
+
     /// Verification task that ensures all blocks are in the database
     fn sync(rpc: Arc<Rpc<T>>, db: Arc<Database>) -> impl Future<Item = Sync, Error = ()> {
         loop_fn(Sync::new(), move |v| {
@@ -115,8 +126,38 @@ where
                     tokio::spawn(db.insert(c).map_err(|e| log::error!("{:?}", e)).map(|_| ()));
                 }
             };
-            future::ok(())
-        })
+        }
+    }
+}
+/*
+impl<T> Stream for Sync<T> where T: System + std::fmt::Debug {
+    type Item = Result<SyncStreamItem, ArchiveError>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        match self.inner.poll(cx) {
+            Poll::Ready(v) => {
+                let v = v.map(|f| {
+                    SyncStreamItem {
+                        blocks_missing: v.0,
+                        timestamps_missing: v.1
+                    }
+                });
+                Poll::Ready(Some(v))
+            },
+            Poll::Pending => Poll::Pending
+        }
+    }
+}
+*/
+
+impl<T> Stream for Sync<T>
+where
+    T: System + std::fmt::Debug,
+{
+    type Item = Result<SyncStreamItem, ArchiveError>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        self.inner.poll_next(cx)
     }
 }
 
@@ -126,8 +167,24 @@ struct Sync {
     missing: usize, // missing timestamps + blocks
 }
 
-impl Sync {
-    fn new() -> Self {
+struct Sync<T: System + std::fmt::Debug> {
+    // pub looped: usize,
+    inner: Receiver<Result<SyncStreamItem, ArchiveError>>,
+    timestamps_missing: usize,
+    blocks_missing: usize,
+}
+
+impl<T> Sync<T>
+where
+    T: System + std::fmt::Debug,
+{
+    async fn new(
+        db: Arc<Database>,
+        rpc: Arc<Rpc<T>>,
+        sender: UnboundedSender<Data<T>>,
+    ) -> impl Stream<Item = Result<SyncStreamItem, ArchiveError>> {
+        let (stream_sender, stream_receiver) = mpsc::channel(3);
+        task::spawn(CrawlItems::new(db.clone(), rpc.clone(), sender.clone()).crawl(stream_sender));
         Self {
             looped: 0,
             missing: 0,
