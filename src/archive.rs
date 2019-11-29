@@ -18,10 +18,10 @@
 //! Nowhere else is anything ever spawned
 
 use futures::{
-    future::{self, loop_fn, Loop},
-    sync::mpsc::{self, UnboundedReceiver},
-    Future, Stream,
+    channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    future, FutureExt, StreamExt, TryFutureExt,
 };
+use log::*;
 use runtime_primitives::traits::Header;
 use substrate_primitives::U256;
 use substrate_rpc_primitives::number::NumberOrHex;
@@ -33,7 +33,7 @@ use crate::{
     database::Database,
     error::Error as ArchiveError,
     rpc::Rpc,
-    types::{BatchBlock, Data, SubstrateBlock, System},
+    types::{BatchBlock, Data, System},
 };
 
 // with the hopeful and long-anticipated release of async-await
@@ -61,62 +61,56 @@ where
     pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
         let data_in = Self::handle_data(receiver, self.db.clone());
-        let blocks = self
-            .rpc
-            .clone()
-            .subscribe_blocks(sender.clone())
-            .map_err(|e| log::error!("{:?}", e));
-
-        self.runtime
-            .spawn(Self::sync(self.rpc.clone(), self.db.clone()).map(|_| ()));
-        tokio::run(blocks.join(data_in).map(|_| ()));
+        let blocks = Self::blocks(self.rpc.clone(), sender.clone());
+        // .map_err(|e| log::error!("{:?}", e));
+        let sync = Self::sync(self.rpc.clone(), self.db.clone());
+        let futures = future::join3(data_in, blocks, sync);
+        self.runtime.block_on(futures);
+        // self.runtime.block_on(future::join(blocks, data_in));
         Ok(())
     }
 
-    // TODO return a float between 0 and 1 corresponding to percent of database that is up-to-date?
-    /// Verification task that ensures all blocks are in the database
-    fn sync(rpc: Arc<Rpc<T>>, db: Arc<Database>) -> impl Future<Item = Sync, Error = ()> {
-        loop_fn(Sync::new(), move |v| {
-            let (db, rpc) = (db.clone(), rpc.clone());
-            rpc.clone()
-                .latest_block()
-                .map_err(|e| log::error!("{:?}", e))
-                .map(move |latest| {
-                    log::debug!("Latest Block: {:?}", latest);
-                    *latest
-                        .expect("should always be a latest; qed")
-                        .block
-                        .header
-                        .number()
-                })
-                .and_then(move |latest| {
-                    v.sync(db.clone(), latest.into(), rpc.clone())
-                        .and_then(move |(sync, done)| {
-                            if done {
-                                Ok(Loop::Break(sync))
-                            } else {
-                                Ok(Loop::Continue(sync))
-                            }
-                        })
-                })
-        })
+    async fn blocks(rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>) {
+        match rpc.subscribe_blocks(sender).await {
+            Ok(_) => (),
+            Err(e) => error!("{:?}", e),
+        };
     }
 
-    fn handle_data(
-        receiver: UnboundedReceiver<Data<T>>,
-        db: Arc<Database>,
-    ) -> impl Future<Item = (), Error = ()> + 'static {
-        receiver.for_each(move |data| {
+    /// Verification task that ensures all blocks are in the database
+    async fn sync(rpc: Arc<Rpc<T>>, db: Arc<Database>) -> Result<(), ArchiveError> {
+        'sync: loop {
+            let (db, rpc) = (db.clone(), rpc.clone());
+            let latest = rpc.clone().latest_block().await?;
+            log::debug!("Latest Block: {:?}", latest);
+            let latest = *latest
+                .expect("should always be a latest; qed")
+                .block
+                .header
+                .number();
+            let (sync, done) = Sync::default()
+                .sync(db.clone(), latest.into(), rpc.clone())
+                .await?;
+            if done {
+                break 'sync;
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_data(mut receiver: UnboundedReceiver<Data<T>>, db: Arc<Database>) {
+        for data in receiver.next().await {
             match data {
                 Data::SyncProgress(missing_blocks) => {
                     println!("{} blocks missing", missing_blocks);
                 }
                 c => {
-                    tokio::spawn(db.insert(c).map_err(|e| log::error!("{:?}", e)).map(|_| ()));
+                    let db = db.clone();
+                    let fut = async move || db.insert(c).map_err(|e| log::error!("{:?}", e)).await;
+                    tokio::spawn(fut());
                 }
-            };
-            future::ok(())
-        })
+            }
+        }
     }
 }
 
@@ -126,62 +120,55 @@ struct Sync {
     missing: usize, // missing timestamps + blocks
 }
 
-impl Sync {
-    fn new() -> Self {
+impl Default for Sync {
+    fn default() -> Self {
         Self {
             looped: 0,
             missing: 0,
         }
     }
+}
 
-    fn sync<T>(
+impl Sync {
+    async fn sync<T>(
         self,
         db: Arc<Database>,
         latest: u64,
         rpc: Arc<Rpc<T>>,
-    ) -> impl Future<Item = (Self, bool), Error = ()> + 'static
+    ) -> Result<(Self, bool), ArchiveError>
     where
         T: System + std::fmt::Debug + 'static,
     {
-        let rpc0 = rpc.clone();
         let looped = self.looped;
         log::info!("Looped: {}", looped);
         log::info!("latest: {}", latest);
-        db.query_missing_blocks(Some(latest))
-            .and_then(move |blocks| {
-                let mut futures = Vec::new();
-                log::info!("Fetching {} blocks from rpc", blocks.len());
-                for chunk in blocks.chunks(100_000) {
-                    futures.push({
-                        let b = chunk
-                            .iter()
-                            .map(|b| NumberOrHex::Hex(U256::from(*b)))
-                            .collect::<Vec<NumberOrHex<T::BlockNumber>>>();
-                        rpc0.clone().batch_block_from_number(b)
-                    });
-                }
-                future::join_all(futures)
-            })
-            .map_err(|e| log::error!("{:?}", e))
-            .and_then(move |b| {
-                let blocks = b
-                    .into_iter()
-                    .flat_map(|b_inner| b_inner.into_iter())
-                    .collect::<Vec<SubstrateBlock<T>>>();
-                log::info!("inserting {} blocks", blocks.len());
-                let missing = blocks.len();
-                let b = db
-                    .insert(Data::BatchBlock(BatchBlock::<T>::new(blocks)))
-                    .map_err(|e| log::error!("{:?}", e));
 
-                b.join(future::ok(missing))
-            })
-            .map(move |(b, missing)| {
-                let looped = looped + 1;
-                log::info!("Inserted {} blocks", missing);
-                let missing = b;
-                let done = missing == 0;
-                (Self { looped, missing }, done)
-            })
+        let blocks = db.query_missing_blocks(Some(latest)).await?;
+        let mut futures = Vec::new();
+        log::info!("Fetching {} blocks from rpc", blocks.len());
+        let rpc0 = rpc.clone();
+        for chunk in blocks.chunks(100_000) {
+            let b = chunk
+                .iter()
+                .map(|b| NumberOrHex::Hex(U256::from(*b)))
+                .collect::<Vec<NumberOrHex<T::BlockNumber>>>();
+            futures.push(rpc.batch_block_from_number(b));
+        }
+
+        let mut blocks = Vec::new();
+        for chunk in future::join_all(futures).await.into_iter() {
+            blocks.extend(chunk?.into_iter());
+        }
+
+        log::info!("inserting {} blocks", blocks.len());
+        let missing = blocks.len();
+        let b = db
+            .insert(Data::BatchBlock(BatchBlock::<T>::new(blocks)))
+            .await?;
+
+        let looped = looped + 1;
+        log::info!("Inserted {} blocks", missing);
+        let done = missing == 0;
+        Ok((Self { looped, missing }, done))
     }
 }

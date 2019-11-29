@@ -16,8 +16,9 @@
 
 use codec::Error as CodecError;
 use failure::Fail;
-use futures::sync::mpsc::SendError;
+use futures::channel::mpsc::{SendError, TrySendError};
 use jsonrpc_core_client::RpcError as JsonRpcError;
+use tokio::task::JoinError;
 // use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
 use crate::metadata::Error as MetadataError;
 use diesel::result::{ConnectionError, Error as DieselError};
@@ -26,13 +27,16 @@ use serde_json::Error as SerdeError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
-use tokio_threadpool::BlockingError;
 use url::ParseError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
     #[fail(display = "Could not send to parent process {}", _0)]
     Send(String),
+    #[fail(display = "Could not send message {}", _0)]
+    TrySend(String),
+    #[fail(display = "Task Join {}", _0)]
+    Join(String),
     #[fail(display = "RPC Error: {}", _0)]
     Rpc(#[fail(cause)] JsonRpcError),
     #[fail(display = "Io: {}", _0)]
@@ -49,8 +53,6 @@ pub enum Error {
     Codec(#[fail(cause)] CodecError),
     #[fail(display = "Db Pool {}", _0)]
     DbPool(#[fail(cause)] R2d2Error),
-    #[fail(display = "ThreadPool {}", _0)]
-    ThreadPool(#[fail(cause)] BlockingError),
     #[fail(display = "Int Conversion Error: {}", _0)]
     IntConversion(#[fail(cause)] TryFromIntError),
     #[fail(display = "Serialization: {}", _0)]
@@ -66,6 +68,12 @@ pub enum Error {
     DataNotFound(String),
     #[fail(display = "Metadata {}", _0)]
     Metadata(MetadataError),
+}
+
+impl From<JoinError> for Error {
+    fn from(err: JoinError) -> Error {
+        Error::Join(err.to_string())
+    }
 }
 
 impl From<SerdeError> for Error {
@@ -89,12 +97,6 @@ impl From<TryFromIntError> for Error {
 impl From<R2d2Error> for Error {
     fn from(err: R2d2Error) -> Error {
         Error::DbPool(err)
-    }
-}
-
-impl From<BlockingError> for Error {
-    fn from(err: BlockingError) -> Error {
-        Error::ThreadPool(err)
     }
 }
 
@@ -128,8 +130,8 @@ impl From<IoError> for Error {
     }
 }
 
-impl<T> From<SendError<T>> for Error {
-    fn from(err: SendError<T>) -> Error {
+impl<T> From<TrySendError<T>> for Error {
+    fn from(err: TrySendError<T>) -> Error {
         Error::Send(err.to_string())
     }
 }

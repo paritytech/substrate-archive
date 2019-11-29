@@ -14,8 +14,12 @@ members = [
 
 [dependencies]
 log = "0.4"
-futures = "0.1"
-tokio = "0.1"
+futures01 = { version = "0.1" }
+futures = { version = "0.3.1", features = ["compat", "async-await"] }
+futures-util = "0.3.1"
+async-trait = "0.1.17"
+# tokio-threadpool = "0.1"
+tokio = { version = "0.2.1", features = ["rt-core", "blocking"] }
 failure = "0.1"
 chrono = "0.4"
 primitive-types = "0.5"
@@ -24,8 +28,8 @@ url = "1.7"
 serde = { version = "1.0.41", features = ["derive"] }
 serde_json = { version = "1.0.41", features = ["arbitrary_precision"] }
 r2d2 = "0.8"
-tokio-threadpool = "0.1"
 dirs = "2.0.2"
+derive_more = "0.15.0"
 
 fern = { version = "0.5", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }
@@ -55,7 +59,6 @@ pallet-im-online = { git = "https://github.com/paritytech/substrate", package = 
 pallet-treasury = { git = "https://github.com/paritytech/substrate", package = "pallet-treasury", branch = "polkadot-master"}
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", package = "pallet-elections-phragmen", branch = "polkadot-master"}
 pallet-balances = { git = "https://github.com/paritytech/substrate", package = "pallet-balances", branch = "polkadot-master"}
-derive_more = "0.15.0"
 
 [patch.crates-io]
 jsonrpc-core-client = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["ws", "arbitrary_precision"] }
