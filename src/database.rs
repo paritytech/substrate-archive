@@ -22,13 +22,8 @@ pub mod schema;
 
 use async_trait::async_trait;
 use codec::Decode;
-use diesel::{
-    pg::PgConnection,
-    prelude::*,
-    sql_types::{BigInt, Bytea},
-};
+use diesel::{pg::PgConnection, prelude::*, sql_types::BigInt};
 use dotenv::dotenv;
-use futures::future::Future;
 use log::*;
 use runtime_primitives::traits::Header;
 
@@ -41,7 +36,7 @@ use crate::{
         schema::{blocks, inherents, signed_extrinsics},
     },
     error::Error as ArchiveError,
-    extrinsics::{DbExtrinsic, Extra, Extras, Extrinsics},
+    extrinsics::{DbExtrinsic, Extrinsics},
     queries,
     types::{BatchBlock, BatchStorage, Block, Data, Storage, System},
 };
@@ -58,7 +53,7 @@ pub trait Insert: Sync {
 #[async_trait]
 impl<T> Insert for Data<T>
 where
-    T: System + 'static,
+    T: System,
 {
     async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
         match self {
@@ -90,7 +85,10 @@ impl Database {
         data.insert(self.db.clone()).await
     }
 
-    pub async fn query_missing_blocks(&self, latest: Option<u64>) -> Result<Vec<u64>, ArchiveError> {
+    pub async fn query_missing_blocks(
+        &self,
+        latest: Option<u64>,
+    ) -> Result<Vec<u64>, ArchiveError> {
         #[derive(QueryableByName, PartialEq, Debug)]
         pub struct Blocks {
             #[column_name = "generate_series"]
@@ -98,7 +96,8 @@ impl Database {
             block_num: i64,
         };
 
-        self.db.run(move |conn| {
+        self.db
+            .run(move |conn| {
                 let blocks: Vec<Blocks> = queries::missing_blocks(latest).load(&conn)?;
                 Ok(blocks
                     .iter()
@@ -120,7 +119,7 @@ where
     T: System,
 {
     async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
-        use self::schema::blocks::dsl::{blocks, hash, time};
+        // use self::schema::blocks::dsl::{blocks, hash, time};
         let date_time = self.get_timestamp()?;
         let hsh = self.hash().clone();
         db.run(move |conn| {
@@ -168,7 +167,7 @@ where
 #[async_trait]
 impl<T> Insert for Block<T>
 where
-    T: System + 'static,
+    T: System,
 {
     async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
         let block = self.inner().block.clone();
@@ -220,15 +219,15 @@ where
     T: System,
 {
     async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
-        let mut extrinsics: Vec<DbExtrinsic> = Vec::new();
+        let mut extrinsics: Extrinsics = Extrinsics(Vec::new());
         info!("Batch inserting {} blocks into DB", self.inner().len());
         let blocks = self
             .inner()
             .iter()
             .map(|block| {
                 let block = block.block.clone();
-                let mut block_ext: Vec<DbExtrinsic> =
-                    get_extrinsics::<T>(block.extrinsics(), &block.header)?;
+                let mut block_ext: Extrinsics =
+                    DbExtrinsic::decode::<T>(&block.extrinsics, &block.header)?;
 
                 extrinsics.0.append(&mut block_ext.0);
                 Ok(InsertBlockOwned {
@@ -275,6 +274,7 @@ where
                     .values(chunks)
                     .execute(&conn)?;
             }
+            info!("Done {} Inserting Blocks and Extrinsics", len);
             Ok(())
         })
         .await

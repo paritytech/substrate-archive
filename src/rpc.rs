@@ -19,13 +19,13 @@ use self::substrate_rpc::SubstrateRpc;
 
 use futures::{
     channel::mpsc::UnboundedSender,
-    future::{self, join_all, FutureExt, TryFutureExt},
+    future::{self, FutureExt, TryFutureExt},
     stream::StreamExt,
 };
 use log::{debug, error, trace, warn};
 use runtime_primitives::traits::Header as HeaderTrait;
 use substrate_primitives::{storage::StorageKey, twox_128};
-use substrate_rpc_api::system::Properties;
+// use substrate_rpc_api::system::Properties;
 use substrate_rpc_primitives::number::NumberOrHex;
 
 use std::marker::PhantomData;
@@ -34,10 +34,7 @@ use std::sync::Arc;
 use crate::{
     error::Error as ArchiveError,
     metadata::Metadata,
-    types::{
-        storage::{StorageKeyType, TimestampOp},
-        BatchBlock, BatchStorage, Block, Data, Header, Storage, SubstrateBlock, System,
-    },
+    types::{Block, Data, Header, Storage, SubstrateBlock, System},
 };
 
 /// Communicate with Substrate node via RPC
@@ -77,17 +74,12 @@ where
         sender: UnboundedSender<Data<T>>,
     ) -> Result<(), ArchiveError> {
         let client = Arc::new(self.client().await?);
-        let stream = client.subscribe_finalized_heads().await?;
-        stream.for_each(move |head: Result<T::Header, ArchiveError>| {
-            async {
-                // task will be executed in 'isolation' so we handle the error directly
-                let sender0 = sender.clone();
-                match self.clone().block(head.unwrap().hash(), sender0).await {
-                    Err(e) => error!("{:?}", e),
-                    Ok(_) => (),
-                };
-            }
-        });
+        let mut stream = client.subscribe_finalized_heads().await?;
+        for head in stream.next().await {
+            self.clone()
+                .block(Some(head?.hash()), sender.clone())
+                .await?;
+        }
         Ok(())
     }
 
@@ -109,8 +101,7 @@ where
         let timestamp_key = b"Timestamp Now";
         let storage_key = twox_128(timestamp_key);
         let key = StorageKey(storage_key.to_vec());
-        let key_type = StorageKeyType::Timestamp(TimestampOp::Now);
-        rpc.storage(sender1, key, hash, key_type).await
+        rpc.storage(sender1, key, hash).await
     }
 }
 
@@ -119,12 +110,18 @@ where
     T: System,
 {
     pub(crate) async fn new(url: url::Url) -> Result<Self, ArchiveError> {
-        let client = SubstrateRpc::connect(&url).await?;
+        let client: SubstrateRpc<T> = SubstrateRpc::connect(&url).await?;
 
-        let (keys, metadata) = futures::join(client.storage_keys(StorageKey(Vec::new())), client.metadata(None)).await;
-        let keys = metadata.keys(keys);
+        let (keys, metadata) = futures::join! {
+            client.storage_keys(StorageKey(Vec::new()), None),
+            client.metadata(None),
+        };
+
         Ok(Self {
-            url, keys, metadata, _marker: PhantomData
+            url,
+            keys: keys?,
+            metadata: metadata?,
+            _marker: PhantomData,
         })
     }
 
@@ -133,13 +130,10 @@ where
         SubstrateRpc::connect(&self.url).await
     }
 
-    pub(crate) async fn latest_block(
-        &self,
-    ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
+    pub(crate) async fn latest_block(&self) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
         let client = self.client().await?;
-        let block = client.block(None).await?;
+        client.block(None).await
     }
-
 
     pub async fn client(&self) -> Result<SubstrateRpc<T>, ArchiveError> {
         SubstrateRpc::connect(&self.url).await
@@ -151,7 +145,7 @@ where
         sender: UnboundedSender<Data<T>>,
     ) -> Result<(), ArchiveError> {
         let client = self.client().await?;
-        let stream = client.subscribe_new_heads().await?;
+        let mut stream = client.subscribe_new_heads().await?;
 
         for head in stream.next().await {
             sender
@@ -167,7 +161,7 @@ where
         sender: UnboundedSender<Data<T>>,
     ) -> Result<(), ArchiveError> {
         let client = self.client().await?;
-        let stream = client.subscribe_finalized_heads().await?;
+        let mut stream = client.subscribe_finalized_heads().await?;
 
         for head in stream.next().await {
             sender
@@ -206,9 +200,11 @@ where
         }
     */
 
-    pub async fn metadata(&self) -> Result<Metadata, ArchiveError> {
+    pub async fn refresh_metadata(&mut self, hash: Option<T::Hash>) -> Result<(), ArchiveError> {
         let client = self.client().await?;
-        client.metadata().await
+        let meta = client.metadata(hash).await?;
+        self.metadata = meta;
+        Ok(())
     }
 
     // TODO: make "Key" and "from" vectors
@@ -220,16 +216,14 @@ where
         sender: UnboundedSender<Data<T>>,
         key: StorageKey,
         hash: T::Hash,
-        key_type: StorageKeyType,
     ) -> Result<(), ArchiveError> {
         let client = self.client().await?;
         let storage = client.storage(key, hash).await?;
         debug!("STORAGE: {:?}", storage);
         if let Some(s) = storage {
             trace!("Sending timestamp for {}", hash);
-            sender
-                .unbounded_send(Data::Storage(Storage::new(s, key_type, hash)))
-                .map_err(Into::into)
+            sender.unbounded_send(Data::Storage(Storage::new(s, hash)))?;
+            Ok(())
         } else {
             warn!("Storage Item does not exist!");
             Ok(())
@@ -240,19 +234,16 @@ where
         &self,
         keys: Vec<StorageKey>,
         hashes: Vec<T::Hash>,
-        key_types: Vec<StorageKeyType>,
     ) -> Result<Vec<Storage<T>>, ArchiveError> {
-
-        assert!(hashes.len() == keys.len() && keys.len() == key_types.len()); // TODO remove assertion, make into ensure!
-                                                                              // TODO: too many clones
+        assert!(hashes.len() == keys.len()); // TODO remove assertion, make into ensure!
+                                             // TODO: too many clones
         let client = self.client().await?;
         let mut futures = Vec::new();
         for (idx, hash) in hashes.into_iter().enumerate() {
             let key = keys[idx].clone();
-            let key_type = key_types[idx].clone();
             futures.push(client.storage(key.clone(), hash).map(move |data| {
                 if let Some(d) = data? {
-                    Ok(Storage::new(d, key_type, hash))
+                    Ok(Storage::new(d, hash))
                 } else {
                     let err = format!("Storage item {:?} does not exist!", key);
                     Err(ArchiveError::DataNotFound(err))
@@ -260,7 +251,7 @@ where
             }));
         }
 
-        let data = join_all(futures).await;
+        let data = future::join_all(futures).await;
         Ok(data
             .into_iter()
             .filter_map(|d| {
@@ -268,7 +259,8 @@ where
                     error!("{:?}", d);
                 }
                 d.ok()
-            }).collect::Vec<Storage<T>>())
+            })
+            .collect::<Vec<Storage<T>>>())
     }
 
     /// Fetch a block by hash from Substrate RPC
@@ -295,16 +287,18 @@ where
     pub async fn batch_block_from_number(
         &self,
         numbers: Vec<NumberOrHex<T::BlockNumber>>,
-        sender: UnboundedSender<Data<T>>,
-    ) -> Result<(), ArchiveError> {
+    ) -> Result<Vec<SubstrateBlock<T>>, ArchiveError> {
         let client = Arc::new(self.client().await?);
         let mut futures = Vec::new();
         for number in numbers {
+            // let hash = client.clone().hash(number)?;
+            // let block = client.block(hash)?;
             let client = client.clone();
-            futures.push(client.hash(number).and_then(move |hash| client.block(hash)));
+            let fut = async move || client.block_from_number(number).await;
+            futures.push(fut());
         }
 
-        join_all(futures)
+        Ok(future::join_all(futures)
             .await
             .into_iter()
             .filter_map(|b| b.transpose())
@@ -314,7 +308,7 @@ where
                 }
                 b.ok()
             })
-            .collect::<Vec<SubstrateBlock<T>>>().await
+            .collect::<Vec<SubstrateBlock<T>>>())
     }
 
     fn send_block(

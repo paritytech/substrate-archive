@@ -17,36 +17,30 @@
 //! Spawning of all tasks happens in this module
 //! Nowhere else is anything ever spawned
 
-use log::*;
-// use tokio::runtime::Runtime;
-use async_std::task;
-use async_stream::try_stream;
 use futures::{
-    channel::mpsc::{self, Receiver, Sender, UnboundedReceiver, UnboundedSender},
-    executor,
-    future,
-    task::{Context, Poll, Waker},
-    Future, FutureExt, Stream, StreamExt,
+    channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    future, FutureExt, StreamExt, TryFutureExt,
 };
+use log::*;
 use runtime_primitives::traits::Header;
 use substrate_primitives::U256;
 use substrate_rpc_primitives::number::NumberOrHex;
+use tokio::runtime::Runtime;
 
-use std::{marker::PhantomData, sync::Arc, thread, time};
-
-use core::pin::Pin;
+use std::sync::Arc;
 
 use crate::{
     database::Database,
     error::Error as ArchiveError,
     rpc::Rpc,
-    types::{BatchBlock, Data, SubstrateBlock, System},
+    types::{BatchBlock, Data, System},
 };
 
 // with the hopeful and long-anticipated release of async-await
 pub struct Archive<T: System> {
     rpc: Arc<Rpc<T>>,
     db: Arc<Database>,
+    runtime: Runtime,
 }
 
 impl<T> Archive<T>
@@ -54,27 +48,25 @@ where
     T: System,
 {
     pub fn new() -> Result<Self, ArchiveError> {
-        let rpc = executor::block_on(Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?))?;
+        let mut runtime = Runtime::new()?;
+        let rpc = runtime.block_on(Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?))?;
         let db = Database::new()?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
         log::debug!("METADATA: {}", rpc.metadata());
         log::debug!("KEYS: {:?}", rpc.keys());
         // log::debug!("PROPERTIES: {:?}", rpc.properties());
-        Ok(Self { rpc, db })
+        Ok(Self { rpc, db, runtime })
     }
 
     pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
         let data_in = Self::handle_data(receiver, self.db.clone());
-        let blocks = self
-            .rpc
-            .clone()
-            .subscribe_blocks(sender.clone())
-            .map_err(|e| log::error!("{:?}", e));
-
-        self.runtime
-            .spawn(Self::sync(self.rpc.clone(), self.db.clone()).map(|_| ()));
-        tokio::run(blocks.join(data_in).map(|_| ()));
+        let blocks = Self::blocks(self.rpc.clone(), sender.clone());
+        // .map_err(|e| log::error!("{:?}", e));
+        let sync = Self::sync(self.rpc.clone(), self.db.clone());
+        let futures = future::join3(data_in, blocks, sync);
+        self.runtime.block_on(futures);
+        // self.runtime.block_on(future::join(blocks, data_in));
         Ok(())
     }
 
@@ -86,78 +78,39 @@ where
     }
 
     /// Verification task that ensures all blocks are in the database
-    fn sync(rpc: Arc<Rpc<T>>, db: Arc<Database>) -> impl Future<Item = Sync, Error = ()> {
-        loop_fn(Sync::new(), move |v| {
+    async fn sync(rpc: Arc<Rpc<T>>, db: Arc<Database>) -> Result<(), ArchiveError> {
+        'sync: loop {
             let (db, rpc) = (db.clone(), rpc.clone());
-            rpc.clone()
-                .latest_block()
-                .map_err(|e| log::error!("{:?}", e))
-                .map(move |latest| {
-                    log::debug!("Latest Block: {:?}", latest);
-                    *latest
-                        .expect("should always be a latest; qed")
-                        .block
-                        .header
-                        .number()
-                })
-                .and_then(move |latest| {
-                    v.sync(db.clone(), latest.into(), rpc.clone())
-                        .and_then(move |(sync, done)| {
-                            if done {
-                                Ok(Loop::Break(sync))
-                            } else {
-                                Ok(Loop::Continue(sync))
-                            }
-                        })
-                })
-        })
+            let latest = rpc.clone().latest_block().await?;
+            log::debug!("Latest Block: {:?}", latest);
+            let latest = *latest
+                .expect("should always be a latest; qed")
+                .block
+                .header
+                .number();
+            let (sync, done) = Sync::default()
+                .sync(db.clone(), latest.into(), rpc.clone())
+                .await?;
+            if done {
+                break 'sync;
+            }
+        }
+        Ok(())
     }
 
-    fn handle_data(
-        receiver: UnboundedReceiver<Data<T>>,
-        db: Arc<Database>,
-    ) -> impl Future<Item = (), Error = ()> + 'static {
-        receiver.for_each(move |data| {
+    async fn handle_data(mut receiver: UnboundedReceiver<Data<T>>, db: Arc<Database>) {
+        for data in receiver.next().await {
             match data {
                 Data::SyncProgress(missing_blocks) => {
                     println!("{} blocks missing", missing_blocks);
                 }
                 c => {
-                    tokio::spawn(db.insert(c).map_err(|e| log::error!("{:?}", e)).map(|_| ()));
+                    let db = db.clone();
+                    let fut = async move || db.insert(c).map_err(|e| log::error!("{:?}", e)).await;
+                    tokio::spawn(fut());
                 }
-            };
+            }
         }
-    }
-}
-/*
-impl<T> Stream for Sync<T> where T: System + std::fmt::Debug {
-    type Item = Result<SyncStreamItem, ArchiveError>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        match self.inner.poll(cx) {
-            Poll::Ready(v) => {
-                let v = v.map(|f| {
-                    SyncStreamItem {
-                        blocks_missing: v.0,
-                        timestamps_missing: v.1
-                    }
-                });
-                Poll::Ready(Some(v))
-            },
-            Poll::Pending => Poll::Pending
-        }
-    }
-}
-*/
-
-impl<T> Stream for Sync<T>
-where
-    T: System + std::fmt::Debug,
-{
-    type Item = Result<SyncStreamItem, ArchiveError>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        self.inner.poll_next(cx)
     }
 }
 
@@ -167,78 +120,55 @@ struct Sync {
     missing: usize, // missing timestamps + blocks
 }
 
-struct Sync<T: System + std::fmt::Debug> {
-    // pub looped: usize,
-    inner: Receiver<Result<SyncStreamItem, ArchiveError>>,
-    timestamps_missing: usize,
-    blocks_missing: usize,
-}
-
-impl<T> Sync<T>
-where
-    T: System + std::fmt::Debug,
-{
-    async fn new(
-        db: Arc<Database>,
-        rpc: Arc<Rpc<T>>,
-        sender: UnboundedSender<Data<T>>,
-    ) -> impl Stream<Item = Result<SyncStreamItem, ArchiveError>> {
-        let (stream_sender, stream_receiver) = mpsc::channel(3);
-        task::spawn(CrawlItems::new(db.clone(), rpc.clone(), sender.clone()).crawl(stream_sender));
+impl Default for Sync {
+    fn default() -> Self {
         Self {
             looped: 0,
             missing: 0,
         }
     }
+}
 
-    fn sync<T>(
+impl Sync {
+    async fn sync<T>(
         self,
         db: Arc<Database>,
         latest: u64,
         rpc: Arc<Rpc<T>>,
-    ) -> impl Future<Item = (Self, bool), Error = ()> + 'static
+    ) -> Result<(Self, bool), ArchiveError>
     where
         T: System + std::fmt::Debug + 'static,
     {
-        let rpc0 = rpc.clone();
         let looped = self.looped;
         log::info!("Looped: {}", looped);
         log::info!("latest: {}", latest);
-        db.query_missing_blocks(Some(latest))
-            .and_then(move |blocks| {
-                let mut futures = Vec::new();
-                log::info!("Fetching {} blocks from rpc", blocks.len());
-                for chunk in blocks.chunks(100_000) {
-                    futures.push({
-                        let b = chunk
-                            .iter()
-                            .map(|b| NumberOrHex::Hex(U256::from(*b)))
-                            .collect::<Vec<NumberOrHex<T::BlockNumber>>>();
-                        rpc0.clone().batch_block_from_number(b)
-                    });
-                }
-                future::join_all(futures)
-            })
-            .map_err(|e| log::error!("{:?}", e))
-            .and_then(move |b| {
-                let blocks = b
-                    .into_iter()
-                    .flat_map(|b_inner| b_inner.into_iter())
-                    .collect::<Vec<SubstrateBlock<T>>>();
-                log::info!("inserting {} blocks", blocks.len());
-                let missing = blocks.len();
-                let b = db
-                    .insert(Data::BatchBlock(BatchBlock::<T>::new(blocks)))
-                    .map_err(|e| log::error!("{:?}", e));
 
-                b.join(future::ok(missing))
-            })
-            .map(move |(b, missing)| {
-                let looped = looped + 1;
-                log::info!("Inserted {} blocks", missing);
-                let missing = b;
-                let done = missing == 0;
-                (Self { looped, missing }, done)
-            })
+        let blocks = db.query_missing_blocks(Some(latest)).await?;
+        let mut futures = Vec::new();
+        log::info!("Fetching {} blocks from rpc", blocks.len());
+        let rpc0 = rpc.clone();
+        for chunk in blocks.chunks(100_000) {
+            let b = chunk
+                .iter()
+                .map(|b| NumberOrHex::Hex(U256::from(*b)))
+                .collect::<Vec<NumberOrHex<T::BlockNumber>>>();
+            futures.push(rpc.batch_block_from_number(b));
+        }
+
+        let mut blocks = Vec::new();
+        for chunk in future::join_all(futures).await.into_iter() {
+            blocks.extend(chunk?.into_iter());
+        }
+
+        log::info!("inserting {} blocks", blocks.len());
+        let missing = blocks.len();
+        let b = db
+            .insert(Data::BatchBlock(BatchBlock::<T>::new(blocks)))
+            .await?;
+
+        let looped = looped + 1;
+        log::info!("Inserted {} blocks", missing);
+        let done = missing == 0;
+        Ok((Self { looped, missing }, done))
     }
 }

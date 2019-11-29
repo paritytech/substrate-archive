@@ -94,8 +94,8 @@ where
         Ok(stream.compat().map_err(|e| ArchiveError::from(e)))
     }
 
-    pub(crate) async fn metadata(&self) -> Result<Metadata, ArchiveError> {
-        let metadata_bytes = self.state.metadata(None).compat().await?;
+    pub(crate) async fn metadata(&self, hash: Option<T::Hash>) -> Result<Metadata, ArchiveError> {
+        let metadata_bytes = self.state.metadata(hash).compat().await?;
         let metadata: RuntimeMetadataPrefixed =
             Decode::decode(&mut &metadata_bytes[..]).expect("Decode failed");
         metadata.try_into().map_err(Into::into)
@@ -120,7 +120,11 @@ where
     }
 
     pub(crate) async fn properties(&self) -> Result<Properties, ArchiveError> {
-        self.system.system_properties().compat().map_err(Into::into).await
+        self.system
+            .system_properties()
+            .compat()
+            .map_err(Into::into)
+            .await
     }
 
     pub(crate) async fn storage_keys(
@@ -128,7 +132,19 @@ where
         prefix: StorageKey,
         hash: Option<T::Hash>,
     ) -> Result<Vec<StorageKey>, ArchiveError> {
-        self.state.storage_keys(prefix, hash).compat().map_err(Into::into).await
+        self.state
+            .storage_keys(prefix, hash)
+            .compat()
+            .map_err(Into::into)
+            .await
+    }
+
+    pub(crate) async fn block_from_number(
+        &self,
+        number: NumberOrHex<T::BlockNumber>,
+    ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
+        let hash = self.hash(number).await?;
+        self.block(hash).await
     }
 
     /// Fetch a block by hash from Substrate RPC
@@ -166,10 +182,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        tests::Runtime,
-        types::*,
-    };
+    use crate::{tests::Runtime, types::*};
     use std::str::FromStr;
     use substrate_primitives::{storage::StorageKey, twox_128};
     use substrate_primitives::{H256, U256};
