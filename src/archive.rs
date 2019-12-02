@@ -63,7 +63,7 @@ where
         let data_in = Self::handle_data(receiver, self.db.clone());
         let blocks = Self::blocks(self.rpc.clone(), sender.clone());
         // .map_err(|e| log::error!("{:?}", e));
-        let sync = Self::sync(self.rpc.clone(), self.db.clone());
+        let sync = Self::sync(self.rpc.clone(), self.db.clone()).map_err(|e| error!("{:?}", e));
         let futures = future::join3(data_in, blocks, sync);
         self.runtime.block_on(futures);
         // self.runtime.block_on(future::join(blocks, data_in));

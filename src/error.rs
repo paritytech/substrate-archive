@@ -16,7 +16,7 @@
 
 use codec::Error as CodecError;
 use failure::Fail;
-use futures::channel::mpsc::{SendError, TrySendError};
+use futures::channel::mpsc::TrySendError;
 use jsonrpc_core_client::RpcError as JsonRpcError;
 use tokio::task::JoinError;
 // use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
@@ -66,6 +66,8 @@ pub enum Error {
     UnhandledDataType(String),
     #[fail(display = "{} not found, or does not exist", _0)]
     DataNotFound(String),
+    #[fail(display = "{}", _0)]
+    UnexpectedType(String),
     #[fail(display = "Metadata {}", _0)]
     Metadata(MetadataError),
 }
