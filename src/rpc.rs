@@ -75,7 +75,8 @@ where
     ) -> Result<(), ArchiveError> {
         let client = Arc::new(self.client().await?);
         let mut stream = client.subscribe_finalized_heads().await?;
-        for head in stream.next().await {
+        while let Some(head) = stream.next().await {
+            log::info!("Got Head: {:?}", head);
             self.clone()
                 .block(Some(head?.hash()), sender.clone())
                 .await?;
@@ -134,7 +135,7 @@ where
         let client = self.client().await?;
         let mut stream = client.subscribe_new_heads().await?;
 
-        for head in stream.next().await {
+        while let Some(head) = stream.next().await {
             sender
                 .unbounded_send(Data::Header(Header::new(head?)))
                 .map_err(|e| ArchiveError::from(e))?;
@@ -150,7 +151,7 @@ where
         let client = self.client().await?;
         let mut stream = client.subscribe_finalized_heads().await?;
 
-        for head in stream.next().await {
+        while let Some(head) = stream.next().await {
             sender
                 .unbounded_send(Data::FinalizedHead(Header::new(head?)))
                 .map_err(|e| ArchiveError::from(e))?;

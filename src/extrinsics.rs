@@ -306,8 +306,7 @@ impl Extras {
             .iter()
             .find(|x| x.time.is_some())
             .map(|x| x.time)
-            .expect("Nested options; qed") // TODO replace with flatten() when stabilized
-                                           // .flatten()
+            .flatten()
     }
 }
 

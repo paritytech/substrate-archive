@@ -64,9 +64,11 @@ where
         let blocks = Self::blocks(self.rpc.clone(), sender.clone());
         // .map_err(|e| log::error!("{:?}", e));
         let sync = Self::sync(self.rpc.clone(), self.db.clone()).map_err(|e| error!("{:?}", e));
-        let futures = future::join3(data_in, blocks, sync);
-        self.runtime.block_on(futures);
-        // self.runtime.block_on(future::join(blocks, data_in));
+        let handle = self.runtime.spawn(sync);
+        self.runtime.block_on(future::join(data_in, blocks));
+        self.runtime.block_on(handle);
+        log::info!("All Done");
+
         Ok(())
     }
 
@@ -99,7 +101,7 @@ where
     }
 
     async fn handle_data(mut receiver: UnboundedReceiver<Data<T>>, db: Arc<Database>) {
-        for data in receiver.next().await {
+        while let Some(data) = receiver.next().await {
             match data {
                 Data::SyncProgress(missing_blocks) => {
                     println!("{} blocks missing", missing_blocks);
