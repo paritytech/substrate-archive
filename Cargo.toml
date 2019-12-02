@@ -34,10 +34,10 @@ derive_more = "0.15.0"
 fern = { version = "0.5", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
-jsonrpc-core-client = { branch = "master", git = "https://github.com/paritytech/jsonrpc", features = ["ws", "arbitrary_precision"] }
+jsonrpc-core-client = { version = "14.0", features = ["ws", "arbitrary_precision"] }
 runtime-metadata = { git = "https://github.com/paritytech/substrate/", package = "frame-metadata", branch = "polkadot-master" }
 frame-system = { git = "https://github.com/paritytech/substrate/", package = "frame-system", branch="polkadot-master"}
-substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "substrate-rpc-api", branch="polkadot-master"}
+substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "sc-rpc-api", branch="polkadot-master"}
 substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives", branch="polkadot-master"}
 substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives", branch="polkadot-master"}
 runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives", branch="polkadot-master"}
@@ -61,11 +61,11 @@ pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", p
 pallet-balances = { git = "https://github.com/paritytech/substrate", package = "pallet-balances", branch = "polkadot-master"}
 
 [patch.crates-io]
-jsonrpc-core-client = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["ws", "arbitrary_precision"] }
-jsonrpc-client-transports = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["ws", "arbitrary_precision"] }
-jsonrpc-core = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["arbitrary_precision"] }
-jsonrpc-derive = { git = "https://github.com/paritytech/jsonrpc", branch = "master" }
-jsonrpc-pubsub = { git = "https://github.com/paritytech/jsonrpc", branch = "master" }
+# jsonrpc-core-client = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["ws", "arbitrary_precision"] }
+# jsonrpc-client-transports = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["ws", "arbitrary_precision"] }
+# jsonrpc-core = { git = "https://github.com/paritytech/jsonrpc", branch = "master", features = ["arbitrary_precision"] }
+# jsonrpc-derive = { git = "https://github.com/paritytech/jsonrpc", branch = "master" }
+# jsonrpc-pubsub = { git = "https://github.com/paritytech/jsonrpc", branch = "master" }
 codec = { git = "https://github.com/insipx/parity-scale-codec", branch = "insipx/debugging", package = "parity-scale-codec" }
 
 [dev-dependencies]

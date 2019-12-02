@@ -26,7 +26,7 @@ use log::{debug, error, trace, warn};
 use runtime_primitives::traits::Header as HeaderTrait;
 use substrate_primitives::{storage::StorageKey, twox_128};
 // use substrate_rpc_api::system::Properties;
-use substrate_rpc_primitives::number::NumberOrHex;
+use substrate_rpc_primitives::{list::ListOrValue, number::NumberOrHex};
 
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -34,7 +34,7 @@ use std::sync::Arc;
 use crate::{
     error::Error as ArchiveError,
     metadata::Metadata,
-    types::{Block, Data, Header, Storage, SubstrateBlock, System},
+    types::{BatchBlock, Block, Data, Header, Storage, SubstrateBlock, System},
 };
 
 /// Communicate with Substrate node via RPC
@@ -82,27 +82,6 @@ where
         }
         Ok(())
     }
-
-    pub async fn block_and_timestamp(
-        self: Arc<Self>,
-        hash: T::Hash,
-        sender: UnboundedSender<Data<T>>,
-    ) -> Result<(), ArchiveError> {
-        trace!("Gathering block + timestamp for {}", hash);
-        let rpc = self.clone();
-        let client = self.client().await?;
-        let client = Arc::new(client);
-
-        let (sender0, sender1) = (sender.clone(), sender.clone());
-
-        let block = client.block(Some(hash)).await?;
-        Self::send_block(block, sender0.clone())?;
-
-        let timestamp_key = b"Timestamp Now";
-        let storage_key = twox_128(timestamp_key);
-        let key = StorageKey(storage_key.to_vec());
-        rpc.storage(sender1, key, hash).await
-    }
 }
 
 impl<T> Rpc<T>
@@ -132,7 +111,15 @@ where
 
     pub(crate) async fn latest_block(&self) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
         let client = self.client().await?;
-        client.block(None).await
+        let block = client.block(ListOrValue::Value(None)).await?;
+        match block {
+            ListOrValue::Value(v) => Ok(v),
+            ListOrValue::List(_) => {
+                return Err(ArchiveError::UnexpectedType(
+                    "Expected Value, Got List".to_string(),
+                ))
+            }
+        }
     }
 
     pub async fn client(&self) -> Result<SubstrateRpc<T>, ArchiveError> {
@@ -270,7 +257,7 @@ where
         sender: UnboundedSender<Data<T>>,
     ) -> Result<(), ArchiveError> {
         let client = self.client().await?;
-        let block = client.block(hash).await?;
+        let block = client.block(ListOrValue::Value(hash)).await?;
         Self::send_block(block, sender)
     }
 
@@ -280,7 +267,9 @@ where
         sender: UnboundedSender<Data<T>>,
     ) -> Result<(), ArchiveError> {
         let client = self.client().await?;
-        let block = client.block(client.hash(number).await?).await?;
+
+        let num = Some(ListOrValue::Value(number));
+        let block = client.block(client.hash(num).await?).await?;
         Self::send_block(block, sender)
     }
 
@@ -289,39 +278,49 @@ where
         numbers: Vec<NumberOrHex<T::BlockNumber>>,
     ) -> Result<Vec<SubstrateBlock<T>>, ArchiveError> {
         let client = Arc::new(self.client().await?);
-        let mut futures = Vec::new();
-        for number in numbers {
-            // let hash = client.clone().hash(number)?;
-            // let block = client.block(hash)?;
-            let client = client.clone();
-            let fut = async move || client.block_from_number(number).await;
-            futures.push(fut());
-        }
 
-        Ok(future::join_all(futures)
-            .await
+        let numbers = Some(ListOrValue::List(numbers));
+        let blocks = client.block_from_number(numbers).await?;
+        let blocks = match blocks {
+            ListOrValue::Value(_) => {
+                return Err(ArchiveError::UnexpectedType(
+                    "Expected List, got Value".to_string(),
+                ))
+            }
+            ListOrValue::List(v) => v,
+        };
+
+        Ok(blocks
             .into_iter()
-            .filter_map(|b| b.transpose())
-            .filter_map(|b| {
-                if b.is_err() {
-                    error!("{:?}", b);
-                }
-                b.ok()
-            })
+            .filter_map(|b| b)
             .collect::<Vec<SubstrateBlock<T>>>())
     }
 
     fn send_block(
-        block: Option<SubstrateBlock<T>>,
+        block: ListOrValue<Option<SubstrateBlock<T>>>,
         sender: UnboundedSender<Data<T>>,
     ) -> Result<(), ArchiveError> {
-        if let Some(b) = block {
-            sender
-                .unbounded_send(Data::Block(Block::new(b)))
-                .map_err(Into::into)
-        } else {
-            warn!("No Block Exists!");
-            Ok(())
+        match block {
+            ListOrValue::Value(v) => {
+                if let Some(b) = v {
+                    sender
+                        .unbounded_send(Data::Block(Block::new(b)))
+                        .map_err(Into::into)
+                } else {
+                    warn!("No Block Exists!");
+                    Ok(())
+                }
+            }
+            ListOrValue::List(v) => {
+                // throws out any none's
+                let blocks = v
+                    .into_iter()
+                    .filter_map(|b| b)
+                    .collect::<Vec<SubstrateBlock<T>>>();
+                sender
+                    .unbounded_send(Data::BatchBlock(BatchBlock::new(blocks)))
+                    .map_err(Into::into)
+            }
         }
     }
 

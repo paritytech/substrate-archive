@@ -18,7 +18,7 @@
 use codec::Decode;
 use futures::{
     compat::{Future01CompatExt, Stream01CompatExt},
-    future::TryFutureExt,
+    future::{self, TryFutureExt},
     stream::{Stream, TryStreamExt},
 };
 use jsonrpc_core_client::{transports::ws, RpcChannel};
@@ -30,7 +30,7 @@ use substrate_rpc_api::{
     state::StateClient,
     system::{Properties, SystemClient},
 };
-use substrate_rpc_primitives::number::NumberOrHex;
+use substrate_rpc_primitives::{list::ListOrValue, number::NumberOrHex};
 
 use std::convert::TryInto;
 
@@ -141,8 +141,8 @@ where
 
     pub(crate) async fn block_from_number(
         &self,
-        number: NumberOrHex<T::BlockNumber>,
-    ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
+        number: Option<ListOrValue<NumberOrHex<T::BlockNumber>>>,
+    ) -> Result<ListOrValue<Option<SubstrateBlock<T>>>, ArchiveError> {
         let hash = self.hash(number).await?;
         self.block(hash).await
     }
@@ -150,17 +150,34 @@ where
     /// Fetch a block by hash from Substrate RPC
     pub(crate) async fn block(
         &self,
-        hash: Option<T::Hash>,
-    ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
-        self.chain.block(hash).compat().map_err(Into::into).await
+        hash: ListOrValue<Option<T::Hash>>,
+    ) -> Result<ListOrValue<Option<SubstrateBlock<T>>>, ArchiveError> {
+        match hash {
+            ListOrValue::Value(v) => {
+                let block = self
+                    .chain
+                    .block(v)
+                    .compat()
+                    .map_err(|e| ArchiveError::from(e))
+                    .await?;
+                Ok(ListOrValue::Value(block))
+            }
+            ListOrValue::List(v) => {
+                let mut futures = Vec::new();
+                for hash in v.into_iter() {
+                    futures.push(self.chain.block(hash).compat().map_err(ArchiveError::from))
+                }
+                Ok(ListOrValue::List(future::try_join_all(futures).await?))
+            }
+        }
     }
 
     pub(crate) async fn hash(
         &self,
-        number: NumberOrHex<T::BlockNumber>,
-    ) -> Result<Option<T::Hash>, ArchiveError> {
+        number: Option<ListOrValue<NumberOrHex<T::BlockNumber>>>,
+    ) -> Result<ListOrValue<Option<T::Hash>>, ArchiveError> {
         self.chain
-            .block_hash(Some(number))
+            .block_hash(number)
             .compat()
             .map_err(Into::into)
             .await

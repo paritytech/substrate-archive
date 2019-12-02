@@ -29,7 +29,7 @@ use runtime_primitives::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use std::{collections::HashMap, fmt::Debug, iter::FromIterator};
+use std::{fmt::Debug, iter::FromIterator};
 
 const LATEST_TRANSACTION_VERSION: u8 = 4;
 
