@@ -3118,7 +3118,7 @@ dependencies = [
 [[package]]
 name = "polkadot-parachain"
 version = "0.7.1"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#32f80217e025b360e306434150ea6b3bea36d2b7"
+source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#0fa5d4599b1b4fbd0f9f4388fc64c915966c1b7e"
 dependencies = [
  "derive_more 0.14.1",
  "lazy_static",
@@ -3135,7 +3135,7 @@ dependencies = [
 [[package]]
 name = "polkadot-primitives"
 version = "0.7.1"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#32f80217e025b360e306434150ea6b3bea36d2b7"
+source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#0fa5d4599b1b4fbd0f9f4388fc64c915966c1b7e"
 dependencies = [
  "bitvec",
  "pallet-babe",
@@ -3153,7 +3153,7 @@ dependencies = [
 [[package]]
 name = "polkadot-runtime"
 version = "0.7.1"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#32f80217e025b360e306434150ea6b3bea36d2b7"
+source = "git+https://github.com/insipx/polkadot?branch=insipx/archive-patches#0fa5d4599b1b4fbd0f9f4388fc64c915966c1b7e"
 dependencies = [
  "bitvec",
  "frame-executive",
