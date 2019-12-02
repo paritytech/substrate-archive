@@ -66,10 +66,12 @@ where
 {
     /// instantiate new client
     pub(crate) async fn connect(url: &url::Url) -> Result<Self, ArchiveError> {
-        ws::connect(url)
+        let (client, fut) = ws::raw_connect(websocket::ClientBuilder::from_url(url))
             .compat()
             .map_err(|e| ArchiveError::from(e))
-            .await
+            .await?;
+        tokio::spawn(fut.compat());
+        Ok(client)
     }
 
     /// send all new headers back to main thread
