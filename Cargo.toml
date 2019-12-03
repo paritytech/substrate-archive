@@ -60,6 +60,7 @@ pallet-treasury = { git = "https://github.com/paritytech/substrate", package = "
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", package = "pallet-elections-phragmen", branch = "polkadot-master"}
 pallet-elections = { git = "https://github.com/paritytech/substrate", package = "pallet-elections", branch = "polkadot-master"}
 pallet-balances = { git = "https://github.com/paritytech/substrate", package = "pallet-balances", branch = "polkadot-master"}
+pallet-collective = { git = "https://github.com/paritytech/substrate", package = "pallet-collective", branch = "polkadot-master"}
 
 [patch.crates-io]
 jsonrpc-core-client = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn", features = ["ws", "arbitrary_precision"] }

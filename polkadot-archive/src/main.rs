@@ -41,7 +41,7 @@ use std::fmt::Debug;
 
 fn main() -> Result<(), Error> {
     // convenience log function from substrate_archive which logs to .local/share/substrate_archive
-    init_logger(log::LevelFilter::Error, log::LevelFilter::Debug);
+    init_logger(log::LevelFilter::Warn, log::LevelFilter::Debug);
     Archive::<Runtime>::new()?.run()?;
     Ok(())
 }
@@ -97,6 +97,7 @@ impl ExtractCall for CallWrapper {
             Call::Babe(call) => (Module::Babe, Box::new(call.clone())),
             Call::Balances(call) => (Module::Balances, Box::new(call.clone())),
             Call::Democracy(call) => (Module::Democracy, Box::new(call.clone())),
+            // Call::Council(call) => (Module::Collective, Box::new(call.clone())),
             Call::ElectionsPhragmen(call) => (Module::ElectionsPhragmen, Box::new(call.clone())),
             Call::Staking(call) => (Module::Staking, Box::new(call.clone())),
             Call::Sudo(call) => (Module::Sudo, Box::new(call.clone())),

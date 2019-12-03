@@ -28,6 +28,7 @@ use log::trace;
 use pallet_aura::Call as AuraCall;
 use pallet_babe::Call as BabeCall;
 use pallet_balances::Call as BalancesCall;
+use pallet_collective::Call as CollectiveCall;
 use pallet_democracy::Call as DemocracyCall;
 use pallet_elections::Call as ElectionsCall;
 use pallet_elections_phragmen::Call as ElectionsPhragmenCall;
@@ -141,6 +142,42 @@ where
     }
 }
 
+impl<T> FrameExt for CollectiveCall<T>
+where
+    T: pallet_collective::Trait,
+{
+    fn function(&self) -> FrameResult<FunctionInfo> {
+        match &self {
+            CollectiveCall::set_members(new_members) => {
+                let val = json!([{ "new_members": new_members }]);
+
+                Ok(("propose".into(), val))
+            }
+            CollectiveCall::execute(proposal) => {
+                let val = json!([{ "proposal": proposal.encode(), "encoded": true }]);
+
+                Ok(("execute".into(), val))
+            }
+            CollectiveCall::propose(threshold, proposal) => {
+                let val = json!([
+                    { "threshold": threshold },
+                    { "proposal": proposal.encode(), "encoded": true }
+                ]);
+
+                Ok(("propose".into(), val))
+            }
+            CollectiveCall::vote(proposal, index, approve) => {
+                let val = json!([{ "proposal": proposal }, { "index": index }, {
+                    "approve": approve
+                }]);
+
+                Ok(("vote".into(), val))
+            }
+            &__phantom_item => Ok(("__phantom".into(), json!({}))),
+        }
+    }
+}
+
 impl<T> FrameExt for DemocracyCall<T>
 where
     T: pallet_democracy::Trait,
@@ -219,7 +256,7 @@ where
 
                 Ok(("set_proxy".into(), val))
             }
-            DemocracyCall::resign_proxy() => Ok(("resign_proxy".into(), json!([]))),
+            DemocracyCall::resign_proxy() => Ok(("resign_proxy".into(), json!({}))),
             DemocracyCall::remove_proxy(proxy) => {
                 let val = json!([{ "proxy": proxy }]);
 
@@ -232,9 +269,9 @@ where
 
                 Ok(("delegate".into(), val))
             }
-            DemocracyCall::undelegate() => Ok(("undelegate".into(), json!([]))),
+            DemocracyCall::undelegate() => Ok(("undelegate".into(), json!({}))),
             DemocracyCall::clear_public_proposals() => {
-                Ok(("clear_public_proposals".into(), json!([])))
+                Ok(("clear_public_proposals".into(), json!({})))
             }
             DemocracyCall::note_preimage(encoded_proposal) => {
                 let val = json!([{ "encoded_proposal": encoded_proposal, "encoded": true }]);
