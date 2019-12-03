@@ -29,6 +29,7 @@ use pallet_aura::Call as AuraCall;
 use pallet_babe::Call as BabeCall;
 use pallet_balances::Call as BalancesCall;
 use pallet_democracy::Call as DemocracyCall;
+use pallet_elections::Call as ElectionsCall;
 use pallet_elections_phragmen::Call as ElectionsPhragmenCall;
 use pallet_finality_tracker::Call as FinalityCall;
 use pallet_grandpa::Call as GrandpaCall;
@@ -258,6 +259,85 @@ where
     }
 }
 
+impl<T> FrameExt for ElectionsCall<T>
+where
+    T: pallet_elections::Trait,
+{
+    fn function(&self) -> FrameResult<FunctionInfo> {
+        match &self {
+            ElectionsCall::set_approvals(votes, index, hint, value) => {
+                let val = json!([{ "votes": votes }, { "index": index }, { "hint": hint }, {
+                    "value": value
+                }]);
+
+                Ok(("set_approvals".into(), val))
+            }
+            ElectionsCall::proxy_set_approvals(votes, index, hint, value) => {
+                let val = json!([{ "votes": votes }, { "index": index }, { "hint": hint }, {
+                    "value": value
+                }]);
+
+                Ok(("proxy_set_approvals".into(), val))
+            }
+            ElectionsCall::reap_inactive_voter(
+                reporter_index,
+                who,
+                who_index,
+                assumed_vote_index,
+            ) => {
+                let val = json!([
+                    { "reporter_index": reporter_index },
+                    { "who": who.encode(), "encoded": true },
+                    { "who_index": who_index },
+                    { "assumed_vote_index": assumed_vote_index }
+                ]);
+
+                Ok(("reap_inactive_vote".into(), val))
+            }
+            ElectionsCall::retract_voter(index) => {
+                let val = json!([{ "index": index }]);
+
+                Ok(("retract_voter".into(), val))
+            }
+            ElectionsCall::submit_candidacy(slot) => {
+                let val = json!([{ "slot": slot }]);
+
+                Ok(("slot".into(), val))
+            }
+            ElectionsCall::present_winner(candidate, total, index) => {
+                let val = json!([
+                    { "candidate": candidate.encode(), "encoded": true },
+                    { "total": total },
+                    { "index": index }
+                ]);
+                Ok(("present_winner".into(), val))
+            }
+            ElectionsCall::set_desired_seats(count) => {
+                let val = json!([{ "count": count }]);
+
+                Ok(("set_desired_seats".into(), val))
+            }
+            ElectionsCall::remove_member(who) => {
+                let val = json!([
+                    { "who": who.encode(), "encoded": true }
+                ]);
+                Ok(("remove_member".into(), val))
+            }
+            ElectionsCall::set_presentation_duration(count) => {
+                let val = json!([{ "count": count }]);
+
+                Ok(("set_presentation_duration".into(), val))
+            }
+            ElectionsCall::set_term_duration(count) => {
+                let val = json!([{ "count": count }]);
+
+                Ok(("set_term_duration".into(), val))
+            }
+            &__phantom_item => Ok(("__phantom".into(), json!({}))),
+        }
+    }
+}
+
 impl<T> FrameExt for ElectionsPhragmenCall<T>
 where
     T: pallet_elections_phragmen::Trait,
@@ -478,7 +558,6 @@ where
                 let val = json!([
                     { "proposal": proposal.encode(), "encoded": true }
                 ]);
-                // let public_call: T::Proposal =
                 trace!("PROPOSAL: {:?}", proposal);
                 Ok(("sudo".into(), val))
             }

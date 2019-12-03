@@ -37,11 +37,11 @@ jsonrpc-core-client = { version = "14.0", features = ["ws", "arbitrary_precision
 runtime-metadata = { git = "https://github.com/paritytech/substrate/", package = "frame-metadata", branch = "polkadot-master" }
 frame-system = { git = "https://github.com/paritytech/substrate/", package = "frame-system", branch="polkadot-master"}
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "sc-rpc-api", branch="polkadot-master"}
-substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "substrate-rpc-primitives", branch="polkadot-master"}
-substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "substrate-primitives", branch="polkadot-master"}
-runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sr-primitives", branch="polkadot-master"}
+substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "sp-rpc", branch="polkadot-master"}
+substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-core", branch="polkadot-master"}
+runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-runtime", branch="polkadot-master"}
 runtime-support = { git = "https://github.com/paritytech/substrate/", package = "frame-support", branch="polkadot-master"}
-inherents = { git = "https://github.com/paritytech/substrate/", package = "substrate-inherents", branch="polkadot-master"}
+inherents = { git = "https://github.com/paritytech/substrate/", package = "sp-inherents", branch="polkadot-master"}
 websocket = { version = "0.24" }
 
 # pallet-assets = { git = "https://github.com/paritytech/substrate/", package = "pallet-assets", branch="polkadot-master"}
@@ -58,6 +58,7 @@ pallet-sudo = { git = "https://github.com/paritytech/substrate", package = "pall
 pallet-im-online = { git = "https://github.com/paritytech/substrate", package = "pallet-im-online", branch = "polkadot-master"}
 pallet-treasury = { git = "https://github.com/paritytech/substrate", package = "pallet-treasury", branch = "polkadot-master"}
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", package = "pallet-elections-phragmen", branch = "polkadot-master"}
+pallet-elections = { git = "https://github.com/paritytech/substrate", package = "pallet-elections", branch = "polkadot-master"}
 pallet-balances = { git = "https://github.com/paritytech/substrate", package = "pallet-balances", branch = "polkadot-master"}
 
 [patch.crates-io]

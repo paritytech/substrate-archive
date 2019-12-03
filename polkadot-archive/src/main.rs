@@ -96,6 +96,7 @@ impl ExtractCall for CallWrapper {
             Call::ImOnline(call) => (Module::ImOnline, Box::new(call.clone())),
             Call::Babe(call) => (Module::Babe, Box::new(call.clone())),
             Call::Balances(call) => (Module::Balances, Box::new(call.clone())),
+            Call::Democracy(call) => (Module::Democracy, Box::new(call.clone())),
             Call::ElectionsPhragmen(call) => (Module::ElectionsPhragmen, Box::new(call.clone())),
             Call::Staking(call) => (Module::Staking, Box::new(call.clone())),
             Call::Sudo(call) => (Module::Sudo, Box::new(call.clone())),
