@@ -41,7 +41,7 @@ use std::fmt::Debug;
 
 fn main() -> Result<(), Error> {
     // convenience log function from substrate_archive which logs to .local/share/substrate_archive
-    init_logger(log::LevelFilter::Error, log::LevelFilter::Trace);
+    init_logger(log::LevelFilter::Error, log::LevelFilter::Debug);
     Archive::<Runtime>::new()?.run()?;
     Ok(())
 }

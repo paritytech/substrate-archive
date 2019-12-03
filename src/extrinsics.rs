@@ -234,7 +234,8 @@ impl RawExtrinsic {
             RawExtrinsic::NotSigned(v) => {
                 let (module, call) = v.call.extract_call();
                 let (fn_name, params) = call.function()?;
-
+                debug!("TRY Module {:?}, Function: {}", module, fn_name);
+                debug!("Compare {}", module == Module::Timestamp);
                 if module == Module::Timestamp && fn_name == "set" {
                     #[derive(Deserialize)]
                     pub struct Time {
@@ -302,11 +303,14 @@ impl Extrinsics {
 
 impl Extras {
     pub fn time(&self) -> Option<DateTime<Utc>> {
-        self.0
+        debug!("EXTRAS {:?}", self.0);
+        let time = self
+            .0
             .iter()
             .find(|x| x.time.is_some())
             .map(|x| x.time)
-            .flatten()
+            .flatten();
+        time
     }
 }
 

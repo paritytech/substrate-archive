@@ -174,7 +174,6 @@ where
         info!("HASH: {:X?}", block.header.hash().as_ref());
         info!("Block Num: {:?}", block.header.number());
         let extrinsics = DbExtrinsic::decode::<T>(&block.extrinsics, &block.header)?;
-        let time = extrinsics.extra().time();
         // TODO Optimize
         db.run(move |conn| {
             diesel::insert_into(blocks::table)
@@ -228,16 +227,18 @@ where
                 let block = block.block.clone();
                 let mut block_ext: Extrinsics =
                     DbExtrinsic::decode::<T>(&block.extrinsics, &block.header)?;
+                debug!("Block Ext: {:?}", block_ext);
 
-                extrinsics.0.append(&mut block_ext.0);
-                Ok(InsertBlockOwned {
+                let block = InsertBlockOwned {
                     parent_hash: block.header.parent_hash().as_ref().to_vec(),
                     hash: block.header.hash().as_ref().to_vec(),
                     block_num: (*block.header.number()).into() as i64,
                     state_root: block.header.state_root().as_ref().to_vec(),
                     extrinsics_root: block.header.extrinsics_root().as_ref().to_vec(),
                     time: block_ext.extra().time(),
-                })
+                };
+                extrinsics.0.append(&mut block_ext.0);
+                Ok(block)
             })
             // .filter_map(|b: Result<_, ArchiveError>| b.ok())
             .collect::<Result<Vec<InsertBlockOwned>, ArchiveError>>()?;
