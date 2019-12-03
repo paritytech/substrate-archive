@@ -49,6 +49,7 @@ pallet-nicks = {git = "https://github.com/paritytech/substrate/", package = "pal
 pallet-staking = {git = "https://github.com/paritytech/substrate/", package = "pallet-staking", branch = "polkadot-master"}
 pallet-grandpa = {git = "https://github.com/paritytech/substrate/", package = "pallet-grandpa", branch = "polkadot-master"}
 pallet-babe = {git = "https://github.com/paritytech/substrate/", package = "pallet-babe", branch = "polkadot-master"}
+pallet-democracy = {git = "https://github.com/paritytech/substrate/", package = "pallet-democracy", branch = "polkadot-master"}
 pallet-session = { git = "https://github.com/paritytech/substrate/", package = "pallet-session", branch = "polkadot-master"}
 pallet-aura = { git = "https://github.com/paritytech/substrate/", package = "pallet-aura", branch = "polkadot-master"}
 pallet-timestamp = { git = "https://github.com/paritytech/substrate/", package = "pallet-timestamp", branch = "polkadot-master"}

@@ -4268,6 +4268,7 @@ dependencies = [
  "pallet-aura",
  "pallet-babe",
  "pallet-balances",
+ "pallet-democracy",
  "pallet-elections-phragmen",
  "pallet-finality-tracker",
  "pallet-grandpa",

@@ -141,6 +141,13 @@ where
             .await
     }
 
+    pub(crate) async fn header(
+        &self,
+        hash: Option<T::Hash>,
+    ) -> Result<Option<T::Header>, ArchiveError> {
+        self.chain.header(hash).compat().map_err(Into::into).await
+    }
+
     pub(crate) async fn block_from_number(
         &self,
         number: Option<ListOrValue<NumberOrHex<T::BlockNumber>>>,

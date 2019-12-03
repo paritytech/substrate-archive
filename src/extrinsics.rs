@@ -22,7 +22,6 @@ use crate::{
 };
 use chrono::{DateTime, TimeZone, Utc};
 use codec::{Decode, Error as CodecError, Input};
-use log::{debug, error, warn};
 use runtime_primitives::{
     generic::UncheckedExtrinsic,
     traits::{Header, SignedExtension},
@@ -63,7 +62,7 @@ where
         let version = version & 0b0111_1111;
         let signature = if is_signed {
             Some(Decode::decode(input).map_err(|e| {
-                warn!("Error decoding signature");
+                log::warn!("Error decoding signature");
                 e
             })?)
         } else {
@@ -87,7 +86,7 @@ where
 
         log::trace!("bytes read from decoding extrinsic: {:X?}", bytes);
         let function = Decode::decode(&mut bytes.as_slice()).map_err(|e| {
-            warn!("Error decoding call");
+            log::warn!("Error decoding call");
             e
         })?;
         Ok(Self {
@@ -182,7 +181,7 @@ impl RawExtrinsic {
                 let res = call.function();
 
                 let (fn_name, params) = if res.is_err() {
-                    warn!("Call not found, formatting as raw rust. Call: {:?}", &self);
+                    log::warn!("Call not found, formatting as raw rust. Call: {:?}", &self);
                     (format!("{:?}", &self), json!({}))
                 } else {
                     res?
@@ -206,7 +205,7 @@ impl RawExtrinsic {
                 let (module, call) = ext.call.extract_call();
                 let res = call.function();
                 let (fn_name, params) = if res.is_err() {
-                    debug!("Call not found, formatting as raw rust. Call: {:?}", &self);
+                    log::debug!("Call not found, formatting as raw rust. Call: {:?}", &self);
                     (format!("{:?}", &self), json!({}))
                 } else {
                     res?
@@ -234,8 +233,6 @@ impl RawExtrinsic {
             RawExtrinsic::NotSigned(v) => {
                 let (module, call) = v.call.extract_call();
                 let (fn_name, params) = call.function()?;
-                debug!("TRY Module {:?}, Function: {}", module, fn_name);
-                debug!("Compare {}", module == Module::Timestamp);
                 if module == Module::Timestamp && fn_name == "set" {
                     #[derive(Deserialize)]
                     pub struct Time {
@@ -303,7 +300,6 @@ impl Extrinsics {
 
 impl Extras {
     pub fn time(&self) -> Option<DateTime<Utc>> {
-        debug!("EXTRAS {:?}", self.0);
         let time = self
             .0
             .iter()
@@ -347,7 +343,7 @@ impl DbExtrinsic {
             // enumerate is used here to preserve order/index of extrinsics
             .enumerate()
             .map(|(idx, x)| {
-                debug!("Decoding Extrinsic in block: {:?}", header.number());
+                log::debug!("Decoding Extrinsic in block: {:?}", header.number());
                 let decoded: RawExtrinsic = x.to_database()?;
                 log::trace!("{}", util::log_extrinsics(&decoded));
                 Ok((idx, decoded))
@@ -362,7 +358,7 @@ impl DbExtrinsic {
                     Some(v.1.database_format(index, header, number))
                 }
                 Err(e) => {
-                    error!("{:?}", e);
+                    log::error!("{:?}", e);
                     None
                 }
             })

@@ -21,23 +21,24 @@
 // Don't do anything else
 // Call into Storage()
 // Get EVERYTHING WE NEED :)
-
+mod types;
+use self::types::*;
 use frame_system::Call as SystemCall;
 use log::trace;
 use pallet_aura::Call as AuraCall;
 use pallet_babe::Call as BabeCall;
 use pallet_balances::Call as BalancesCall;
+use pallet_democracy::Call as DemocracyCall;
 use pallet_elections_phragmen::Call as ElectionsPhragmenCall;
 use pallet_finality_tracker::Call as FinalityCall;
 use pallet_grandpa::Call as GrandpaCall;
 use pallet_im_online::Call as ImOnlineCall;
 use pallet_nicks::Call as NicksCall;
 use pallet_session::Call as SessionCall;
-use pallet_staking::{Call as StakingCall, RewardDestination};
+use pallet_staking::Call as StakingCall;
 use pallet_sudo::Call as SudoCall;
 use pallet_timestamp::Call as TimestampCall;
 use pallet_treasury::Call as TreasuryCall;
-use serde::Serialize;
 use serde_json::{json, Value};
 // use runtime_support::dispatch::{IsSubType, Callable};
 use codec::Encode;
@@ -133,6 +134,124 @@ where
                     { "value": value }
                 ]);
                 Ok(("force_transfer".into(), val))
+            }
+            &__phantom_item => Ok(("__phantom".into(), json!({}))),
+        }
+    }
+}
+
+impl<T> FrameExt for DemocracyCall<T>
+where
+    T: pallet_democracy::Trait,
+{
+    fn function(&self) -> FrameResult<FunctionInfo> {
+        match &self {
+            DemocracyCall::propose(proposal_hash, value) => {
+                let val = json!([{ "proposal_hash": proposal_hash }, { "value": value }]);
+                Ok(("propose".into(), val))
+            }
+            DemocracyCall::second(proposal) => {
+                let val = json!([{ "proposal": proposal }]);
+                Ok(("second".into(), val))
+            }
+            DemocracyCall::vote(ref_index, vote) => {
+                let vote =
+                    serde_json::to_string(&VoteHelper(*vote)).expect("Vote should not fail; qed");
+
+                let val = json!([{ "ref_index": ref_index }, { "vote": vote }]);
+
+                Ok(("vote".into(), val))
+            }
+            DemocracyCall::proxy_vote(ref_index, vote) => {
+                let vote =
+                    serde_json::to_string(&VoteHelper(*vote)).expect("Vote should not fail; qed");
+                let val = json!([{ "ref_index": ref_index, "vote": vote }]);
+
+                Ok(("proxy_vote".into(), val))
+            }
+            DemocracyCall::emergency_cancel(ref_index) => {
+                let val = json!([{ "ref_index": ref_index }]);
+
+                Ok(("emergency_cancel".into(), val))
+            }
+            DemocracyCall::external_propose(proposal_hash) => {
+                let val = json!([{ "proposal_hash": proposal_hash }]);
+
+                Ok(("external_propose".into(), val))
+            }
+            DemocracyCall::external_propose_majority(proposal_hash) => {
+                let val = json!([{ "proposal_hash": proposal_hash }]);
+
+                Ok(("external_propose_majority".into(), val))
+            }
+            DemocracyCall::external_propose_default(proposal_hash) => {
+                let val = json!([{ "proposal_hash": proposal_hash }]);
+
+                Ok(("external_propose_default".into(), val))
+            }
+            DemocracyCall::fast_track(proposal_hash, voting_period, delay) => {
+                let val = json!([
+                    { "proposal_hash": proposal_hash },
+                    { "voting_period": voting_period },
+                    { "delay": delay }
+                ]);
+
+                Ok(("fast_track".into(), val))
+            }
+            DemocracyCall::veto_external(proposal_hash) => {
+                let val = json!([{ "proposal_hash": proposal_hash }]);
+
+                Ok(("veto_external".into(), val))
+            }
+            DemocracyCall::cancel_referendum(ref_index) => {
+                let val = json!([{ "ref_index": ref_index }]);
+
+                Ok(("cancel_referendum".into(), val))
+            }
+            DemocracyCall::cancel_queued(when, which, what) => {
+                let val = json!([{ "when": when }, { "which": which }, { "what": what }]);
+
+                Ok(("cancel_queued".into(), val))
+            }
+            DemocracyCall::set_proxy(proxy) => {
+                let val = json!([{ "proxy": proxy }]);
+
+                Ok(("set_proxy".into(), val))
+            }
+            DemocracyCall::resign_proxy() => Ok(("resign_proxy".into(), json!([]))),
+            DemocracyCall::remove_proxy(proxy) => {
+                let val = json!([{ "proxy": proxy }]);
+
+                Ok(("remove_proxy".into(), val))
+            }
+            DemocracyCall::delegate(to, conviction) => {
+                let conviction = serde_json::to_string(&ConvictionHelper(*conviction))
+                    .expect("Serialize infallible; qed");
+                let val = json!([{ "to": to }, { "conviction": conviction }]);
+
+                Ok(("delegate".into(), val))
+            }
+            DemocracyCall::undelegate() => Ok(("undelegate".into(), json!([]))),
+            DemocracyCall::clear_public_proposals() => {
+                Ok(("clear_public_proposals".into(), json!([])))
+            }
+            DemocracyCall::note_preimage(encoded_proposal) => {
+                let val = json!([{ "encoded_proposal": encoded_proposal, "encoded": true }]);
+
+                Ok(("note_preimage".into(), val))
+            }
+            DemocracyCall::note_imminent_preimage(encoded_proposal, when, which) => {
+                let val = json!([
+                    {"encoded_proposal": encoded_proposal, "encoded": true},
+                    {"when": when},
+                    {"which": which}
+                ]);
+                Ok(("note_imminent_preimage".into(), val))
+            }
+            DemocracyCall::reap_preimage(proposal_hash) => {
+                let val = json!([{ "proposal_hash": proposal_hash },]);
+
+                Ok(("reap_preimage".into(), val))
             }
             &__phantom_item => Ok(("__phantom".into(), json!({}))),
         }
@@ -280,24 +399,12 @@ where
     fn function(&self) -> FrameResult<FunctionInfo> {
         match &self {
             StakingCall::bond(controller, value, payee) => {
-                #[derive(Serialize)]
-                #[serde(remote = "RewardDestination")]
-                enum RewardDestinationDef {
-                    Staked,
-                    Stash,
-                    Controller,
-                }
-                #[derive(Serialize)]
-                struct Payee {
-                    #[serde(with = "RewardDestinationDef")]
-                    payee: RewardDestination,
-                }
-                let p = serde_json::to_string(&Payee { payee: *payee })
-                    .expect("payee should not fail to des; qed");
+                let payee = serde_json::to_string(&RewardDestinationHelper(*payee))
+                    .expect("serialization is infallible; qed");
                 let val = json!([
                     { "controller": controller.encode(), "encoded": true },
                     { "value": value },
-                    { "payee": p }
+                    { "payee": payee }
                 ]);
                 Ok(("bond".into(), val))
             }

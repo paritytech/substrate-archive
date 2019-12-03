@@ -105,11 +105,7 @@ where
         })
     }
 
-    /// get a raw connection to the substrate rpc
-    pub(crate) async fn raw(&self) -> Result<SubstrateRpc<T>, ArchiveError> {
-        SubstrateRpc::connect(&self.url).await
-    }
-
+    /// get the latest block
     pub(crate) async fn latest_block(&self) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
         let client = self.client().await?;
         let block = client.block(ListOrValue::Value(None)).await?;
@@ -121,6 +117,12 @@ where
                 ))
             }
         }
+    }
+
+    /// get just the latest header
+    pub(crate) async fn latest_head(&self) -> Result<Option<T::Header>, ArchiveError> {
+        let client = self.client().await?;
+        client.header(None).await
     }
 
     pub async fn client(&self) -> Result<SubstrateRpc<T>, ArchiveError> {

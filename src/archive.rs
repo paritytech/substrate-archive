@@ -27,7 +27,7 @@ use substrate_primitives::U256;
 use substrate_rpc_primitives::number::NumberOrHex;
 use tokio::runtime::Runtime;
 
-use std::sync::Arc;
+use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
 use crate::{
     database::Database,
@@ -68,7 +68,6 @@ where
         self.runtime.block_on(future::join(data_in, blocks));
         self.runtime.block_on(handle);
         log::info!("All Done");
-
         Ok(())
     }
 
@@ -83,16 +82,7 @@ where
     async fn sync(rpc: Arc<Rpc<T>>, db: Arc<Database>) -> Result<(), ArchiveError> {
         'sync: loop {
             let (db, rpc) = (db.clone(), rpc.clone());
-            let latest = rpc.clone().latest_block().await?;
-            log::debug!("Latest Block: {:?}", latest);
-            let latest = *latest
-                .expect("should always be a latest; qed")
-                .block
-                .header
-                .number();
-            let (sync, done) = Sync::default()
-                .sync(db.clone(), latest.into(), rpc.clone())
-                .await?;
+            let (sync, done) = Sync::default().sync(db.clone(), rpc.clone()).await?;
             if done {
                 break 'sync;
             }
@@ -117,35 +107,59 @@ where
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct Sync {
+struct Sync<T: System + Debug> {
     looped: usize,
-    missing: usize, // missing timestamps + blocks
+    _marker: PhantomData<T>,
 }
 
-impl Default for Sync {
+impl<T> Default for Sync<T>
+where
+    T: System + Debug,
+{
     fn default() -> Self {
         Self {
             looped: 0,
-            missing: 0,
+            _marker: PhantomData,
         }
     }
 }
 
-impl Sync {
-    async fn sync<T>(
-        self,
-        db: Arc<Database>,
-        latest: u64,
-        rpc: Arc<Rpc<T>>,
-    ) -> Result<(Self, bool), ArchiveError>
-    where
-        T: System + std::fmt::Debug + 'static,
-    {
-        let looped = self.looped;
-        log::info!("Looped: {}", looped);
-        log::info!("latest: {}", latest);
+impl<T> Sync<T>
+where
+    T: System + Debug,
+{
+    async fn sync(self, db: Arc<Database>, rpc: Arc<Rpc<T>>) -> Result<(Self, bool), ArchiveError>
+where {
+        let blocks_done = Self::blocks(db.clone(), rpc.clone()).await?;
+        let state_done = Self::state(db.clone(), rpc.clone()).await?;
 
-        let blocks = db.query_missing_blocks(Some(latest)).await?;
+        let looped = self.looped + 1;
+        log::info!("Looped: {}", looped);
+        let done = blocks_done && state_done;
+        Ok((
+            Self {
+                looped,
+                _marker: PhantomData,
+            },
+            done,
+        ))
+    }
+
+    /// Crawl all state
+    async fn state(db: Arc<Database>, rpc: Arc<Rpc<T>>) -> Result<bool, ArchiveError> {
+        Ok(true)
+    }
+
+    async fn blocks(db: Arc<Database>, rpc: Arc<Rpc<T>>) -> Result<bool, ArchiveError> {
+        let latest = rpc.clone().latest_block().await?;
+        log::debug!("Latest Block: {:?}", latest);
+        let latest = *latest
+            .expect("should always be a latest; qed")
+            .block
+            .header
+            .number();
+
+        let blocks = db.query_missing_blocks(Some(latest.into())).await?;
         let mut futures = Vec::new();
         log::info!("Fetching {} blocks from rpc", blocks.len());
         let rpc0 = rpc.clone();
@@ -163,14 +177,10 @@ impl Sync {
         }
 
         log::info!("inserting {} blocks", blocks.len());
-        let missing = blocks.len();
+        let len = blocks.len();
         let b = db
             .insert(Data::BatchBlock(BatchBlock::<T>::new(blocks)))
             .await?;
-
-        let looped = looped + 1;
-        log::info!("Inserted {} blocks", missing);
-        let done = missing == 0;
-        Ok((Self { looped, missing }, done))
+        Ok(len == 0)
     }
 }
