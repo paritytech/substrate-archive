@@ -26,6 +26,8 @@ use runtime_primitives::traits::Header;
 use substrate_primitives::U256;
 use substrate_rpc_primitives::number::NumberOrHex;
 use tokio::runtime::Runtime;
+use desub::TypeDetective;
+use frame_system::Trait as System;
 
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
@@ -33,11 +35,12 @@ use crate::{
     database::Database,
     error::Error as ArchiveError,
     rpc::Rpc,
-    types::{BatchBlock, Data, System},
+    types::{BatchBlock, Data},
 };
 
 // with the hopeful and long-anticipated release of async-await
-pub struct Archive<T: System> {
+pub struct Archive<T: System, P: TypeDetective> {
+    decoder: Decoder<P>,
     rpc: Arc<Rpc<T>>,
     db: Arc<Database>,
     runtime: Runtime,

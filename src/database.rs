@@ -27,6 +27,8 @@ use dotenv::dotenv;
 use log::*;
 use runtime_primitives::traits::Header;
 
+use frame_system::Trait as System;
+
 use std::{convert::TryFrom, env};
 
 use crate::{
@@ -36,9 +38,8 @@ use crate::{
         schema::{blocks, inherents, signed_extrinsics},
     },
     error::Error as ArchiveError,
-    extrinsics::{DbExtrinsic, Extrinsics},
     queries,
-    types::{BatchBlock, BatchStorage, Block, Data, Storage, System},
+    types::{BatchBlock, BatchStorage, Block, Data, Storage},
 };
 
 pub type DbReturn = Result<(), ArchiveError>;

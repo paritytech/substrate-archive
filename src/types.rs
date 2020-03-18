@@ -21,8 +21,7 @@ use codec::Decode;
 use runtime_primitives::generic::{Block as BlockT, SignedBlock};
 use substrate_primitives::storage::StorageChangeSet;
 use substrate_primitives::storage::StorageData;
-
-pub use self::traits::{ExtractCall, ExtrinsicExt, System, ToDatabaseExtrinsic};
+use frame_system::System;
 
 use crate::{error::Error, metadata::subxt_metadata::StorageMetadata};
 
@@ -167,47 +166,4 @@ impl<T: System> Event<T> {
     pub fn change_set(&self) -> &StorageChangeSet<T::Hash> {
         &self.change_set
     }
-}
-
-/// Official Paint Modules in Substrate
-/// Custom modules can be added with `Module::Custom("MyModule")`
-/// Modules not handled by Substrate Archive default to `Module::NotHandled`
-/// This occurs if the module is not an official substrate module, and has not been described
-/// in the clients implmentation of substrate-archive
-#[derive(Debug, PartialEq, Eq, Clone, derive_more::Display)]
-pub enum Module {
-    Assets,
-    Aura,
-    AuthorityDiscovery,
-    Authorship,
-    Babe,
-    Balances,
-    Collective,
-    Contracts,
-    Democracy,
-    Elections,
-    ElectionsPhragmen,
-    Executive,
-    FinalityTracker,
-    GenericAsset,
-    Grandpa,
-    ImOnline,
-    Membership,
-    Metadata,
-    Nicks,
-    Offences,
-    Parachains,
-    RandomnessCollectiveFlip,
-    ScoredPool,
-    Session,
-    Staking,
-    Sudo,
-    Support,
-    System,
-    Timestamp,
-    TransactionPayment,
-    Treasury,
-    Utility,
-    Custom(String), // modules that are not defined within substrate
-    NotHandled,
 }

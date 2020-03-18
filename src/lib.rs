@@ -21,8 +21,6 @@ extern crate diesel;
 mod archive;
 mod database;
 mod error;
-mod extrinsics;
-mod metadata;
 mod queries;
 #[cfg(test)]
 mod tests;
@@ -31,7 +29,6 @@ mod util;
 
 pub use archive::Archive;
 pub use error::Error;
-pub use extrinsics::{OldExtrinsic, RawExtrinsic};
 pub use types::{ExtractCall, Module, System, ToDatabaseExtrinsic};
 
 pub mod rpc;

@@ -1,6 +1,6 @@
 [package]
 name = "substrate-archive"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
 edition = "2018"
 
@@ -11,31 +11,32 @@ path = "src/lib.rs"
 log = "0.4"
 futures01 = { version = "0.1" }
 futures = { version = "0.3.1", features = ["compat", "async-await"] }
-futures-util = "0.3.1"
-async-trait = "0.1.17"
-tokio = { version = "0.2.1", features = ["rt-core", "blocking"] }
+futures-util = "0.3.4"
+async-trait = "0.1.24"
+tokio = { version = "0.2", features = ["rt-core", "blocking"] }
 failure = "0.1"
 chrono = "0.4"
-primitive-types = "0.5"
-dotenv = "0.14"
-url = "1.7"
-serde = { version = "1.0.41", features = ["derive"] }
-serde_json = { version = "1.0.41", features = ["arbitrary_precision"] }
+primitive-types = "0.7"
+dotenv = "0.15"
+url = "1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 r2d2 = "0.8"
 dirs = "2.0.2"
-derive_more = "0.15.0"
+desub = { git = "https://github.com/paritytech/desub", branch = "master", package="desub-core" }
 
-fern = { version = "0.5", features = ["colored"] }
+fern = { version = "0.6", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }
-codec = { package = "parity-scale-codec", version = "1.1.0" }
+codec = { package = "parity-scale-codec", version = "1.2.0" }
 jsonrpc-core-client = { version = "14.0", features = ["ws", "arbitrary_precision"] }
-runtime-metadata = { git = "https://github.com/paritytech/substrate/", package = "frame-metadata", branch = "polkadot-master" }
-frame-system = { git = "https://github.com/paritytech/substrate/", package = "frame-system", branch="polkadot-master"}
-substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "sc-rpc-api", branch="polkadot-master"}
-substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "sp-rpc", branch="polkadot-master"}
-substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-core", branch="polkadot-master"}
-runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-runtime", branch="polkadot-master"}
-runtime-support = { git = "https://github.com/paritytech/substrate/", package = "frame-support", branch="polkadot-master"}
+frame-system = { git = "https://github.com/paritytech/substrate/", package = "frame-system", branch="master" }
+substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "sc-rpc-api", branch="master" }
+substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "sp-rpc", branch="master" }
+
+# needed?
+substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-core", branch="master" }
+runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-runtime", branch="master" }
+
 websocket = { version = "0.24" }
 
 [patch.crates-io]
@@ -46,5 +47,5 @@ jsonrpc-derive = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/p
 jsonrpc-pubsub = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn" }
 
 [dev-dependencies]
-node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
+node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime" }
 rand = "0.7"

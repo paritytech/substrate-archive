@@ -22,8 +22,11 @@ use futures::{
     stream::{Stream, TryStreamExt},
 };
 use jsonrpc_core_client::{transports::ws, RpcChannel};
-use runtime_metadata::RuntimeMetadataPrefixed;
+use desub::decoder::Metadata;
 use substrate_primitives::storage::{StorageData, StorageKey};
+
+use frame_system::Trait as System;
+
 use substrate_rpc_api::{
     author::AuthorClient,
     chain::ChainClient,
@@ -36,7 +39,6 @@ use std::convert::TryInto;
 
 use crate::{
     error::Error as ArchiveError,
-    metadata::Metadata,
     types::{SubstrateBlock, System},
 };
 
@@ -98,8 +100,7 @@ where
 
     pub(crate) async fn metadata(&self, hash: Option<T::Hash>) -> Result<Metadata, ArchiveError> {
         let metadata_bytes = self.state.metadata(hash).compat().await?;
-        let metadata: RuntimeMetadataPrefixed =
-            Decode::decode(&mut &metadata_bytes[..]).expect("Decode failed");
+        let metadata: Metadata = Metadata::new(metadata_bytes);
         metadata.try_into().map_err(Into::into)
     }
 
