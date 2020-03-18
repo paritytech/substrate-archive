@@ -22,7 +22,6 @@ mod archive;
 mod database;
 mod error;
 mod extrinsics;
-mod frame_ext;
 mod metadata;
 mod queries;
 #[cfg(test)]
@@ -33,12 +32,7 @@ mod util;
 pub use archive::Archive;
 pub use error::Error;
 pub use extrinsics::{OldExtrinsic, RawExtrinsic};
-pub use frame_ext::{FrameExt, NotHandled};
 pub use types::{ExtractCall, Module, System, ToDatabaseExtrinsic};
 
 pub mod rpc;
-pub mod frame {
-    pub use frame_system;
-    pub use pallet_sudo;
-}
 pub use util::init_logger;
