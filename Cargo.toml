@@ -1,6 +1,6 @@
 [package]
 name = "substrate-archive"
-version = "0.2.0"
+version = "0.2.0-alpha"
 authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
 edition = "2018"
 
