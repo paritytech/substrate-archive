@@ -40,9 +40,9 @@ use crate::{
 
 // with the hopeful and long-anticipated release of async-await
 pub struct Archive<T: System, P: TypeDetective> {
-    decoder: Decoder<P>,
     rpc: Arc<Rpc<T>>,
-    db: Arc<Database>,
+    // database that holds types of runtime P
+    db: Arc<Database<P>>,
     runtime: Runtime,
 }
 
@@ -54,12 +54,12 @@ where
     pub fn new(decoder: P) -> Result<Self, ArchiveError> {
         let mut runtime = Runtime::new()?;
         let rpc = runtime.block_on(Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?))?;
-        let db = Database::new()?;
+        let db = Database::new(decoder)?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
         log::debug!("METADATA: {}", rpc.metadata());
         log::debug!("KEYS: {:?}", rpc.keys());
         // log::debug!("PROPERTIES: {:?}", rpc.properties());
-        Ok(Self { decoder, rpc, db, runtime })
+        Ok(Self { rpc, db, runtime })
     }
 
     pub fn run(mut self) -> Result<(), ArchiveError> {

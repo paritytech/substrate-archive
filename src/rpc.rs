@@ -25,16 +25,17 @@ use futures::{
 use log::{debug, error, trace, warn};
 use runtime_primitives::traits::Header as HeaderTrait;
 use substrate_primitives::{storage::StorageKey, twox_128};
-// use substrate_rpc_api::system::Properties;
+
 use substrate_rpc_primitives::{list::ListOrValue, number::NumberOrHex};
+use frame_system::Trait as System;
+use desub::decoder::Metadata;
 
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::{
     error::Error as ArchiveError,
-    metadata::Metadata,
-    types::{BatchBlock, Block, Data, Header, Storage, SubstrateBlock, System},
+    types::{BatchBlock, Block, Data, Header, Storage, SubstrateBlock},
 };
 
 /// Communicate with Substrate node via RPC
@@ -42,7 +43,6 @@ pub struct Rpc<T: System> {
     _marker: PhantomData<T>,
     url: url::Url,
     keys: Vec<StorageKey>,
-    metadata: Metadata,
     // properties: Properties,
 }
 
@@ -100,7 +100,6 @@ where
         Ok(Self {
             url,
             keys: keys?,
-            metadata: metadata?,
             _marker: PhantomData,
         })
     }
@@ -176,19 +175,6 @@ where
             })
     }
      */
-
-    /*
-        pub fn refresh_metadata(&mut self, hash: Option<T::Hash>) -> impl Future<Item = (), Error = ArchiveError> {
-            SubstrateRpc::connect(&self.url)
-                .and_then(move |client: SubstrateRpc<T>| {
-                    client.metadata(hash)
-                          .and_then(|m| {
-                              self.metadata = m;
-                              future::ok(())
-                          })
-                })
-        }
-    */
 
     pub async fn refresh_metadata(&mut self, hash: Option<T::Hash>) -> Result<(), ArchiveError> {
         let client = self.client().await?;

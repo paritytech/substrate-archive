@@ -21,13 +21,13 @@ pub mod models;
 pub mod schema;
 
 use async_trait::async_trait;
-use codec::Decode;
 use diesel::{pg::PgConnection, prelude::*, sql_types::BigInt};
 use dotenv::dotenv;
 use log::*;
 use runtime_primitives::traits::Header;
 
 use frame_system::Trait as System;
+use desub::{decoder::Decoder, TypeDetective};
 
 use std::{convert::TryFrom, env};
 
@@ -45,45 +45,50 @@ use crate::{
 pub type DbReturn = Result<(), ArchiveError>;
 
 #[async_trait]
-pub trait Insert: Sync {
-    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn
+pub trait Insert<P: TypeDetective>: Sync {
+    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>) -> DbReturn
     where
         Self: Sized;
 }
 
 #[async_trait]
-impl<T> Insert for Data<T>
+impl<T, P> Insert<P> for Data<T>
 where
     T: System,
+    P: TypeDetective,
 {
-    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
+    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>) -> DbReturn {
         match self {
-            Data::Block(block) => block.insert(db).await,
-            Data::Storage(storage) => storage.insert(db).await,
-            Data::BatchBlock(blocks) => blocks.insert(db).await,
-            Data::BatchStorage(storage) => storage.insert(db).await,
-            o => Err(ArchiveError::UnhandledDataType(format!("{:?}", o))),
+            Data::Block(block) => block.insert(db, decoder).await,
+            Data::Storage(storage) => storage.insert(db, decoder).await,
+            Data::BatchBlock(blocks) => blocks.insert(db, decoder).await,
+            Data::BatchStorage(storage) => storage.insert(db, decoder).await,
+            o => Err(ArchiveError::UnhandledDataType),
         }
     }
 }
 
 /// Database object which communicates with Diesel in a (psuedo)asyncronous way
 /// via `AsyncDiesel`
-pub struct Database {
+pub struct Database<P: TypeDetective> {
     db: AsyncDiesel<PgConnection>,
+    decoder: Decoder<P>
 }
 
-impl Database {
+impl<P: TypeDetective> Database<P> {
     /// Connect to the database
-    pub fn new() -> Result<Self, ArchiveError> {
+    pub fn new(decoder: Decoder<P>) -> Result<Self, ArchiveError> {
         dotenv().ok();
         let database_url = env::var("DATABASE_URL")?;
         let db = AsyncDiesel::new(&database_url)?;
-        Ok(Self { db })
+        Ok(Self { db, decoder })
     }
 
-    pub async fn insert(&self, data: impl Insert) -> Result<(), ArchiveError> {
-        data.insert(self.db.clone()).await
+    pub async fn insert(&self, data: impl Insert<P>) -> Result<(), ArchiveError> 
+    where
+        P: TypeDetective,
+    {
+        data.insert(self.db.clone(), &self.decoder).await
     }
 
     pub async fn query_missing_blocks(
@@ -115,11 +120,12 @@ impl Database {
 // TODO Make storage insertions generic over any type of insertin
 // not only timestamps
 #[async_trait]
-impl<T> Insert for Storage<T>
+impl<T, P> Insert<P> for Storage<T>
 where
     T: System,
+    P: TypeDetective
 {
-    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
+    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>) -> DbReturn {
         // use self::schema::blocks::dsl::{blocks, hash, time};
         let date_time = self.get_timestamp()?;
         let hsh = self.hash().clone();
@@ -140,11 +146,12 @@ where
 }
 
 #[async_trait]
-impl<T> Insert for BatchStorage<T>
+impl<T, P> Insert<P> for BatchStorage<T>
 where
     T: System,
+    P: TypeDetective
 {
-    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
+    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>) -> DbReturn {
         use self::schema::blocks::dsl::{blocks, hash, time};
         debug!("Inserting {} items via Batch Storage", self.inner().len());
         let storage: Vec<Storage<T>> = self.consume();
@@ -166,11 +173,12 @@ where
 }
 
 #[async_trait]
-impl<T> Insert for Block<T>
+impl<T, P> Insert<P> for Block<T>
 where
     T: System,
+    P: TypeDetective
 {
-    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
+    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>) -> DbReturn {
         let block = self.inner().block.clone();
         info!("HASH: {:X?}", block.header.hash().as_ref());
         info!("Block Num: {:?}", block.header.number());
@@ -216,11 +224,12 @@ where
 }
 
 #[async_trait]
-impl<T> Insert for BatchBlock<T>
+impl<T, P> Insert<P> for BatchBlock<T>
 where
     T: System,
+    P: TypeDetective
 {
-    async fn insert(self, db: AsyncDiesel<PgConnection>) -> DbReturn {
+    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>) -> DbReturn {
         let mut extrinsics: Extrinsics = Extrinsics(Vec::new());
         info!("Batch inserting {} blocks into DB", self.inner().len());
         let blocks = self
