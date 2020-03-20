@@ -13,7 +13,6 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
-use crate::extrinsics::RawExtrinsic;
 use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
 
@@ -28,33 +27,6 @@ pub fn create_dir(path: std::path::PathBuf) {
             }
         },
         Ok(_) => (),
-    }
-}
-
-pub fn log_extrinsics(raw: &RawExtrinsic) -> String {
-    match &raw {
-        RawExtrinsic::Signed(ext) => {
-            let (module, call) = ext.call.extract_call();
-            let res = call.function();
-
-            let (fn_name, _params) = if res.is_err() {
-                ("Not Decoded".to_string(), serde_json::json!({}))
-            } else {
-                res.expect("checked for err; qed")
-            };
-            format!("Decoded: {}:{}", module, fn_name)
-        }
-        RawExtrinsic::NotSigned(ext) => {
-            let (module, call) = ext.call.extract_call();
-            let res = call.function();
-
-            let (fn_name, _params) = if res.is_err() {
-                ("Not Decoded".to_string(), serde_json::json!({}))
-            } else {
-                res.expect("Checked for err; qed")
-            };
-            format!("Decoded: {}:{}", module, fn_name)
-        }
     }
 }
 

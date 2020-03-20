@@ -13,7 +13,6 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
-
 #![feature(async_closure)]
 
 #[macro_use]
@@ -29,7 +28,6 @@ mod util;
 
 pub use archive::Archive;
 pub use error::Error;
-pub use types::{ExtractCall, Module, System, ToDatabaseExtrinsic};
 
 pub mod rpc;
 pub use util::init_logger;

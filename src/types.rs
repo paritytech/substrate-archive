@@ -14,19 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-mod traits;
-
 use chrono::{DateTime, TimeZone, Utc};
 use codec::Decode;
-use runtime_primitives::generic::{Block as BlockT, SignedBlock};
+use runtime_primitives::{OpaqueExtrinsic, generic::{Block as BlockT, SignedBlock}};
 use substrate_primitives::storage::StorageChangeSet;
 use substrate_primitives::storage::StorageData;
-use frame_system::System;
+use frame_system::Trait as System;
 
-use crate::{error::Error, metadata::subxt_metadata::StorageMetadata};
+use crate::error::Error;
 
 /// A generic substrate block
-pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
+pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
 
 /// Sent from Substrate API to be committed into the Database
 #[derive(Debug)]

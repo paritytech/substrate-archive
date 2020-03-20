@@ -39,7 +39,7 @@ use std::convert::TryInto;
 
 use crate::{
     error::Error as ArchiveError,
-    types::{SubstrateBlock, System},
+    types::SubstrateBlock,
 };
 
 impl<T: System> From<RpcChannel> for SubstrateRpc<T> {

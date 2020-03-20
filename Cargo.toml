@@ -29,13 +29,13 @@ fern = { version = "0.6", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }
 codec = { package = "parity-scale-codec", version = "1.2.0" }
 jsonrpc-core-client = { version = "14.0", features = ["ws", "arbitrary_precision"] }
-frame-system = { git = "https://github.com/paritytech/substrate/", package = "frame-system", branch="master" }
-substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "sc-rpc-api", branch="master" }
-substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "sp-rpc", branch="master" }
+frame-system = { git = "https://github.com/paritytech/substrate/", package = "frame-system", branch = "polkadot-master" }
+substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "sc-rpc-api", branch = "polkadot-master" }
+substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "sp-rpc", branch = "polkadot-master" }
 
 # needed?
-substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-core", branch="master" }
-runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-runtime", branch="master" }
+substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-core", branch = "polkadot-master" }
+runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-runtime", branch = "polkadot-master" }
 
 websocket = { version = "0.24" }
 
@@ -47,5 +47,5 @@ jsonrpc-derive = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/p
 jsonrpc-pubsub = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn" }
 
 [dev-dependencies]
-node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime" }
+node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
 rand = "0.7"

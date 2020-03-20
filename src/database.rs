@@ -174,7 +174,8 @@ where
         let block = self.inner().block.clone();
         info!("HASH: {:X?}", block.header.hash().as_ref());
         info!("Block Num: {:?}", block.header.number());
-        let extrinsics = DbExtrinsic::decode::<T>(&block.extrinsics, &block.header)?;
+        // TODO: DESUB HERE
+        // let extrinsics = DbExtrinsic::decode::<T>(&block.extrinsics, &block.header)?;
         // TODO Optimize
         db.run(move |conn| {
             diesel::insert_into(blocks::table)
@@ -192,6 +193,7 @@ where
 
             let (mut signed_ext, mut unsigned_ext) = (Vec::new(), Vec::new());
             let len = extrinsics.0.len() + 1; // 1 for the block
+            //TODO: DESUB HERE
             for e in extrinsics.0.into_iter() {
                 match e {
                     DbExtrinsic::Signed(e) => signed_ext.push(e),

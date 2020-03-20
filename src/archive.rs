@@ -26,7 +26,7 @@ use runtime_primitives::traits::Header;
 use substrate_primitives::U256;
 use substrate_rpc_primitives::number::NumberOrHex;
 use tokio::runtime::Runtime;
-use desub::TypeDetective;
+use desub::{decoder::Decoder, TypeDetective};
 use frame_system::Trait as System;
 
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
@@ -46,11 +46,12 @@ pub struct Archive<T: System, P: TypeDetective> {
     runtime: Runtime,
 }
 
-impl<T> Archive<T>
+impl<T, P> Archive<T, P>
 where
     T: System,
+    P: TypeDetective
 {
-    pub fn new() -> Result<Self, ArchiveError> {
+    pub fn new(decoder: P) -> Result<Self, ArchiveError> {
         let mut runtime = Runtime::new()?;
         let rpc = runtime.block_on(Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?))?;
         let db = Database::new()?;
@@ -58,7 +59,7 @@ where
         log::debug!("METADATA: {}", rpc.metadata());
         log::debug!("KEYS: {:?}", rpc.keys());
         // log::debug!("PROPERTIES: {:?}", rpc.properties());
-        Ok(Self { rpc, db, runtime })
+        Ok(Self { decoder, rpc, db, runtime })
     }
 
     pub fn run(mut self) -> Result<(), ArchiveError> {

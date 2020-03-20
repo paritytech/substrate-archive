@@ -20,7 +20,6 @@ use futures::channel::mpsc::TrySendError;
 use jsonrpc_core_client::RpcError as JsonRpcError;
 use tokio::task::JoinError;
 // use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
-use crate::metadata::Error as MetadataError;
 use diesel::result::{ConnectionError, Error as DieselError};
 use r2d2::Error as R2d2Error;
 use serde_json::Error as SerdeError;
@@ -68,8 +67,8 @@ pub enum Error {
     DataNotFound(String),
     #[fail(display = "{}", _0)]
     UnexpectedType(String),
-    #[fail(display = "Metadata {}", _0)]
-    Metadata(MetadataError),
+    // #[fail(display = "Metadata {}", _0)]
+    // Metadata(MetadataError),
 }
 
 impl From<JoinError> for Error {
