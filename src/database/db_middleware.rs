@@ -63,7 +63,7 @@ where
     where
         F: FnOnce(PooledConnection<ConnectionManager<T>>) -> Result<R, E>
             + Send
-            + std::marker::Unpin
+            // + std::marker::Unpin
             + 'static,
         R: Send + 'static,
         T: Send + 'static,

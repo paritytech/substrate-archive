@@ -83,12 +83,6 @@ impl From<SerdeError> for Error {
     }
 }
 
-impl From<MetadataError> for Error {
-    fn from(err: MetadataError) -> Error {
-        Error::Metadata(err)
-    }
-}
-
 impl From<TryFromIntError> for Error {
     fn from(err: TryFromIntError) -> Error {
         Error::IntConversion(err)

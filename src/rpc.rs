@@ -24,7 +24,7 @@ use futures::{
 };
 use log::{debug, error, trace, warn};
 use runtime_primitives::traits::Header as HeaderTrait;
-use substrate_primitives::{storage::StorageKey, twox_128};
+use substrate_primitives::storage::StorageKey;
 
 use substrate_rpc_primitives::{list::ListOrValue, number::NumberOrHex};
 use frame_system::Trait as System;

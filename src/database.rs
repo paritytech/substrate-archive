@@ -183,6 +183,9 @@ where
         info!("HASH: {:X?}", block.header.hash().as_ref());
         info!("Block Num: {:?}", block.header.number());
         // TODO: DESUB HERE
+        for ext in block.extrinsics.iter() {
+            
+        }
         // let extrinsics = DbExtrinsic::decode::<T>(&block.extrinsics, &block.header)?;
         // TODO Optimize
         db.run(move |conn| {
