@@ -15,7 +15,6 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A simple shim over the Substrate Rpc
-use codec::Decode;
 use futures::{
     compat::{Future01CompatExt, Stream01CompatExt},
     future::{self, TryFutureExt},
@@ -35,7 +34,6 @@ use substrate_rpc_api::{
 };
 use substrate_rpc_primitives::{list::ListOrValue, number::NumberOrHex};
 
-use std::convert::TryInto;
 
 use crate::{
     error::Error as ArchiveError,
@@ -100,8 +98,7 @@ where
 
     pub(crate) async fn metadata(&self, hash: Option<T::Hash>) -> Result<Metadata, ArchiveError> {
         let metadata_bytes = self.state.metadata(hash).compat().await?;
-        let metadata: Metadata = Metadata::new(metadata_bytes);
-        metadata.try_into().map_err(Into::into)
+        Ok(Metadata::new(metadata_bytes.0.as_slice()))
     }
 
     // TODO: make "Key" and "from" vectors

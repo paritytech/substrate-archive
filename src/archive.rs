@@ -28,6 +28,7 @@ use substrate_rpc_primitives::number::NumberOrHex;
 use tokio::runtime::Runtime;
 use desub::{decoder::Decoder, TypeDetective};
 use frame_system::Trait as System;
+use codec::{Encode, Decode};
 
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
@@ -83,7 +84,7 @@ where
     }
 
     /// Verification task that ensures all blocks are in the database
-    async fn sync(rpc: Arc<Rpc<T>>, db: Arc<Database>) -> Result<(), ArchiveError> {
+    async fn sync(rpc: Arc<Rpc<T>>, db: Arc<Database<P>>) -> Result<(), ArchiveError> {
         'sync: loop {
             let (db, rpc) = (db.clone(), rpc.clone());
             let (sync, done) = Sync::default().sync(db.clone(), rpc.clone()).await?;
@@ -94,7 +95,7 @@ where
         Ok(())
     }
 
-    async fn handle_data(mut receiver: UnboundedReceiver<Data<T>>, db: Arc<Database>) {
+    async fn handle_data(mut receiver: UnboundedReceiver<Data<T>>, db: Arc<Database<P>>) {
         while let Some(data) = receiver.next().await {
             match data {
                 Data::SyncProgress(missing_blocks) => {
@@ -111,29 +112,33 @@ where
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct Sync<T: System + Debug> {
+struct Sync<T: System, P: TypeDetective> {
     looped: usize,
     _marker: PhantomData<T>,
+    __marker: PhantomData<P>
 }
 
-impl<T> Default for Sync<T>
+impl<T, P> Default for Sync<T, P>
 where
-    T: System + Debug,
+    T: System,
+    P: TypeDetective
 {
     fn default() -> Self {
         Self {
             looped: 0,
             _marker: PhantomData,
+            __marker: PhantomData
         }
     }
 }
 
-impl<T> Sync<T>
+impl<T, P: TypeDetective> Sync<T, P>
 where
-    T: System + Debug,
+    T: System,
+    P: TypeDetective
 {
-    async fn sync(self, db: Arc<Database>, rpc: Arc<Rpc<T>>) -> Result<(Self, bool), ArchiveError>
-where {
+    async fn sync(self, db: Arc<Database<P>>, rpc: Arc<Rpc<T>>) -> Result<(Self, bool), ArchiveError>
+    {
         let blocks_done = Self::blocks(db.clone(), rpc.clone()).await?;
         let state_done = Self::state(db.clone(), rpc.clone()).await?;
 
@@ -144,17 +149,18 @@ where {
             Self {
                 looped,
                 _marker: PhantomData,
+                __marker: PhantomData
             },
             done,
         ))
     }
 
     /// Crawl all state
-    async fn state(db: Arc<Database>, rpc: Arc<Rpc<T>>) -> Result<bool, ArchiveError> {
+    async fn state(db: Arc<Database<P>>, rpc: Arc<Rpc<T>>) -> Result<bool, ArchiveError> {
         Ok(true)
     }
 
-    async fn blocks(db: Arc<Database>, rpc: Arc<Rpc<T>>) -> Result<bool, ArchiveError> {
+    async fn blocks(db: Arc<Database<P>>, rpc: Arc<Rpc<T>>) -> Result<bool, ArchiveError> {
         let latest = rpc.clone().latest_block().await?;
         log::debug!("Latest Block: {:?}", latest);
         let latest = *latest
@@ -162,8 +168,8 @@ where {
             .block
             .header
             .number();
-
-        let blocks = db.query_missing_blocks(Some(latest.into())).await?;
+         let latest: u32 = Decode::decode(&mut latest.encode().as_slice())?;
+        let blocks = db.query_missing_blocks(Some(latest as u64)).await?;
         let mut futures = Vec::new();
         log::info!("Fetching {} blocks from rpc", blocks.len());
         let rpc0 = rpc.clone();

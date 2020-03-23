@@ -50,10 +50,6 @@ impl<T> Rpc<T>
 where
     T: System,
 {
-    pub fn metadata(&self) -> &Metadata {
-        &self.metadata
-    }
-
     pub fn keys(&self) -> &Vec<StorageKey> {
         &self.keys
     }
@@ -176,11 +172,9 @@ where
     }
      */
 
-    pub async fn refresh_metadata(&mut self, hash: Option<T::Hash>) -> Result<(), ArchiveError> {
+    pub async fn metadata(&mut self, hash: Option<T::Hash>) -> Result<(), ArchiveError> {
         let client = self.client().await?;
-        let meta = client.metadata(hash).await?;
-        self.metadata = meta;
-        Ok(())
+        let meta = client.metadata(hash).await?
     }
 
     // TODO: make "Key" and "from" vectors

@@ -32,6 +32,7 @@ jsonrpc-core-client = { version = "14.0", features = ["ws", "arbitrary_precision
 frame-system = { git = "https://github.com/paritytech/substrate/", package = "frame-system", branch = "polkadot-master" }
 substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "sc-rpc-api", branch = "polkadot-master" }
 substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "sp-rpc", branch = "polkadot-master" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", package = "sp-arithmetic", branch = "polkadot-master" }
 
 # needed?
 substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-core", branch = "polkadot-master" }

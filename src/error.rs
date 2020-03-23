@@ -27,6 +27,7 @@ use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
 use url::ParseError;
+use desub::Error as DesubError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -56,7 +57,9 @@ pub enum Error {
     IntConversion(#[fail(cause)] TryFromIntError),
     #[fail(display = "Serialization: {}", _0)]
     Serialize(#[fail(cause)] SerdeError),
-
+    #[fail(display = "Desub {}", _0)]
+    Desub(#[fail(cause)] DesubError),
+    
     #[fail(display = "Call type unhandled, not committing to database")]
     UnhandledCallType,
     // if trying to insert unsupported type into database
@@ -69,6 +72,12 @@ pub enum Error {
     UnexpectedType(String),
     // #[fail(display = "Metadata {}", _0)]
     // Metadata(MetadataError),
+}
+
+impl From<DesubError> for Error {
+    fn from(err: DesubError) -> Error {
+        Error::Desub(err)
+    }
 }
 
 impl From<JoinError> for Error {
