@@ -16,7 +16,6 @@
 
 use diesel::{r2d2::ConnectionManager, Connection};
 use r2d2::{Pool, PooledConnection};
-use tokio::task;
 // use tokio_threadpool::{blocking, BlockingError};
 // TODO after merge, before push: https://docs.rs/tokio/0.2.1/tokio/task/fn.spawn_blocking.html
 use crate::error::Error as ArchiveError;

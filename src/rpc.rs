@@ -154,9 +154,9 @@ where
    
     pub async fn block_from_number(
         &self,
-        number: &NumberOrHex<T::BlockNumber>,
+        number: NumberOrHex<T::BlockNumber>,
     ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
-        let hash = self.client.block_hash(Some(number.clone())).await?;
+        let hash = self.client.block_hash(Some(number)).await?;
         self.client.block(hash).await.map_err(Into::into)
     }
 
@@ -166,7 +166,7 @@ where
     ) -> Result<Vec<SubstrateBlock<T>>, ArchiveError> {
 
         let blocks = Vec::new();
-        for num in numbers.iter() {
+        for num in numbers.into_iter() {
             let block = self.block_from_number(num).await?;
             blocks.push(block);
         }

@@ -31,7 +31,7 @@ use crate::{
     database::Database,
     error::Error as ArchiveError,
     rpc::Rpc,
-    types::{BatchBlock, Data, Substrate},
+    types::{Data, Substrate},
 };
 
 // with the hopeful and long-anticipated release of async-await
@@ -82,7 +82,7 @@ where
                 c => {
                     let db = db.clone();
                     let fut = async move || db.insert(c).map_err(|e| log::error!("{:?}", e)).await;
-                    tokio::spawn(fut());
+                    // tokio::spawn(fut());
                 }
             }
         }

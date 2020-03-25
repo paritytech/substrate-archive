@@ -85,12 +85,6 @@ impl From<DesubError> for Error {
     }
 }
 
-impl From<JoinError> for Error {
-    fn from(err: JoinError) -> Error {
-        Error::Join(err.to_string())
-    }
-}
-
 impl From<SerdeError> for Error {
     fn from(err: SerdeError) -> Error {
         Error::Serialize(err)
