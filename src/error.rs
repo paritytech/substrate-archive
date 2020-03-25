@@ -17,8 +17,6 @@
 use codec::Error as CodecError;
 use failure::Fail;
 use futures::channel::mpsc::TrySendError;
-use jsonrpc_core_client::RpcError as JsonRpcError;
-use tokio::task::JoinError;
 // use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
 use diesel::result::{ConnectionError, Error as DieselError};
 use r2d2::Error as R2d2Error;
@@ -28,6 +26,7 @@ use std::io::Error as IoError;
 use std::num::TryFromIntError;
 use url::ParseError;
 use desub::Error as DesubError;
+use subxt::Error as SubxtError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -37,8 +36,6 @@ pub enum Error {
     TrySend(String),
     #[fail(display = "Task Join {}", _0)]
     Join(String),
-    #[fail(display = "RPC Error: {}", _0)]
-    Rpc(#[fail(cause)] JsonRpcError),
     #[fail(display = "Io: {}", _0)]
     Io(#[fail(cause)] IoError),
     #[fail(display = "Parse: {}", _0)]
@@ -59,6 +56,8 @@ pub enum Error {
     Serialize(#[fail(cause)] SerdeError),
     #[fail(display = "Desub {}", _0)]
     Desub(#[fail(cause)] DesubError),
+    #[fail(display = "Rpc Comms {}", _0)]
+    Subxt(#[fail(cause)] SubxtError),
     
     #[fail(display = "Call type unhandled, not committing to database")]
     UnhandledCallType,
@@ -72,6 +71,12 @@ pub enum Error {
     UnexpectedType(String),
     // #[fail(display = "Metadata {}", _0)]
     // Metadata(MetadataError),
+}
+
+impl From<SubxtError> for Error {
+    fn from(err: SubxtError) -> Error {
+        Error::Subxt(err)
+    }
 }
 
 impl From<DesubError> for Error {
@@ -137,12 +142,6 @@ impl From<IoError> for Error {
 impl<T> From<TrySendError<T>> for Error {
     fn from(err: TrySendError<T>) -> Error {
         Error::Send(err.to_string())
-    }
-}
-
-impl From<JsonRpcError> for Error {
-    fn from(err: JsonRpcError) -> Error {
-        Error::Rpc(err)
     }
 }
 

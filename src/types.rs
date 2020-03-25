@@ -19,16 +19,19 @@ use codec::Decode;
 use runtime_primitives::{OpaqueExtrinsic, generic::{Block as BlockT, SignedBlock}};
 use substrate_primitives::storage::StorageChangeSet;
 use substrate_primitives::storage::StorageData;
-use frame_system::Trait as System;
+use subxt::{ system::System, balances::Balances};
 
 use crate::error::Error;
 
+/// Consolidating substrate traits representing fundamental types
+pub trait Substrate: System + Balances {}
+
 /// A generic substrate block
-pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
+pub type SubstrateBlock<T: Substrate> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
 
 /// Sent from Substrate API to be committed into the Database
 #[derive(Debug)]
-pub enum Data<T: System> {
+pub enum Data<T: Substrate> {
     Header(Header<T>),
     FinalizedHead(Header<T>),
     Block(Block<T>),
@@ -42,11 +45,11 @@ pub enum Data<T: System> {
 // new types to allow implementing of traits
 // NewType for Header
 #[derive(Debug)]
-pub struct Header<T: System> {
+pub struct Header<T: Substrate> {
     inner: T::Header,
 }
 
-impl<T: System> Header<T> {
+impl<T: Substrate> Header<T> {
     pub fn new(header: T::Header) -> Self {
         Self { inner: header }
     }
@@ -58,11 +61,11 @@ impl<T: System> Header<T> {
 
 /// NewType for Block
 #[derive(Debug)]
-pub struct Block<T: System> {
+pub struct Block<T: Substrate> {
     inner: SubstrateBlock<T>,
 }
 
-impl<T: System> Block<T> {
+impl<T: Substrate> Block<T> {
     pub fn new(block: SubstrateBlock<T>) -> Self {
         Self { inner: block }
     }
@@ -74,11 +77,11 @@ impl<T: System> Block<T> {
 
 /// NewType for committing many blocks to the database at once
 #[derive(Debug)]
-pub struct BatchBlock<T: System> {
+pub struct BatchBlock<T: Substrate> {
     inner: Vec<SubstrateBlock<T>>,
 }
 
-impl<T: System> BatchBlock<T> {
+impl<T: Substrate> BatchBlock<T> {
     pub fn new(blocks: Vec<SubstrateBlock<T>>) -> Self {
         Self { inner: blocks }
     }
@@ -90,7 +93,7 @@ impl<T: System> BatchBlock<T> {
 
 /// newType for Storage Data
 #[derive(Debug)]
-pub struct Storage<T: System> {
+pub struct Storage<T: Substrate> {
     data: StorageData,
     hash: T::Hash,
     // meta: StorageMetadata,
@@ -98,7 +101,7 @@ pub struct Storage<T: System> {
 
 impl<T> Storage<T>
 where
-    T: System,
+    T: Substrate,
 {
     pub fn new(data: StorageData, hash: T::Hash /* meta: StorageMetadata */) -> Self {
         Self {
@@ -113,17 +116,6 @@ where
 
     pub fn hash(&self) -> &T::Hash {
         &self.hash
-    }
-    /*
-        pub fn metadata(&self) -> &StorageMetadata {
-            &self.meta
-        }
-    */
-
-    pub fn get_timestamp(&self) -> Result<DateTime<Utc>, Error> {
-        // TODO: check if storage key type is actually from the timestamp module
-        let unix_time: i64 = Decode::decode(&mut self.data().0.as_slice())?;
-        Ok(Utc.timestamp_millis(unix_time)) // panics if time is incorrect
     }
 }
 

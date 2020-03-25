@@ -27,7 +27,6 @@ use log::*;
 use runtime_primitives::traits::Header;
 
 use codec::{Encode, Decode};
-use frame_system::Trait as System;
 use desub::{decoder::{Decoder, GenericExtrinsic}, TypeDetective};
 
 use std::{convert::TryFrom, env};
@@ -40,7 +39,7 @@ use crate::{
     },
     error::Error as ArchiveError,
     queries,
-    types::{BatchBlock, BatchStorage, Block, Data, Storage},
+    types::{BatchBlock, BatchStorage, Block, Data, Storage, Substrate},
 };
 
 pub type DbReturn = Result<(), ArchiveError>;
@@ -55,7 +54,7 @@ pub trait Insert<P: TypeDetective>: Sync {
 #[async_trait]
 impl<T, P> Insert<P> for Data<T>
 where
-    T: System,
+    T: Substrate,
     P: TypeDetective,
 {
     async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>, spec: u32) -> DbReturn {
@@ -123,12 +122,11 @@ impl<P: TypeDetective> Database<P> {
 #[async_trait]
 impl<T, P> Insert<P> for Storage<T>
 where
-    T: System,
+    T: Substrate,
     P: TypeDetective
 {
     async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>, spec: u32) -> DbReturn {
         // use self::schema::blocks::dsl::{blocks, hash, time};
-        let date_time = self.get_timestamp()?;
         let hsh = self.hash().clone();
         db.run(move |conn| {
             trace!("inserting timestamp for: {}", hsh);
@@ -149,7 +147,7 @@ where
 #[async_trait]
 impl<T, P> Insert<P> for BatchStorage<T>
 where
-    T: System,
+    T: Substrate,
     P: TypeDetective
 {
     async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>, spec: u32) -> DbReturn {
@@ -159,7 +157,6 @@ where
         db.run(move |conn| {
             let len = storage.len();
             for item in storage.into_iter() {
-                let date_time = item.get_timestamp()?;
                 /*
                 diesel::update(blocks.filter(hash.eq(item.hash().as_ref())))
                     .set(time.eq(Some(&date_time)))
@@ -176,7 +173,7 @@ where
 #[async_trait]
 impl<T, P> Insert<P> for Block<T>
 where
-    T: System,
+    T: Substrate,
     P: TypeDetective
 {
     async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>, spec: u32) -> DbReturn {
@@ -249,7 +246,7 @@ where
 #[async_trait]
 impl<T, P> Insert<P> for BatchBlock<T>
 where
-    T: System,
+    T: Substrate,
     P: TypeDetective
 {
     async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>, spec: u32) -> DbReturn {

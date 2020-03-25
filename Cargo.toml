@@ -9,11 +9,10 @@ path = "src/lib.rs"
 
 [dependencies]
 log = "0.4"
-futures01 = { version = "0.1" }
 futures = { version = "0.3.1", features = ["compat", "async-await"] }
 futures-util = "0.3.4"
-async-trait = "0.1.24"
-tokio = { version = "0.2", features = ["rt-core", "blocking"] }
+async-trait = "0.1.26"
+async-std = "1.5.0"
 failure = "0.1"
 chrono = "0.4"
 primitive-types = "0.7"
@@ -24,28 +23,16 @@ serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 r2d2 = "0.8"
 dirs = "2.0.2"
 desub = { git = "https://github.com/paritytech/desub", branch = "master", package="desub-core" }
+subxt = { git = "https://github.com/insipx/substrate-subxt", branch = "experimental-desub", package = "substrate-subxt"}
 
 fern = { version = "0.6", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }
 codec = { package = "parity-scale-codec", version = "1.2.0" }
-jsonrpc-core-client = { version = "14.0", features = ["ws", "arbitrary_precision"] }
-frame-system = { git = "https://github.com/paritytech/substrate/", package = "frame-system", branch = "polkadot-master" }
-substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "sc-rpc-api", branch = "polkadot-master" }
-substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "sp-rpc", branch = "polkadot-master" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", package = "sp-arithmetic", branch = "polkadot-master" }
 
-# needed?
-substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-core", branch = "polkadot-master" }
-runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-runtime", branch = "polkadot-master" }
+substrate-rpc-primitives = { version = "2.0.0-alpha.3", package = "sp-rpc" }
+substrate-primitives = { version = "2.0.0-alpha.3", package = "sp-core" }
+runtime-primitives = { version = "2.0.0-alpha.3", package = "sp-runtime" }
 
-websocket = { version = "0.24" }
-
-[patch.crates-io]
-jsonrpc-core-client = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn", features = ["ws", "arbitrary_precision"] }
-jsonrpc-client-transports = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn", features = ["ws", "arbitrary_precision"] }
-jsonrpc-core = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn", features = ["arbitrary_precision"] }
-jsonrpc-derive = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn" }
-jsonrpc-pubsub = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn" }
 
 [dev-dependencies]
 node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
