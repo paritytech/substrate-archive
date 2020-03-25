@@ -19,7 +19,7 @@
 
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
-    future, FutureExt, StreamExt, TryFutureExt,
+    future, StreamExt, TryFutureExt,
 };
 use log::*;
 use runtime_primitives::traits::Header;
@@ -81,8 +81,10 @@ where
                 }
                 c => {
                     let db = db.clone();
-                    let fut = async move || db.insert(c).map_err(|e| log::error!("{:?}", e)).await;
-                    // tokio::spawn(fut());
+                    // TODO: data enum should implement a 'get hash' fun
+                    // then we can get the runtime version for everything being inserted into the database
+                    // let version = 
+                    db.insert(c).map_err(|e| log::error!("{:?}", e));
                 }
             }
         }

@@ -39,6 +39,7 @@ pub struct Rpc<T: Substrate + Send + Sync> {
     // keys: Vec<StorageKey>,
     // properties: Properties,
 }
+
 /// Methods that fetch a value from RPC and send to sender
 impl<T> Rpc<T>
 where
@@ -150,6 +151,10 @@ where
     /// get just the latest header
     pub(crate) async fn latest_head(&self) -> Result<Option<T::Header>, ArchiveError> {
         self.client.header::<T::Hash>(None).await.map_err(Into::into)
+    }
+
+    pub(crate) async fn version(&self) -> Result<(), ArchiveError> {
+        
     }
    
     pub async fn block_from_number(

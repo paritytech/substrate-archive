@@ -20,6 +20,8 @@ pub mod models;
 pub mod schema;
 
 use async_trait::async_trait;
+use diesel::{r2d2::ConnectionManager, Connection};
+use r2d2::Pool;
 use diesel::{pg::PgConnection, prelude::*, sql_types::BigInt};
 use dotenv::dotenv;
 use log::*;
@@ -32,7 +34,6 @@ use std::{convert::TryFrom, env};
 
 use crate::{
     database::{
-        db_middleware::AsyncDiesel,
         models::{InsertBlock, InsertBlockOwned, InsertInherent, InsertTransaction, InsertInherentOwned, InsertTransactionOwned},
         schema::{blocks, inherents, signed_extrinsics},
     },
@@ -42,10 +43,10 @@ use crate::{
 };
 
 pub type DbReturn = Result<(), ArchiveError>;
+pub type DbConnection = Pool<ConnectionManager<PgConnection>>;
 
-#[async_trait]
 pub trait Insert<P: TypeDetective>: Sync {
-    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>, spec: u32) -> DbReturn
+    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn
     where
         Self: Sized;
 }
@@ -56,12 +57,12 @@ where
     T: Substrate,
     P: TypeDetective,
 {
-    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>, spec: u32) -> DbReturn {
+    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
         match self {
-            Data::Block(block) => block.insert(db, decoder, spec).await,
-            Data::Storage(storage) => storage.insert(db, decoder, spec).await,
-            Data::BatchBlock(blocks) => blocks.insert(db, decoder, spec).await,
-            Data::BatchStorage(storage) => storage.insert(db, decoder, spec).await,
+            Data::Block(block) => block.insert(db, decoder, spec),
+            Data::Storage(storage) => storage.insert(db, decoder, spec),
+            Data::BatchBlock(blocks) => blocks.insert(db, decoder, spec),
+            Data::BatchStorage(storage) => storage.insert(db, decoder, spec),
             o => Err(ArchiveError::UnhandledDataType),
         }
     }
@@ -70,7 +71,9 @@ where
 /// Database object which communicates with Diesel in a (psuedo)asyncronous way
 /// via `AsyncDiesel`
 pub struct Database<P: TypeDetective> {
-    db: AsyncDiesel<PgConnection>,
+    /// pool of database connections
+    pool: Pool<ConnectionManager<PgConnection>>,
+    /// decodes substrate types before insertion
     decoder: Decoder<P>
 }
 
@@ -78,19 +81,21 @@ impl<P: TypeDetective> Database<P> {
     /// Connect to the database
     pub fn new(decoder: Decoder<P>) -> Result<Self, ArchiveError> {
         dotenv().ok();
-        let database_url = env::var("DATABASE_URL")?;
-        let db = AsyncDiesel::new(&database_url)?;
-        Ok(Self { db, decoder })
+        let url = env::var("DATABASE_URL")?;
+        let manager = ConnectionManager::new(url);
+        let builder = r2d2::Builder::default();
+        let pool = builder.build(manager)?;
+        Ok(Self { pool, decoder })
     }
 
-    pub async fn insert(&self, data: impl Insert<P>, spec: u32) -> Result<(), ArchiveError> 
+    pub fn insert(&self, data: impl Insert<P>, spec: u32) -> Result<(), ArchiveError> 
     where
         P: TypeDetective,
     {
-        data.insert(self.db.clone(), &self.decoder, spec).await
+        data.insert(self.pool.clone(), &self.decoder, spec)
     }
 
-    pub async fn query_missing_blocks(
+    pub fn query_missing_blocks(
         &self,
         latest: Option<u64>,
     ) -> Result<Vec<u64>, ArchiveError> {
@@ -101,18 +106,15 @@ impl<P: TypeDetective> Database<P> {
             block_num: i64,
         };
 
-        self.db
-            .run(move |conn| {
-                let blocks: Vec<Blocks> = queries::missing_blocks(latest).load(&conn)?;
-                Ok(blocks
-                    .iter()
-                    .map(|b| {
-                        u64::try_from(b.block_num)
-                            .expect("Block number should never be negative; qed")
-                    })
-                    .collect::<Vec<u64>>())
+        let conn = self.pool.get()?;
+        let blocks: Vec<Blocks> = queries::missing_blocks(latest).load(&conn)?;
+        Ok(blocks
+            .iter()
+            .map(|b| {
+                u64::try_from(b.block_num)
+                    .expect("Block number should never be negative; qed")
             })
-            .await
+            .collect::<Vec<u64>>())
     }
 }
 
@@ -124,58 +126,50 @@ where
     T: Substrate,
     P: TypeDetective
 {
-    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>, spec: u32) -> DbReturn {
+    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
         // use self::schema::blocks::dsl::{blocks, hash, time};
         let hsh = self.hash().clone();
-        db.run(move |conn| {
-            trace!("inserting timestamp for: {}", hsh);
-            let len = 1;
-            // WARN this just inserts a timestamp
-            /*
-            diesel::update(blocks.filter(hash.eq(hsh.as_ref())))
-                .set(time.eq(Some(&date_time)))
-                .execute(&conn)
-                .map_err(|e| ArchiveError::from(e))?;
-             */
-            Ok(())
-        })
-        .await
+        trace!("inserting timestamp for: {}", hsh);
+        let len = 1;
+        // WARN this just inserts a timestamp
+        /*
+        diesel::update(blocks.filter(hash.eq(hsh.as_ref())))
+            .set(time.eq(Some(&date_time)))
+            .execute(&conn)
+            .map_err(|e| ArchiveError::from(e))?;
+            */
+        Ok(())
     }
 }
 
-#[async_trait]
 impl<T, P> Insert<P> for BatchStorage<T>
 where
     T: Substrate,
     P: TypeDetective
 {
-    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>, spec: u32) -> DbReturn {
+    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
         use self::schema::blocks::dsl::{blocks, hash, time};
         debug!("Inserting {} items via Batch Storage", self.inner().len());
         let storage: Vec<Storage<T>> = self.consume();
-        db.run(move |conn| {
-            let len = storage.len();
-            for item in storage.into_iter() {
-                /*
-                diesel::update(blocks.filter(hash.eq(item.hash().as_ref())))
-                    .set(time.eq(Some(&date_time)))
-                    .execute(&conn)?;
-                 */
-            }
-            info!("Done inserting storage!");
-            Ok(())
-        })
-        .await
+        let len = storage.len();
+        for item in storage.into_iter() {
+            /*
+            diesel::update(blocks.filter(hash.eq(item.hash().as_ref())))
+                .set(time.eq(Some(&date_time)))
+                .execute(&conn)?;
+                */
+        }
+        info!("Done inserting storage!");
+        Ok(())
     }
 }
 
-#[async_trait]
 impl<T, P> Insert<P> for Block<T>
 where
     T: Substrate,
     P: TypeDetective
 {
-    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>, spec: u32) -> DbReturn {
+    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
         let block = self.inner().block.clone();
         info!("hash = {:X?}", block.header.hash().as_ref());
         info!("block_num = {:?}", block.header.number());
@@ -183,72 +177,70 @@ where
         for val in block.extrinsics.iter() {
             ext.push(decoder.decode_extrinsic(spec, val.encode().as_slice())?)
         }
+        
+        let conn = self.pool.get()?;
         let time = crate::util::try_to_get_time(ext.as_slice());
         // TODO Optimize, decode block number with desub 
         let num: u32 = Decode::decode(&mut block.header.number().encode().as_slice())?;
-        db.run(move |conn| {
-            diesel::insert_into(blocks::table)
-                .values(InsertBlock {
-                    parent_hash: block.header.parent_hash().as_ref(),
+        diesel::insert_into(blocks::table)
+            .values(InsertBlock {
+                parent_hash: block.header.parent_hash().as_ref(),
+                hash: block.header.hash().as_ref(),
+                block_num: &(num as i64),
+                state_root: block.header.state_root().as_ref(),
+                extrinsics_root: block.header.extrinsics_root().as_ref(),
+                time: time.as_ref(),
+            })
+            .on_conflict(blocks::hash)
+            .do_nothing()
+            .execute(&conn)?;
+
+        let (mut signed_ext, mut unsigned_ext) = (Vec::new(), Vec::new());
+        let len = ext.len() + 1; // 1 for the block
+        
+        for (i, e) in ext.into_iter().enumerate() {
+            if e.is_signed() {
+                signed_ext.push(InsertTransaction {
+                    block_num: &(num as i64),
+                    hash: block.header.hash().as_ref(),
+                    module: e.ext_module(),
+                    call: e.ext_name(),
+                    parameters: Some(serde_json::to_value(&e.args())?),
+                    tx_index: &(i as i32),
+                    transaction_version: &0
+                })
+            } else {
+                unsigned_ext.push(InsertInherent {
                     hash: block.header.hash().as_ref(),
                     block_num: &(num as i64),
-                    state_root: block.header.state_root().as_ref(),
-                    extrinsics_root: block.header.extrinsics_root().as_ref(),
-                    time: time.as_ref(),
+                    module: e.ext_module(),
+                    call: e.ext_name(),
+                    parameters: Some(&serde_json::to_value(&e.args())?),
+                    in_index: &(i as i32),
+                    // TODO: replace with real tx version
+                    transaction_version: &0
                 })
-                .on_conflict(blocks::hash)
-                .do_nothing()
-                .execute(&conn)?;
+            }
+        } 
 
-            let (mut signed_ext, mut unsigned_ext) = (Vec::new(), Vec::new());
-            let len = ext.len() + 1; // 1 for the block
-            
-            for (i, e) in ext.into_iter().enumerate() {
-                if e.is_signed() {
-                    signed_ext.push(InsertTransaction {
-                        block_num: &(num as i64),
-                        hash: block.header.hash().as_ref(),
-                        module: e.ext_module(),
-                        call: e.ext_name(),
-                        parameters: Some(serde_json::to_value(&e.args())?),
-                        tx_index: &(i as i32),
-                        transaction_version: &0
-                    })
-                } else {
-                    unsigned_ext.push(InsertInherent {
-                        hash: block.header.hash().as_ref(),
-                        block_num: &(num as i64),
-                        module: e.ext_module(),
-                        call: e.ext_name(),
-                        parameters: Some(&serde_json::to_value(&e.args())?),
-                        in_index: &(i as i32),
-                        // TODO: replace with real tx version
-                        transaction_version: &0
-                    })
-                }
-            } 
+        diesel::insert_into(inherents::table)
+            .values(unsigned_ext)
+            .execute(&conn)?;
 
-            diesel::insert_into(inherents::table)
-                .values(unsigned_ext)
-                .execute(&conn)?;
+        diesel::insert_into(signed_extrinsics::table)
+            .values(signed_ext)
+            .execute(&conn)?;
 
-            diesel::insert_into(signed_extrinsics::table)
-                .values(signed_ext)
-                .execute(&conn)?;
-
-            Ok(())
-        })
-        .await
+        Ok(())
     }
 }
 
-#[async_trait]
 impl<T, P> Insert<P> for BatchBlock<T>
 where
     T: Substrate,
     P: TypeDetective
 {
-    async fn insert(self, db: AsyncDiesel<PgConnection>, decoder: &Decoder<P>, spec: u32) -> DbReturn {
+    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
         info!("Batch inserting {} blocks into DB", self.inner().len());
         let mut signed_ext = Vec::new();
         let mut unsigned_ext = Vec::new();
@@ -299,39 +291,36 @@ where
                         })
                     }
                 }
-                Ok((db_block))
+                Ok(db_block)
             })
             // .filter_map(|b: Result<_, ArchiveError>| b.ok())
             .collect::<Result<Vec<InsertBlockOwned>, ArchiveError>>()?;
 
-
+        let conn = self.pool.get()?;
         // batch insert everything we've formatted/collected into the database 10,000 items at a time
-        db.run(move |conn| {
-            let len = blocks.len();
-            for chunks in blocks.as_slice().chunks(10_000) {
-                info!("{} blocks to insert", chunks.len());
-                diesel::insert_into(blocks::table)
-                    .values(chunks)
-                    .on_conflict(blocks::hash)
-                    .do_nothing()
-                    .execute(&conn)?;
-            }
-            for chunks in unsigned_ext.as_slice().chunks(2_500) {
-                info!("{} unsigned extrinsics to insert", chunks.len());
-                diesel::insert_into(inherents::table)
-                    .values(chunks)
-                    .execute(&conn)?;
-            }
-            for chunks in signed_ext.as_slice().chunks(2_500) {
-                info!("{} signed extrinsics to insert", chunks.len());
-                diesel::insert_into(signed_extrinsics::table)
-                    .values(chunks)
-                    .execute(&conn)?;
-            }
-            info!("Done {} Inserting Blocks and Extrinsics", len);
-            Ok(())
-        })
-        .await
+        let len = blocks.len();
+        for chunks in blocks.as_slice().chunks(10_000) {
+            info!("{} blocks to insert", chunks.len());
+            diesel::insert_into(blocks::table)
+                .values(chunks)
+                .on_conflict(blocks::hash)
+                .do_nothing()
+                .execute(&conn)?;
+        }
+        for chunks in unsigned_ext.as_slice().chunks(2_500) {
+            info!("{} unsigned extrinsics to insert", chunks.len());
+            diesel::insert_into(inherents::table)
+                .values(chunks)
+                .execute(&conn)?;
+        }
+        for chunks in signed_ext.as_slice().chunks(2_500) {
+            info!("{} signed extrinsics to insert", chunks.len());
+            diesel::insert_into(signed_extrinsics::table)
+                .values(chunks)
+                .execute(&conn)?;
+        }
+        info!("Done {} Inserting Blocks and Extrinsics", len);
+        Ok(())
     }
 }
 

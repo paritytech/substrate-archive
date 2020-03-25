@@ -39,7 +39,6 @@ pub enum Data<T: Substrate> {
     BatchStorage(BatchStorage<T>), // include callback on storage types for exact diesel::call
     Storage(Storage<T>),
     Event(Event<T>),
-    SyncProgress(usize),
 }
 
 // new types to allow implementing of traits
