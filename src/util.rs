@@ -15,6 +15,9 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
+use chrono::{DateTime, TimeZone, Utc};
+use desub::{decoder::GenericExtrinsic, SubstrateType};
+use crate::error::Error;
 
 // panics if it fails because of anything other than the directory already exists
 pub fn create_dir(path: std::path::PathBuf) {
@@ -28,6 +31,23 @@ pub fn create_dir(path: std::path::PathBuf) {
         },
         Ok(_) => (),
     }
+}
+
+/// tries to get timestamp inherent and convert it to UTC format
+/// if it exists within the extrinsics
+pub fn try_to_get_time(ext: &[GenericExtrinsic]) -> Option<DateTime<Utc>> {
+    // todo: the assumption here is that the timestamp is a u64
+    for e in ext.iter() {
+        if e.ext_module() == "Timestamp" && e.ext_call() == "set" {
+            let t = e.args().iter().find(|a| a.name == "now")?;
+            let t = match t.arg {
+                SubstrateType::U64(t) => t,
+                _ => return None
+            };
+            Some(Utc.timestamp_millis(t))
+        }
+    }
+    None
 }
 
 pub fn init_logger(std: log::LevelFilter, file_lvl: log::LevelFilter) {
