@@ -16,7 +16,6 @@
 
 //! IO for the PostgreSQL database connected to Substrate Archive Node
 
-pub mod db_middleware;
 pub mod models;
 pub mod schema;
 
