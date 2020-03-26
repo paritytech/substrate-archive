@@ -14,23 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use futures::{
-    channel::mpsc::UnboundedSender,
-    future::{self, FutureExt, TryFutureExt},
-    stream::StreamExt,
-};
-use log::{debug, error, trace, warn};
+use futures::{TryFutureExt, channel::mpsc::UnboundedSender};
 use runtime_primitives::traits::Header as HeaderTrait;
-use substrate_primitives::storage::StorageKey;
-
-use substrate_rpc_primitives::{list::ListOrValue, number::NumberOrHex};
+//use substrate_primitives::storage::StorageKey;
+use runtime_version::RuntimeVersion;
+use substrate_rpc_primitives::number::NumberOrHex;
 use subxt::Client;
 
 use std::sync::Arc;
 
 use crate::{
     error::Error as ArchiveError,
-    types::{BatchBlock, Block, Data, Header, Storage, SubstrateBlock, Substrate},
+    types::{BatchBlock, Block, Data, BatchData, Header, Storage, SubstrateBlock, Substrate},
 };
 
 /// Communicate with Substrate node via RPC
@@ -96,35 +91,13 @@ where
         hash: Option<T::Hash>,
         sender: UnboundedSender<Data<T>>,
     ) -> Result<(), ArchiveError> {
-        let block = self.client.block(hash).await?;
-        Self::send_block(ListOrValue::Value(block), sender)
-    }
-    
-    fn send_block(
-        block: ListOrValue<Option<SubstrateBlock<T>>>,
-        sender: UnboundedSender<Data<T>>,
-    ) -> Result<(), ArchiveError> {
-        match block {
-            ListOrValue::Value(v) => {
-                if let Some(b) = v {
-                    sender
-                        .unbounded_send(Data::Block(Block::new(b)))
-                        .map_err(Into::into)
-                } else {
-                    warn!("No Block Exists!");
-                    Ok(())
-                }
-            }
-            ListOrValue::List(v) => {
-                // throws out any none's
-                let blocks = v
-                    .into_iter()
-                    .filter_map(|b| b)
-                    .collect::<Vec<SubstrateBlock<T>>>();
-                sender
-                    .unbounded_send(Data::BatchBlock(BatchBlock::new(blocks)))
-                    .map_err(Into::into)
-            }
+        if let Some(block) = self.client.block(hash).await? {
+            sender
+                .unbounded_send(Data::Block(Block::new(block)))
+                .map_err(Into::into)
+        } else {
+            log::warn!("No Block Exists!");
+            Ok(())
         }
     }
 }
@@ -153,8 +126,8 @@ where
         self.client.header::<T::Hash>(None).await.map_err(Into::into)
     }
 
-    pub(crate) async fn version(&self) -> Result<(), ArchiveError> {
-        
+    pub(crate) async fn version(&self, hash: Option<&T::Hash>) -> Result<RuntimeVersion, ArchiveError> {
+        self.client.runtime_version(hash).map_err(Into::into).await
     }
    
     pub async fn block_from_number(
@@ -170,7 +143,7 @@ where
         numbers: Vec<NumberOrHex<T::BlockNumber>>,
     ) -> Result<Vec<SubstrateBlock<T>>, ArchiveError> {
 
-        let blocks = Vec::new();
+        let mut blocks = Vec::new();
         for num in numbers.into_iter() {
             let block = self.block_from_number(num).await?;
             blocks.push(block);

@@ -16,8 +16,8 @@
 use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
 use chrono::{DateTime, TimeZone, Utc};
+use std::convert::TryFrom;
 use desub::{decoder::GenericExtrinsic, SubstrateType};
-use crate::error::Error;
 
 // panics if it fails because of anything other than the directory already exists
 pub fn create_dir(path: std::path::PathBuf) {
@@ -40,11 +40,17 @@ pub fn try_to_get_time(ext: &[GenericExtrinsic]) -> Option<DateTime<Utc>> {
     for e in ext.iter() {
         if e.ext_module() == "Timestamp" && e.ext_call() == "set" {
             let t = e.args().iter().find(|a| a.name == "now")?;
-            let t = match t.arg {
-                SubstrateType::U64(t) => t,
+            let t: i64 = match t.arg {
+                SubstrateType::U64(t) => {
+                    let t = i64::try_from(t).ok();
+                    if t.is_none() {
+                        log::warn!("Not a valid UNIX timestamp");
+                    }
+                    t?
+                },
                 _ => return None
             };
-            Some(Utc.timestamp_millis(t))
+            return Some(Utc.timestamp_millis(t));
         }
     }
     None

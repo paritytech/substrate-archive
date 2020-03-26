@@ -19,11 +19,10 @@
 
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
-    future, StreamExt, TryFutureExt,
+    future, StreamExt,
 };
 use log::*;
-use runtime_primitives::traits::Header;
-use desub::TypeDetective;
+use desub::{decoder::Decoder, TypeDetective};
 
 use std::sync::Arc;
 
@@ -46,20 +45,16 @@ where
     T: Substrate + Send + Sync,
     P: TypeDetective
 {
-    pub fn new(decoder: P) -> Result<Self, ArchiveError> {
-        // let rpc = runtime.block_on(Rpc::<T>::new(url::Url::parse("ws://127.0.0.1:9944")?))?;
-        let rpc = Rpc::<T>::new("ws:://127.0.0.1:9944")?;
+    pub async fn new(decoder: Decoder<P>) -> Result<Self, ArchiveError> {
+        let rpc = Rpc::<T>::new("ws:://127.0.0.1:9944").await?;
         let db = Database::new(decoder)?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
-        log::debug!("METADATA: {}", rpc.metadata());
-        log::debug!("KEYS: {:?}", rpc.keys());
-        // log::debug!("PROPERTIES: {:?}", rpc.properties());
         Ok(Self { rpc, db })
     }
 
     pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
-        let data_in = Self::handle_data(receiver, self.db.clone());
+        let data_in = Self::handle_data(receiver, self.db.clone(), self.rpc.clone());
         let blocks = Self::blocks(self.rpc.clone(), sender.clone());
         self.runtime.block_on(future::join(data_in, blocks));
         log::info!("All Done");
@@ -73,20 +68,16 @@ where
         };
     }
 
-    async fn handle_data(mut receiver: UnboundedReceiver<Data<T>>, db: Arc<Database<P>>) {
+    async fn handle_data(mut receiver: UnboundedReceiver<Data<T>>, db: Arc<Database<P>>, rpc: Arc<Rpc<T>>) -> Result<(), ArchiveError> {
         while let Some(data) = receiver.next().await {
             match data {
-                Data::SyncProgress(missing_blocks) => {
-                    println!("{} blocks missing", missing_blocks);
-                }
-                c => {
+                d => {
                     let db = db.clone();
-                    // TODO: data enum should implement a 'get hash' fun
-                    // then we can get the runtime version for everything being inserted into the database
-                    // let version = 
-                    db.insert(c).map_err(|e| log::error!("{:?}", e));
+                    let version = rpc.version(Some(d.hash())).await?;
+                    db.insert(d, version.spec_version).map_err(|e| log::error!("{:?}", e));
                 }
             }
         }
+        Ok(())
     }
 }

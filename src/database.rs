@@ -19,8 +19,7 @@
 pub mod models;
 pub mod schema;
 
-use async_trait::async_trait;
-use diesel::{r2d2::ConnectionManager, Connection};
+use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
 use diesel::{pg::PgConnection, prelude::*, sql_types::BigInt};
 use dotenv::dotenv;
@@ -51,7 +50,6 @@ pub trait Insert<P: TypeDetective>: Sync {
         Self: Sized;
 }
 
-#[async_trait]
 impl<T, P> Insert<P> for Data<T>
 where
     T: Substrate,
@@ -61,12 +59,12 @@ where
         match self {
             Data::Block(block) => block.insert(db, decoder, spec),
             Data::Storage(storage) => storage.insert(db, decoder, spec),
-            Data::BatchBlock(blocks) => blocks.insert(db, decoder, spec),
-            Data::BatchStorage(storage) => storage.insert(db, decoder, spec),
             o => Err(ArchiveError::UnhandledDataType),
         }
     }
 }
+
+//TODO Implement insert for BatchData<T>
 
 /// Database object which communicates with Diesel in a (psuedo)asyncronous way
 /// via `AsyncDiesel`
@@ -120,7 +118,6 @@ impl<P: TypeDetective> Database<P> {
 
 // TODO Make storage insertions generic over any type of insertin
 // not only timestamps
-#[async_trait]
 impl<T, P> Insert<P> for Storage<T>
 where
     T: Substrate,
@@ -148,7 +145,7 @@ where
     P: TypeDetective
 {
     fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
-        use self::schema::blocks::dsl::{blocks, hash, time};
+        // use self::schema::blocks::dsl::{blocks, hash, time};
         debug!("Inserting {} items via Batch Storage", self.inner().len());
         let storage: Vec<Storage<T>> = self.consume();
         let len = storage.len();
@@ -178,7 +175,7 @@ where
             ext.push(decoder.decode_extrinsic(spec, val.encode().as_slice())?)
         }
         
-        let conn = self.pool.get()?;
+        let conn = db.get()?;
         let time = crate::util::try_to_get_time(ext.as_slice());
         // TODO Optimize, decode block number with desub 
         let num: u32 = Decode::decode(&mut block.header.number().encode().as_slice())?;
@@ -204,7 +201,7 @@ where
                     block_num: &(num as i64),
                     hash: block.header.hash().as_ref(),
                     module: e.ext_module(),
-                    call: e.ext_name(),
+                    call: e.ext_call(),
                     parameters: Some(serde_json::to_value(&e.args())?),
                     tx_index: &(i as i32),
                     transaction_version: &0
@@ -214,7 +211,7 @@ where
                     hash: block.header.hash().as_ref(),
                     block_num: &(num as i64),
                     module: e.ext_module(),
-                    call: e.ext_name(),
+                    call: e.ext_call(),
                     parameters: Some(&serde_json::to_value(&e.args())?),
                     in_index: &(i as i32),
                     // TODO: replace with real tx version
@@ -271,7 +268,7 @@ where
                             block_num: num as i64,
                             hash: block.header.hash().as_ref().to_vec(),
                             module: e.ext_module().to_string(),
-                            call: e.ext_name().to_string(),
+                            call: e.ext_call().to_string(),
                             //TODO UNWRAP!
                             parameters: Some(serde_json::to_value(&e.args()).unwrap()),
                             tx_index: i as i32,
@@ -282,7 +279,7 @@ where
                             hash: block.header.hash().as_ref().to_vec(),
                             block_num: num as i64,
                             module: e.ext_module().to_string(),
-                            call: e.ext_name().to_string(),
+                            call: e.ext_call().to_string(),
                             //TODO UNWRAP!
                             parameters: Some(serde_json::to_value(&e.args()).unwrap()),
                             in_index: i as i32,
@@ -296,7 +293,7 @@ where
             // .filter_map(|b: Result<_, ArchiveError>| b.ok())
             .collect::<Result<Vec<InsertBlockOwned>, ArchiveError>>()?;
 
-        let conn = self.pool.get()?;
+        let conn = db.get()?;
         // batch insert everything we've formatted/collected into the database 10,000 items at a time
         let len = blocks.len();
         for chunks in blocks.as_slice().chunks(10_000) {

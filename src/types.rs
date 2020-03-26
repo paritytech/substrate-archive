@@ -14,20 +14,33 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use chrono::{DateTime, TimeZone, Utc};
-use codec::Decode;
-use runtime_primitives::{OpaqueExtrinsic, generic::{Block as BlockT, SignedBlock}};
-use substrate_primitives::storage::StorageChangeSet;
-use substrate_primitives::storage::StorageData;
+use runtime_primitives::{generic::{Block as BlockT, SignedBlock}, traits::Header as _};
+use substrate_primitives::storage::{StorageChangeSet, StorageData};
 use subxt::{ system::System, balances::Balances};
 
-use crate::error::Error;
-
-/// Consolidating substrate traits representing fundamental types
+/// Consolidation of substrate traits representing fundamental types
 pub trait Substrate: System + Balances {}
 
 /// A generic substrate block
 pub type SubstrateBlock<T: Substrate> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
+
+pub enum BatchData<T: Substrate> {
+    BatchBlock(BatchBlock<T>),
+    BatchStorage(BatchStorage<T>),
+}
+
+impl<T> BatchData<T> where T: Substrate {
+    pub fn hashes(&self) -> &[&T::Hash] {
+        match self {
+            BatchData::BatchBlock(b) => {
+                b.inner().iter().map(|b| &b.block.header.hash()).collect::<Vec<&T::Hash>>().as_slice()
+            },
+            BatchData::BatchStorage(s) => {
+                s.inner().iter().map(|s| s.hash()).collect::<Vec<&T::Hash>>().as_slice()
+            }
+        }
+    }    
+}
 
 /// Sent from Substrate API to be committed into the Database
 #[derive(Debug)]
@@ -35,10 +48,28 @@ pub enum Data<T: Substrate> {
     Header(Header<T>),
     FinalizedHead(Header<T>),
     Block(Block<T>),
-    BatchBlock(BatchBlock<T>),
-    BatchStorage(BatchStorage<T>), // include callback on storage types for exact diesel::call
     Storage(Storage<T>),
     Event(Event<T>),
+}
+
+impl<T> Data<T> where T: Substrate {
+    /// get the hash for a data item
+    pub fn hash(&self) -> &T::Hash {
+        match self {
+            Data::Header(h) => {
+                h.hash()
+            },
+            Data::Block(b) => {
+                &b.inner.block.header.hash()
+            },
+            Data::Storage(s) => {
+                s.hash() 
+            },
+            Data::Event(e) => {
+                &e.hash()
+            }
+        }
+    }
 }
 
 // new types to allow implementing of traits
@@ -55,6 +86,10 @@ impl<T: Substrate> Header<T> {
 
     pub fn inner(&self) -> &T::Header {
         &self.inner
+    }
+
+    pub fn hash(&self) -> &T::Hash {
+        self.hash()
     }
 }
 
@@ -120,13 +155,13 @@ where
 
 /// NewType for committing many storage items into the database at once
 #[derive(Debug)]
-pub struct BatchStorage<T: System> {
+pub struct BatchStorage<T: Substrate> {
     inner: Vec<Storage<T>>,
 }
 
 impl<T> BatchStorage<T>
 where
-    T: System,
+    T: Substrate,
 {
     pub fn new(data: Vec<Storage<T>>) -> Self {
         Self { inner: data }
@@ -143,16 +178,20 @@ where
 
 /// NewType for committing Events to the database
 #[derive(Debug, PartialEq, Eq)]
-pub struct Event<T: System> {
+pub struct Event<T: Substrate> {
     change_set: StorageChangeSet<T::Hash>,
 }
 
-impl<T: System> Event<T> {
+impl<T: Substrate> Event<T> {
     pub fn new(change_set: StorageChangeSet<T::Hash>) -> Self {
         Self { change_set }
     }
 
     pub fn change_set(&self) -> &StorageChangeSet<T::Hash> {
         &self.change_set
+    }
+
+    pub fn hash(&self) -> T::Hash {
+        self.change_set.block
     }
 }
