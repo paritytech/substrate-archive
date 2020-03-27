@@ -30,13 +30,13 @@ pub enum BatchData<T: Substrate> {
 }
 
 impl<T> BatchData<T> where T: Substrate {
-    pub fn hashes(&self) -> &[&T::Hash] {
+    pub fn hashes(&self) -> Vec<T::Hash> {
         match self {
             BatchData::BatchBlock(b) => {
-                b.inner().iter().map(|b| &b.block.header.hash()).collect::<Vec<&T::Hash>>().as_slice()
+                b.inner().iter().map(|b| b.block.header.hash()).collect::<Vec<T::Hash>>()
             },
             BatchData::BatchStorage(s) => {
-                s.inner().iter().map(|s| s.hash()).collect::<Vec<&T::Hash>>().as_slice()
+                s.inner().iter().map(|s| *s.hash()).collect::<Vec<T::Hash>>()
             }
         }
     }    
@@ -54,19 +54,19 @@ pub enum Data<T: Substrate> {
 
 impl<T> Data<T> where T: Substrate {
     /// get the hash for a data item
-    pub fn hash(&self) -> &T::Hash {
+    pub fn hash(&self) -> T::Hash {
         match self {
-            Data::Header(h) => {
-                h.hash()
+            Data::Header(h) | Data::FinalizedHead(h) => {
+                *h.hash()
             },
             Data::Block(b) => {
-                &b.inner.block.header.hash()
+                b.inner.block.header.hash()
             },
             Data::Storage(s) => {
-                s.hash() 
+                *s.hash() 
             },
             Data::Event(e) => {
-                &e.hash()
+                e.hash()
             }
         }
     }

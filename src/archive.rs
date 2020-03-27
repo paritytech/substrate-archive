@@ -82,7 +82,7 @@ where
             match data {
                 d => {
                     let db = db.clone();
-                    let version = rpc.version(Some(d.hash())).await?;
+                    let version = rpc.version(Some(&d.hash())).await?;
                     db.insert(d, version.spec_version).map_err(|e| log::error!("{:?}", e));
                 }
             }

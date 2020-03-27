@@ -170,7 +170,7 @@ where
         let block = self.inner().block.clone();
         info!("hash = {:X?}", block.header.hash().as_ref());
         info!("block_num = {:?}", block.header.number());
-        let ext: Vec<GenericExtrinsic> = Vec::new(); 
+        let mut ext: Vec<GenericExtrinsic> = Vec::new(); 
         for val in block.extrinsics.iter() {
             ext.push(decoder.decode_extrinsic(spec, val.encode().as_slice())?)
         }
@@ -194,28 +194,27 @@ where
 
         let (mut signed_ext, mut unsigned_ext) = (Vec::new(), Vec::new());
         let len = ext.len() + 1; // 1 for the block
-        
         for (i, e) in ext.into_iter().enumerate() {
             if e.is_signed() {
-                signed_ext.push(InsertTransaction {
-                    block_num: &(num as i64),
-                    hash: block.header.hash().as_ref(),
-                    module: e.ext_module(),
-                    call: e.ext_call(),
+                signed_ext.push(InsertTransactionOwned {
+                    block_num: num as i64,
+                    hash: block.header.hash().as_ref().to_vec(),
+                    module: e.ext_module().to_string(),
+                    call: e.ext_call().to_string(),
                     parameters: Some(serde_json::to_value(&e.args())?),
-                    tx_index: &(i as i32),
-                    transaction_version: &0
+                    tx_index: i as i32,
+                    transaction_version: 0
                 })
             } else {
-                unsigned_ext.push(InsertInherent {
-                    hash: block.header.hash().as_ref(),
-                    block_num: &(num as i64),
-                    module: e.ext_module(),
-                    call: e.ext_call(),
-                    parameters: Some(&serde_json::to_value(&e.args())?),
-                    in_index: &(i as i32),
+                unsigned_ext.push(InsertInherentOwned {
+                    hash: block.header.hash().as_ref().to_vec(),
+                    block_num: num as i64,
+                    module: e.ext_module().to_string(),
+                    call: e.ext_call().to_string(),
+                    parameters: Some(serde_json::to_value(&e.args())?),
+                    in_index: i as i32,
                     // TODO: replace with real tx version
-                    transaction_version: &0
+                    transaction_version: 0
                 })
             }
         } 
@@ -246,7 +245,7 @@ where
             .iter()
             .map(|block| {
                 let block = block.block.clone();
-                let ext: Vec<GenericExtrinsic> = Vec::new(); 
+                let mut ext: Vec<GenericExtrinsic> = Vec::new(); 
                 for val in block.extrinsics.iter() {
                     ext.push(decoder.decode_extrinsic(spec, val.encode().as_slice())?)
                 }
