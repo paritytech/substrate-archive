@@ -18,6 +18,7 @@
 //! Nowhere else is anything ever spawned
 
 use futures::{
+    Future,
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
     future, StreamExt,
 };
@@ -52,13 +53,21 @@ where
         Ok(Self { rpc, db })
     }
 
-    pub fn run(mut self) -> Result<(), ArchiveError> {
+    /// run as a single-threaded app
+    pub async fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
         let data_in = Self::handle_data(receiver, self.db.clone(), self.rpc.clone());
         let blocks = Self::blocks(self.rpc.clone(), sender.clone());
-        self.runtime.block_on(future::join(data_in, blocks));
-        log::info!("All Done");
+        futures::executor::block_on(future::join(data_in, blocks));
+        log::info!("All Done!");
         Ok(())
+    }
+
+    pub fn split(mut self) -> Result<(impl Future, impl Future), ArchiveError> {
+        let (sender, receiver) = mpsc::unbounded();
+        let data_in = Self::handle_data(receiver, self.db.clone(), self.rpc.clone());
+        let blocks = Self::blocks(self.rpc.clone(), sender.clone());
+        Ok((data_in, blocks))
     }
 
     async fn blocks(rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>) {
