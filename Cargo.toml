@@ -9,25 +9,22 @@ path = "src/lib.rs"
 
 [dependencies]
 log = "0.4"
-futures = { version = "0.3.1", features = ["compat", "async-await"] }
-futures-util = "0.3.4"
+futures = { version = "0.3" }
 # async-trait = "0.1.26"
-async-std = "1.5.0"
 failure = "0.1"
 chrono = "0.4"
 primitive-types = "0.7"
 dotenv = "0.15"
-url = "1"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["arbitrary_precision"] }
+serde_json = "1.0"
 r2d2 = "0.8"
-dirs = "2.0.2"
+dirs = "2"
 desub = { git = "https://github.com/paritytech/desub", branch = "master", package="desub-core" }
-subxt = { git = "https://github.com/insipx/substrate-subxt", branch = "experimental-desub", package = "substrate-subxt"}
+subxt = { path = "../substrate-subxt", package = "substrate-subxt"}
 
 fern = { version = "0.6", features = ["colored"] }
 diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }
-codec = { package = "parity-scale-codec", version = "1.2.0" }
+codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
 
 substrate-rpc-primitives = { version = "2.0.0-alpha.5", package = "sp-rpc" }
 substrate-primitives = { version = "2.0.0-alpha.5", package = "sp-core" }
@@ -35,5 +32,5 @@ runtime-primitives = { version = "2.0.0-alpha.5", package = "sp-runtime" }
 runtime-version = { version = "2.0.0-alpha.5", package = "sp-version" }
 
 [dev-dependencies]
-node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
-rand = "0.7"
+async-std = "1.5.0"
+desub-extras = { git = "https://github.com/paritytech/desub", branch = "master", package="desub-extras", features = ["polkadot"] }

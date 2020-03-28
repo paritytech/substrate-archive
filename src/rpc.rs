@@ -19,6 +19,7 @@ use runtime_primitives::traits::Header as HeaderTrait;
 //use substrate_primitives::storage::StorageKey;
 use runtime_version::RuntimeVersion;
 use substrate_rpc_primitives::number::NumberOrHex;
+use desub::decoder::Metadata;
 use subxt::Client;
 
 use std::sync::Arc;
@@ -107,13 +108,8 @@ impl<T> Rpc<T>
 where
     T: Substrate + Send + Sync,
 {
-    pub(crate) async fn new(url: &str) -> Result<Self, ArchiveError> {
-        
-        let client = subxt::ClientBuilder::<T>::new().set_url(url).build().await?;
-
-        Ok(Self {
-            client,
-        })
+    pub(crate) fn new(client: subxt::Client<T>) -> Self {
+        Self { client }
     }
 
     /// get the latest block
@@ -128,6 +124,11 @@ where
 
     pub(crate) async fn version(&self, hash: Option<&T::Hash>) -> Result<RuntimeVersion, ArchiveError> {
         self.client.runtime_version(hash).map_err(Into::into).await
+    }
+
+    pub(crate) async fn metadata(&self, hash: Option<&T::Hash>) -> Result<Metadata, ArchiveError> {
+        let meta = self.client.raw_metadata(hash).map_err(ArchiveError::from).await?;
+        Ok(Metadata::new(meta.as_slice()))
     }
    
     pub async fn block_from_number(

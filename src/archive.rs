@@ -44,17 +44,17 @@ pub struct Archive<T: Substrate + Send + Sync, P: TypeDetective> {
 impl<T, P> Archive<T, P>
 where
     T: Substrate + Send + Sync,
-    P: TypeDetective
+    P: TypeDetective + Send + Sync
 {
-    pub async fn new(decoder: Decoder<P>) -> Result<Self, ArchiveError> {
-        let rpc = Rpc::<T>::new("ws:://127.0.0.1:9944").await?;
+    pub fn new(decoder: Decoder<P>, rpc: subxt::Client<T>) -> Result<Self, ArchiveError> {
+        let rpc = Rpc::<T>::new(rpc);
         let db = Database::new(decoder)?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
         Ok(Self { rpc, db })
     }
 
     /// run as a single-threaded app
-    pub async fn run(mut self) -> Result<(), ArchiveError> {
+    pub fn run(mut self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
         let data_in = Self::handle_data(receiver, self.db.clone(), self.rpc.clone());
         let blocks = Self::blocks(self.rpc.clone(), sender.clone());
@@ -63,7 +63,7 @@ where
         Ok(())
     }
 
-    pub fn split(mut self) -> Result<(impl Future, impl Future), ArchiveError> {
+    pub fn split(mut self) -> Result<(impl Future<Output=()>, impl Future<Output=()>), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
         let data_in = Self::handle_data(receiver, self.db.clone(), self.rpc.clone());
         let blocks = Self::blocks(self.rpc.clone(), sender.clone());
@@ -71,22 +71,38 @@ where
     }
 
     async fn blocks(rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>) {
+        log::info!("Spawning block subscription");
         match rpc.subscribe_blocks(sender).await {
             Ok(_) => (),
             Err(e) => error!("{:?}", e),
         };
     }
 
-    async fn handle_data(mut receiver: UnboundedReceiver<Data<T>>, db: Arc<Database<P>>, rpc: Arc<Rpc<T>>) -> Result<(), ArchiveError> {
+    async fn handle_data(mut receiver: UnboundedReceiver<Data<T>>, db: Arc<Database<P>>, rpc: Arc<Rpc<T>>) {
+        log::info!("Spawning data");
         while let Some(data) = receiver.next().await {
             match data {
                 d => {
                     let db = db.clone();
-                    let version = rpc.version(Some(&d.hash())).await?;
-                    db.insert(d, version.spec_version).map_err(|e| log::error!("{:?}", e));
+                    let meta = match rpc.metadata(Some(&d.hash())).await {
+                        Ok(v) => v,
+                        Err(e) => { 
+                            log::error!("{:?}", e);
+                            panic!("Error");
+                        }
+                    };
+                    let version = match rpc.version(Some(&d.hash())).await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            log::error!("{:?}", e);
+                            panic!("Error");
+                        }
+                    };
+                    // make sure metadata version is registered for decoding anything
+                    db.register_version(meta, version.spec_version).unwrap();
+                    db.insert(d, version.spec_version).unwrap();
                 }
             }
         }
-        Ok(())
     }
 }

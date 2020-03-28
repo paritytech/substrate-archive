@@ -24,9 +24,9 @@ use serde_json::Error as SerdeError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
-use url::ParseError;
 use desub::Error as DesubError;
 use subxt::Error as SubxtError;
+use std::sync::PoisonError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -38,8 +38,6 @@ pub enum Error {
     Join(String),
     #[fail(display = "Io: {}", _0)]
     Io(#[fail(cause)] IoError),
-    #[fail(display = "Parse: {}", _0)]
-    Parse(#[fail(cause)] ParseError),
     #[fail(display = "Db: {}", _0)]
     Db(#[fail(cause)] DieselError),
     #[fail(display = "Db Connection: {}", _0)]
@@ -58,6 +56,8 @@ pub enum Error {
     Desub(#[fail(cause)] DesubError),
     #[fail(display = "Rpc Comms {}", _0)]
     Subxt(#[fail(cause)] SubxtError),
+    #[fail(display = "Concurrency Error, Mutex Poisoned!")]
+    Concurrency,
     
     #[fail(display = "Call type unhandled, not committing to database")]
     UnhandledCallType,
@@ -139,8 +139,8 @@ impl<T> From<TrySendError<T>> for Error {
     }
 }
 
-impl From<ParseError> for Error {
-    fn from(err: ParseError) -> Error {
-        Error::Parse(err)
+impl<T> From<PoisonError<T>> for Error {
+    fn from(err: PoisonError<T>) -> Error {
+        Error::Concurrency
     }
 }

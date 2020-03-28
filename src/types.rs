@@ -21,6 +21,8 @@ use subxt::{ system::System, balances::Balances};
 /// Consolidation of substrate traits representing fundamental types
 pub trait Substrate: System + Balances {}
 
+impl<T> Substrate for T where T: System + Balances {}
+
 /// A generic substrate block
 pub type SubstrateBlock<T: Substrate> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
 

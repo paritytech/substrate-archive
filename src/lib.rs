@@ -20,13 +20,12 @@ mod archive;
 mod database;
 mod error;
 mod queries;
-#[cfg(test)]
-mod tests;
 mod types;
 mod util;
 
 pub use archive::Archive;
 pub use error::Error;
+pub use types::Substrate;
 
 pub mod rpc;
 pub use util::init_logger;

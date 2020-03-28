@@ -23,13 +23,12 @@ use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
 use diesel::{pg::PgConnection, prelude::*, sql_types::BigInt};
 use dotenv::dotenv;
-use log::*;
 use runtime_primitives::traits::Header;
 
 use codec::{Encode, Decode};
-use desub::{decoder::{Decoder, GenericExtrinsic}, TypeDetective};
+use desub::{decoder::{Decoder, Metadata, GenericExtrinsic}, TypeDetective};
 
-use std::{convert::TryFrom, env};
+use std::{convert::TryFrom, env, sync::RwLock};
 
 use crate::{
     database::{
@@ -52,8 +51,8 @@ pub trait Insert<P: TypeDetective>: Sync {
 
 impl<T, P> Insert<P> for Data<T>
 where
-    T: Substrate,
-    P: TypeDetective,
+    T: Substrate + Send + Sync,
+    P: TypeDetective + Send + Sync,
 {
     fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
         match self {
@@ -72,7 +71,7 @@ pub struct Database<P: TypeDetective> {
     /// pool of database connections
     pool: Pool<ConnectionManager<PgConnection>>,
     /// decodes substrate types before insertion
-    decoder: Decoder<P>
+    decoder: RwLock<Decoder<P>>
 }
 
 impl<P: TypeDetective> Database<P> {
@@ -83,14 +82,20 @@ impl<P: TypeDetective> Database<P> {
         let manager = ConnectionManager::new(url);
         let builder = r2d2::Builder::default();
         let pool = builder.build(manager)?;
+        let decoder = RwLock::new(decoder);
         Ok(Self { pool, decoder })
+    }
+
+    pub fn register_version(&self, metadata: Metadata, spec: u32) -> Result<(), ArchiveError> {
+        self.decoder.write()?.register_version(spec, metadata);
+        Ok(())
     }
 
     pub fn insert(&self, data: impl Insert<P>, spec: u32) -> Result<(), ArchiveError> 
     where
         P: TypeDetective,
     {
-        data.insert(self.pool.clone(), &self.decoder, spec)
+        data.insert(self.pool.clone(), &*self.decoder.read()?, spec)
     }
 
     pub fn query_missing_blocks(
@@ -120,13 +125,13 @@ impl<P: TypeDetective> Database<P> {
 // not only timestamps
 impl<T, P> Insert<P> for Storage<T>
 where
-    T: Substrate,
-    P: TypeDetective
+    T: Substrate + Send + Sync,
+    P: TypeDetective + Send + Sync
 {
     fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
         // use self::schema::blocks::dsl::{blocks, hash, time};
         let hsh = self.hash().clone();
-        trace!("inserting timestamp for: {}", hsh);
+        log::trace!("inserting timestamp for: {}", hsh);
         let len = 1;
         // WARN this just inserts a timestamp
         /*
@@ -141,12 +146,12 @@ where
 
 impl<T, P> Insert<P> for BatchStorage<T>
 where
-    T: Substrate,
-    P: TypeDetective
+    T: Substrate + Send + Sync,
+    P: TypeDetective + Send + Sync
 {
     fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
         // use self::schema::blocks::dsl::{blocks, hash, time};
-        debug!("Inserting {} items via Batch Storage", self.inner().len());
+        log::debug!("Inserting {} items via Batch Storage", self.inner().len());
         let storage: Vec<Storage<T>> = self.consume();
         let len = storage.len();
         for item in storage.into_iter() {
@@ -156,20 +161,20 @@ where
                 .execute(&conn)?;
                 */
         }
-        info!("Done inserting storage!");
+        log::info!("Done inserting storage!");
         Ok(())
     }
 }
 
 impl<T, P> Insert<P> for Block<T>
 where
-    T: Substrate,
-    P: TypeDetective
+    T: Substrate + Send + Sync,
+    P: TypeDetective + Send + Sync
 {
     fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
         let block = self.inner().block.clone();
-        info!("hash = {:X?}", block.header.hash().as_ref());
-        info!("block_num = {:?}", block.header.number());
+        log::info!("hash = {:X?}", block.header.hash().as_ref());
+        log::info!("block_num = {:?}", block.header.number());
         let mut ext: Vec<GenericExtrinsic> = Vec::new(); 
         for val in block.extrinsics.iter() {
             ext.push(decoder.decode_extrinsic(spec, val.encode().as_slice())?)
@@ -233,11 +238,11 @@ where
 
 impl<T, P> Insert<P> for BatchBlock<T>
 where
-    T: Substrate,
-    P: TypeDetective
+    T: Substrate + Send + Sync,
+    P: TypeDetective + Send + Sync
 {
     fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
-        info!("Batch inserting {} blocks into DB", self.inner().len());
+        log::info!("Batch inserting {} blocks into DB", self.inner().len());
         let mut signed_ext = Vec::new();
         let mut unsigned_ext = Vec::new();
         let blocks = self
@@ -296,7 +301,7 @@ where
         // batch insert everything we've formatted/collected into the database 10,000 items at a time
         let len = blocks.len();
         for chunks in blocks.as_slice().chunks(10_000) {
-            info!("{} blocks to insert", chunks.len());
+            log::info!("{} blocks to insert", chunks.len());
             diesel::insert_into(blocks::table)
                 .values(chunks)
                 .on_conflict(blocks::hash)
@@ -304,18 +309,18 @@ where
                 .execute(&conn)?;
         }
         for chunks in unsigned_ext.as_slice().chunks(2_500) {
-            info!("{} unsigned extrinsics to insert", chunks.len());
+            log::info!("{} unsigned extrinsics to insert", chunks.len());
             diesel::insert_into(inherents::table)
                 .values(chunks)
                 .execute(&conn)?;
         }
         for chunks in signed_ext.as_slice().chunks(2_500) {
-            info!("{} signed extrinsics to insert", chunks.len());
+            log::info!("{} signed extrinsics to insert", chunks.len());
             diesel::insert_into(signed_extrinsics::table)
                 .values(chunks)
                 .execute(&conn)?;
         }
-        info!("Done {} Inserting Blocks and Extrinsics", len);
+        log::info!("Done {} Inserting Blocks and Extrinsics", len);
         Ok(())
     }
 }
