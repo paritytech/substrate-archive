@@ -180,6 +180,8 @@ where
             ext.push(decoder.decode_extrinsic(spec, val.encode().as_slice())?)
         }
         
+        ext.iter().for_each(|e| log::debug!("{}", e));
+        
         let conn = db.get()?;
         let time = crate::util::try_to_get_time(ext.as_slice());
         // TODO Optimize, decode block number with desub 

@@ -54,7 +54,7 @@ where
     }
 
     /// run as a single-threaded app
-    pub fn run(mut self) -> Result<(), ArchiveError> {
+    pub fn run(self) -> Result<(), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
         let data_in = Self::handle_data(receiver, self.db.clone(), self.rpc.clone());
         let blocks = Self::blocks(self.rpc.clone(), sender.clone());
@@ -63,7 +63,7 @@ where
         Ok(())
     }
 
-    pub fn split(mut self) -> Result<(impl Future<Output=()>, impl Future<Output=()>), ArchiveError> {
+    pub fn split(self) -> Result<(impl Future<Output=()>, impl Future<Output=()>), ArchiveError> {
         let (sender, receiver) = mpsc::unbounded();
         let data_in = Self::handle_data(receiver, self.db.clone(), self.rpc.clone());
         let blocks = Self::blocks(self.rpc.clone(), sender.clone());
