@@ -203,22 +203,34 @@ where
         let len = ext.len() + 1; // 1 for the block
         for (i, e) in ext.into_iter().enumerate() {
             if e.is_signed() {
+                // workaround for serde not serializing u128 to value
+                // and diesel only supporting serde_Json::Value for jsonb in postgres
+                // u128 are used in balance transfers
+                let parameters = serde_json::to_string(&e.args())?;
+                let parameters: serde_json::Value = serde_json::from_str(&parameters)?;
+
                 signed_ext.push(InsertTransactionOwned {
                     block_num: num as i64,
                     hash: block.header.hash().as_ref().to_vec(),
                     module: e.ext_module().to_string(),
                     call: e.ext_call().to_string(),
-                    parameters: Some(serde_json::to_value(&e.args())?),
+                    parameters: Some(parameters),
                     tx_index: i as i32,
                     transaction_version: 0
                 })
             } else {
+                // workaround for serde not serializing u128 to value
+                // and diesel only supporting serde_Json::Value for jsonb in postgres
+                // u128 are used in balance transfers
+                let parameters = serde_json::to_string(&e.args())?;
+                let parameters: serde_json::Value = serde_json::from_str(&parameters)?;
+
                 unsigned_ext.push(InsertInherentOwned {
                     hash: block.header.hash().as_ref().to_vec(),
                     block_num: num as i64,
                     module: e.ext_module().to_string(),
                     call: e.ext_call().to_string(),
-                    parameters: Some(serde_json::to_value(&e.args())?),
+                    parameters: Some(parameters),
                     in_index: i as i32,
                     // TODO: replace with real tx version
                     transaction_version: 0
@@ -270,24 +282,36 @@ where
             
                 for (i, e) in ext.into_iter().enumerate() {
                     if e.is_signed() {
+                        // workaround for serde not serializing u128 to value
+                        // and diesel only supporting serde_Json::Value for jsonb in postgres
+                        // u128 are used in balance transfers
+                        let parameters = serde_json::to_string(&e.args()).unwrap();
+                        let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
+                        
                         signed_ext.push(InsertTransactionOwned {
                             block_num: num as i64,
                             hash: block.header.hash().as_ref().to_vec(),
                             module: e.ext_module().to_string(),
                             call: e.ext_call().to_string(),
                             //TODO UNWRAP!
-                            parameters: Some(serde_json::to_value(&e.args()).unwrap()),
+                            parameters: Some(parameters),
                             tx_index: i as i32,
                             transaction_version: 0
                         })
                     } else {
+                        // workaround for serde not serializing u128 to value
+                        // and diesel only supporting serde_Json::Value for jsonb in postgres
+                        // u128 are used in balance transfers
+                        let parameters = serde_json::to_string(&e.args()).unwrap();
+                        let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
+                        
                         unsigned_ext.push(InsertInherentOwned {
                             hash: block.header.hash().as_ref().to_vec(),
                             block_num: num as i64,
                             module: e.ext_module().to_string(),
                             call: e.ext_call().to_string(),
                             //TODO UNWRAP!
-                            parameters: Some(serde_json::to_value(&e.args()).unwrap()),
+                            parameters: Some(parameters),
                             in_index: i as i32,
                             // TODO: replace with real tx version
                             transaction_version: 0
