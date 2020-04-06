@@ -60,7 +60,7 @@ install() {
 	printf "%s[WARNING] change the password of user 'archive'. Default password being used...%s\n" "$yellow_color" "$color_end"
 	printf "If you would rather configure the database yourself, all settings \n\
 	are stored in .env file in the root directory and init.sql\n\n"
-	cp init.sql /tmp/init.sql
+	cp ./init.sql /tmp/init.sql &&
 	while true; do
 	    read -p "Do you wish to proceed? [Y\\n] " yn
 	    case $yn in

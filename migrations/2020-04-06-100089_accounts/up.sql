@@ -1,3 +1,4 @@
+-- Your SQL goes here
 CREATE TABLE storage (
     id SERIAL PRIMARY KEY,
     block_num bigint check (block_num >= 0 and block_num < '9223372036854775807'::bigint) NOT NULL,

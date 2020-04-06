@@ -26,7 +26,7 @@ use dotenv::dotenv;
 use runtime_primitives::traits::Header;
 
 use codec::{Encode, Decode};
-use desub::{decoder::{Decoder, Metadata, GenericExtrinsic}, TypeDetective};
+use desub::{decoder::{Decoder, Metadata, GenericExtrinsic, GenericSignature}, TypeDetective};
 
 use std::{convert::TryFrom, env, sync::RwLock};
 
@@ -208,14 +208,25 @@ where
                 // u128 are used in balance transfers
                 let parameters = serde_json::to_string(&e.args())?;
                 let parameters: serde_json::Value = serde_json::from_str(&parameters)?;
+                let (addr, sig, extra) = e.signature().ok_or(ArchiveError::DataNotFound("Signature".to_string()))?.parts();
+                let addr = serde_json::to_string(addr)?;
+                let sig = serde_json::to_string(sig)?;
+                let extra = serde_json::to_string(extra)?;
+
+                let addr: serde_json::Value = serde_json::from_str(&addr)?;
+                let sig: serde_json::Value = serde_json::from_str(&sig)?;
+                let extra: serde_json::Value = serde_json::from_str(&extra)?;
 
                 signed_ext.push(InsertTransactionOwned {
                     block_num: num as i64,
                     hash: block.header.hash().as_ref().to_vec(),
+                    from_addr: addr,
                     module: e.ext_module().to_string(),
                     call: e.ext_call().to_string(),
                     parameters: Some(parameters),
                     tx_index: i as i32,
+                    signature: sig,
+                    extra: Some(extra),
                     transaction_version: 0
                 })
             } else {
@@ -287,15 +298,26 @@ where
                         // u128 are used in balance transfers
                         let parameters = serde_json::to_string(&e.args()).unwrap();
                         let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
-                        
+                        let (addr, sig, extra) = e.signature().ok_or(ArchiveError::DataNotFound("Signature".to_string()))?.parts();
+                        let addr = serde_json::to_string(addr)?;
+                        let sig = serde_json::to_string(sig)?;
+                        let extra = serde_json::to_string(extra)?;
+
+                        let addr: serde_json::Value = serde_json::from_str(&addr)?;
+                        let sig: serde_json::Value = serde_json::from_str(&sig)?;
+                        let extra: serde_json::Value = serde_json::from_str(&extra)?;
+
                         signed_ext.push(InsertTransactionOwned {
                             block_num: num as i64,
                             hash: block.header.hash().as_ref().to_vec(),
+                            from_addr: addr,
                             module: e.ext_module().to_string(),
                             call: e.ext_call().to_string(),
                             //TODO UNWRAP!
                             parameters: Some(parameters),
                             tx_index: i as i32,
+                            signature: sig,
+                            extra: Some(extra),
                             transaction_version: 0
                         })
                     } else {
