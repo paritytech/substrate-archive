@@ -69,8 +69,16 @@ pub enum Error {
     DataNotFound(String),
     #[fail(display = "{}", _0)]
     UnexpectedType(String),
+    #[fail(display = "Unexpected Error Occurred: {}", _0)]
+    General(String), 
     // #[fail(display = "Metadata {}", _0)]
     // Metadata(MetadataError),
+}
+
+impl From<&str> for Error {
+    fn from(err: &str) -> Error {
+        Error::General(err.to_string())
+    }
 }
 
 impl From<SubxtError> for Error {

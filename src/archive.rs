@@ -25,13 +25,13 @@ use futures::{
 use log::*;
 use desub::{decoder::Decoder, TypeDetective};
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::{RwLock, Arc}};
 
 use crate::{
     database::Database,
     error::Error as ArchiveError,
     rpc::Rpc,
-    types::{Data, Substrate},
+    types::{Data, BatchData, Substrate},
 };
 
 // with the hopeful and long-anticipated release of async-await
@@ -39,6 +39,8 @@ pub struct Archive<T: Substrate + Send + Sync, P: TypeDetective> {
     rpc: Arc<Rpc<T>>,
     // database that holds types of runtime P
     db: Arc<Database<P>>,
+    /// queue of hashes to be fetched from other threads
+    queue: RwLock<HashSet<T::Hash>>
 }
 
 impl<T, P> Archive<T, P>
@@ -50,7 +52,8 @@ where
         let rpc = Rpc::<T>::new(rpc);
         let db = Database::new(decoder)?;
         let (rpc, db) = (Arc::new(rpc), Arc::new(db));
-        Ok(Self { rpc, db })
+        let queue = RwLock::new(HashSet::new()); 
+        Ok(Self { rpc, db, queue })
     }
 
     /// run as a single-threaded app
@@ -104,5 +107,19 @@ where
                 }
             }
         }
+    }
+
+    async fn handle_batch_data(mut receiver: UnboundedReceiver<BatchData<T>>, db: Arc<Database<P>>, rpc: Arc<Rpc<T>>) {
+        log::info!("Initializing batch data handler"); 
+         while let Some(data) = receiver.next().await {
+             match data {
+                 BatchData::BatchBlock(v) => {
+                        log::info!("tryna insert batch blocks");
+                 },
+                 BatchData::BatchStorage(v) => {
+                     log::info!("Tryna insert batch storage");
+                 }
+             }
+         }
     }
 }

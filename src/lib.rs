@@ -17,6 +17,7 @@
 #[macro_use]
 extern crate diesel;
 mod archive;
+mod blocks_archive;
 mod database;
 mod error;
 mod queries;
