@@ -89,8 +89,8 @@ where
     >
     where
         <T as System>::BlockNumber: Into<u32>,
-        <T as System>::BlockNumber: Into<u64>,
-        <T as System>::BlockNumber: From<u64>,
+        <T as System>::BlockNumber: Into<u32>,
+        <T as System>::BlockNumber: From<u32>,
     {
         let (sender, receiver) = mpsc::unbounded();
         let (sender_batch, receiver_batch) = mpsc::unbounded();

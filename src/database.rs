@@ -125,7 +125,7 @@ impl<P: TypeDetective> Database<P> {
         data.insert(self.pool.clone(), &self.decoder, spec)
     }
 
-    pub fn query_missing_blocks(&self, latest: Option<u64>) -> Result<Vec<u64>, ArchiveError> {
+    pub fn query_missing_blocks(&self, latest: Option<u32>) -> Result<Vec<u32>, ArchiveError> {
         #[derive(QueryableByName, PartialEq, Debug)]
         pub struct Blocks {
             #[column_name = "generate_series"]
@@ -138,9 +138,9 @@ impl<P: TypeDetective> Database<P> {
         Ok(blocks
             .iter()
             .map(|b| {
-                u64::try_from(b.block_num).expect("Block number should never be negative; qed")
+                u32::try_from(b.block_num).expect("Block number should never be negative; qed")
             })
-            .collect::<Vec<u64>>())
+            .collect::<Vec<u32>>())
     }
 }
 

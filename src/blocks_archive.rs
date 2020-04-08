@@ -38,8 +38,8 @@ pub struct BlocksArchive<T: Substrate + Send + Sync, P: TypeDetective> {
 impl<T, P> BlocksArchive<T, P>
 where
     T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u64>,
-    <T as System>::BlockNumber: From<u64>,
+    <T as System>::BlockNumber: Into<u32>,
+    <T as System>::BlockNumber: From<u32>,
     P: TypeDetective + Send + Sync,
     <T as System>::Hash: std::hash::Hash,
 {
@@ -54,13 +54,14 @@ where
     /// archives missing blocks and associated extrinsics/inherents
     /// inserts missing block hashes into 'queue'
     pub async fn run(self, handler: UnboundedSender<BatchData<T>>) -> Result<(), ArchiveError> {
+        log::info!("Getting Batch Blocks");
         let latest = self
             .rpc
             .latest_block()
             .await?
             .ok_or(ArchiveError::from("Block"))?;
         let latest = latest.block.header().number();
-        let latest_block: u64 = (*latest).into();
+        let latest_block: u32 = (*latest).into();
         let missing = self.db.query_missing_blocks(Some(latest_block))?;
         let blocks = self
             .rpc
@@ -71,12 +72,14 @@ where
                     .collect::<Vec<NumberOrHex<<T as System>::BlockNumber>>>(),
             )
             .await?;
+        log::info!("Writing to queue!");
         {
             let mut queue = self.queue.write()?;
             for block in blocks.iter() {
                 queue.insert(block.get_hash());
             }
         }
+        log::info!("QUEUE: {:?}", self.queue.read()?);
         handler.unbounded_send(BatchData::BatchBlock(BatchBlock::new(blocks)))?;
         Ok(())
     }

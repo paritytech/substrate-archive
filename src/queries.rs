@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Common Sql queries on Archive Database abstracted into rust functions
-pub(crate) fn missing_blocks(latest: Option<u64>) -> diesel::query_builder::SqlQuery {
+pub(crate) fn missing_blocks(latest: Option<u32>) -> diesel::query_builder::SqlQuery {
     let query = if let Some(latest) = latest {
         let q = format!(
             "

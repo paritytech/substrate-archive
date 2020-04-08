@@ -2,6 +2,7 @@ use desub::decoder::Decoder;
 use desub_extras::polkadot::PolkadotTypes;
 use subxt::{KusamaRuntime, system::System};
 use substrate_archive::Archive;
+use futures::FutureExt;
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Info, log::LevelFilter::Debug);
@@ -18,7 +19,28 @@ pub fn main() {
     log::info!("Beginning to crawl for info");
     let (data, blocks, blocks_batch, batch_handler) = archive.parts().unwrap();
     async_std::task::spawn(blocks);
-    async_std::task::block_on(data);
+    async_std::task::spawn(async { 
+        match blocks_batch.await {
+            Ok(_) => (),
+            Err(e) => {
+                log::error!("{:?}", e);
+                panic!("internal archive error");
+            }
+        }
+    });
+    let batch_handler = async {
+        match batch_handler.await {
+            Ok(_) => (),
+            Err(e) => { 
+                log::error!("{:?}", e);
+                panic!("internal archive error");
+            }
+        }
+    };
+    let handlers = futures::future::join(batch_handler, data); 
+
+    
+    async_std::task::block_on(handlers);
 }
 
 

@@ -85,7 +85,7 @@ pub fn init_logger(std: log::LevelFilter, file_lvl: log::LevelFilter) {
             fern::Dispatch::new()
                 .level(log::LevelFilter::Info)
                 .level_for("substrate_archive", file_lvl)
-                .level_for("desub_core", log::LevelFilter::Trace)
+                .level_for("desub_core", log::LevelFilter::Error)
                 // .level_for("crate_name", log::LevelFilter::Trace)
                 // .level_for("crate_name", log::LevelFilter::Trace)
                 .chain(
