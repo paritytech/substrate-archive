@@ -108,7 +108,7 @@ pub struct InsertTransactionOwned {
     // pub transaction_hash: Vec<u8>,
     pub block_num: i64,
     pub hash: Vec<u8>,
-    pub from_addr: Value, 
+    pub from_addr: Value,
     // pub to_addr: Option<Vec<u8>>,
     pub module: String,
     pub call: String,

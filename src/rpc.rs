@@ -14,19 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use futures::{TryFutureExt, channel::mpsc::UnboundedSender};
-use runtime_primitives::traits::Header as HeaderTrait;
+use futures::{channel::mpsc::UnboundedSender, TryFutureExt};
+use runtime_primitives::traits::{Block as _, Header as HeaderTrait};
 //use substrate_primitives::storage::StorageKey;
+use desub::decoder::Metadata;
 use runtime_version::RuntimeVersion;
 use substrate_rpc_primitives::number::NumberOrHex;
-use desub::decoder::Metadata;
 use subxt::Client;
 
 use std::sync::Arc;
 
 use crate::{
     error::Error as ArchiveError,
-    types::{BatchBlock, Block, Data, BatchData, Header, Storage, SubstrateBlock, Substrate},
+    types::{BatchBlockItem, BatchData, Block, Data, Header, Storage, Substrate, SubstrateBlock},
 };
 
 /// Communicate with Substrate node via RPC
@@ -55,7 +55,7 @@ where
         }
         Ok(())
     }
-    
+
     /// send all new headers back to main thread
     pub async fn subscribe_new_heads(
         &self,
@@ -119,18 +119,28 @@ where
 
     /// get just the latest header
     pub(crate) async fn latest_head(&self) -> Result<Option<T::Header>, ArchiveError> {
-        self.client.header::<T::Hash>(None).await.map_err(Into::into)
+        self.client
+            .header::<T::Hash>(None)
+            .await
+            .map_err(Into::into)
     }
 
-    pub(crate) async fn version(&self, hash: Option<&T::Hash>) -> Result<RuntimeVersion, ArchiveError> {
+    pub(crate) async fn version(
+        &self,
+        hash: Option<&T::Hash>,
+    ) -> Result<RuntimeVersion, ArchiveError> {
         self.client.runtime_version(hash).map_err(Into::into).await
     }
 
     pub(crate) async fn metadata(&self, hash: Option<&T::Hash>) -> Result<Metadata, ArchiveError> {
-        let meta = self.client.raw_metadata(hash).map_err(ArchiveError::from).await?;
+        let meta = self
+            .client
+            .raw_metadata(hash)
+            .map_err(ArchiveError::from)
+            .await?;
         Ok(Metadata::new(meta.as_slice()))
     }
-   
+
     pub async fn block_from_number(
         &self,
         number: NumberOrHex<T::BlockNumber>,
@@ -139,21 +149,24 @@ where
         self.client.block(hash).await.map_err(Into::into)
     }
 
+    /// get a batch of blocks, with metadata and runtime version
     pub async fn batch_block_from_number(
         &self,
         numbers: Vec<NumberOrHex<T::BlockNumber>>,
-    ) -> Result<Vec<SubstrateBlock<T>>, ArchiveError> {
-
+    ) -> Result<Vec<BatchBlockItem<T>>, ArchiveError> {
         let mut blocks = Vec::new();
         for num in numbers.into_iter() {
             let block = self.block_from_number(num).await?;
-            blocks.push(block);
+            if block.is_none() {
+                log::warn!("Fetched a non-existant block");
+                continue;
+            }
+            let block = block.expect("Block checked before unwrap; qed");
+            let spec = self.version(Some(&block.block.header().hash())).await?;
+            let meta = self.metadata(Some(&block.block.header().hash())).await?;
+            blocks.push(BatchBlockItem::new(block, meta, spec.spec_version));
         }
-
-        Ok(blocks
-            .into_iter()
-            .filter_map(|b| b)
-            .collect::<Vec<SubstrateBlock<T>>>())
+        Ok(blocks)
     }
 
     /// unsubscribe from finalized heads

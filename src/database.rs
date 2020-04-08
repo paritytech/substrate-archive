@@ -20,31 +20,38 @@ pub mod models;
 pub mod schema;
 
 use diesel::r2d2::ConnectionManager;
-use r2d2::Pool;
 use diesel::{pg::PgConnection, prelude::*, sql_types::BigInt};
 use dotenv::dotenv;
+use r2d2::Pool;
 use runtime_primitives::traits::Header;
 
-use codec::{Encode, Decode};
-use desub::{decoder::{Decoder, Metadata, GenericExtrinsic, GenericSignature}, TypeDetective};
+use codec::{Decode, Encode};
+use desub::{
+    decoder::{Decoder, GenericExtrinsic, GenericSignature, Metadata},
+    TypeDetective,
+};
+use subxt::system::System;
 
 use std::{convert::TryFrom, env, sync::RwLock};
 
 use crate::{
     database::{
-        models::{InsertBlock, InsertBlockOwned, InsertInherent, InsertTransaction, InsertInherentOwned, InsertTransactionOwned},
+        models::{
+            InsertBlock, InsertBlockOwned, InsertInherent, InsertInherentOwned, InsertTransaction,
+            InsertTransactionOwned,
+        },
         schema::{blocks, inherents, signed_extrinsics},
     },
     error::Error as ArchiveError,
     queries,
-    types::{BatchBlock, BatchStorage, Block, Data, Storage, Substrate},
+    types::{BatchBlock, BatchData, BatchStorage, Block, Data, Storage, Substrate},
 };
 
 pub type DbReturn = Result<(), ArchiveError>;
 pub type DbConnection = Pool<ConnectionManager<PgConnection>>;
 
 pub trait Insert<P: TypeDetective>: Sync {
-    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn
+    fn insert(self, db: DbConnection, decoder: &RwLock<Decoder<P>>, spec: Option<u32>) -> DbReturn
     where
         Self: Sized;
 }
@@ -53,12 +60,32 @@ impl<T, P> Insert<P> for Data<T>
 where
     T: Substrate + Send + Sync,
     P: TypeDetective + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
 {
-    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
+    fn insert(self, db: DbConnection, decoder: &RwLock<Decoder<P>>, spec: Option<u32>) -> DbReturn {
+        if spec.is_none() {
+            return Err(ArchiveError::from(
+                "Spec expected to be some for singular inserts",
+            ));
+        }
         match self {
             Data::Block(block) => block.insert(db, decoder, spec),
             Data::Storage(storage) => storage.insert(db, decoder, spec),
             o => Err(ArchiveError::UnhandledDataType),
+        }
+    }
+}
+
+impl<T, P> Insert<P> for BatchData<T>
+where
+    T: Substrate + Send + Sync,
+    P: TypeDetective + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    fn insert(self, db: DbConnection, decoder: &RwLock<Decoder<P>>, spec: Option<u32>) -> DbReturn {
+        match self {
+            BatchData::BatchBlock(blocks) => blocks.insert(db, decoder, spec),
+            BatchData::BatchStorage(storage) => storage.insert(db, decoder, spec),
         }
     }
 }
@@ -71,7 +98,7 @@ pub struct Database<P: TypeDetective> {
     /// pool of database connections
     pool: Pool<ConnectionManager<PgConnection>>,
     /// decodes substrate types before insertion
-    decoder: RwLock<Decoder<P>>
+    decoder: RwLock<Decoder<P>>,
 }
 
 impl<P: TypeDetective> Database<P> {
@@ -91,17 +118,14 @@ impl<P: TypeDetective> Database<P> {
         Ok(())
     }
 
-    pub fn insert(&self, data: impl Insert<P>, spec: u32) -> Result<(), ArchiveError> 
+    pub fn insert(&self, data: impl Insert<P>, spec: Option<u32>) -> Result<(), ArchiveError>
     where
         P: TypeDetective,
     {
-        data.insert(self.pool.clone(), &*self.decoder.read()?, spec)
+        data.insert(self.pool.clone(), &self.decoder, spec)
     }
 
-    pub fn query_missing_blocks(
-        &self,
-        latest: Option<u64>,
-    ) -> Result<Vec<u64>, ArchiveError> {
+    pub fn query_missing_blocks(&self, latest: Option<u64>) -> Result<Vec<u64>, ArchiveError> {
         #[derive(QueryableByName, PartialEq, Debug)]
         pub struct Blocks {
             #[column_name = "generate_series"]
@@ -114,8 +138,7 @@ impl<P: TypeDetective> Database<P> {
         Ok(blocks
             .iter()
             .map(|b| {
-                u64::try_from(b.block_num)
-                    .expect("Block number should never be negative; qed")
+                u64::try_from(b.block_num).expect("Block number should never be negative; qed")
             })
             .collect::<Vec<u64>>())
     }
@@ -126,9 +149,9 @@ impl<P: TypeDetective> Database<P> {
 impl<T, P> Insert<P> for Storage<T>
 where
     T: Substrate + Send + Sync,
-    P: TypeDetective + Send + Sync
+    P: TypeDetective + Send + Sync,
 {
-    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
+    fn insert(self, db: DbConnection, decoder: &RwLock<Decoder<P>>, spec: Option<u32>) -> DbReturn {
         // use self::schema::blocks::dsl::{blocks, hash, time};
         let hsh = self.hash().clone();
         log::trace!("inserting timestamp for: {}", hsh);
@@ -147,9 +170,9 @@ where
 impl<T, P> Insert<P> for BatchStorage<T>
 where
     T: Substrate + Send + Sync,
-    P: TypeDetective + Send + Sync
+    P: TypeDetective + Send + Sync,
 {
-    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
+    fn insert(self, db: DbConnection, decoder: &RwLock<Decoder<P>>, spec: Option<u32>) -> DbReturn {
         // use self::schema::blocks::dsl::{blocks, hash, time};
         log::debug!("Inserting {} items via Batch Storage", self.inner().len());
         let storage: Vec<Storage<T>> = self.consume();
@@ -169,23 +192,35 @@ where
 impl<T, P> Insert<P> for Block<T>
 where
     T: Substrate + Send + Sync,
-    P: TypeDetective + Send + Sync
+    P: TypeDetective + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
 {
-    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
+    fn insert(self, db: DbConnection, decoder: &RwLock<Decoder<P>>, spec: Option<u32>) -> DbReturn {
+        if spec.is_none() {
+            return Err(ArchiveError::from(
+                "Spec expected to be some for singular inserts",
+            ));
+        }
+        let spec = spec.expect("Checked for none; qed");
+
         let block = self.inner().block.clone();
         log::info!("hash = {:X?}", block.header.hash().as_ref());
         log::info!("block_num = {:?}", block.header.number());
-        let mut ext: Vec<GenericExtrinsic> = Vec::new(); 
+
+        let mut ext: Vec<GenericExtrinsic> = Vec::new();
         for val in block.extrinsics.iter() {
-            ext.push(decoder.decode_extrinsic(spec, val.encode().as_slice())?)
+            ext.push(
+                decoder
+                    .read()?
+                    .decode_extrinsic(spec, val.encode().as_slice())?,
+            )
         }
-        
-        ext.iter().for_each(|e| log::debug!("{}", e));
-        
+
         let conn = db.get()?;
         let time = crate::util::try_to_get_time(ext.as_slice());
-        // TODO Optimize, decode block number with desub 
-        let num: u32 = Decode::decode(&mut block.header.number().encode().as_slice())?;
+
+        let num: u32 = (*block.header.number()).into();
+
         diesel::insert_into(blocks::table)
             .values(InsertBlock {
                 parent_hash: block.header.parent_hash().as_ref(),
@@ -208,7 +243,10 @@ where
                 // u128 are used in balance transfers
                 let parameters = serde_json::to_string(&e.args())?;
                 let parameters: serde_json::Value = serde_json::from_str(&parameters)?;
-                let (addr, sig, extra) = e.signature().ok_or(ArchiveError::DataNotFound("Signature".to_string()))?.parts();
+                let (addr, sig, extra) = e
+                    .signature()
+                    .ok_or(ArchiveError::DataNotFound("Signature".to_string()))?
+                    .parts();
                 let addr = serde_json::to_string(addr)?;
                 let sig = serde_json::to_string(sig)?;
                 let extra = serde_json::to_string(extra)?;
@@ -227,7 +265,7 @@ where
                     tx_index: i as i32,
                     signature: sig,
                     extra: Some(extra),
-                    transaction_version: 0
+                    transaction_version: 0,
                 })
             } else {
                 // workaround for serde not serializing u128 to value
@@ -244,10 +282,10 @@ where
                     parameters: Some(parameters),
                     in_index: i as i32,
                     // TODO: replace with real tx version
-                    transaction_version: 0
+                    transaction_version: 0,
                 })
             }
-        } 
+        }
 
         diesel::insert_into(inherents::table)
             .values(unsigned_ext)
@@ -264,24 +302,39 @@ where
 impl<T, P> Insert<P> for BatchBlock<T>
 where
     T: Substrate + Send + Sync,
-    P: TypeDetective + Send + Sync
+    P: TypeDetective + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
 {
-    fn insert(self, db: DbConnection, decoder: &Decoder<P>, spec: u32) -> DbReturn {
+    fn insert(
+        self,
+        db: DbConnection,
+        decoder: &RwLock<Decoder<P>>,
+        _spec: Option<u32>,
+    ) -> DbReturn {
         log::info!("Batch inserting {} blocks into DB", self.inner().len());
-        let mut signed_ext = Vec::new();
-        let mut unsigned_ext = Vec::new();
+        // first register all metadata versions with the decoder
+        for b in self.inner().iter() {
+            decoder.write()?.register_version(b.spec, b.meta.clone());
+        }
+
+        let (mut signed_ext, mut unsigned_ext) = (Vec::new(), Vec::new());
         let blocks = self
             .inner()
             .iter()
-            .map(|block| {
-                let block = block.block.clone();
-                let mut ext: Vec<GenericExtrinsic> = Vec::new(); 
+            .map(|block_bundle| {
+                let block = block_bundle.inner.block.clone();
+                let mut ext: Vec<GenericExtrinsic> = Vec::new();
                 for val in block.extrinsics.iter() {
-                    ext.push(decoder.decode_extrinsic(spec, val.encode().as_slice())?)
+                    ext.push(
+                        decoder
+                            .read()?
+                            .decode_extrinsic(block_bundle.spec, val.encode().as_slice())?,
+                    )
                 }
                 log::debug!("Block Ext: {:?}", ext);
                 let time = crate::util::try_to_get_time(ext.as_slice());
-                let num: u32 = Decode::decode(&mut block.header.number().encode().as_slice())?;
+                let num: u32 = (*block.header.number()).into();
+
                 let db_block = InsertBlockOwned {
                     parent_hash: block.header.parent_hash().as_ref().to_vec(),
                     hash: block.header.hash().as_ref().to_vec(),
@@ -290,15 +343,19 @@ where
                     extrinsics_root: block.header.extrinsics_root().as_ref().to_vec(),
                     time,
                 };
-            
+
                 for (i, e) in ext.into_iter().enumerate() {
                     if e.is_signed() {
                         // workaround for serde not serializing u128 to value
                         // and diesel only supporting serde_Json::Value for jsonb in postgres
                         // u128 are used in balance transfers
                         let parameters = serde_json::to_string(&e.args()).unwrap();
-                        let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
-                        let (addr, sig, extra) = e.signature().ok_or(ArchiveError::DataNotFound("Signature".to_string()))?.parts();
+                        let parameters: serde_json::Value =
+                            serde_json::from_str(&parameters).unwrap();
+                        let (addr, sig, extra) = e
+                            .signature()
+                            .ok_or(ArchiveError::DataNotFound("Signature".to_string()))?
+                            .parts();
                         let addr = serde_json::to_string(addr)?;
                         let sig = serde_json::to_string(sig)?;
                         let extra = serde_json::to_string(extra)?;
@@ -318,15 +375,16 @@ where
                             tx_index: i as i32,
                             signature: sig,
                             extra: Some(extra),
-                            transaction_version: 0
+                            transaction_version: 0,
                         })
                     } else {
                         // workaround for serde not serializing u128 to value
                         // and diesel only supporting serde_Json::Value for jsonb in postgres
                         // u128 are used in balance transfers
                         let parameters = serde_json::to_string(&e.args()).unwrap();
-                        let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
-                        
+                        let parameters: serde_json::Value =
+                            serde_json::from_str(&parameters).unwrap();
+
                         unsigned_ext.push(InsertInherentOwned {
                             hash: block.header.hash().as_ref().to_vec(),
                             block_num: num as i64,
@@ -336,7 +394,7 @@ where
                             parameters: Some(parameters),
                             in_index: i as i32,
                             // TODO: replace with real tx version
-                            transaction_version: 0
+                            transaction_version: 0,
                         })
                     }
                 }

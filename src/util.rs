@@ -13,11 +13,11 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
+use chrono::{DateTime, TimeZone, Utc};
+use desub::{decoder::GenericExtrinsic, SubstrateType};
 use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
-use chrono::{DateTime, TimeZone, Utc};
 use std::convert::TryFrom;
-use desub::{decoder::GenericExtrinsic, SubstrateType};
 
 // panics if it fails because of anything other than the directory already exists
 pub fn create_dir(path: std::path::PathBuf) {
@@ -47,8 +47,8 @@ pub fn try_to_get_time(ext: &[GenericExtrinsic]) -> Option<DateTime<Utc>> {
                         log::warn!("Not a valid UNIX timestamp");
                     }
                     t?
-                },
-                _ => return None
+                }
+                _ => return None,
             };
             return Some(Utc.timestamp_millis(t));
         }

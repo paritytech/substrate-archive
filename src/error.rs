@@ -18,15 +18,15 @@ use codec::Error as CodecError;
 use failure::Fail;
 use futures::channel::mpsc::TrySendError;
 // use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
+use desub::Error as DesubError;
 use diesel::result::{ConnectionError, Error as DieselError};
 use r2d2::Error as R2d2Error;
 use serde_json::Error as SerdeError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
-use desub::Error as DesubError;
-use subxt::Error as SubxtError;
 use std::sync::PoisonError;
+use subxt::Error as SubxtError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -58,7 +58,7 @@ pub enum Error {
     Subxt(#[fail(cause)] SubxtError),
     #[fail(display = "Concurrency Error, Mutex Poisoned!")]
     Concurrency,
-    
+
     #[fail(display = "Call type unhandled, not committing to database")]
     UnhandledCallType,
     // if trying to insert unsupported type into database
@@ -70,7 +70,7 @@ pub enum Error {
     #[fail(display = "{}", _0)]
     UnexpectedType(String),
     #[fail(display = "Unexpected Error Occurred: {}", _0)]
-    General(String), 
+    General(String),
     // #[fail(display = "Metadata {}", _0)]
     // Metadata(MetadataError),
 }

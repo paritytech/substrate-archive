@@ -14,34 +14,59 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use runtime_primitives::{generic::{Block as BlockT, SignedBlock}, traits::Header as _};
+mod traits;
+use desub::decoder::Metadata;
+use runtime_primitives::{
+    generic::{Block as BlockT, SignedBlock},
+    traits::{Block as _, Header as _},
+};
 use substrate_primitives::storage::{StorageChangeSet, StorageData};
-use subxt::{ system::System, balances::Balances};
+use subxt::system::System;
 
-/// Consolidation of substrate traits representing fundamental types
-pub trait Substrate: System + Balances {}
-
-impl<T> Substrate for T where T: System + Balances {}
+pub use self::traits::ChainInfo;
+pub use self::traits::Substrate;
 
 /// A generic substrate block
-pub type SubstrateBlock<T: Substrate> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
+pub type SubstrateBlock<T: Substrate> =
+    SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
 
 pub enum BatchData<T: Substrate> {
     BatchBlock(BatchBlock<T>),
     BatchStorage(BatchStorage<T>),
 }
 
-impl<T> BatchData<T> where T: Substrate {
+impl<T> BatchData<T>
+where
+    T: Substrate,
+{
     pub fn hashes(&self) -> Vec<T::Hash> {
         match self {
-            BatchData::BatchBlock(b) => {
-                b.inner().iter().map(|b| b.block.header.hash()).collect::<Vec<T::Hash>>()
-            },
-            BatchData::BatchStorage(s) => {
-                s.inner().iter().map(|s| *s.hash()).collect::<Vec<T::Hash>>()
-            }
+            BatchData::BatchBlock(b) => b
+                .inner()
+                .iter()
+                .map(|b| b.inner.block.header.hash())
+                .collect::<Vec<T::Hash>>(),
+            BatchData::BatchStorage(s) => s
+                .inner()
+                .iter()
+                .map(|s| *s.hash())
+                .collect::<Vec<T::Hash>>(),
         }
-    }    
+    }
+}
+
+impl<T> ChainInfo<T> for Data<T>
+where
+    T: Substrate,
+{
+    fn get_hash(&self) -> T::Hash {
+        match self {
+            Data::Header(h) | Data::FinalizedHead(h) => *h.hash(),
+            Data::Block(b) => b.inner.block.header.hash(),
+            Data::Storage(s) => *s.hash(),
+            Data::Event(e) => e.hash(),
+        }
+    }
 }
 
 /// Sent from Substrate API to be committed into the Database
@@ -52,26 +77,6 @@ pub enum Data<T: Substrate> {
     Block(Block<T>),
     Storage(Storage<T>),
     Event(Event<T>),
-}
-
-impl<T> Data<T> where T: Substrate {
-    /// get the hash for a data item
-    pub fn hash(&self) -> T::Hash {
-        match self {
-            Data::Header(h) | Data::FinalizedHead(h) => {
-                *h.hash()
-            },
-            Data::Block(b) => {
-                b.inner.block.header.hash()
-            },
-            Data::Storage(s) => {
-                *s.hash() 
-            },
-            Data::Event(e) => {
-                e.hash()
-            }
-        }
-    }
 }
 
 // new types to allow implementing of traits
@@ -111,18 +116,47 @@ impl<T: Substrate> Block<T> {
     }
 }
 
+#[derive(Debug)]
+pub struct BatchBlockItem<T: Substrate> {
+    pub inner: SubstrateBlock<T>,
+    pub meta: Metadata,
+    pub spec: u32,
+}
+
+impl<T> ChainInfo<T> for BatchBlockItem<T>
+where
+    T: Substrate,
+{
+    fn get_hash(&self) -> T::Hash {
+        self.inner.block.header().hash()
+    }
+}
+
+impl<T> BatchBlockItem<T>
+where
+    T: Substrate,
+{
+    pub fn new(block: SubstrateBlock<T>, meta: Metadata, spec: u32) -> Self {
+        Self {
+            inner: block,
+            meta,
+            spec,
+        }
+    }
+}
+
 /// NewType for committing many blocks to the database at once
 #[derive(Debug)]
 pub struct BatchBlock<T: Substrate> {
-    inner: Vec<SubstrateBlock<T>>,
+    inner: Vec<BatchBlockItem<T>>,
 }
 
 impl<T: Substrate> BatchBlock<T> {
-    pub fn new(blocks: Vec<SubstrateBlock<T>>) -> Self {
+    pub fn new(blocks: Vec<BatchBlockItem<T>>) -> Self {
         Self { inner: blocks }
     }
 
-    pub fn inner(&self) -> &Vec<SubstrateBlock<T>> {
+    pub fn inner(&self) -> &Vec<BatchBlockItem<T>> {
         &self.inner
     }
 }

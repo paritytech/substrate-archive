@@ -17,13 +17,14 @@ use crate::{
     database::Database,
     error::Error as ArchiveError,
     rpc::Rpc,
-    types::{Data, Substrate},
+    types::{BatchBlock, BatchData, ChainInfo, Substrate},
 };
 use desub::TypeDetective;
+use futures::channel::mpsc::UnboundedSender;
 use runtime_primitives::traits::{Block as _, Header as _};
 use std::{
     collections::HashSet,
-    sync::{RwLock, Arc},
+    sync::{Arc, RwLock},
 };
 use substrate_rpc_primitives::number::NumberOrHex;
 use subxt::system::System;
@@ -31,7 +32,7 @@ use subxt::system::System;
 pub struct BlocksArchive<T: Substrate + Send + Sync, P: TypeDetective> {
     rpc: Arc<Rpc<T>>,
     db: Arc<Database<P>>,
-    queue: RwLock<HashSet<<T as System>::Hash>>,
+    queue: Arc<RwLock<HashSet<<T as System>::Hash>>>,
 }
 
 impl<T, P> BlocksArchive<T, P>
@@ -43,21 +44,22 @@ where
     <T as System>::Hash: std::hash::Hash,
 {
     pub fn new(
-        queue: RwLock<HashSet<<T as System>::Hash>>,
+        queue: Arc<RwLock<HashSet<<T as System>::Hash>>>,
         rpc: Arc<Rpc<T>>,
         db: Arc<Database<P>>,
-        ) -> Result<Self, ArchiveError> {
-        Ok(Self { rpc, db, queue: queue })
+    ) -> Result<Self, ArchiveError> {
+        Ok(Self { rpc, db, queue })
     }
 
     /// archives missing blocks and associated extrinsics/inherents
     /// inserts missing block hashes into 'queue'
-    pub async fn run(&self) -> Result<(), ArchiveError> {
-        let latest = self.rpc.latest_block().await?.ok_or(ArchiveError::from("Block"))?;
-        let latest = latest
-            .block
-            .header()
-            .number();
+    pub async fn run(self, handler: UnboundedSender<BatchData<T>>) -> Result<(), ArchiveError> {
+        let latest = self
+            .rpc
+            .latest_block()
+            .await?
+            .ok_or(ArchiveError::from("Block"))?;
+        let latest = latest.block.header().number();
         let latest_block: u64 = (*latest).into();
         let missing = self.db.query_missing_blocks(Some(latest_block))?;
         let blocks = self
@@ -66,16 +68,16 @@ where
                 missing
                     .into_iter()
                     .map(|b| NumberOrHex::Number(b.into()))
-                    .collect::<Vec<NumberOrHex<<T as System>::BlockNumber>>>()
+                    .collect::<Vec<NumberOrHex<<T as System>::BlockNumber>>>(),
             )
             .await?;
         {
             let mut queue = self.queue.write()?;
             for block in blocks.iter() {
-                queue.insert(block.block.header().hash());
+                queue.insert(block.get_hash());
             }
         }
-
+        handler.unbounded_send(BatchData::BatchBlock(BatchBlock::new(blocks)))?;
         Ok(())
     }
 }
