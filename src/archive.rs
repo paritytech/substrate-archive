@@ -98,11 +98,10 @@ where
         let blocks_archive =
             BlocksArchive::new(self.queue.clone(), self.rpc.clone(), self.db.clone())?;
         let blocks_archive = blocks_archive.run(sender_batch);
-        let blocks = Self::blocks(self.rpc.clone(), sender.clone());
+        let batch_handler = Self::handle_batch_data(receiver_batch, self.db.clone());
 
+        let blocks = Self::blocks(self.rpc.clone(), sender.clone());
         let data_in = Self::handle_data(receiver, self.db.clone(), self.rpc.clone());
-        let batch_handler =
-            Self::handle_batch_data(receiver_batch, self.db.clone(), self.rpc.clone());
 
         Ok((data_in, blocks, blocks_archive, batch_handler))
     }
@@ -127,7 +126,7 @@ where
             match data {
                 d => {
                     let db = db.clone();
-                    let (meta, version) = match Self::version_info(rpc.clone(), &d).await {
+                    let (version, meta) = match rpc.meta_and_version(Some(d.get_hash())).await {
                         Ok(v) => v,
                         Err(e) => {
                             log::error!("{:?}", e);
@@ -142,20 +141,9 @@ where
         }
     }
 
-    async fn version_info<H: ChainInfo<T>>(
-        rpc: Arc<Rpc<T>>,
-        block: &H,
-    ) -> Result<(Metadata, RuntimeVersion), ArchiveError> {
-        let hash = block.get_hash();
-        let meta = rpc.metadata(Some(&hash)).await?;
-        let version = rpc.version(Some(&hash)).await?;
-        Ok((meta, version))
-    }
-
     async fn handle_batch_data(
         mut receiver: UnboundedReceiver<BatchData<T>>,
         db: Arc<Database<P>>,
-        rpc: Arc<Rpc<T>>,
     ) -> Result<(), ArchiveError>
     where
         <T as System>::BlockNumber: Into<u32>,

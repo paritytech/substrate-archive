@@ -27,7 +27,7 @@ pub use self::traits::ChainInfo;
 pub use self::traits::Substrate;
 
 /// A generic substrate block
-pub type SubstrateBlock<T: Substrate> =
+pub type SubstrateBlock<T> =
     SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
 
 pub enum BatchData<T: Substrate> {

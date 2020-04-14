@@ -14,7 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use futures::{channel::mpsc::UnboundedSender, TryFutureExt};
+use futures::{
+    channel::mpsc::UnboundedSender,
+    future::{join, join_all},
+    TryFutureExt,
+};
 use runtime_primitives::traits::{Block as _, Header as HeaderTrait};
 //use substrate_primitives::storage::StorageKey;
 use desub::decoder::Metadata;
@@ -129,7 +133,10 @@ where
         &self,
         hash: Option<&T::Hash>,
     ) -> Result<RuntimeVersion, ArchiveError> {
-        self.client.runtime_version(hash).map_err(Into::into).await
+        self.client
+            .runtime_version(hash)
+            .map_err(Into::into)
+            .await
     }
 
     pub(crate) async fn metadata(&self, hash: Option<&T::Hash>) -> Result<Metadata, ArchiveError> {
@@ -139,6 +146,17 @@ where
             .map_err(ArchiveError::from)
             .await?;
         Ok(Metadata::new(meta.as_slice()))
+    }
+
+    pub(crate) async fn meta_and_version(&self, hash: Option<T::Hash>) -> Result<(RuntimeVersion, Metadata), ArchiveError> {
+        let meta = self.client.raw_metadata(hash.as_ref())
+                            .map_err(ArchiveError::from);
+        let version = self.client.runtime_version(hash.as_ref())
+                                .map_err(ArchiveError::from);
+        let (meta, version) = join(meta, version).await;
+        let meta = meta?;
+        let version = version?;
+        Ok((version, Metadata::new(meta.as_slice())))
     }
 
     pub async fn block_from_number(
@@ -156,17 +174,30 @@ where
     ) -> Result<Vec<BatchBlockItem<T>>, ArchiveError> {
         let mut blocks = Vec::new();
         for num in numbers.into_iter() {
-            let block = self.block_from_number(num).await?;
-            if block.is_none() {
-                log::warn!("Fetched a non-existant block");
-                continue;
-            }
-            let block = block.expect("Block checked before unwrap; qed");
-            let spec = self.version(Some(&block.block.header().hash())).await?;
-            let meta = self.metadata(Some(&block.block.header().hash())).await?;
-            blocks.push(BatchBlockItem::new(block, meta, spec.spec_version));
+            let block = self.block_from_number(num);
+            blocks.push(block);
         }
-        Ok(blocks)
+
+        let mut meta_futures = Vec::new();
+
+        let blocks: Vec<_> = join_all(blocks)
+                .await
+                .into_iter()
+                .map(|b| b.transpose())
+                // ignore blocks that don't exist
+                .filter_map(|b| b)
+                .collect::<Result<Vec<_>, _>>()?;
+
+        for b in blocks.iter() {
+            meta_futures.push(self.meta_and_version(Some((b.block.header().hash()).clone())));
+        }
+
+        let meta_futures = join_all(meta_futures).await.into_iter().collect::<Result<Vec<_>, _>>()?;
+        let mut batch_items = Vec::new();
+        for (b, m) in blocks.into_iter().zip(meta_futures.into_iter()) {
+            batch_items.push(BatchBlockItem::<T>::new(b, m.1, m.0.spec_version));
+        }
+        Ok(Vec::new())
     }
 
     /// unsubscribe from finalized heads

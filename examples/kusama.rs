@@ -1,8 +1,7 @@
 use desub::decoder::Decoder;
 use desub_extras::polkadot::PolkadotTypes;
-use futures::FutureExt;
 use substrate_archive::Archive;
-use subxt::{system::System, KusamaRuntime};
+use subxt::KusamaRuntime;
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Info, log::LevelFilter::Debug);
@@ -16,13 +15,10 @@ pub fn main() {
     )
     .unwrap();
 
-    let block =
-        async_std::task::block_on(client.block::<<KusamaRuntime as System>::Hash>(None)).unwrap();
-    println!("{:?}", block);
-
     log::info!("Instantiating archive...");
     let archive = Archive::new(decoder, client).unwrap();
     log::info!("Beginning to crawl for info");
+
     let (data, blocks, blocks_batch, batch_handler) = archive.parts().unwrap();
     async_std::task::spawn(blocks);
     async_std::task::spawn(async {
