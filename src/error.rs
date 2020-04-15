@@ -19,8 +19,6 @@ use failure::Fail;
 use futures::channel::mpsc::TrySendError;
 // use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
 use desub::Error as DesubError;
-use diesel::result::{ConnectionError, Error as DieselError};
-use r2d2::Error as R2d2Error;
 use serde_json::Error as SerdeError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
@@ -38,16 +36,10 @@ pub enum Error {
     Join(String),
     #[fail(display = "Io: {}", _0)]
     Io(#[fail(cause)] IoError),
-    #[fail(display = "Db: {}", _0)]
-    Db(#[fail(cause)] DieselError),
-    #[fail(display = "Db Connection: {}", _0)]
-    DbConnection(#[fail(cause)] ConnectionError),
     #[fail(display = "Environment: {}", _0)]
     Environment(#[fail(cause)] EnvironmentError),
     #[fail(display = "Codec: {:?}", _0)]
     Codec(#[fail(cause)] CodecError),
-    #[fail(display = "Db Pool {}", _0)]
-    DbPool(#[fail(cause)] R2d2Error),
     #[fail(display = "Int Conversion Error: {}", _0)]
     IntConversion(#[fail(cause)] TryFromIntError),
     #[fail(display = "Serialization: {}", _0)]
@@ -105,12 +97,6 @@ impl From<TryFromIntError> for Error {
     }
 }
 
-impl From<R2d2Error> for Error {
-    fn from(err: R2d2Error) -> Error {
-        Error::DbPool(err)
-    }
-}
-
 impl From<CodecError> for Error {
     fn from(err: CodecError) -> Error {
         Error::Codec(err)
@@ -120,18 +106,6 @@ impl From<CodecError> for Error {
 impl From<EnvironmentError> for Error {
     fn from(err: EnvironmentError) -> Error {
         Error::Environment(err)
-    }
-}
-
-impl From<ConnectionError> for Error {
-    fn from(err: ConnectionError) -> Error {
-        Error::DbConnection(err)
-    }
-}
-
-impl From<DieselError> for Error {
-    fn from(err: DieselError) -> Error {
-        Error::Db(err)
     }
 }
 

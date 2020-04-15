@@ -30,6 +30,7 @@ pub use self::traits::Substrate;
 pub type SubstrateBlock<T> =
     SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
 
+#[derive(Debug)]
 pub enum BatchData<T: Substrate> {
     BatchBlock(BatchBlock<T>),
     BatchStorage(BatchStorage<T>),

@@ -14,16 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-#[macro_use]
-extern crate diesel;
 mod archive;
-mod blocks_archive;
-mod database;
+// mod blocks_archive;
 mod error;
-mod queries;
+// mod queries;
 mod types;
 mod util;
-
+mod actors;
 pub use archive::Archive;
 pub use error::Error;
 pub use types::Substrate;

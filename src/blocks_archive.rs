@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 use crate::{
-    database::Database,
+    // database::Database,
     error::Error as ArchiveError,
     rpc::Rpc,
     types::{BatchBlock, BatchData, ChainInfo, Substrate},
@@ -25,14 +25,15 @@ use runtime_primitives::traits::{Block as _, Header as _};
 use std::{
     collections::HashSet,
     sync::{Arc, RwLock},
+    marker::PhantomData,
 };
 use substrate_rpc_primitives::number::NumberOrHex;
 use subxt::system::System;
 
 pub struct BlocksArchive<T: Substrate + Send + Sync, P: TypeDetective> {
     rpc: Arc<Rpc<T>>,
-    db: Arc<Database<P>>,
     queue: Arc<RwLock<HashSet<<T as System>::Hash>>>,
+    _marker: PhantomData<P>,
 }
 
 impl<T, P> BlocksArchive<T, P>
@@ -46,9 +47,8 @@ where
     pub fn new(
         queue: Arc<RwLock<HashSet<<T as System>::Hash>>>,
         rpc: Arc<Rpc<T>>,
-        db: Arc<Database<P>>,
     ) -> Result<Self, ArchiveError> {
-        Ok(Self { rpc, db, queue })
+        Ok(Self { rpc, queue, _marker: PhantomData })
     }
 
     /// archives missing blocks and associated extrinsics/inherents
@@ -62,7 +62,7 @@ where
             .ok_or(ArchiveError::from("Block"))?;
         let latest = latest.block.header().number();
         let latest_block: u32 = (*latest).into();
-        let missing = self.db.query_missing_blocks(Some(latest_block))?;
+        // let missing = self.db.query_missing_blocks(Some(latest_block))?;
         let blocks = self
             .rpc
             .batch_block_from_number(

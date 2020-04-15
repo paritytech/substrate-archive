@@ -51,13 +51,15 @@ where
         sender: UnboundedSender<Data<T>>,
     ) -> Result<(), ArchiveError> {
         let mut stream = self.client.subscribe_finalized_blocks().await?;
-        while let head = stream.next().await {
-            log::info!("Got Head: {:?}", head);
-            self.clone()
-                .block(Some(head.hash()), sender.clone())
-                .await?;
+        loop {
+            let head = stream.next().await;
+            let block = self.block(Some(head.hash())).await?;
+            if let Some(b) = block {
+                sender.unbounded_send(Data::Block(Block::new(b))).map_err(ArchiveError::from)?;
+            } else {
+                log::warn!("Block {:?} doesn't exist", block);
+            }
         }
-        Ok(())
     }
 
     /// send all new headers back to main thread
@@ -66,13 +68,11 @@ where
         sender: UnboundedSender<Data<T>>,
     ) -> Result<(), ArchiveError> {
         let mut stream = self.client.subscribe_blocks().await?;
-
-        while let head = stream.next().await {
-            sender
-                .unbounded_send(Data::Header(Header::new(head)))
+        loop {
+            let head = stream.next().await;
+            sender.unbounded_send(Data::Header(Header::new(head)))
                 .map_err(|e| ArchiveError::from(e))?;
         }
-        Ok(())
     }
 
     /// send all finalized headers back to main thread
@@ -81,30 +81,14 @@ where
         sender: UnboundedSender<Data<T>>,
     ) -> Result<(), ArchiveError> {
         let mut stream = self.client.subscribe_finalized_blocks().await?;
-
-        while let head = stream.next().await {
+        loop {
+            let head = stream.next().await;
             sender
                 .unbounded_send(Data::FinalizedHead(Header::new(head)))
                 .map_err(|e| ArchiveError::from(e))?;
         }
-        Ok(())
     }
 
-    /// Fetch a block by hash from Substrate RPC
-    pub async fn block(
-        &self,
-        hash: Option<T::Hash>,
-        sender: UnboundedSender<Data<T>>,
-    ) -> Result<(), ArchiveError> {
-        if let Some(block) = self.client.block(hash).await? {
-            sender
-                .unbounded_send(Data::Block(Block::new(block)))
-                .map_err(Into::into)
-        } else {
-            log::warn!("No Block Exists!");
-            Ok(())
-        }
-    }
 }
 
 /// Methods that return fetched value directly
@@ -114,6 +98,14 @@ where
 {
     pub(crate) fn new(client: subxt::Client<T>) -> Self {
         Self { client }
+    }
+
+    /// Fetch a block by hash from Substrate RPC
+    pub async fn block(
+        &self,
+        hash: Option<T::Hash>,
+    ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
+        self.client.block(hash).await.map_err(Into::into)
     }
 
     /// get the latest block
@@ -163,7 +155,7 @@ where
         &self,
         number: NumberOrHex<T::BlockNumber>,
     ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
-        let hash = self.client.block_hash(Some(number)).await?;
+        let hash = self.client.block_hash(Some(number.into())).await?;
         self.client.block(hash).await.map_err(Into::into)
     }
 
