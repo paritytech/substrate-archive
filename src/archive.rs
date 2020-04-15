@@ -60,7 +60,7 @@ where
         let queue = Arc::new(RwLock::new(HashSet::new()));
         Ok(Self { rpc, queue, _marker: PhantomData })
     }
-
+/*
     async fn blocks(rpc: Arc<Rpc<T>>, sender: UnboundedSender<Data<T>>) {
         log::info!("Spawning block subscription");
         match rpc.subscribe_blocks(sender).await {
@@ -68,7 +68,7 @@ where
             Err(e) => error!("{:?}", e),
         };
     }
-
+*/
     async fn handle_data(
         mut receiver: UnboundedReceiver<Data<T>>,
         rpc: Arc<Rpc<T>>,

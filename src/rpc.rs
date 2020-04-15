@@ -15,9 +15,10 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use futures::{
-    channel::mpsc::UnboundedSender,
+    channel::mpsc::{self, Sender, Receiver},
     future::{join, join_all},
-    TryFutureExt,
+    TryFutureExt, StreamExt, Stream,
+    executor::block_on,
 };
 use runtime_primitives::traits::{Block as _, Header as HeaderTrait};
 //use substrate_primitives::storage::StorageKey;
@@ -26,7 +27,7 @@ use runtime_version::RuntimeVersion;
 use substrate_rpc_primitives::number::NumberOrHex;
 use subxt::Client;
 
-use std::sync::Arc;
+use std::{sync::Arc, thread::{self, JoinHandle}};
 
 use crate::{
     error::Error as ArchiveError,
@@ -46,49 +47,37 @@ where
     T: Substrate + Send + Sync,
 {
     /// subscribes to new heads but sends blocks instead of headers
-    pub async fn subscribe_blocks(
+    /// spawns a background task to collect blocks, sending them back to the main thread
+    pub fn subscribe_blocks(
         self: Arc<Self>,
-        sender: UnboundedSender<Data<T>>,
+    ) -> Result<(impl StreamExt<Item = Block<T>>, JoinHandle<Result<(), ArchiveError>>), ArchiveError> {
+        let (tx, rx) = mpsc::channel(16); // with a limit of 16 blocks in the queue at once
+        let rpc = self.clone();
+        let handle = thread::spawn(move || {
+            return block_on(rpc.subscribe_finalized_blocks(tx));
+        });
+        Ok((rx, handle))
+    }
+
+    /// send all finalized headers back to main thread
+    pub async fn subscribe_finalized_blocks(
+        &self,
+        mut sender: Sender<Block<T>>,
     ) -> Result<(), ArchiveError> {
         let mut stream = self.client.subscribe_finalized_blocks().await?;
         loop {
             let head = stream.next().await;
             let block = self.block(Some(head.hash())).await?;
             if let Some(b) = block {
-                sender.unbounded_send(Data::Block(Block::new(b))).map_err(ArchiveError::from)?;
+                sender
+                    .try_send(Block::new(b))
+                    .map_err(|e| ArchiveError::from(e))?;
             } else {
-                log::warn!("Block {:?} doesn't exist", block);
+                log::warn!("Block does not exist");
+                continue;
             }
         }
     }
-
-    /// send all new headers back to main thread
-    pub async fn subscribe_new_heads(
-        &self,
-        sender: UnboundedSender<Data<T>>,
-    ) -> Result<(), ArchiveError> {
-        let mut stream = self.client.subscribe_blocks().await?;
-        loop {
-            let head = stream.next().await;
-            sender.unbounded_send(Data::Header(Header::new(head)))
-                .map_err(|e| ArchiveError::from(e))?;
-        }
-    }
-
-    /// send all finalized headers back to main thread
-    pub async fn subscribe_finalized_heads(
-        &self,
-        sender: UnboundedSender<Data<T>>,
-    ) -> Result<(), ArchiveError> {
-        let mut stream = self.client.subscribe_finalized_blocks().await?;
-        loop {
-            let head = stream.next().await;
-            sender
-                .unbounded_send(Data::FinalizedHead(Header::new(head)))
-                .map_err(|e| ArchiveError::from(e))?;
-        }
-    }
-
 }
 
 /// Methods that return fetched value directly
@@ -96,12 +85,12 @@ impl<T> Rpc<T>
 where
     T: Substrate + Send + Sync,
 {
-    pub(crate) fn new(client: subxt::Client<T>) -> Self {
+    pub fn new(client: subxt::Client<T>) -> Self {
         Self { client }
     }
 
     /// Fetch a block by hash from Substrate RPC
-    pub async fn block(
+    pub(crate) async fn block(
         &self,
         hash: Option<T::Hash>,
     ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {

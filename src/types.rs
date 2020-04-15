@@ -102,7 +102,7 @@ impl<T: Substrate> Header<T> {
 }
 
 /// NewType for Block
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block<T: Substrate> {
     inner: SubstrateBlock<T>,
 }

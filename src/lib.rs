@@ -27,3 +27,5 @@ pub use types::Substrate;
 
 pub mod rpc;
 pub use util::init_logger;
+
+pub use self::actors::init;
