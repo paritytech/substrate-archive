@@ -42,52 +42,6 @@ pub struct Rpc<T: Substrate + Send + Sync> {
     // properties: Properties,
 }
 
-/// Methods that fetch a value from RPC and send to sender
-impl<T> Rpc<T>
-where
-    T: Substrate + Send + Sync,
-{
-    pub async fn subscribe_finalized_heads(&self) -> Result<jsonrpsee::client::Subscription<T::Header>, ArchiveError> {
-        self.client.subscribe_finalized_blocks().await?;
-    }
-    
-    /// subscribes to new heads but sends blocks instead of headers
-    /// spawns a background task to collect blocks, sending them back to the main thread
-    pub fn subscribe_blocks(
-        self: Arc<Self>,
-    ) -> Result<(impl StreamExt<Item = Block<T>>, JoinHandle<Result<(), ArchiveError>>), ArchiveError> {
-        let (tx, rx) = mpsc::channel(16); // with a limit of 16 blocks in the queue at once
-        let rpc = self.clone();
-        let thread = thread::Builder::new().name("Substrate Block Collector".to_string()); 
-        let handle = thread.spawn(move || {
-            block_on(self.subscribe_finalized_blocks(tx))
-        }).unwrap();
-        Ok((rx, handle))
-    }
-
-    /// send all finalized headers back to main thread
-    pub async fn subscribe_finalized_blocks(
-        &self,
-        mut sender: Sender<Block<T>>,
-    ) -> Result<(), ArchiveError> {
-        let mut stream = self.client.subscribe_finalized_blocks().await?;
-        loop {
-            log::info!("Awaiting next head...");
-            let head = stream.next().await;
-            log::info!("Converting to block...");
-            let block = self.block(Some(head.hash())).await?;
-            log::info!("Received a new block!");
-            if let Some(b) = block {
-                sender
-                    .try_send(Block::new(b))
-                    .map_err(|e| ArchiveError::from(e))?;
-            } else {
-                log::warn!("Block does not exist");
-            }
-        }
-    }
-}
-
 /// Methods that return fetched value directly
 impl<T> Rpc<T>
 where

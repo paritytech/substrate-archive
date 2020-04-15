@@ -17,10 +17,12 @@
 use bastion::prelude::*;
 use futures::{StreamExt, Stream, channel::mpsc};
 use std::sync::Arc;
-use super::{rpc::Rpc, types::{Data, BatchData, Substrate, Block}};
+use runtime_primitives::traits::Header as _;
+use super::{rpc::Rpc, types::{Data, BatchData, Substrate, Block}, error::Error as ArchiveError};
 
-pub fn init<T: Substrate + Send + Sync>(rpc: &Rpc<T>) {
+pub fn init<T: Substrate + Send + Sync>(url: String) -> Result<(), ArchiveError> {
     Bastion::init();
+    
     let workers = Bastion::children(|children: Children| {
         children
             .with_redundancy(5)
@@ -34,7 +36,7 @@ pub fn init<T: Substrate + Send + Sync>(rpc: &Rpc<T>) {
                                   process_block(Data::Block(msg));
                                   let _ = answer!(ctx, "done");
                               };
-                              _: _ => ();
+                              e: _ => log::warn!("received unknown data: {:?}", e);
                         }
                     }
                 }
@@ -48,71 +50,52 @@ pub fn init<T: Substrate + Send + Sync>(rpc: &Rpc<T>) {
    
     // generate work
     // fetches blocks
-    let rpc_workers = Bastion::children(|children| {
+    
+    // actor which produces work 
+    Bastion::children(|children| {
         children
             .with_exec(move |ctx: BastionContext| {
-                let workers = workers.clone();
-                log::info!("Starting work generator");
-                let (mut stream, handle) = rpc.subscribe_blocks().unwrap();
+                let workers = workers.clone(); 
+                let url = url.clone(); 
+                
                 async move {
-                    msg!{ctx.recv().await?,
-                        msg: Block<T> =!> {
-                            process_block(Data::Block(msg));
-                            let _ = answer!(ctx, "done");
-                        };
-                        _: _ => ();
-                    } 
-                }
-                /*    
                     let mut round_robin = 0;
-                    while let Some(block) = stream.next().await {
-                        let block = stream.next().await;
-                        round_robin += 1;
-                        round_robin %= workers.elems().len(); 
-                        log::info!("Block: {:?}", block);
-                        let computed: Answer = ctx.ask(&workers.elems()[round_robin].addr(), block)
-                            .map_err(|e| log::error!("{:?}", e)).unwrap();
-                        msg! { computed.await?,
-                            msg: &str => {
-                                println!("Received {}", msg);
-                            };
-                            _: _ => ();
+                    let rpc = connect::<T>(url.as_str()).await;
+                    let mut subscription = rpc.subscribe_finalized_blocks().await.expect("Subscription failed");
+                        // .map_err(|e| log::error!("{:?}", e)).unwrap();
+                    while let block = subscription.next().await {
+                        log::info!("Awaiting next head...");
+                        let head = subscription.next().await;
+                        log::info!("Converting to block...");
+                        let block = rpc.block(Some(head.hash())).await.map_err(|e| log::error!("{:?}", e)).unwrap();
+                        log::info!("Received a new block!");
+                        if let Some(b) = block {
+                            log::trace!("{:?}", b);
+                            round_robin += 1;
+                            round_robin %= workers.elems().len();
+                            ctx.ask(&workers.elems()[round_robin].addr(), Block::<T>::new(b))
+                                .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
+                        } else {
+                            log::warn!("Block does not exist!");
                         }
                     }
-                    // cleanup
-                    let res = handle.join();
                     Bastion::stop();
                     Ok(())
-                    */
                 }
             })
     }).expect("Couldn't start new children group");
     
-
-    Bastion::children(|children| {
-        children
-            .with_exec(move |ctx: BastionContext| {
-                let subscription = rpc.subscribe_finalized_heads().await?;
-                loop {
-                    log::info!("Awaiting next head...");
-                    let head = subscription.next().await;
-                    log::info!("Converting to block...");
-                    let block = rpc.block(Some(head.hash())).await?;
-                    log::info!("Received a new block!");
-                    if let Some(b) = block {
-                        ctx.ask(rpc_workers.elems()[0].addr(), b)
-                            .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
-                    } else {
-                        log::warn!("Block does not exist");
-                    }
-                }
-                Bastion::stop();
-                Ok(())
-            })
-    })
-    
     Bastion::start();
     Bastion::block_until_stopped();
+    Ok(())
+}
+
+/// connect to the substrate RPC
+/// each actor may potentially have their own RPC connections
+async fn connect<T: Substrate + Send + Sync>(url: &str) -> subxt::Client<T> {
+    subxt::ClientBuilder::<T>::new()
+        .set_url(url)
+        .build().await.map_err(|e| log::error!("{:?}", e)).unwrap()
 }
 
 pub fn process_block<T: Substrate + Send + Sync>(data: Data<T>) {
