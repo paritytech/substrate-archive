@@ -35,6 +35,7 @@ use crate::{
 };
 
 /// Communicate with Substrate node via RPC
+#[derive(Clone)]
 pub struct Rpc<T: Substrate + Send + Sync> {
     client: Client<T>,
     // keys: Vec<StorageKey>,
@@ -46,6 +47,10 @@ impl<T> Rpc<T>
 where
     T: Substrate + Send + Sync,
 {
+    pub async fn subscribe_finalized_heads(&self) -> Result<jsonrpsee::client::Subscription<T::Header>, ArchiveError> {
+        self.client.subscribe_finalized_blocks().await?;
+    }
+    
     /// subscribes to new heads but sends blocks instead of headers
     /// spawns a background task to collect blocks, sending them back to the main thread
     pub fn subscribe_blocks(
@@ -53,9 +58,10 @@ where
     ) -> Result<(impl StreamExt<Item = Block<T>>, JoinHandle<Result<(), ArchiveError>>), ArchiveError> {
         let (tx, rx) = mpsc::channel(16); // with a limit of 16 blocks in the queue at once
         let rpc = self.clone();
-        let handle = thread::spawn(move || {
-            return block_on(rpc.subscribe_finalized_blocks(tx));
-        });
+        let thread = thread::Builder::new().name("Substrate Block Collector".to_string()); 
+        let handle = thread.spawn(move || {
+            block_on(self.subscribe_finalized_blocks(tx))
+        }).unwrap();
         Ok((rx, handle))
     }
 
@@ -66,15 +72,17 @@ where
     ) -> Result<(), ArchiveError> {
         let mut stream = self.client.subscribe_finalized_blocks().await?;
         loop {
+            log::info!("Awaiting next head...");
             let head = stream.next().await;
+            log::info!("Converting to block...");
             let block = self.block(Some(head.hash())).await?;
+            log::info!("Received a new block!");
             if let Some(b) = block {
                 sender
                     .try_send(Block::new(b))
                     .map_err(|e| ArchiveError::from(e))?;
             } else {
                 log::warn!("Block does not exist");
-                continue;
             }
         }
     }
