@@ -35,7 +35,7 @@ pub fn init<T: Substrate>(url: String) -> Result<(), ArchiveError> {
     // but the defaults seem to be working fine so far...
 
     let decode_workers = self::decode::actor::<T>().expect("Couldn't start decode children");
-    self::network::blocks::<T>(decode_workers.clone(), url).expect("Couldn't add blocks child");
+    self::network::actor::<T>(decode_workers.clone(), url).expect("Couldn't add blocks child");
 
     // generate work
     // seperates blocks into different datatypes

@@ -101,30 +101,14 @@ impl<T: Substrate> Header<T> {
     }
 }
 
-/// NewType for Block
 #[derive(Debug, Clone)]
 pub struct Block<T: Substrate> {
-    inner: SubstrateBlock<T>,
-}
-
-impl<T: Substrate> Block<T> {
-    pub fn new(block: SubstrateBlock<T>) -> Self {
-        Self { inner: block }
-    }
-
-    pub fn inner(&self) -> &SubstrateBlock<T> {
-        &self.inner
-    }
-}
-
-#[derive(Debug)]
-pub struct BatchBlockItem<T: Substrate> {
     pub inner: SubstrateBlock<T>,
     pub meta: Metadata,
     pub spec: u32,
 }
 
-impl<T> ChainInfo<T> for BatchBlockItem<T>
+impl<T> ChainInfo<T> for Block<T>
 where
     T: Substrate,
 {
@@ -133,7 +117,7 @@ where
     }
 }
 
-impl<T> BatchBlockItem<T>
+impl<T> Block<T>
 where
     T: Substrate,
 {
@@ -144,20 +128,24 @@ where
             spec,
         }
     }
+    
+    pub fn inner(&self) -> &SubstrateBlock<T> {
+        &self.inner
+    }
 }
 
 /// NewType for committing many blocks to the database at once
 #[derive(Debug)]
 pub struct BatchBlock<T: Substrate> {
-    inner: Vec<BatchBlockItem<T>>,
+    inner: Vec<Block<T>>,
 }
 
 impl<T: Substrate> BatchBlock<T> {
-    pub fn new(blocks: Vec<BatchBlockItem<T>>) -> Self {
+    pub fn new(blocks: Vec<Block<T>>) -> Self {
         Self { inner: blocks }
     }
 
-    pub fn inner(&self) -> &Vec<BatchBlockItem<T>> {
+    pub fn inner(&self) -> &Vec<Block<T>> {
         &self.inner
     }
 }

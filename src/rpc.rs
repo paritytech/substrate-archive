@@ -33,7 +33,7 @@ use std::{sync::Arc, thread::{self, JoinHandle}};
 
 use crate::{
     error::Error as ArchiveError,
-    types::{BatchBlockItem, BatchData, Block, Data, Header, Storage, Substrate, SubstrateBlock},
+    types::{BatchData, Data, Header, Storage, Substrate, SubstrateBlock},
 };
 
 /// Communicate with Substrate node via RPC

@@ -21,19 +21,24 @@
 use bastion::prelude::*;
 use runtime_primitives::traits::{Header as _, Block as _};
 use futures::future::join_all;
-use crate::{error::Error as ArchiveError, types::{Block, Substrate, BatchBlockItem, SubstrateBlock}, rpc::Rpc};
+use crate::{error::Error as ArchiveError, types::{Block, Substrate, SubstrateBlock}, rpc::Rpc};
 
 const REDUNDANCY: usize = 5;
 
-// will be used when `batch_blocks` is coded
-// just instantiates all the actors
-pub fn actor(workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()> {
-    unimplemented!()
+/// instantiate all the block workers
+pub fn actor<T>(workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()> 
+where
+    T: Substrate + Send + Sync
+{
+    
+    let metadata_workers = metadata::<T>(workers, url.clone())?;
+    blocks::<T>(metadata_workers, url.clone())
+    // batch_blocks(metadata_workers, url.clone());
 }
 
-pub fn blocks<T>(workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()> 
-where
-    T: Substrate,
+fn blocks<T>(workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()> 
+where 
+    T: Substrate + Send + Sync 
 {
     // actor which produces work in the form of collecting blocks
     Bastion::children(|children| {
@@ -46,9 +51,8 @@ where
                     let mut round_robin: usize = 0;
                     let rpc = super::connect::<T>(url.as_str()).await;
                     let mut subscription = rpc.subscribe_finalized_blocks().await.expect("Subscription failed");
-                        // .map_err(|e| log::error!("{:?}", e)).unwrap();
+                    
                     while let block = subscription.next().await {
-                       
                         log::info!("Awaiting next head...");
                         let head = subscription.next().await;
                         log::info!("Converting to block...");
@@ -59,7 +63,7 @@ where
                             log::trace!("{:?}", b);
                             round_robin += 1;
                             round_robin %= workers.elems().len();
-                            ctx.ask(&workers.elems()[round_robin].addr(), Block::<T>::new(b))
+                            ctx.ask(&workers.elems()[round_robin].addr(), b)
                                 .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
                         } else {
                             log::warn!("Block does not exist!");
@@ -95,9 +99,14 @@ where
                     loop {
                         msg! {
                             ctx.recv().await?,
-                            block: Block<T> =!> {
-                                    let metadata = rpc.meta_and_version(Some(block.inner().block.header().hash()).clone()).await;
-                                    // send block and metadata to decode actors
+                            block: SubstrateBlock<T> =!> {
+                                round_robin += 1;
+                                round_robin %= workers.elems().len(); 
+                                let (ver, meta) = rpc.meta_and_version(Some(block.block.header().hash()).clone()).await.unwrap();
+                                let block = Block::<T>::new(block, meta, ver.spec_version);
+                                ctx.ask(&workers.elems()[round_robin].addr(), block).unwrap().await?;
+                                let _ = answer!(ctx, "done");
+                                // send block and metadata to decode actors
                             };
                             blocks: Vec<SubstrateBlock<T>> =!> {
                                 let mut meta_futures = Vec::new();
@@ -116,8 +125,9 @@ where
                                 
                                 let mut batch_items = Vec::new();
                                 for (b, m) in blocks.into_iter().zip(metadata.into_iter())  {
-                                    batch_items.push(BatchBlockItem::<T>::new(b, m.1, m.0.spec_version));
+                                    batch_items.push(Block::<T>::new(b, m.1, m.0.spec_version));
                                 }
+                                let _ = answer!(ctx, "done");
                                 // send batch_items to decode actor
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);

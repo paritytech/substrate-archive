@@ -19,7 +19,7 @@
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 
-use crate::{types::{Block, Substrate, Data}, error::Error as ArchiveError};
+use crate::{types::{Block, Substrate, Data, ChainInfo}, error::Error as ArchiveError};
 use desub::{
     decoder::{Decoder, Metadata},
     TypeDetective
@@ -56,7 +56,12 @@ where
 }
 
 pub fn block<T: Substrate + Send + Sync>(data: Data<T>) {
-    println!("Got Data! {:?}", data);
+    match data {
+        Data::Block(b) => {
+            println!("Got Block {}, version: {}", b.get_hash(), b.spec)
+        },
+        _ => println!("Got something")
+    }
 }
 
 pub fn decode_extrinsics() {
