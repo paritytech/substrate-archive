@@ -13,6 +13,8 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
+//! logging and general utilities
+
 use chrono::{DateTime, TimeZone, Utc};
 use desub::{decoder::GenericExtrinsic, SubstrateType};
 use fern::colors::{Color, ColoredLevelConfig};
@@ -86,7 +88,7 @@ pub fn init_logger(std: log::LevelFilter, file_lvl: log::LevelFilter) {
                 .level(log::LevelFilter::Info)
                 .level_for("substrate_archive", file_lvl)
                 .level_for("desub_core", log::LevelFilter::Error)
-                // .level_for("bastion", log::LevelFilter::Trace)
+                // .level_for("bastion", log:kgT:LevelFilter::Trace)
                 // .level_for("crate_name", log::LevelFilter::Trace)
                 .chain(
                     fern::log_file(log_dir).expect("Failed to create substrate_archive.logs file"),

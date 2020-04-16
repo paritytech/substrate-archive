@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Wrapper RPC convenience functions
+
 use futures::{
     channel::mpsc::{self, Sender, Receiver},
     future::{join, join_all},
@@ -114,14 +116,12 @@ where
     pub async fn batch_block_from_number(
         &self,
         numbers: Vec<NumberOrHex<T::BlockNumber>>,
-    ) -> Result<Vec<BatchBlockItem<T>>, ArchiveError> {
+    ) -> Result<Vec<SubstrateBlock<T>>, ArchiveError> {
         let mut blocks = Vec::new();
         for num in numbers.into_iter() {
             let block = self.block_from_number(num);
             blocks.push(block);
         }
-
-        let mut meta_futures = Vec::new();
 
         let blocks: Vec<_> = join_all(blocks)
                 .await
@@ -130,17 +130,7 @@ where
                 // ignore blocks that don't exist
                 .filter_map(|b| b)
                 .collect::<Result<Vec<_>, _>>()?;
-
-        for b in blocks.iter() {
-            meta_futures.push(self.meta_and_version(Some((b.block.header().hash()).clone())));
-        }
-
-        let meta_futures = join_all(meta_futures).await.into_iter().collect::<Result<Vec<_>, _>>()?;
-        let mut batch_items = Vec::new();
-        for (b, m) in blocks.into_iter().zip(meta_futures.into_iter()) {
-            batch_items.push(BatchBlockItem::<T>::new(b, m.1, m.0.spec_version));
-        }
-        Ok(Vec::new())
+        Ok(blocks)
     }
 
     /// unsubscribe from finalized heads

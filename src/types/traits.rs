@@ -17,9 +17,9 @@
 use subxt::{balances::Balances, system::System};
 
 /// Consolidation of substrate traits representing fundamental types
-pub trait Substrate: System + Balances {}
+pub trait Substrate: System + Balances + Send + Sync {}
 
-impl<T> Substrate for T where T: System + Balances {}
+impl<T> Substrate for T where T: System + Balances + Send + Sync {}
 
 pub trait ChainInfo<T: Substrate> {
     fn get_hash(&self) -> T::Hash;
