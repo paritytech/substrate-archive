@@ -30,7 +30,8 @@ use super::{rpc::Rpc, types::{Data, BatchData, Substrate, Block}, error::Error a
 
 pub fn init<T: Substrate>(url: String) -> Result<(), ArchiveError> {
     Bastion::init();
-
+    
+    // TODO use answers to handle errors in the supervisor
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
 
