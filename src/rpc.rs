@@ -74,25 +74,6 @@ where
             .map_err(Into::into)
     }
 
-    pub(crate) async fn version(
-        &self,
-        hash: Option<&T::Hash>,
-    ) -> Result<RuntimeVersion, ArchiveError> {
-        self.client
-            .runtime_version(hash)
-            .map_err(Into::into)
-            .await
-    }
-
-    pub(crate) async fn metadata(&self, hash: Option<&T::Hash>) -> Result<Metadata, ArchiveError> {
-        let meta = self
-            .client
-            .raw_metadata(hash)
-            .map_err(ArchiveError::from)
-            .await?;
-        Ok(Metadata::new(meta.as_slice()))
-    }
-
     pub(crate) async fn meta_and_version(&self, hash: Option<T::Hash>) -> Result<(RuntimeVersion, Metadata), ArchiveError> {
         let meta = self.client.raw_metadata(hash.as_ref())
                             .map_err(ArchiveError::from);
@@ -132,6 +113,8 @@ where
                 .collect::<Result<Vec<_>, _>>()?;
         Ok(blocks)
     }
+
+    // pub async fn storage()
 
     /// unsubscribe from finalized heads
     #[allow(dead_code)]

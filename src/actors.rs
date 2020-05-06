@@ -20,22 +20,31 @@ mod network;
 mod decode;
 mod database;
 
+use super::{types::{Data, BatchData, Substrate, NotSignedBlock}, error::Error as ArchiveError};
 use bastion::prelude::*;
-use futures::{StreamExt, Stream, channel::mpsc};
-use std::sync::Arc;
-use runtime_primitives::traits::Header as _;
-use super::{rpc::Rpc, types::{Data, BatchData, Substrate, Block}, error::Error as ArchiveError};
+use sc_client_api::backend::Backend as _;
+use sc_client_db::{DatabaseSettings, Backend, DatabaseSettingsSrc, PruningMode};
+use std::path::PathBuf;
 
+use desub::{decoder::Decoder, TypeDetective};
 
+// TODO: 'cut!' macro to handle errors from within actors
 
-pub fn init<T: Substrate>(url: String) -> Result<(), ArchiveError> {
+/// initialize substrate archive
+/// if a child actor panics or errors, it is up to the supervisor to handle it
+pub fn init<T, P>(decoder: Decoder<P>, url: String) -> Result<(), ArchiveError> 
+where
+    T: Substrate + Send + Sync,
+    P: TypeDetective + Send + Sync + 'static
+{
     Bastion::init();
     
     // TODO use answers to handle errors in the supervisor
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
 
-    let decode_workers = self::decode::actor::<T>().expect("Couldn't start decode children");
+    //let decode_workers = self::decode::actor::<T, P>(decoder).expect("Couldn't start decode children");
+    let decode_workers = self::decode::actor::<T, P>(decoder).expect("Couldn't start decode children");
     self::network::actor::<T>(decode_workers.clone(), url).expect("Couldn't add blocks child");
 
     // generate work
@@ -49,6 +58,12 @@ pub fn init<T: Substrate>(url: String) -> Result<(), ArchiveError> {
     Bastion::start();
     Bastion::block_until_stopped();
     Ok(())
+}
+
+#[derive(Debug)]
+pub enum ArchiveAnswer {
+    Success,
+    Fail(ArchiveError)
 }
 
 /// connect to the substrate RPC

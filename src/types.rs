@@ -20,6 +20,7 @@ use runtime_primitives::{
     generic::{Block as BlockT, SignedBlock},
     traits::{Block as _, Header as _},
 };
+use codec::Encode;
 use substrate_primitives::storage::{StorageChangeSet, StorageData};
 use subxt::system::System;
 
@@ -29,6 +30,8 @@ pub use self::traits::Substrate;
 /// A generic substrate block
 pub type SubstrateBlock<T> =
     SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
+
+pub type NotSignedBlock<T> = BlockT<<T as System>::Header, <T as System>::Extrinsic>;
 
 #[derive(Debug)]
 pub enum BatchData<T: Substrate> {
@@ -116,7 +119,7 @@ where
         self.inner.block.header().hash()
     }
 }
-
+// TODO: Possibly split block into extrinsics / digest / etc so that it can be sent in seperate parts to decode threads
 impl<T> Block<T>
 where
     T: Substrate,
@@ -147,6 +150,39 @@ impl<T: Substrate> BatchBlock<T> {
 
     pub fn inner(&self) -> &Vec<Block<T>> {
         &self.inner
+    }
+}
+
+impl<T: Substrate> From<BatchBlock<T>> for Vec<Vec<Extrinsic<T>>> {
+    fn from(batch_block: BatchBlock<T>) -> Vec<Vec<Extrinsic<T>>> {
+        batch_block.inner().iter().map(|b| {
+            b.into()
+        }).collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct Extrinsic<T: Substrate + Send + Sync> {
+    pub inner: Vec<u8>,
+    pub hash: T::Hash,
+    pub spec: u32,
+    pub meta: Metadata,
+}
+
+impl<T: Substrate + Send + Sync> From<&Block<T>> for Vec<Extrinsic<T>> {
+    fn from(block: &Block<T>) -> Vec<Extrinsic<T>> {
+        let block = block.clone();
+        let hash = block.get_hash();
+        let spec = block.spec;
+        let meta = block.meta.clone();
+        block.inner().block.extrinsics.iter().map(move |e| {
+            Extrinsic {
+                inner: e.encode(),
+                hash,
+                spec,
+                meta: meta.clone()
+            }
+        }).collect()
     }
 }
 
