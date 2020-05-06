@@ -19,23 +19,31 @@ serde = { version = "1.0.105", features = ["derive"] }
 # enabling arbitrary_precision for serde_json may cause rpc requests to fail
 serde_json = "1.0.50"
 dirs = "2"
-desub = { git = "https://github.com/paritytech/desub", branch = "master", package="desub-core" }
-subxt = { path = "../substrate-subxt", package = "substrate-subxt"}
-
 fern = { version = "0.6", features = ["colored"] }
-codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
-
-substrate-rpc-primitives = { version = "2.0.0-alpha.6", package = "sp-rpc" }
-substrate-primitives = { version = "2.0.0-alpha.6", package = "sp-core" }
-runtime-primitives = { version = "2.0.0-alpha.6", package = "sp-runtime" }
-runtime-version = { version = "2.0.0-alpha.6", package = "sp-version" }
-sp-arithmetic = { version = "2.0.0-alpha.6", package = "sp-arithmetic" }
-sc-client-db = { package = "sc-client-db", version = "0.8.0-alpha.6", features = ["kvdb-rocksdb"] }
-sc-client-api = { package = "sc-client-api", version = "2.0.0-alpha.6" }
-sp-blockchain = { package = "sp-blockchain", version = "2.0.0-alpha.6" }
 itertools = "0.9.0"
 bastion = "0.3.4"
-jsonrpsee = { version = "0.1", features = ["ws"] }
+# Local dependencies
+desub = { path = "../desub/core/", package="desub-core" }
+subxt = { path = "../substrate-subxt", package = "substrate-subxt"}
+
+kvdb = "0.6"
+kvdb-rocksdb = "0.8"
+parity-util-mem = "0.6.1"
+codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
+
+sp-database = { git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package="sp-database" }
+sc-service = { git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package = "sc-service" }
+sc-client-db = { git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package = "sc-client-db" }
+sp-runtime = { git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package = "sp-runtime" }
+sc-client-api = { git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package = "sc-client-api" }
+sp-blockchain = { git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package = "sp-blockchain" }
+sp-state-machine = { git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package = "sp-state-machine" }
+substrate-rpc-primitives = {  git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package = "sp-rpc" }
+substrate-primitives = {  git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package = "sp-core" }
+runtime-version = {  git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package = "sp-version" }
+sp-arithmetic = { git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package = "sp-arithmetic" }
+
+
 
 [dev-dependencies]
 async-std = "1.5.0"

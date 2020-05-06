@@ -15,6 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod archive;
+mod backend;
 // mod blocks_archive;
 mod error;
 // mod queries;

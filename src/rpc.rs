@@ -22,7 +22,7 @@ use futures::{
     TryFutureExt, StreamExt, Stream,
     executor::block_on,
 };
-use runtime_primitives::traits::{Block as _, Header as HeaderTrait};
+use sp_runtime::traits::{Block as _, Header as HeaderTrait};
 //use substrate_primitives::storage::StorageKey;
 use desub::decoder::Metadata;
 use runtime_version::RuntimeVersion;

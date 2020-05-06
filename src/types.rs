@@ -16,7 +16,7 @@
 
 mod traits;
 use desub::decoder::Metadata;
-use runtime_primitives::{
+use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
     traits::{Block as _, Header as _},
 };

@@ -19,7 +19,7 @@
 //! they mostly wait on network IO
 
 use bastion::prelude::*;
-use runtime_primitives::{traits::{Header as _, Block as _}, generic::BlockId};
+use sp_runtime::{traits::{Header as _, Block as _}, generic::BlockId};
 use futures::future::join_all;
 use sc_client_db::{DatabaseSettings, DatabaseSettingsSrc, PruningMode, Backend};
 use sc_client_api::backend::Backend as _;
@@ -50,16 +50,8 @@ where
             .with_exec(move |ctx: BastionContext| {
                 let workers = workers.clone(); 
                 let url: String = url.clone(); 
-                let settings = DatabaseSettings {
-                    state_cache_size: 1024,
-                    state_cache_child_ratio: None,
-                    pruning: PruningMode::ArchiveAll,
-                    source: DatabaseSettingsSrc::Path {
-                        path: PathBuf::from(r"/home/insipx/.local/share/polkadot/chains/ksmcc3/db/"),
-                        cache_size: 128
-                    }
-                };
-                let backend = Backend::<NotSignedBlock<T>>::new(settings, 10).unwrap();
+               
+                // let backend = Backend::<NotSignedBlock<T>>::new(settings, 10).unwrap();
                 async move {
                     let mut round_robin: usize = 0;
                     let rpc = super::connect::<T>(url.as_str()).await;
@@ -69,9 +61,9 @@ where
                         log::info!("Awaiting next head...");
                         let head = subscription.next().await;
                         log::info!("Querying for Database Information!");
-                        let chain = backend.blockchain();
-                        let last = chain.last_finalized();
-                        log::info!("Chain: {:?}", last);
+                        // let chain = backend.blockchain();
+                        // let last = chain.last_finalized();
+                        // log::info!("Chain: {:?}", last);
                         // let state = backend.state_at(BlockId::Hash(head.hash())).unwrap();
                         //log::info!("STATE: {:?}", state);
                         log::info!("Converting to block...");
