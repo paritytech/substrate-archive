@@ -21,7 +21,7 @@ use sp_runtime::{
     traits::{Block as _, Header as _},
 };
 use codec::Encode;
-use substrate_primitives::storage::{StorageChangeSet, StorageData};
+use sp_core::storage::{StorageChangeSet, StorageData};
 use subxt::system::System;
 
 pub use self::traits::ChainInfo;
@@ -30,6 +30,7 @@ pub use self::traits::Substrate;
 /// A generic substrate block
 pub type SubstrateBlock<T> =
     SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
+
 
 pub type NotSignedBlock<T> = BlockT<<T as System>::Header, <T as System>::Extrinsic>;
 
