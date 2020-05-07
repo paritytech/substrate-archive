@@ -20,7 +20,7 @@ use sp_api::{ProvideRuntimeApi, ConstructRuntimeApi, CallApiAt};
 use sc_client_db::DatabaseSettings;
 use sc_service::{
     ServiceBuilder, GenericChainSpec, TracingReceiver,
-    AbstractService, TLightBackend, TFullClient,
+    AbstractService, TLightBackend, TLightClient,
     error::Error as ServiceError,
     config::{
         self, DatabaseConfig, PruningMode, TransactionPoolOptions,
@@ -28,7 +28,7 @@ use sc_service::{
         OffchainWorkerConfig, TaskType,
     },
 };
-use sc_executor::{NativeExecutor, WasmExecutionMethod};
+use sc_executor::{NativeExecutor, WasmExecutionMethod, NativeExecutionDispatch};
 use sc_transaction_graph::base_pool::Limit;
 use std::{sync::Arc, path::PathBuf, pin::Pin, future::Future};
 use crate::types::{NotSignedBlock, Substrate};
@@ -43,16 +43,17 @@ use crate::types::{NotSignedBlock, Substrate};
 // sc-client is in the process of being refactored and transitioned into sc-service
 // where a method 'new_client' will create a much 'slimmer' database-backed client
 // that won't require defining G and E, a chainspec, or pulling in a async-runtime (async-std in this case)
-pub fn client<T: Substrate, RuntimeApi, G, E>(db_config: DatabaseConfig, spec: PathBuf
+pub fn client<T: Substrate, RuntimeApi, Dispatch, G, E>(db_config: DatabaseConfig, spec: PathBuf
 )
     -> Result<
-        (impl AbstractService,
-         Arc<impl ArchiveClient<NotSignedBlock<T>, TLightBackend<NotSignedBlock<T>>, RuntimeApi>>
-        ), ServiceError>
+        Arc<impl ArchiveClient<NotSignedBlock<T>, RuntimeApi, Dispatch>>
+        , ServiceError>
 where
     G: serde::de::DeserializeOwned + Send + sp_runtime::BuildStorage + serde::ser::Serialize + 'static,
     E: sc_chain_spec::Extension + Send + 'static,
-    RuntimeApi: ConstructRuntimeApi<NotSignedBlock<T>, TFullClient< >>
+    Dispatch: NativeExecutionDispatch + Send + Sync + 'static,
+    RuntimeApi: ConstructRuntimeApi<NotSignedBlock<T>,  TLightClient<NotSignedBlock<T>, RuntimeApi, Dispatch>> + BackendT<NotSignedBlock<T>> + Send + Sync + 'static,
+    <RuntimeApi as BackendT<NotSignedBlock<T>>>::State: sp_state_machine::backend::Backend<<<T as subxt::system::System>::Header as sp_runtime::traits::Header>::Hashing>
 {
     // let native_execution = NativeExecutor::new(WasmExecutionMethod::Compiled, None, 2);
     // let call_executor = LocalCallExecutor::new(backend, native_execution, sp_core::tasks::executor());
@@ -118,9 +119,10 @@ where
         announce_block: false,
         chain_spec: Box::new(chain_spec),
     };
-    let builder = ServiceBuilder::new_light(config)?;
-    let client = builder.client().clone();
-    Ok((builder.build()?, client))
+    Ok(Arc::new(sc_service::new_full_client(&config)?))
+    // let builder = ServiceBuilder::new_light(config)?;
+    // let client = builder.client().clone();
+    // Ok((builder.build()?, client))
 }
 
 pub fn task_executor() -> Arc<dyn Fn(Pin<Box<dyn Future<Output =()> + Send>>, TaskType) + Send + Sync> {
