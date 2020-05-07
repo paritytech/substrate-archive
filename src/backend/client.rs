@@ -16,8 +16,9 @@
 
 use sc_client_api::{backend::Backend as BackendT, execution_extensions::{ExecutionExtensions, ExecutionStrategies}};
 use sp_runtime::traits::Block as BlockT;
+use sp_state_machine::backend::Backend as StateMachineBackend;
 use sp_api::{ProvideRuntimeApi, ConstructRuntimeApi, CallApiAt};
-use sc_client_db::DatabaseSettings;
+// use sc_client_db::SyncingCachingState;
 use sc_service::{
     ServiceBuilder, GenericChainSpec, TracingReceiver,
     AbstractService, TLightBackend, TLightClient,
@@ -34,27 +35,19 @@ use std::{sync::Arc, path::PathBuf, pin::Pin, future::Future};
 use crate::types::{NotSignedBlock, Substrate};
 
 
-// pub trait Client: sp_api::ProvideRuntimeApi +  {}
-
 //FIXME: This currently pulls many substrate dependencies that we don't need IE Transaction pooling etc
 // sc-client is in the process of being refactored and transitioned into sc-service
 // where a method 'new_client' will create a much 'slimmer' database-backed client
-// that won't require defining G and E, a chainspec, or pulling in a async-runtime (async-std in this case)//FIXME: This currently pulls many substrate dependencies that we don't need IE Transaction pooling etc
-// sc-client is in the process of being refactored and transitioned into sc-service
-// where a method 'new_client' will create a much 'slimmer' database-backed client
 // that won't require defining G and E, a chainspec, or pulling in a async-runtime (async-std in this case)
-pub fn client<T: Substrate, RuntimeApi, Dispatch, G, E>(db_config: DatabaseConfig, spec: PathBuf
-)
+pub fn client<T: Substrate, G, E>(db_config: DatabaseConfig, spec: PathBuf)
     -> Result<
-        Arc<impl ArchiveClient<NotSignedBlock<T>, RuntimeApi, Dispatch>>
-        , ServiceError>
+        Arc<impl ArchiveClient>,
+        // impl ArchiveClient,
+        ServiceError>
 where
     G: serde::de::DeserializeOwned + Send + sp_runtime::BuildStorage + serde::ser::Serialize + 'static,
     E: sc_chain_spec::Extension + Send + 'static,
-    Dispatch: NativeExecutionDispatch + Send + Sync + 'static,
-    RuntimeApi: ConstructRuntimeApi<NotSignedBlock<T>,  TLightClient<NotSignedBlock<T>, RuntimeApi, Dispatch>> + BackendT<NotSignedBlock<T>> + Send + Sync + 'static,
-    <RuntimeApi as BackendT<NotSignedBlock<T>>>::State: sp_state_machine::backend::Backend<<<T as subxt::system::System>::Header as sp_runtime::traits::Header>::Hashing>
-{
+    {
     // let native_execution = NativeExecutor::new(WasmExecutionMethod::Compiled, None, 2);
     // let call_executor = LocalCallExecutor::new(backend, native_execution, sp_core::tasks::executor());
 /*
@@ -147,7 +140,7 @@ pub fn task_executor() -> Arc<dyn Fn(Pin<Box<dyn Future<Output =()> + Send>>, Ta
 /// Archive client abstraction, this super trait only pulls in functionality required for
 /// substrate-archive internals
 /// taken from polkadot::service::client
-pub trait ArchiveClient<Block, Backend, Runtime>:
+pub trait ArchiveClient<Block, Runtime, Backend>:
 /*  BlockchainEvents<Block> */Sized + Send + Sync
     + ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
     + CallApiAt<
@@ -161,7 +154,7 @@ pub trait ArchiveClient<Block, Backend, Runtime>:
         Runtime: ConstructRuntimeApi<Block, Self>
 {}
 
-impl<Block, Backend, Runtime, Client> ArchiveClient<Block, Backend, Runtime> for Client
+impl<Block, Runtime, Backend, Client> ArchiveClient<Block, Runtime, Backend> for Client
     where
         Block: BlockT,
         Runtime: ConstructRuntimeApi<Block, Self>,

@@ -5981,7 +5981,7 @@ dependencies = [
 name = "substrate-subxt"
 version = "0.6.0"
 dependencies = [
- "frame-metadata 11.0.0-alpha.7",
+ "frame-metadata 11.0.0-dev",
  "frame-support 2.0.0-dev",
  "futures 0.3.4",
  "hex 0.4.2",
