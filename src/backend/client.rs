@@ -32,9 +32,7 @@ use sc_service::{
 use sc_executor::{NativeExecutionDispatch, WasmExecutionMethod};
 use sc_transaction_graph::base_pool::Limit;
 use std::{sync::Arc, path::PathBuf, pin::Pin, future::Future};
-use crate::types::{NotSignedBlock, Substrate};
-
-
+use crate::types::{NotSignedBlock, Substrate, ArchiveBackend};
 
 pub fn client<T: Substrate, G, E, RA, EX>(db_config: DatabaseConfig, spec: PathBuf
     ) -> Result<
@@ -45,7 +43,6 @@ pub fn client<T: Substrate, G, E, RA, EX>(db_config: DatabaseConfig, spec: PathB
 where
     G: serde::de::DeserializeOwned + Send + sp_runtime::BuildStorage + serde::ser::Serialize + 'static,
     E: sc_chain_spec::Extension + Send + 'static,
-    // B::Hash: FromStr,
     RA: Send + Sync + 'static,
     EX: NativeExecutionDispatch + 'static
 {
@@ -97,23 +94,22 @@ where
         chain_spec: Box::new(chain_spec),
     };
     
-    Ok(internal_client::<NotSignedBlock<T>, RA, EX>(&config)?)
+    Ok(internal_client::<NotSignedBlock<T>, ArchiveBackend<T>, RA, EX>(&config)?)
 }
 
-//FIXME: This currently pulls many substrate dependencies that we don't need IE Transaction pooling etc
+// FIXME: This currently pulls many substrate dependencies that we don't need IE Transaction pooling etc
 // sc-client is in the process of being refactored and transitioned into sc-service
 // where a method 'new_client' will create a much 'slimmer' database-backed client
 // that won't require defining G and E, a chainspec, or pulling in a async-runtime (async-std in this case)
-
-fn internal_client<B, RA, EX>(config: &Configuration)
+fn internal_client<B, Backend, RA, EX>(config: &Configuration)
     -> Result<Arc<impl ChainAccess<B>>, ServiceError> 
     where
         B: BlockT,
         // B::Hash: FromStr,
         RA: Send + Sync + 'static,
-        EX: NativeExecutionDispatch + 'static
+        EX: NativeExecutionDispatch + 'static,
+        Backend: BackendT<B> 
 {
-    // T Block,  T Runtime Api (ConstructRuntimeApi), NativeExecutionDispatch
     Ok(Arc::new(sc_service::new_full_client::<B, RA, EX>(&config)?))
 }
 
@@ -134,7 +130,7 @@ pub fn task_executor() -> Arc<dyn Fn(Pin<Box<dyn Future<Output =()> + Send>>, Ta
 }
 
 
-pub trait ChainAccess<Block>: /* StorageProvider<Block, Backend> + */ BlockBackend<Block> + HeaderBackend<Block>
+pub trait ChainAccess<Block>: StorageProvider<Block, sc_client_db::Backend<Block>> + BlockBackend<Block> + HeaderBackend<Block>
 where
     Block: BlockT,
 {}
@@ -142,5 +138,5 @@ where
 impl<T, Block> ChainAccess<Block> for T 
 where
     Block: BlockT,
-    T: /* StorageProvider<Block, Backend> + */ BlockBackend<Block> + HeaderBackend<Block>
+    T: StorageProvider<Block, sc_client_db::Backend<Block>> +  BlockBackend<Block> + HeaderBackend<Block>
 {}
