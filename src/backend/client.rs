@@ -34,6 +34,10 @@ use sc_transaction_graph::base_pool::Limit;
 use std::{sync::Arc, path::PathBuf, pin::Pin, future::Future};
 use crate::types::{NotSignedBlock, Substrate, ArchiveBackend};
 
+// functions 'client' and 'internal client' are split purely to make it easier conceptualizing type
+// defs
+
+// create a macro `new_archive!` to simplify all these type constraints in the archive node library
 pub fn client<T: Substrate, G, E, RA, EX>(db_config: DatabaseConfig, spec: PathBuf
     ) -> Result<
             Arc<
@@ -113,6 +117,7 @@ fn internal_client<B, Backend, RA, EX>(config: &Configuration)
     Ok(Arc::new(sc_service::new_full_client::<B, RA, EX>(&config)?))
 }
 
+/// Really simple task executor using async-std
 pub fn task_executor() -> Arc<dyn Fn(Pin<Box<dyn Future<Output =()> + Send>>, TaskType) + Send + Sync> {
     Arc::new(
         move |fut, task_type| {
@@ -129,7 +134,7 @@ pub fn task_executor() -> Arc<dyn Fn(Pin<Box<dyn Future<Output =()> + Send>>, Ta
     )
 }
 
-
+/// Super trait defining what access the archive node needs to siphon data from running chains
 pub trait ChainAccess<Block>: StorageProvider<Block, sc_client_db::Backend<Block>> + BlockBackend<Block> + HeaderBackend<Block>
 where
     Block: BlockT,
