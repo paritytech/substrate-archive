@@ -16,11 +16,15 @@
 
 //! where the main actor framework is defined
 
-mod network;
-mod decode;
 mod database;
+mod decode;
+mod network;
+mod scheduler;
 
-use super::{types::{Data, BatchData, Substrate}, error::Error as ArchiveError};
+use super::{
+    error::Error as ArchiveError,
+    types::{BatchData, Data, Substrate},
+};
 use bastion::prelude::*;
 
 use desub::{decoder::Decoder, TypeDetective};
@@ -29,29 +33,28 @@ use desub::{decoder::Decoder, TypeDetective};
 
 /// initialize substrate archive
 /// if a child actor panics or errors, it is up to the supervisor to handle it
-pub fn init<T, P>(decoder: Decoder<P>, url: String) -> Result<(), ArchiveError> 
+pub fn init<T, P>(decoder: Decoder<P>, url: String) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    P: TypeDetective + Send + Sync + 'static
+    P: TypeDetective + Send + Sync + 'static,
 {
     Bastion::init();
-    
+
     // TODO use answers to handle errors in the supervisor
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
 
     //let decode_workers = self::decode::actor::<T, P>(decoder).expect("Couldn't start decode children");
-    let decode_workers = self::decode::actor::<T, P>(decoder).expect("Couldn't start decode children");
+    let decode_workers =
+        self::decode::actor::<T, P>(decoder).expect("Couldn't start decode children");
     self::network::actor::<T>(decode_workers.clone(), url).expect("Couldn't add blocks child");
 
     // generate work
     // seperates blocks into different datatypes
 
-   
     // generate work
     // fetches blocks
-    
-    
+
     Bastion::start();
     Bastion::block_until_stopped();
     Ok(())
@@ -60,7 +63,7 @@ where
 #[derive(Debug)]
 pub enum ArchiveAnswer {
     Success,
-    Fail(ArchiveError)
+    Fail(ArchiveError),
 }
 
 /// connect to the substrate RPC
@@ -68,11 +71,13 @@ pub enum ArchiveAnswer {
 async fn connect<T: Substrate + Send + Sync>(url: &str) -> subxt::Client<T> {
     subxt::ClientBuilder::<T>::new()
         .set_url(url)
-        .build().await.map_err(|e| log::error!("{:?}", e)).unwrap()
+        .build()
+        .await
+        .map_err(|e| log::error!("{:?}", e))
+        .unwrap()
 }
 
 pub fn process_block<T: Substrate + Send + Sync>(data: Data<T>) {
-
     println!("Got Data! {:?}", data);
 }
 

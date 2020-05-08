@@ -29,8 +29,8 @@ use log::*;
 use runtime_version::RuntimeVersion;
 use std::{
     collections::HashSet,
-    sync::{Arc, RwLock},
     marker::PhantomData,
+    sync::{Arc, RwLock},
 };
 use subxt::system::System;
 
@@ -46,7 +46,7 @@ pub struct Archive<T: Substrate + Send + Sync, P: TypeDetective> {
     rpc: Arc<Rpc<T>>,
     /// queue of hashes to be fetched from other threads
     queue: Arc<RwLock<HashSet<T::Hash>>>,
-    _marker: PhantomData<P>
+    _marker: PhantomData<P>,
 }
 
 impl<T, P> Archive<T, P>
@@ -58,6 +58,10 @@ where
         let rpc = Rpc::<T>::new(rpc);
         let rpc = Arc::new(rpc);
         let queue = Arc::new(RwLock::new(HashSet::new()));
-        Ok(Self { rpc, queue, _marker: PhantomData })
+        Ok(Self {
+            rpc,
+            queue,
+            _marker: PhantomData,
+        })
     }
 }

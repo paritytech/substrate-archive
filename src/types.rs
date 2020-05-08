@@ -15,13 +15,13 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod traits;
+use codec::Encode;
 use desub::decoder::Metadata;
+use sp_core::storage::{StorageChangeSet, StorageData};
 use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
     traits::{Block as _, Header as _},
 };
-use codec::Encode;
-use sp_core::storage::{StorageChangeSet, StorageData};
 use subxt::system::System;
 
 pub use self::traits::ChainInfo;
@@ -35,7 +35,6 @@ pub type NotSignedBlock<T> = BlockT<<T as System>::Header, <T as System>::Extrin
 
 /// Read-Only RocksDb backed Backend Type
 pub type ArchiveBackend<T> = sc_client_db::Backend<NotSignedBlock<T>>;
-
 
 #[derive(Debug)]
 pub enum BatchData<T: Substrate> {
@@ -135,7 +134,7 @@ where
             spec,
         }
     }
-    
+
     pub fn inner(&self) -> &SubstrateBlock<T> {
         &self.inner
     }
@@ -159,9 +158,7 @@ impl<T: Substrate> BatchBlock<T> {
 
 impl<T: Substrate> From<BatchBlock<T>> for Vec<Vec<Extrinsic<T>>> {
     fn from(batch_block: BatchBlock<T>) -> Vec<Vec<Extrinsic<T>>> {
-        batch_block.inner().iter().map(|b| {
-            b.into()
-        }).collect()
+        batch_block.inner().iter().map(|b| b.into()).collect()
     }
 }
 
@@ -179,14 +176,18 @@ impl<T: Substrate + Send + Sync> From<&Block<T>> for Vec<Extrinsic<T>> {
         let hash = block.get_hash();
         let spec = block.spec;
         let meta = block.meta.clone();
-        block.inner().block.extrinsics.iter().map(move |e| {
-            Extrinsic {
+        block
+            .inner()
+            .block
+            .extrinsics
+            .iter()
+            .map(move |e| Extrinsic {
                 inner: e.encode(),
                 hash,
                 spec,
-                meta: meta.clone()
-            }
-        }).collect()
+                meta: meta.clone(),
+            })
+            .collect()
     }
 }
 

@@ -16,12 +16,10 @@
 
 //! various utilities that make interfacing with substrate easier
 
+use kvdb_rocksdb::DatabaseConfig;
 use sc_service::config::NetworkConfiguration;
 use sp_database::Database as DatabaseTrait;
-use sp_runtime::{
-    traits::{Block as BlockT},
-};
-use kvdb_rocksdb::DatabaseConfig;
+use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 use tempdir::TempDir;
 
@@ -32,9 +30,16 @@ const DB_HASH_LEN: usize = 32;
 pub type DbHash = [u8; DB_HASH_LEN];
 
 /// Open a database as read-only
-pub fn open_database<Block: BlockT>(path: &str, cache_size: usize) -> sp_blockchain::Result<Arc<dyn DatabaseTrait<DbHash>>> {
+pub fn open_database<Block: BlockT>(
+    path: &str,
+    cache_size: usize,
+) -> sp_blockchain::Result<Arc<dyn DatabaseTrait<DbHash>>> {
     let mut db_config = DatabaseConfig {
-        secondary: TempDir::new("").unwrap().path().to_str().map(|s| s.to_string()),
+        secondary: TempDir::new("")
+            .unwrap()
+            .path()
+            .to_str()
+            .map(|s| s.to_string()),
         ..DatabaseConfig::with_columns(NUM_COLUMNS)
     };
 

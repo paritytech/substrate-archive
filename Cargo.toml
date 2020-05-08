@@ -49,4 +49,4 @@ sc-transaction-graph = { git = "https://github.com/insipx/substrate", branch = "
 sc-chain-spec = { git = "https://github.com/insipx/substrate", branch = "insipx/update-kvdb", package = "sc-chain-spec" }
 
 [dev-dependencies]
-desub-extras = { git = "https://github.com/paritytech/desub", branch = "master", package="desub-extras", features = ["polkadot"] }
+desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }

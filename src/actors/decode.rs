@@ -14,17 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-
 //! Actors which do work by decoding data before it's inserted into the database
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 
-use crate::{types::{Block, Substrate, Extrinsic, ChainInfo as _}, error::Error as ArchiveError};
-use desub::{
-    decoder::Decoder,
-    TypeDetective
+use crate::{
+    error::Error as ArchiveError,
+    types::{Block, ChainInfo as _, Extrinsic, Substrate},
 };
 use bastion::prelude::*;
+use desub::{decoder::Decoder, TypeDetective};
+
+use super::scheduler::{Scheduler, Algorithm};
+
 const REDUNDANCY: usize = 64;
 
 /// the main actor
@@ -34,7 +36,6 @@ where
     T: Substrate + Send + Sync,
     P: TypeDetective + Send + Sync + 'static,
 {
-
     let workers = Bastion::children(|children: Children| {
         children
             .with_redundancy(REDUNDANCY)
@@ -70,7 +71,7 @@ where
                 }
             }) 
     }).expect("Could not start worker actor");
-    
+
     // top-level actor
     // actor that manages decode state, but sends decoding to other actors
     // TODO: could be a supervisor
@@ -84,30 +85,26 @@ where
                 let mut decoder = decoder.clone();
                 async move {
                     log::info!("Decode worker started");
-                    let mut round_robin: usize = 0;
+                    let mut sched = Scheduler::new(Algorithm::RoundRobin);
                     loop {
                         msg! {
                             ctx.recv().await?,
                             block: Block<T> =!> {
-                                round_robin += 1;
-                                round_robin %= workers.elems().len();
+
                                 decoder.register_version(block.spec, &block.meta);
-                                 let _ = ctx.ask(&workers.elems()[round_robin].addr(), block.clone())
+                                let _ = sched.next(&ctx, &workers, block.clone())
                                     .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
 
                                 let extrinsics: Vec<Extrinsic<T>> = (&block).into();
-                                round_robin += 1;
-                                round_robin %= workers.elems().len();
-                                let answer = ctx.ask(&workers.elems()[round_robin].addr(), (decoder.clone(), extrinsics))
+                                let answer = sched.next(&ctx, &workers, (decoder.clone(), extrinsics))
                                     .map_err(|e| log::error!("{:?}", e)).expect("Failed to send extrinsics to actor").await?;
                                 answer!(ctx, answer).expect("couldn't answer");
                              };
                              blocks: Vec<Block<T>> =!> {
-                                blocks.iter().for_each(|b| decoder.register_version(b.spec, &b.meta));
-                                round_robin += 1;
-                                round_robin %= workers.elems().len();
-                                let answer = ctx.ask(&workers.elems()[round_robin].addr(), blocks)
-                                            .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
+                                 blocks.iter().for_each(|b| decoder.register_version(b.spec, &b.meta));
+
+                                 let answer = sched.next(&ctx, &workers, blocks)
+                                     .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
                                 answer!(ctx, answer).expect("couldn't answer");
                                 
                             };
@@ -132,9 +129,9 @@ pub fn decode_storage() {
 }
 
 pub fn decode_events() {
-    unimplemented!() 
+    unimplemented!()
 }
 
 pub fn decode_constants() {
-    unimplemented!() 
+    unimplemented!()
 }

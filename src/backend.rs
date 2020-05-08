@@ -16,7 +16,6 @@
 
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
+mod client;
 mod database;
 mod util;
-mod client;
-

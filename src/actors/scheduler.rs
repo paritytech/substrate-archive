@@ -14,19 +14,38 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-mod archive;
-mod backend;
-// mod blocks_archive;
-mod error;
-// mod queries;
-mod actors;
-mod types;
-mod util;
-pub use archive::Archive;
-pub use error::Error;
-pub use types::Substrate;
+use bastion::prelude::*;
 
-pub mod rpc;
-pub use util::init_logger;
 
-pub use self::actors::init;
+pub enum Algorithm {
+    RoundRobin
+}
+
+pub struct Scheduler {
+    last_executed: usize,
+    alg: Algorithm,
+}
+
+
+impl Scheduler {
+
+    pub fn new(alg: Algorithm) -> Self {
+        Self {
+            last_executed: 0,
+            alg,
+        }
+    }
+
+    pub fn next<T>(&mut self, ctx: &BastionContext, workers: &ChildrenRef, data: T) -> Result<Answer, T>
+    where
+        T: Send + Sync + std::fmt::Debug + 'static,
+    {
+        match self.alg {
+            Algorithm::RoundRobin => {
+                self.last_executed += 1;
+                let next_executed = self.last_executed % workers.elems().len();
+                ctx.ask(&workers.elems()[next_executed].addr(), data)
+            }
+        }
+    }
+}

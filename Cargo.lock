@@ -783,54 +783,30 @@ dependencies = [
 [[package]]
 name = "desub-core"
 version = "0.0.1"
-source = "git+https://github.com/paritytech/desub#9be50a2e32ac1204b5134216c52916d26169dc4a"
 dependencies = [
  "derive_more",
  "env_logger 0.7.1",
  "failure",
  "frame-metadata 10.0.0",
- "frame-metadata 11.0.0-alpha.7",
+ "frame-metadata 11.0.0-dev",
  "frame-metadata 2.0.0",
  "log",
  "onig",
- "pallet-indices 2.0.0-alpha.7",
- "parity-scale-codec",
- "serde",
- "serde_json",
- "sp-core 2.0.0-alpha.7",
- "sp-runtime 2.0.0-alpha.7",
- "sp-version 2.0.0-alpha.7",
- "srml-metadata",
-]
-
-[[package]]
-name = "desub-core"
-version = "0.0.1"
-dependencies = [
- "derive_more",
- "env_logger 0.7.1",
- "failure",
- "frame-metadata 10.0.0",
- "frame-metadata 11.0.0-alpha.7",
- "frame-metadata 2.0.0",
- "log",
- "onig",
- "pallet-indices 2.0.0-dev",
+ "pallet-indices",
  "parity-scale-codec",
  "serde",
  "serde_json",
  "sp-core 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
- "sp-version 2.0.0-dev",
+ "sp-runtime",
+ "sp-version",
  "srml-metadata",
 ]
 
 [[package]]
 name = "desub-extras"
 version = "0.0.1"
-source = "git+https://github.com/paritytech/desub#9be50a2e32ac1204b5134216c52916d26169dc4a"
 dependencies = [
- "desub-core 0.0.1 (git+https://github.com/paritytech/desub)",
+ "desub-core",
  "env_logger 0.7.1",
  "failure",
  "log",
@@ -1137,18 +1113,6 @@ dependencies = [
 
 [[package]]
 name = "frame-metadata"
-version = "11.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4ed1031c3ab5fd338d4922380ecaa1784d96c4670b5e329838c1be9821f1596"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
-]
-
-[[package]]
-name = "frame-metadata"
 version = "11.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
@@ -1160,63 +1124,26 @@ dependencies = [
 
 [[package]]
 name = "frame-support"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdd5a22a0c3e66a82b4ca1965e21373d3e0d29266313130d04a5045906c81dc4"
-dependencies = [
- "bitmask",
- "frame-metadata 11.0.0-alpha.7",
- "frame-support-procedural 2.0.0-alpha.7",
- "impl-trait-for-tuples",
- "log",
- "once_cell 1.3.1",
- "parity-scale-codec",
- "paste",
- "serde",
- "sp-arithmetic 2.0.0-alpha.7",
- "sp-core 2.0.0-alpha.7",
- "sp-inherents 2.0.0-alpha.7",
- "sp-io 2.0.0-alpha.7",
- "sp-runtime 2.0.0-alpha.7",
- "sp-state-machine 0.8.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
- "sp-tracing 2.0.0-alpha.7",
-]
-
-[[package]]
-name = "frame-support"
 version = "2.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
  "bitmask",
  "frame-metadata 11.0.0-dev",
- "frame-support-procedural 2.0.0-dev",
+ "frame-support-procedural",
  "impl-trait-for-tuples",
  "log",
  "once_cell 1.3.1",
  "parity-scale-codec",
  "paste",
  "serde",
- "sp-arithmetic 2.0.0-dev",
+ "sp-arithmetic",
  "sp-core 2.0.0-dev",
- "sp-inherents 2.0.0-dev",
- "sp-io 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
- "sp-state-machine 0.8.0-dev",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
  "sp-std 2.0.0-dev",
- "sp-tracing 2.0.0-dev",
-]
-
-[[package]]
-name = "frame-support-procedural"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a6b4279196725ff56647d12a285328a79685a7d05be6c507f55a11e00f492c0"
-dependencies = [
- "frame-support-procedural-tools 2.0.0-alpha.7",
- "proc-macro2 1.0.12",
- "quote 1.0.4",
- "syn 1.0.18",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -1224,20 +1151,7 @@ name = "frame-support-procedural"
 version = "2.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
- "frame-support-procedural-tools 2.0.0-dev",
- "proc-macro2 1.0.12",
- "quote 1.0.4",
- "syn 1.0.18",
-]
-
-[[package]]
-name = "frame-support-procedural-tools"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9135714a5cd9e01b9839c16433d5f075706ef87f8f2fc412944ff826fc8ccd1"
-dependencies = [
- "frame-support-procedural-tools-derive 2.0.0-alpha.7",
- "proc-macro-crate",
+ "frame-support-procedural-tools",
  "proc-macro2 1.0.12",
  "quote 1.0.4",
  "syn 1.0.18",
@@ -1248,19 +1162,8 @@ name = "frame-support-procedural-tools"
 version = "2.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
- "frame-support-procedural-tools-derive 2.0.0-dev",
+ "frame-support-procedural-tools-derive",
  "proc-macro-crate",
- "proc-macro2 1.0.12",
- "quote 1.0.4",
- "syn 1.0.18",
-]
-
-[[package]]
-name = "frame-support-procedural-tools-derive"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab73d20fca63196489400b98b71aa96a8709968d83dc26e7c99aa135ba1eaf4f"
-dependencies = [
  "proc-macro2 1.0.12",
  "quote 1.0.4",
  "syn 1.0.18",
@@ -1278,35 +1181,18 @@ dependencies = [
 
 [[package]]
 name = "frame-system"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb202b187ce580c0414d9c7608478377bd2fe90bb15a5777e8c6b746d4c9519a"
-dependencies = [
- "frame-support 2.0.0-alpha.7",
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "serde",
- "sp-core 2.0.0-alpha.7",
- "sp-io 2.0.0-alpha.7",
- "sp-runtime 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
- "sp-version 2.0.0-alpha.7",
-]
-
-[[package]]
-name = "frame-system"
 version = "2.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
- "frame-support 2.0.0-dev",
+ "frame-support",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
  "sp-core 2.0.0-dev",
- "sp-io 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
+ "sp-io",
+ "sp-runtime",
  "sp-std 2.0.0-dev",
- "sp-version 2.0.0-dev",
+ "sp-version",
 ]
 
 [[package]]
@@ -3064,34 +2950,17 @@ dependencies = [
 
 [[package]]
 name = "pallet-indices"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6941e40c29068970666b5737cc274d1a05ba9cabdb5b02059f585c69c4f96b4c"
-dependencies = [
- "frame-support 2.0.0-alpha.7",
- "frame-system 2.0.0-alpha.7",
- "parity-scale-codec",
- "serde",
- "sp-core 2.0.0-alpha.7",
- "sp-io 2.0.0-alpha.7",
- "sp-keyring 2.0.0-alpha.7",
- "sp-runtime 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
-]
-
-[[package]]
-name = "pallet-indices"
 version = "2.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
- "frame-support 2.0.0-dev",
- "frame-system 2.0.0-dev",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
  "sp-core 2.0.0-dev",
- "sp-io 2.0.0-dev",
- "sp-keyring 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
+ "sp-io",
+ "sp-keyring",
+ "sp-runtime",
  "sp-std 2.0.0-dev",
 ]
 
@@ -4044,8 +3913,8 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-core 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
- "sp-state-machine 0.8.0-dev",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -4061,7 +3930,7 @@ dependencies = [
  "serde_json",
  "sp-chain-spec",
  "sp-core 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -4098,16 +3967,16 @@ dependencies = [
  "sp-core 2.0.0-dev",
  "sp-database",
  "sp-externalities 0.8.0-dev",
- "sp-inherents 2.0.0-dev",
- "sp-keyring 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
- "sp-state-machine 0.8.0-dev",
+ "sp-inherents",
+ "sp-keyring",
+ "sp-runtime",
+ "sp-state-machine",
  "sp-std 2.0.0-dev",
  "sp-storage 2.0.0-dev",
  "sp-transaction-pool",
- "sp-trie 2.0.0-dev",
+ "sp-trie",
  "sp-utils",
- "sp-version 2.0.0-dev",
+ "sp-version",
  "substrate-prometheus-endpoint",
 ]
 
@@ -4134,9 +4003,9 @@ dependencies = [
  "sp-consensus",
  "sp-core 2.0.0-dev",
  "sp-database",
- "sp-runtime 2.0.0-dev",
- "sp-state-machine 0.8.0-dev",
- "sp-trie 2.0.0-dev",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
  "substrate-prometheus-endpoint",
 ]
 
@@ -4157,12 +4026,12 @@ dependencies = [
  "sp-api",
  "sp-core 2.0.0-dev",
  "sp-externalities 0.8.0-dev",
- "sp-io 2.0.0-dev",
- "sp-panic-handler 2.0.0-dev",
+ "sp-io",
+ "sp-panic-handler",
  "sp-runtime-interface 2.0.0-dev",
  "sp-serializer",
- "sp-trie 2.0.0-dev",
- "sp-version 2.0.0-dev",
+ "sp-trie",
+ "sp-version",
  "sp-wasm-interface 2.0.0-dev",
  "wasmi 0.6.2",
 ]
@@ -4209,7 +4078,7 @@ dependencies = [
  "parking_lot 0.10.2",
  "rand 0.7.3",
  "serde_json",
- "sp-application-crypto 2.0.0-dev",
+ "sp-application-crypto",
  "sp-core 2.0.0-dev",
  "subtle 2.2.2",
 ]
@@ -4251,11 +4120,11 @@ dependencies = [
  "slog",
  "slog_derive",
  "smallvec 0.6.13",
- "sp-arithmetic 2.0.0-dev",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
  "sp-core 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
  "sp-utils",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -4287,7 +4156,7 @@ dependencies = [
  "sp-api",
  "sp-core 2.0.0-dev",
  "sp-offchain",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
  "sp-utils",
  "threadpool",
 ]
@@ -4329,12 +4198,12 @@ dependencies = [
  "sp-core 2.0.0-dev",
  "sp-offchain",
  "sp-rpc",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
  "sp-session",
- "sp-state-machine 0.8.0-dev",
+ "sp-state-machine",
  "sp-transaction-pool",
  "sp-utils",
- "sp-version 2.0.0-dev",
+ "sp-version",
 ]
 
 [[package]]
@@ -4356,9 +4225,9 @@ dependencies = [
  "sp-chain-spec",
  "sp-core 2.0.0-dev",
  "sp-rpc",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
  "sp-transaction-pool",
- "sp-version 2.0.0-dev",
+ "sp-version",
 ]
 
 [[package]]
@@ -4373,7 +4242,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -4414,20 +4283,20 @@ dependencies = [
  "serde_json",
  "slog",
  "sp-api",
- "sp-application-crypto 2.0.0-dev",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-core 2.0.0-dev",
  "sp-externalities 0.8.0-dev",
- "sp-io 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
+ "sp-io",
+ "sp-runtime",
  "sp-session",
- "sp-state-machine 0.8.0-dev",
+ "sp-state-machine",
  "sp-transaction-pool",
- "sp-trie 2.0.0-dev",
+ "sp-trie",
  "sp-utils",
- "sp-version 2.0.0-dev",
+ "sp-version",
  "substrate-prometheus-endpoint",
  "sysinfo",
  "tracing",
@@ -4499,7 +4368,7 @@ dependencies = [
  "serde",
  "sp-blockchain",
  "sp-core 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
  "sp-transaction-pool",
  "sp-utils",
  "wasm-timer",
@@ -4523,8 +4392,8 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-core 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
- "sp-tracing 2.0.0-dev",
+ "sp-runtime",
+ "sp-tracing",
  "sp-transaction-pool",
  "sp-utils",
  "substrate-prometheus-endpoint",
@@ -4847,10 +4716,10 @@ dependencies = [
  "parity-scale-codec",
  "sp-api-proc-macro",
  "sp-core 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
- "sp-state-machine 0.8.0-dev",
+ "sp-runtime",
+ "sp-state-machine",
  "sp-std 2.0.0-dev",
- "sp-version 2.0.0-dev",
+ "sp-version",
 ]
 
 [[package]]
@@ -4867,42 +4736,14 @@ dependencies = [
 
 [[package]]
 name = "sp-application-crypto"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2997e5072ef4fa6ac54658b0e79149095ececd89e3bd693f8fed90ad69862e8"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core 2.0.0-alpha.7",
- "sp-io 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
-]
-
-[[package]]
-name = "sp-application-crypto"
 version = "2.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-core 2.0.0-dev",
- "sp-io 2.0.0-dev",
+ "sp-io",
  "sp-std 2.0.0-dev",
-]
-
-[[package]]
-name = "sp-arithmetic"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35ee0e06a6d46a3d6fb8706dfa2ca593b60a06c248fbd5173ab56070c209612e"
-dependencies = [
- "integer-sqrt",
- "num-traits 0.2.11",
- "parity-scale-codec",
- "primitive-types 0.7.2",
- "serde",
- "sp-debug-derive 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
 ]
 
 [[package]]
@@ -4926,8 +4767,8 @@ source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc18
 dependencies = [
  "parity-scale-codec",
  "sp-api",
- "sp-inherents 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
+ "sp-inherents",
+ "sp-runtime",
  "sp-std 2.0.0-dev",
 ]
 
@@ -4943,8 +4784,8 @@ dependencies = [
  "parking_lot 0.10.2",
  "sp-block-builder",
  "sp-consensus",
- "sp-runtime 2.0.0-dev",
- "sp-state-machine 0.8.0-dev",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -4970,54 +4811,12 @@ dependencies = [
  "parking_lot 0.10.2",
  "serde",
  "sp-core 2.0.0-dev",
- "sp-inherents 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
- "sp-state-machine 0.8.0-dev",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
  "sp-std 2.0.0-dev",
  "sp-utils",
- "sp-version 2.0.0-dev",
-]
-
-[[package]]
-name = "sp-core"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4d4e7309949c9ce65a0347b20bbc89cc09efee55b1918c3253392286dab0df9"
-dependencies = [
- "base58",
- "blake2-rfc",
- "byteorder",
- "ed25519-dalek 1.0.0-pre.3",
- "futures 0.3.4",
- "hash-db",
- "hash256-std-hasher",
- "hex 0.4.2",
- "impl-serde 0.3.1",
- "lazy_static",
- "libsecp256k1",
- "log",
- "merlin 2.0.0",
- "num-traits 0.2.11",
- "parity-scale-codec",
- "parity-util-mem",
- "parking_lot 0.10.2",
- "primitive-types 0.7.2",
- "rand 0.7.3",
- "regex",
- "schnorrkel 0.9.1",
- "serde",
- "sha2",
- "sp-debug-derive 2.0.0-alpha.7",
- "sp-externalities 0.8.0-alpha.7",
- "sp-runtime-interface 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
- "sp-storage 2.0.0-alpha.7",
- "substrate-bip39 0.4.1",
- "tiny-bip39 0.7.3",
- "tiny-keccak",
- "twox-hash",
- "wasmi 0.6.2",
- "zeroize 1.1.0",
+ "sp-version",
 ]
 
 [[package]]
@@ -5111,17 +4910,6 @@ dependencies = [
 
 [[package]]
 name = "sp-debug-derive"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2c4cb00ba7694df96793cf024418e6a75d5f224716460961b5c9dbfa621c0e8"
-dependencies = [
- "proc-macro2 1.0.12",
- "quote 1.0.4",
- "syn 1.0.18",
-]
-
-[[package]]
-name = "sp-debug-derive"
 version = "2.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
@@ -5138,18 +4926,6 @@ dependencies = [
  "proc-macro2 1.0.12",
  "quote 1.0.4",
  "syn 1.0.18",
-]
-
-[[package]]
-name = "sp-externalities"
-version = "0.8.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93a826d5f8f0085804f5e7174885958611955a904ff184ae0ad289d6b83d8a3e"
-dependencies = [
- "environmental",
- "parity-scale-codec",
- "sp-std 2.0.0-alpha.7",
- "sp-storage 2.0.0-alpha.7",
 ]
 
 [[package]]
@@ -5175,19 +4951,6 @@ dependencies = [
 
 [[package]]
 name = "sp-inherents"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8367b0e285f8c3ab00400a5f5b53ff0dba263005d2458fdc3e9652f824205f0b"
-dependencies = [
- "derive_more",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "sp-core 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
-]
-
-[[package]]
-name = "sp-inherents"
 version = "2.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
@@ -5196,27 +4959,6 @@ dependencies = [
  "parking_lot 0.10.2",
  "sp-core 2.0.0-dev",
  "sp-std 2.0.0-dev",
-]
-
-[[package]]
-name = "sp-io"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ede88516c08b2070ad2b49f5e4ebff896910b11c0a63184eb5c20b0b604b8655"
-dependencies = [
- "futures 0.3.4",
- "hash-db",
- "libsecp256k1",
- "log",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "sp-core 2.0.0-alpha.7",
- "sp-externalities 0.8.0-alpha.7",
- "sp-runtime-interface 2.0.0-alpha.7",
- "sp-state-machine 0.8.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
- "sp-trie 2.0.0-alpha.7",
- "sp-wasm-interface 2.0.0-alpha.7",
 ]
 
 [[package]]
@@ -5233,22 +4975,10 @@ dependencies = [
  "sp-core 2.0.0-dev",
  "sp-externalities 0.8.0-dev",
  "sp-runtime-interface 2.0.0-dev",
- "sp-state-machine 0.8.0-dev",
+ "sp-state-machine",
  "sp-std 2.0.0-dev",
- "sp-trie 2.0.0-dev",
+ "sp-trie",
  "sp-wasm-interface 2.0.0-dev",
-]
-
-[[package]]
-name = "sp-keyring"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "509e39a8b8c8c6532fcbea3140e3f92ec6712ee028bdc968f4ccb90181205c24"
-dependencies = [
- "lazy_static",
- "sp-core 2.0.0-alpha.7",
- "sp-runtime 2.0.0-alpha.7",
- "strum",
 ]
 
 [[package]]
@@ -5258,7 +4988,7 @@ source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc18
 dependencies = [
  "lazy_static",
  "sp-core 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
  "strum",
 ]
 
@@ -5269,17 +4999,7 @@ source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc18
 dependencies = [
  "sp-api",
  "sp-core 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
-]
-
-[[package]]
-name = "sp-panic-handler"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acec634cd613519673edad420f56d5bbd087da9923c05aa66708882ee9676d20"
-dependencies = [
- "backtrace",
- "log",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -5302,28 +5022,6 @@ dependencies = [
 
 [[package]]
 name = "sp-runtime"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d37f6a2e111dd82dd194fa9ef77ba49b17e70162afc237f99e7c5dc6f95834f"
-dependencies = [
- "hash256-std-hasher",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "parity-util-mem",
- "paste",
- "rand 0.7.3",
- "serde",
- "sp-application-crypto 2.0.0-alpha.7",
- "sp-arithmetic 2.0.0-alpha.7",
- "sp-core 2.0.0-alpha.7",
- "sp-inherents 2.0.0-alpha.7",
- "sp-io 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
-]
-
-[[package]]
-name = "sp-runtime"
 version = "2.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
@@ -5335,28 +5033,12 @@ dependencies = [
  "paste",
  "rand 0.7.3",
  "serde",
- "sp-application-crypto 2.0.0-dev",
- "sp-arithmetic 2.0.0-dev",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-core 2.0.0-dev",
- "sp-inherents 2.0.0-dev",
- "sp-io 2.0.0-dev",
+ "sp-inherents",
+ "sp-io",
  "sp-std 2.0.0-dev",
-]
-
-[[package]]
-name = "sp-runtime-interface"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc743ea280556cbaf82203ec63ade39f4167402cb571aaf012c6c43f092ccf33"
-dependencies = [
- "parity-scale-codec",
- "primitive-types 0.7.2",
- "sp-externalities 0.8.0-alpha.7",
- "sp-runtime-interface-proc-macro 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
- "sp-tracing 2.0.0-alpha.7",
- "sp-wasm-interface 2.0.0-alpha.7",
- "static_assertions 1.1.0",
 ]
 
 [[package]]
@@ -5369,7 +5051,7 @@ dependencies = [
  "sp-externalities 0.8.0-dev",
  "sp-runtime-interface-proc-macro 2.0.0-dev",
  "sp-std 2.0.0-dev",
- "sp-tracing 2.0.0-dev",
+ "sp-tracing",
  "sp-wasm-interface 2.0.0-dev",
  "static_assertions 1.1.0",
 ]
@@ -5386,19 +5068,6 @@ dependencies = [
  "sp-std 2.0.0",
  "sp-wasm-interface 2.0.0",
  "static_assertions 1.1.0",
-]
-
-[[package]]
-name = "sp-runtime-interface-proc-macro"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be673dffcf1084e6a0da85712866afde7bbdefa152e9e3e5dbf4a04f1994a673"
-dependencies = [
- "Inflector",
- "proc-macro-crate",
- "proc-macro2 1.0.12",
- "quote 1.0.4",
- "syn 1.0.18",
 ]
 
 [[package]]
@@ -5441,28 +5110,8 @@ source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc18
 dependencies = [
  "sp-api",
  "sp-core 2.0.0-dev",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
  "sp-std 2.0.0-dev",
-]
-
-[[package]]
-name = "sp-state-machine"
-version = "0.8.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd342d0b85891ea0e69c34483651df4e05420989b6fa74eb1982994118482985"
-dependencies = [
- "hash-db",
- "log",
- "num-traits 0.2.11",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "rand 0.7.3",
- "sp-core 2.0.0-alpha.7",
- "sp-externalities 0.8.0-alpha.7",
- "sp-panic-handler 2.0.0-alpha.7",
- "sp-trie 2.0.0-alpha.7",
- "trie-db",
- "trie-root",
 ]
 
 [[package]]
@@ -5478,17 +5127,11 @@ dependencies = [
  "rand 0.7.3",
  "sp-core 2.0.0-dev",
  "sp-externalities 0.8.0-dev",
- "sp-panic-handler 2.0.0-dev",
- "sp-trie 2.0.0-dev",
+ "sp-panic-handler",
+ "sp-trie",
  "trie-db",
  "trie-root",
 ]
-
-[[package]]
-name = "sp-std"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e32241a20350ba20f445c73fec53b4c904559756b922ca2c3dda87ab2c1be9e"
 
 [[package]]
 name = "sp-std"
@@ -5499,19 +5142,6 @@ source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc18
 name = "sp-std"
 version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate/?rev=e931f9e5c2ae165658587f04d075c59a338061fb#e931f9e5c2ae165658587f04d075c59a338061fb"
-
-[[package]]
-name = "sp-storage"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "645dcf4a75d63a5494eabdc076d19a834c3cc46df65d84506fc40e67bd0bdd40"
-dependencies = [
- "impl-serde 0.2.3",
- "ref-cast",
- "serde",
- "sp-debug-derive 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
-]
 
 [[package]]
 name = "sp-storage"
@@ -5538,15 +5168,6 @@ dependencies = [
 
 [[package]]
 name = "sp-tracing"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11a4caabab12ba64d7e5d3ff6d2d5a698425227eb8c697f8b3dcac67813a192b"
-dependencies = [
- "tracing",
-]
-
-[[package]]
-name = "sp-tracing"
 version = "2.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
@@ -5564,23 +5185,8 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-api",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
  "sp-utils",
-]
-
-[[package]]
-name = "sp-trie"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1620f438771be44e7aee5445c348623c40bc32a15c875689ac9f2e3aecdc3aa3"
-dependencies = [
- "hash-db",
- "memory-db",
- "parity-scale-codec",
- "sp-core 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
- "trie-db",
- "trie-root",
 ]
 
 [[package]]
@@ -5610,39 +5216,14 @@ dependencies = [
 
 [[package]]
 name = "sp-version"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d032c1e5c3b484c0e88486a1a6e9bfb736cbe6cb68b074cf0436b2935d38372a"
-dependencies = [
- "impl-serde 0.2.3",
- "parity-scale-codec",
- "serde",
- "sp-runtime 2.0.0-alpha.7",
- "sp-std 2.0.0-alpha.7",
-]
-
-[[package]]
-name = "sp-version"
 version = "2.0.0-dev"
 source = "git+https://github.com/insipx/substrate?branch=insipx/update-kvdb#bc187c655f15d764bd28f746b891ce0be786af45"
 dependencies = [
  "impl-serde 0.2.3",
  "parity-scale-codec",
  "serde",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
  "sp-std 2.0.0-dev",
-]
-
-[[package]]
-name = "sp-wasm-interface"
-version = "2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0154beac23726c550f7fd68b9aad2fd97369221d5aa4b4e18d937e2eddc4246b"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "sp-std 2.0.0-alpha.7",
- "wasmi 0.6.2",
 ]
 
 [[package]]
@@ -5758,7 +5339,7 @@ dependencies = [
  "async-std",
  "bastion",
  "chrono",
- "desub-core 0.0.1",
+ "desub-core",
  "desub-extras",
  "dirs",
  "failure",
@@ -5782,8 +5363,8 @@ dependencies = [
  "sp-core 2.0.0-dev",
  "sp-database",
  "sp-rpc",
- "sp-runtime 2.0.0-dev",
- "sp-version 2.0.0-dev",
+ "sp-runtime",
+ "sp-version",
  "substrate-subxt",
  "tempdir",
 ]
@@ -5962,21 +5543,21 @@ name = "substrate-subxt"
 version = "0.6.0"
 dependencies = [
  "frame-metadata 11.0.0-dev",
- "frame-support 2.0.0-dev",
+ "frame-support",
  "futures 0.3.4",
  "hex 0.4.2",
  "jsonrpsee",
  "log",
  "num-traits 0.2.11",
- "pallet-indices 2.0.0-dev",
+ "pallet-indices",
  "parity-scale-codec",
  "serde",
  "serde_json",
  "sp-core 2.0.0-dev",
  "sp-rpc",
- "sp-runtime 2.0.0-dev",
+ "sp-runtime",
  "sp-transaction-pool",
- "sp-version 2.0.0-dev",
+ "sp-version",
  "thiserror",
  "url 2.1.1",
 ]

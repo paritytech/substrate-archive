@@ -17,17 +17,17 @@
 //! Custom Read-Only Database Instance using RocksDB Secondary features
 //! Will try catching up with primary database on every `get()`
 
-use sp_database::{Database as DatabaseTrait, ColumnId, Transaction, ChangeRef};
+use kvdb::{DBTransaction, DBValue, KeyValueDB};
 use kvdb_rocksdb::{Database, DatabaseConfig};
-use kvdb::{KeyValueDB, DBValue, DBTransaction};
 use parity_util_mem::MallocSizeOf;
+use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
 use std::io;
 
 pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
 
 #[derive(MallocSizeOf)]
 pub struct ReadOnlyDatabase {
-    inner: Database
+    inner: Database,
 }
 
 impl ReadOnlyDatabase {
@@ -40,7 +40,7 @@ impl ReadOnlyDatabase {
 //TODO: Remove panics with a warning that database has not been written to / is read-only
 /// Preliminary trait for ReadOnlyDatabase
 impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
-    fn commit(&self, transaction: Transaction<H> ) {
+    fn commit(&self, transaction: Transaction<H>) {
         panic!("Read only db")
     }
 
@@ -64,11 +64,11 @@ impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
     }
 
     // with_lookup -> default
-/*
-    fn store(&self, _hash: , _preimage: _) {
-        panic!("Read only db")
-    }
-*/
+    /*
+        fn store(&self, _hash: , _preimage: _) {
+            panic!("Read only db")
+        }
+    */
 }
 
 impl KeyValueDB for ReadOnlyDatabase {
@@ -89,7 +89,11 @@ impl KeyValueDB for ReadOnlyDatabase {
         Box::new(unboxed.into_iter())
     }
 
-    fn iter_with_prefix<'a>(&'a self, col: u32, prefix: &'a [u8]) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
+    fn iter_with_prefix<'a>(
+        &'a self,
+        col: u32,
+        prefix: &'a [u8],
+    ) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
         self.inner.iter_with_prefix(col, prefix)
     }
 

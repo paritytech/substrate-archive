@@ -18,75 +18,75 @@
 //! These aggregate data for child actors to work with
 //! they mostly wait on network IO
 
+use crate::{
+    rpc::Rpc,
+    types::{Block, Substrate, SubstrateBlock},
+};
 use bastion::prelude::*;
-use sp_runtime::{traits::{Header as _, Block as _}};
 use futures::future::join_all;
-use crate::{types::{Block, Substrate, SubstrateBlock}, rpc::Rpc};
+use sp_runtime::traits::{Block as _, Header as _};
+
+use super::scheduler::{Scheduler, Algorithm};
 
 const REDUNDANCY: usize = 5;
 
 /// instantiate all the block workers
-pub fn actor<T>(workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()> 
+pub fn actor<T>(decode_workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
-    
-    let metadata_workers = metadata::<T>(workers, url.clone())?;
+    let metadata_workers = metadata::<T>(decode_workers, url.clone())?;
     blocks::<T>(metadata_workers, url.clone())
 }
 
 /// Subscribe to new blocks via RPC
-fn blocks<T>(workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()> 
-where 
-    T: Substrate + Send + Sync 
+fn blocks<T>(meta_workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()>
+where
+    T: Substrate + Send + Sync,
 {
-    // actor which produces work in the form of collecting blocks 
+    // actor which produces work in the form of collecting blocks
     Bastion::children(|children| {
-        children
-            .with_exec(move |ctx: BastionContext| {
-                let workers = workers.clone(); 
-                let url: String = url.clone(); 
-               
-                // let backend = Backend::<NotSignedBlock<T>>::new(settings, 10).unwrap();
-                async move {
-                    let mut round_robin: usize = 0;
-                    let rpc = super::connect::<T>(url.as_str()).await;
-                    let mut subscription = rpc.subscribe_finalized_blocks().await.expect("Subscription failed");
-                    
-                    loop {
-                        log::info!("Awaiting next head...");
-                        let head = subscription.next().await;
-                        log::info!("Querying for Database Information!");
-                        // let chain = backend.blockchain();
-                        // let last = chain.last_finalized();
-                        // log::info!("Chain: {:?}", last);
-                        // let state = backend.state_at(BlockId::Hash(head.hash())).unwrap();
-                        //log::info!("STATE: {:?}", state);
-                        log::info!("Converting to block...");
-                        let block = rpc.block(Some(head.hash())).await.map_err(|e| log::error!("{:?}", e)).unwrap();
-                        log::info!("Received a new block!");
-                        
-                        if let Some(b) = block {
-                            log::trace!("{:?}", b);
-                            round_robin += 1;
-                            round_robin %= workers.elems().len();
-                            let _ = ctx.ask(&workers.elems()[round_robin].addr(), b)
-                                       /*.map_err(|e| log::error!("{:?}", e))*/.unwrap().await?;
-                        } else {
-                            log::warn!("Block does not exist!");
-                        }
-                        // TODO: need some kind of handler to break out of the loop
-                    } 
-                    Ok(())
+        children.with_exec(move |ctx: BastionContext| {
+            let meta_workers = meta_workers.clone();
+            let url: String = url.clone();
+
+            async move {
+                let mut sched = Scheduler::new(Algorithm::RoundRobin);
+                let rpc = super::connect::<T>(url.as_str()).await;
+                let mut subscription = rpc
+                    .subscribe_finalized_blocks()
+                    .await
+                    .expect("Subscription failed");
+
+                loop {
+                    log::info!("Awaiting next head...");
+                    let head = subscription.next().await;
+                    log::info!("Converting to block...");
+                    let block = rpc
+                        .block(Some(head.hash()))
+                        .await
+                        .map_err(|e| log::error!("{:?}", e))
+                        .unwrap();
+                    log::info!("Received a new block!");
+
+                    if let Some(b) = block {
+                        log::trace!("{:?}", b);
+                        let _ = sched.next(&ctx, &meta_workers, b).unwrap().await?;
+                    } else {
+                        log::warn!("Block does not exist!");
+                    }
+                    // TODO: need some kind of handler to break out of the loop
                 }
-            })
+                Ok(())
+            }
+        })
     })
 }
 
 /// fetches metadata about the block or blocks before passing on to decoding
-pub fn metadata<T>(workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()> 
+pub fn metadata<T>(workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     Bastion::children(|children| {
         children
@@ -95,20 +95,19 @@ where
                 let workers = workers.clone();
                 let url = url.clone();
                 async move {
-                    let mut round_robin: usize = 0;
+                    let mut sched = Scheduler::new(Algorithm::RoundRobin);
                     let rpc = Rpc::new(super::connect::<T>(url.as_str()).await);
                     
                     loop {
                         msg! {
                             ctx.recv().await?,
                             block: SubstrateBlock<T> =!> {
-                                round_robin += 1;
-                                round_robin %= workers.elems().len(); 
+
                                 let (ver, meta) = rpc.meta_and_version(Some(block.block.header().hash()).clone()).await.unwrap();
                                 let block = Block::<T>::new(block, meta, ver.spec_version);
-                                let _ = ctx.ask(&workers.elems()[round_robin].addr(), block).unwrap().await?;
-                                answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
                                 // send block and metadata to decode actors
+                                let _ = sched.next(&ctx, &workers, block).unwrap().await?;
+                                answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
                             };
                             blocks: Vec<SubstrateBlock<T>> =!> {
                                 let mut meta_futures = Vec::new();
@@ -145,7 +144,7 @@ where
                                     }
                                 }
 
-                                // ctx.ask(..)
+                                let _ = sched.next(&ctx, &workers, batch_items).unwrap().await?;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
                                 // send batch_items to decode actor
                             };
