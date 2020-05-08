@@ -17,14 +17,9 @@
 //! various utilities that make interfacing with substrate easier
 
 use sc_service::config::NetworkConfiguration;
-use sc_client_api::backend::Backend as _;
-use sp_state_machine::backend::Backend as _;
 use sp_database::Database as DatabaseTrait;
-use sc_client_db::{Backend, DatabaseSettings, DatabaseSettingsSrc, PruningMode};
 use sp_runtime::{
-    generic::{Block as BlockType, BlockId, Header},
-    traits::{BlakeTwo256, Block as BlockTrait},
-    OpaqueExtrinsic,
+    traits::{Block as BlockT},
 };
 use kvdb_rocksdb::DatabaseConfig;
 use std::sync::Arc;
@@ -37,7 +32,7 @@ const DB_HASH_LEN: usize = 32;
 pub type DbHash = [u8; DB_HASH_LEN];
 
 /// Open a database as read-only
-pub fn open_database<Block: BlockTrait>(path: &str, cache_size: usize) -> sp_blockchain::Result<Arc<dyn DatabaseTrait<DbHash>>> {
+pub fn open_database<Block: BlockT>(path: &str, cache_size: usize) -> sp_blockchain::Result<Arc<dyn DatabaseTrait<DbHash>>> {
     let mut db_config = DatabaseConfig {
         secondary: TempDir::new("").unwrap().path().to_str().map(|s| s.to_string()),
         ..DatabaseConfig::with_columns(NUM_COLUMNS)

@@ -887,12 +887,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
-name = "dotenv"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
-
-[[package]]
 name = "ed25519-dalek"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2046,15 +2040,6 @@ name = "itertools"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f56a2d0bc861f9165be4eb3442afd3c236d8a98afd426f65d92324ae1091a484"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
 dependencies = [
  "either",
 ]
@@ -3547,7 +3532,7 @@ checksum = "02b10678c913ecbd69350e8535c3aef91a8676c0773fc1d7b95cdd196d7f2f26"
 dependencies = [
  "bytes 0.5.4",
  "heck",
- "itertools 0.8.2",
+ "itertools",
  "log",
  "multimap",
  "petgraph",
@@ -3564,7 +3549,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "537aa19b95acde10a12fec4301466386f757403de4cd4e5b4fa78fb5ecb18f72"
 dependencies = [
  "anyhow",
- "itertools 0.8.2",
+ "itertools",
  "proc-macro2 1.0.12",
  "quote 1.0.4",
  "syn 1.0.18",
@@ -5776,11 +5761,9 @@ dependencies = [
  "desub-core 0.0.1",
  "desub-extras",
  "dirs",
- "dotenv",
  "failure",
  "fern",
  "futures 0.3.4",
- "itertools 0.9.0",
  "kvdb",
  "kvdb-rocksdb",
  "log",
@@ -5795,14 +5778,11 @@ dependencies = [
  "sc-transaction-graph",
  "serde",
  "serde_json",
- "sp-api",
- "sp-arithmetic 2.0.0-dev",
  "sp-blockchain",
  "sp-core 2.0.0-dev",
  "sp-database",
  "sp-rpc",
  "sp-runtime 2.0.0-dev",
- "sp-state-machine 0.8.0-dev",
  "sp-version 2.0.0-dev",
  "substrate-subxt",
  "tempdir",
