@@ -31,6 +31,7 @@ pub struct ReadOnlyDatabase {
 }
 
 impl ReadOnlyDatabase {
+    #[allow(dead_code)]
     pub fn open(config: &DatabaseConfig, path: &str) -> io::Result<Self> {
         let inner = Database::open(config, path)?;
         Ok(Self { inner })
@@ -40,11 +41,11 @@ impl ReadOnlyDatabase {
 //TODO: Remove panics with a warning that database has not been written to / is read-only
 /// Preliminary trait for ReadOnlyDatabase
 impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
-    fn commit(&self, transaction: Transaction<H>) {
+    fn commit(&self, _transaction: Transaction<H>) {
         panic!("Read only db")
     }
 
-    fn commit_ref<'a>(&self, transaction: &mut dyn Iterator<Item = ChangeRef<'a, H>>) {
+    fn commit_ref<'a>(&self, _transaction: &mut dyn Iterator<Item = ChangeRef<'a, H>>) {
         panic!("Read only db")
     }
 
@@ -55,7 +56,7 @@ impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
     }
     // with_get -> default is fine
 
-    fn remove(&self, col: ColumnId, key: &[u8]) {
+    fn remove(&self, _col: ColumnId, _key: &[u8]) {
         panic!("Read only db")
     }
 
@@ -77,10 +78,10 @@ impl KeyValueDB for ReadOnlyDatabase {
     }
 
     fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Option<Box<[u8]>> {
-        self.get_by_prefix(col, prefix)
+        self.inner.get_by_prefix(col, prefix)
     }
 
-    fn write(&self, transaction: DBTransaction) -> io::Result<()> {
+    fn write(&self, _transaction: DBTransaction) -> io::Result<()> {
         panic!("Read only database")
     }
 

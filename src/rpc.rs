@@ -19,18 +19,12 @@
 use desub::decoder::Metadata;
 use futures::{future::join, TryFutureExt};
 use runtime_version::RuntimeVersion;
-use sp_runtime::traits::{Block as _, Header as HeaderTrait};
 use substrate_rpc_primitives::number::NumberOrHex;
 use subxt::Client;
 
-use std::{
-    sync::Arc,
-    thread::{self, JoinHandle},
-};
-
 use crate::{
     error::Error as ArchiveError,
-    types::{BatchData, Data, Header, Storage, Substrate, SubstrateBlock},
+    types::{Substrate, SubstrateBlock},
 };
 
 /// Communicate with Substrate node via RPC
@@ -46,14 +40,6 @@ where
 {
     pub fn new(client: subxt::Client<T>) -> Self {
         Self { client }
-    }
-
-    /// Fetch a block by hash from Substrate RPC
-    pub(crate) async fn block(
-        &self,
-        hash: Option<T::Hash>,
-    ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
-        self.client.block(hash).await.map_err(Into::into)
     }
 
     pub(crate) async fn meta_and_version(

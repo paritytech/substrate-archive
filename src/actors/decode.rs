@@ -19,7 +19,6 @@
 //! These actors do not make any external connections to a Database or Network
 
 use crate::{
-    error::Error as ArchiveError,
     types::{Block, ChainInfo as _, Extrinsic, Substrate},
 };
 use bastion::prelude::*;
@@ -118,20 +117,4 @@ where
 
 pub fn process_block<T: Substrate + Send + Sync>(block: Block<T>) {
     println!("Got Block {}, version: {}", block.get_hash(), block.spec)
-}
-
-pub fn decode_extrinsics() {
-    unimplemented!()
-}
-
-pub fn decode_storage() {
-    unimplemented!()
-}
-
-pub fn decode_events() {
-    unimplemented!()
-}
-
-pub fn decode_constants() {
-    unimplemented!()
 }

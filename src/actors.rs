@@ -23,7 +23,7 @@ mod scheduler;
 
 use super::{
     error::Error as ArchiveError,
-    types::{BatchData, Data, Substrate},
+    types::Substrate,
 };
 use bastion::prelude::*;
 
@@ -75,13 +75,4 @@ async fn connect<T: Substrate + Send + Sync>(url: &str) -> subxt::Client<T> {
         .await
         .map_err(|e| log::error!("{:?}", e))
         .unwrap()
-}
-
-pub fn process_block<T: Substrate + Send + Sync>(data: Data<T>) {
-    println!("Got Data! {:?}", data);
-}
-
-#[allow(dead_code)]
-pub fn process_batch<T: Substrate + Send + Sync>(data: BatchData<T>) {
-    println!("Unused")
 }

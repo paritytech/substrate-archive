@@ -68,7 +68,7 @@ where
 {
     fn get_hash(&self) -> T::Hash {
         match self {
-            Data::Header(h) | Data::FinalizedHead(h) => *h.hash(),
+            Data::Header(h) | Data::FinalizedHead(h) => h.hash(),
             Data::Block(b) => b.inner.block.header.hash(),
             Data::Storage(s) => *s.hash(),
             Data::Event(e) => e.hash(),
@@ -102,8 +102,8 @@ impl<T: Substrate> Header<T> {
         &self.inner
     }
 
-    pub fn hash(&self) -> &T::Hash {
-        self.hash()
+    pub fn hash(&self) -> T::Hash {
+        self.inner.hash()
     }
 }
 

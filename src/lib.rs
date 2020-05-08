@@ -14,15 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-mod archive;
 mod backend;
-// mod blocks_archive;
 mod error;
 // mod queries;
 mod actors;
 mod types;
 mod util;
-pub use archive::Archive;
 pub use error::Error;
 pub use types::Substrate;
 
