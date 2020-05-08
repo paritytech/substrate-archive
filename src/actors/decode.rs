@@ -21,7 +21,7 @@
 
 use crate::{types::{Block, Substrate, Extrinsic, ChainInfo as _}, error::Error as ArchiveError};
 use desub::{
-    decoder::{Decoder, Metadata},
+    decoder::Decoder,
     TypeDetective
 };
 use bastion::prelude::*;

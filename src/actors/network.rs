@@ -19,13 +19,9 @@
 //! they mostly wait on network IO
 
 use bastion::prelude::*;
-use sp_runtime::{traits::{Header as _, Block as _}, generic::BlockId};
+use sp_runtime::{traits::{Header as _, Block as _}};
 use futures::future::join_all;
-use sc_client_db::{DatabaseSettings, DatabaseSettingsSrc, PruningMode, Backend};
-use sc_client_api::backend::Backend as _;
-use sp_blockchain::Backend as _;
-use std::path::PathBuf;
-use crate::{error::Error as ArchiveError, types::{Block, Substrate, SubstrateBlock, NotSignedBlock}, rpc::Rpc};
+use crate::{types::{Block, Substrate, SubstrateBlock}, rpc::Rpc};
 
 const REDUNDANCY: usize = 5;
 
@@ -37,9 +33,9 @@ where
     
     let metadata_workers = metadata::<T>(workers, url.clone())?;
     blocks::<T>(metadata_workers, url.clone())
-    // batch_blocks(metadata_workers, url.clone());
 }
 
+/// Subscribe to new blocks via RPC
 fn blocks<T>(workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()> 
 where 
     T: Substrate + Send + Sync 
@@ -81,56 +77,17 @@ where
                         }
                         // TODO: need some kind of handler to break out of the loop
                     } 
-                    Bastion::stop();
                     Ok(())
                 }
             })
     })
 }
 
-/// Fetches Batches of blocks
-/// based upon a database query
-pub fn batch_blocks() -> Result<ChildrenRef, ()> {
-    unimplemented!()
-}
-
-pub fn storage<T>(workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()>
-where
-    T: Substrate + Send + Sync
-{
-    Bastion::children(|children| {
-        children
-            .with_redundancy(REDUNDANCY)
-            .with_exec(move |ctx: BastionContext| {
-                let workers = workers.clone();                    
-                let url = url.clone();
-                async move {
-                    loop {
-                        msg! {
-                            ctx.recv().await?,
-                            block: Block<T> =!> {
-                                
-                                answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");    
-                            };
-                            blocks: Vec<Block<T>> =!> {
-                                
-                                answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
-                            };
-                            e:_ =>  log::warn!("Received unknown data {:?}", e);
-                        }
-                    }
-                }
-            })
-    })        
-}
-
-
 /// fetches metadata about the block or blocks before passing on to decoding
 pub fn metadata<T>(workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()> 
 where
     T: Substrate + Send + Sync
 {
-     
     Bastion::children(|children| {
         children
             .with_redundancy(REDUNDANCY)

@@ -16,14 +16,8 @@
 
 //! Wrapper RPC convenience functions
 
-use futures::{
-    channel::mpsc::{self, Sender, Receiver},
-    future::{join, join_all},
-    TryFutureExt, StreamExt, Stream,
-    executor::block_on,
-};
+use futures::{future::join, TryFutureExt};
 use sp_runtime::traits::{Block as _, Header as HeaderTrait};
-//use substrate_primitives::storage::StorageKey;
 use desub::decoder::Metadata;
 use runtime_version::RuntimeVersion;
 use substrate_rpc_primitives::number::NumberOrHex;
@@ -40,8 +34,6 @@ use crate::{
 #[derive(Clone)]
 pub struct Rpc<T: Substrate + Send + Sync> {
     client: Client<T>,
-    // keys: Vec<StorageKey>,
-    // properties: Properties,
 }
 
 /// Methods that return fetched value directly
@@ -61,19 +53,6 @@ where
         self.client.block(hash).await.map_err(Into::into)
     }
 
-    /// get the latest block
-    pub(crate) async fn latest_block(&self) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
-        self.client.block::<T::Hash>(None).await.map_err(Into::into)
-    }
-
-    /// get just the latest header
-    pub(crate) async fn latest_head(&self) -> Result<Option<T::Header>, ArchiveError> {
-        self.client
-            .header::<T::Hash>(None)
-            .await
-            .map_err(Into::into)
-    }
-
     pub(crate) async fn meta_and_version(&self, hash: Option<T::Hash>) -> Result<(RuntimeVersion, Metadata), ArchiveError> {
         let meta = self.client.raw_metadata(hash.as_ref())
                             .map_err(ArchiveError::from);
@@ -91,27 +70,6 @@ where
     ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
         let hash = self.client.block_hash(Some(number.into())).await?;
         self.client.block(hash).await.map_err(Into::into)
-    }
-
-    /// get a batch of blocks, with metadata and runtime version
-    pub async fn batch_block_from_number(
-        &self,
-        numbers: Vec<NumberOrHex<T::BlockNumber>>,
-    ) -> Result<Vec<SubstrateBlock<T>>, ArchiveError> {
-        let mut blocks = Vec::new();
-        for num in numbers.into_iter() {
-            let block = self.block_from_number(num);
-            blocks.push(block);
-        }
-
-        let blocks: Vec<_> = join_all(blocks)
-                .await
-                .into_iter()
-                .map(|b| b.transpose())
-                // ignore blocks that don't exist
-                .filter_map(|b| b)
-                .collect::<Result<Vec<_>, _>>()?;
-        Ok(blocks)
     }
 
     // pub async fn storage()

@@ -20,11 +20,8 @@ mod network;
 mod decode;
 mod database;
 
-use super::{types::{Data, BatchData, Substrate, NotSignedBlock}, error::Error as ArchiveError};
+use super::{types::{Data, BatchData, Substrate}, error::Error as ArchiveError};
 use bastion::prelude::*;
-use sc_client_api::backend::Backend as _;
-use sc_client_db::{DatabaseSettings, Backend, DatabaseSettingsSrc, PruningMode};
-use std::path::PathBuf;
 
 use desub::{decoder::Decoder, TypeDetective};
 
