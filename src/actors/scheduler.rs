@@ -16,9 +16,8 @@
 
 use bastion::prelude::*;
 
-
 pub enum Algorithm {
-    RoundRobin
+    RoundRobin,
 }
 
 pub struct Scheduler {
@@ -26,9 +25,7 @@ pub struct Scheduler {
     alg: Algorithm,
 }
 
-
 impl Scheduler {
-
     pub fn new(alg: Algorithm) -> Self {
         Self {
             last_executed: 0,
@@ -36,7 +33,12 @@ impl Scheduler {
         }
     }
 
-    pub fn next<T>(&mut self, ctx: &BastionContext, workers: &ChildrenRef, data: T) -> Result<Answer, T>
+    pub fn next<T>(
+        &mut self,
+        ctx: &BastionContext,
+        workers: &ChildrenRef,
+        data: T,
+    ) -> Result<Answer, T>
     where
         T: Send + Sync + std::fmt::Debug + 'static,
     {

@@ -26,7 +26,7 @@ use bastion::prelude::*;
 use futures::future::join_all;
 use sp_runtime::traits::{Block as _, Header as _};
 
-use super::scheduler::{Scheduler, Algorithm};
+use super::scheduler::{Algorithm, Scheduler};
 
 const REDUNDANCY: usize = 5;
 
@@ -98,7 +98,6 @@ where
                 async move {
                     let mut sched = Scheduler::new(Algorithm::RoundRobin);
                     let rpc = Rpc::new(super::connect::<T>(url.as_str()).await);
-                    
                     loop {
                         msg! {
                             ctx.recv().await?,

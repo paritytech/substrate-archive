@@ -14,24 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use bastion::prelude::*;
 use crate::types::Substrate;
+use bastion::prelude::*;
 
 pub const REDUNDANCY: usize = 5;
 
 pub fn actor<T>(extractors: ChildrenRef) -> Result<ChildrenRef, ()>
 where
-    T: Substrate
+    T: Substrate,
 {
-
     Bastion::children(|children: Children| {
-        children.with_redundancy(REDUNDANCY)
-                .with_exec(move |ctx: BastionContext| {
-                    async move {
-                        // extract
-                        // insert into database (sqlx)
-                        unimplemented!();
-                    }
-                })
+        children
+            .with_redundancy(REDUNDANCY)
+            .with_exec(move |ctx: BastionContext| {
+                async move {
+                    // extract
+                    // insert into database (sqlx)
+                    unimplemented!();
+                }
+            })
     })
 }

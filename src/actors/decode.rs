@@ -22,7 +22,7 @@ use crate::types::{Block, ChainInfo as _, Extrinsic, Substrate};
 use bastion::prelude::*;
 use desub::{decoder::Decoder, TypeDetective};
 
-use super::scheduler::{Scheduler, Algorithm};
+use super::scheduler::{Algorithm, Scheduler};
 
 const REDUNDANCY: usize = 64;
 
@@ -66,7 +66,7 @@ where
                         }
                     }
                 }
-            }) 
+            })
     }).expect("Could not start worker actor");
 
     // top-level actor
@@ -103,7 +103,6 @@ where
                                  let answer = sched.next(&ctx, &workers, blocks)
                                      .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
                                 answer!(ctx, answer).expect("couldn't answer");
-                                
                             };
                              e: _ => log::warn!("Received unknown data {:?}", e);
                         }

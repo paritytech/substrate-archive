@@ -17,15 +17,12 @@
 //! where the main actor framework is defined
 
 mod database;
+mod db_generators;
 mod decode;
 mod network;
 mod scheduler;
-mod db_generators;
 
-use super::{
-    error::Error as ArchiveError,
-    types::Substrate,
-};
+use super::{error::Error as ArchiveError, types::Substrate};
 use bastion::prelude::*;
 
 use desub::{decoder::Decoder, TypeDetective};
