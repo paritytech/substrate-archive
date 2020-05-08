@@ -18,9 +18,7 @@
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 
-use crate::{
-    types::{Block, ChainInfo as _, Extrinsic, Substrate},
-};
+use crate::types::{Block, ChainInfo as _, Extrinsic, Substrate};
 use bastion::prelude::*;
 use desub::{decoder::Decoder, TypeDetective};
 

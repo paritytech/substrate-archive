@@ -50,3 +50,4 @@ sc-chain-spec = { git = "https://github.com/insipx/substrate", branch = "insipx/
 
 [dev-dependencies]
 desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }

@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-mod backend;
+pub mod backend;
 mod error;
 // mod queries;
 mod actors;
 mod types;
 mod util;
 pub use error::Error;
-pub use types::Substrate;
+pub use types::{NotSignedBlock, Substrate};
 
 pub mod rpc;
 pub use util::init_logger;

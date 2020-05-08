@@ -14,11 +14,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::types::{ArchiveBackend, NotSignedBlock, Substrate};
-use sc_client_api::{
-    backend::{Backend as BackendT, StorageProvider},
-    client::BlockBackend,
-    execution_extensions::ExecutionStrategies,
-};
+use sc_client_api::{backend::Backend as BackendT, execution_extensions::ExecutionStrategies};
 use sc_executor::{NativeExecutionDispatch, WasmExecutionMethod};
 use sc_service::{
     config::{
@@ -26,33 +22,28 @@ use sc_service::{
         TaskType, TransactionPoolOptions,
     },
     error::Error as ServiceError,
-    GenericChainSpec, TracingReceiver,
+    ChainSpec, GenericChainSpec, TracingReceiver,
 };
 use sc_transaction_graph::base_pool::Limit;
-use sp_blockchain::HeaderBackend;
+
 use sp_runtime::traits::Block as BlockT;
 use std::{future::Future, path::PathBuf, pin::Pin, sync::Arc};
+
+use super::ChainAccess;
 
 // functions 'client' and 'internal client' are split purely to make it easier conceptualizing type
 // defs
 
 // create a macro `new_archive!` to simplify all these type constraints in the archive node library
-pub fn client<T: Substrate, G, E, RA, EX>(
+pub fn client<T: Substrate, RA, EX, S>(
     db_config: DatabaseConfig,
-    spec: PathBuf,
+    spec: S,
 ) -> Result<Arc<impl ChainAccess<NotSignedBlock<T>>>, ServiceError>
 where
-    G: serde::de::DeserializeOwned
-        + Send
-        + sp_runtime::BuildStorage
-        + serde::ser::Serialize
-        + 'static,
-    E: sc_chain_spec::Extension + Send + 'static,
+    S: ChainSpec + 'static,
     RA: Send + Sync + 'static,
     EX: NativeExecutionDispatch + 'static,
 {
-    let chain_spec =
-        GenericChainSpec::<G, E>::from_json_file(spec).map_err(|e| ServiceError::Other(e))?;
     let config = Configuration {
         impl_name: "substrate-archive",
         impl_version: env!("CARGO_PKG_VERSION"),
@@ -97,7 +88,7 @@ where
         tracing_receiver: TracingReceiver::Log,
         max_runtime_instances: 8,
         announce_block: false,
-        chain_spec: Box::new(chain_spec),
+        chain_spec: Box::new(spec),
     };
 
     Ok(internal_client::<
@@ -142,21 +133,4 @@ pub fn task_executor(
             }
         }
     })
-}
-
-/// Super trait defining what access the archive node needs to siphon data from running chains
-pub trait ChainAccess<Block>:
-    StorageProvider<Block, sc_client_db::Backend<Block>> + BlockBackend<Block> + HeaderBackend<Block>
-where
-    Block: BlockT,
-{
-}
-
-impl<T, Block> ChainAccess<Block> for T
-where
-    Block: BlockT,
-    T: StorageProvider<Block, sc_client_db::Backend<Block>>
-        + BlockBackend<Block>
-        + HeaderBackend<Block>,
-{
 }

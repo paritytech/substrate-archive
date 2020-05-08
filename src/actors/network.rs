@@ -40,6 +40,7 @@ where
 }
 
 /// Subscribe to new blocks via RPC
+/// this is a worker that never stops
 fn blocks<T>(meta_workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
@@ -130,6 +131,7 @@ where
                                         meta_futures.push(rpc.meta_and_version(Some(b.block.header().hash()).clone()))
                                     }
                                     let metadata = join_all(meta_futures).await.into_iter().collect::<Result<Vec<_>, _>>();
+
                                     // handle error directly
                                     let metadata = match metadata {
                                         Ok(v) => v,

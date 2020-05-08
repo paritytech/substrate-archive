@@ -20,6 +20,7 @@ mod database;
 mod decode;
 mod network;
 mod scheduler;
+mod db_generators;
 
 use super::{
     error::Error as ArchiveError,
