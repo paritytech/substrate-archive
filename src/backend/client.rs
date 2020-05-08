@@ -39,15 +39,21 @@ use crate::types::{NotSignedBlock, Substrate};
 // sc-client is in the process of being refactored and transitioned into sc-service
 // where a method 'new_client' will create a much 'slimmer' database-backed client
 // that won't require defining G and E, a chainspec, or pulling in a async-runtime (async-std in this case)
-pub fn client<T: Substrate, G, E>(db_config: DatabaseConfig, spec: PathBuf)
+pub fn client<T: Substrate, Run, Exec, Api, G, E>(db_config: DatabaseConfig, spec: PathBuf)
     -> Result<
-        Arc<impl ArchiveClient>,
+        Arc<impl ArchiveClient<NotSignedBlock<T>, Run>>,
         // impl ArchiveClient,
         ServiceError>
 where
     G: serde::de::DeserializeOwned + Send + sp_runtime::BuildStorage + serde::ser::Serialize + 'static,
     E: sc_chain_spec::Extension + Send + 'static,
-    {
+    Exec: NativeExecutionDispatch,
+    Run: ConstructRuntimeApi<NotSignedBlock<T>, Api>,
+    Api: CallApiAt<
+        NotSignedBlock<T>, 
+        Error=sp_blockchain::Error, 
+        StateBackend=<sc_client_db::Backend<NotSignedBlock<T>> as BackendT<NotSignedBlock<T>>>::State>,
+{
     // let native_execution = NativeExecutor::new(WasmExecutionMethod::Compiled, None, 2);
     // let call_executor = LocalCallExecutor::new(backend, native_execution, sp_core::tasks::executor());
 /*
@@ -112,6 +118,8 @@ where
         announce_block: false,
         chain_spec: Box::new(chain_spec),
     };
+
+    // T Block,  T Runtime Api (ConstructRuntimeApi), NativeExecutionDispatch
     Ok(Arc::new(sc_service::new_full_client(&config)?))
     // let builder = ServiceBuilder::new_light(config)?;
     // let client = builder.client().clone();
@@ -140,30 +148,30 @@ pub fn task_executor() -> Arc<dyn Fn(Pin<Box<dyn Future<Output =()> + Send>>, Ta
 /// Archive client abstraction, this super trait only pulls in functionality required for
 /// substrate-archive internals
 /// taken from polkadot::service::client
-pub trait ArchiveClient<Block, Runtime, Backend>:
-/*  BlockchainEvents<Block> */Sized + Send + Sync
+pub trait ArchiveClient<Block, Runtime>:
+    Sized + Send + Sync
     + ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
     + CallApiAt<
         Block,
         Error = sp_blockchain::Error,
-        StateBackend = Backend ::State
+        StateBackend = <sc_client_db::Backend<Block> as BackendT<Block>>::State
     >
     where
         Block: BlockT,
-        Backend: BackendT<Block>,
+        // Backend: BackendT<Block>,
         Runtime: ConstructRuntimeApi<Block, Self>
 {}
 
-impl<Block, Runtime, Backend, Client> ArchiveClient<Block, Runtime, Backend> for Client
+impl<Block, Runtime, Client> ArchiveClient<Block, Runtime> for Client
     where
         Block: BlockT,
         Runtime: ConstructRuntimeApi<Block, Self>,
-        Backend: BackendT<Block>,
+        // Backend: BackendT<Block>,
         Client: /* BlockchainEvents<Block> + */ ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
             + Sized + Send + Sync
             + CallApiAt<
                 Block,
                 Error = sp_blockchain::Error,
-                StateBackend = Backend ::State
+                StateBackend = <sc_client_db::Backend<Block> as BackendT<Block>>::State
             >
 {}
