@@ -22,8 +22,10 @@ mod decode;
 mod network;
 mod scheduler;
 
-use super::{error::Error as ArchiveError, types::Substrate};
+use super::{error::Error as ArchiveError, types::{Substrate, NotSignedBlock}, backend::ChainAccess};
+use std::{sync::Arc, env};
 use bastion::prelude::*;
+use sqlx::postgres::PgPool;
 
 use desub::{decoder::Decoder, TypeDetective};
 
@@ -31,19 +33,27 @@ use desub::{decoder::Decoder, TypeDetective};
 
 /// initialize substrate archive
 /// if a child actor panics or errors, it is up to the supervisor to handle it
-pub fn init<T, P>(decoder: Decoder<P>, url: String) -> Result<(), ArchiveError>
+pub fn init<T, P, C>(decoder: Decoder<P>, client: Arc<C>, url: String) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     P: TypeDetective + Send + Sync + 'static,
+    C: ChainAccess<NotSignedBlock> + 'static
 {
     Bastion::init();
 
+    /// TODO: could be initialized asyncronously somewhere
+    let pool = async_std::task::block_on(PgPool::builder()
+        .max_size(10)
+        .build(&env::var("DATABASE_URL")?))?;
+
+   
     // TODO use answers to handle errors in the supervisor
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
     let decode_workers =
         self::decode::actor::<T, P>(decoder).expect("Couldn't start decode children");
     self::network::actor::<T>(decode_workers.clone(), url).expect("Couldn't add blocks child");
+    self::db_generators::actor::<T, _>(client, pool).expect("Couldn't start db work generators");
 
     // generate work
     // seperates blocks into different datatypes

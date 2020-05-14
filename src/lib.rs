@@ -14,9 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+#![allow(warnings)]
+#![forbid(unsafe_code)]
+
 pub mod backend;
 mod error;
-// mod queries;
+mod queries;
 mod actors;
 mod types;
 mod util;

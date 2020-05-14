@@ -19,30 +19,37 @@
 //! Gathers Missing blocks -> passes to metadata -> passes to extractors -> passes to decode -> passes to insert
 
 use crate::{
+    queries,
     backend::ChainAccess,
     types::{NotSignedBlock, Substrate},
 };
+use sqlx::{PgConnection};
 use async_std::prelude::*;
-use async_std::stream;
 use bastion::prelude::*;
+use async_std::stream;
 use sc_client_api::client::BlockBackend as _;
 use sp_runtime::generic::BlockId;
 use std::{sync::Arc, time::Duration};
 
-pub fn actor<T>(client: Arc<impl ChainAccess<NotSignedBlock> + 'static>) -> Result<ChildrenRef, ()>
+pub fn actor<T, C>(client: Arc<C>, pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
 where
     T: Substrate,
+    C: ChainAccess<NotSignedBlock> + 'static
 {
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
-            let mut interval = stream::interval(Duration::from_secs(20));
+            let mut interval = stream::interval(Duration::from_secs(60));
             let client = client.clone();
             /// query for missing blocks
+            let pool = pool.clone();
             async move {
                 while let Some(_) = interval.next().await {
-                    let block = client.block(&BlockId::Number(5));
-                    println!("Got the fifth block: {:?}", block);
+                    let mut cursor = queries::missing_blocks(None, &pool).await;
+                    while let Some(block) = cursor.next().await {
+                        let b = client.block(&BlockId::Number(block.unwrap().block_num));
+                        println!("Got Block {:?}", b);
+                    }
                 }
                 Ok(())
             }

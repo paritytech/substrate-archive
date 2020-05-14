@@ -10,7 +10,6 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -24,6 +23,7 @@ use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
 use std::sync::PoisonError;
+use sqlx::Error as SqlError;
 use subxt::Error as SubxtError;
 
 #[derive(Debug, Fail)]
@@ -48,6 +48,9 @@ pub enum Error {
     Desub(#[fail(cause)] DesubError),
     #[fail(display = "Rpc Comms {}", _0)]
     Subxt(#[fail(cause)] SubxtError),
+    #[fail(display = "Sql {}", _0)]
+    Sql(#[fail(cause)] SqlError),
+
     #[fail(display = "Concurrency Error, Mutex Poisoned!")]
     Concurrency,
 
@@ -65,6 +68,12 @@ pub enum Error {
     General(String),
     // #[fail(display = "Metadata {}", _0)]
     // Metadata(MetadataError),
+}
+
+impl From<SqlError> for Error {
+    fn from(err: SqlError) -> Error {
+        Error::Sql(err)
+    }
 }
 
 impl From<&str> for Error {

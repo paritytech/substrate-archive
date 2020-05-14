@@ -33,5 +33,5 @@ pub fn main() {
     let info = client.info();
     println!("{:?}", info);
 
-    init::<KusamaRuntime, PolkadotTypes>(decoder, "ws://127.0.0.1:9944".to_string()).unwrap();
+    init::<KusamaRuntime, PolkadotTypes, _>(decoder, client, "ws://127.0.0.1:9944".to_string()).unwrap();
 }

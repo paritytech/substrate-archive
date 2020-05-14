@@ -15,35 +15,36 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Common Sql queries on Archive Database abstracted into rust functions
-pub(crate) fn missing_blocks(latest: Option<u32>) -> diesel::query_builder::SqlQuery {
-    let query = if let Some(latest) = latest {
-        let q = format!(
-            "
-SELECT generate_series
-FROM generate_series('0'::bigint, '{}'::bigint)
-WHERE
-NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)",
-            latest
-        );
-        q
-    } else {
-        // take largest block from the db
-        "SELECT generate_series
-FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
-WHERE
-NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)"
-            .to_string()
-    };
 
-    diesel::sql_query(&query)
+use sqlx::{PgConnection, QueryAs as _, postgres::PgQueryAs as _, prelude::Cursor};
+use futures::{Stream, stream::{StreamExt, TryStreamExt}};
+use crate::error::Error as ArchiveError;
+
+#[derive(sqlx::FromRow)]
+pub struct Block {
+    pub block_num: u32
 }
 
-// Get the latest block in the database
-// this might not be up-to-date right as the node starts,
-// but will soon start collecting the latest heads
-#[allow(dead_code)]
-pub(crate) fn head() -> diesel::query_builder::SqlQuery {
-    unimplemented!()
+
+/// get missing blocks from relational database
+pub(crate) async fn missing_blocks(latest: Option<u32>, pool: &sqlx::Pool<PgConnection>)
+                                   -> impl Stream<Item = Result<Block, ArchiveError>> + '_
+{
+    if let Some(latest) = latest {
+        sqlx::query_as(
+           "SELECT generate_series
+            FROM generate_series('0'::bigint, '{}'::bigint)
+            WHERE
+            NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)"
+        ).fetch(pool).map_err(Into::into)
+    } else {
+        sqlx::query_as(
+           "SELECT generate_series
+            FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
+            WHERE
+            NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)"
+        ).fetch(pool).map_err(Into::into)
+    }
 }
 
 #[cfg(test)]
