@@ -19,7 +19,7 @@ use sc_executor::{NativeExecutionDispatch, WasmExecutionMethod};
 use sc_service::{
     config::{
         Configuration, DatabaseConfig, KeystoreConfig, OffchainWorkerConfig, PruningMode, Role,
-        TaskType, TransactionPoolOptions,
+        RpcMethods, TaskType, TransactionPoolOptions,
     },
     error::Error as ServiceError,
     ChainSpec, GenericChainSpec, TracingReceiver,
@@ -68,7 +68,7 @@ where
         pruning: PruningMode::ArchiveAll,
         wasm_method: WasmExecutionMethod::Interpreted,
         execution_strategies: ExecutionStrategies::default(),
-        unsafe_rpc_expose: false,
+        rpc_methods: RpcMethods::Auto,
         rpc_http: None,
         rpc_ws: None,
         rpc_ws_max_connections: None,
