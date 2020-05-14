@@ -13,14 +13,3 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
-
-use subxt::{balances::Balances, system::System};
-
-/// Consolidation of substrate traits representing fundamental types
-pub trait Substrate: System + Balances + Send + Sync {}
-
-impl<T> Substrate for T where T: System + Balances + Send + Sync {}
-
-pub trait ChainInfo<T: Substrate> {
-    fn get_hash(&self) -> T::Hash;
-}

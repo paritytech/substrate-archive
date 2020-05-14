@@ -17,17 +17,14 @@
 use codec::Error as CodecError;
 use failure::Fail;
 use futures::channel::mpsc::TrySendError;
-use jsonrpc_core_client::RpcError as JsonRpcError;
-use tokio::task::JoinError;
 // use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
-use crate::metadata::Error as MetadataError;
-use diesel::result::{ConnectionError, Error as DieselError};
-use r2d2::Error as R2d2Error;
+use desub::Error as DesubError;
 use serde_json::Error as SerdeError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
-use url::ParseError;
+use std::sync::PoisonError;
+use subxt::Error as SubxtError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -37,44 +34,54 @@ pub enum Error {
     TrySend(String),
     #[fail(display = "Task Join {}", _0)]
     Join(String),
-    #[fail(display = "RPC Error: {}", _0)]
-    Rpc(#[fail(cause)] JsonRpcError),
     #[fail(display = "Io: {}", _0)]
     Io(#[fail(cause)] IoError),
-    #[fail(display = "Parse: {}", _0)]
-    Parse(#[fail(cause)] ParseError),
-    #[fail(display = "Db: {}", _0)]
-    Db(#[fail(cause)] DieselError),
-    #[fail(display = "Db Connection: {}", _0)]
-    DbConnection(#[fail(cause)] ConnectionError),
     #[fail(display = "Environment: {}", _0)]
     Environment(#[fail(cause)] EnvironmentError),
     #[fail(display = "Codec: {:?}", _0)]
     Codec(#[fail(cause)] CodecError),
-    #[fail(display = "Db Pool {}", _0)]
-    DbPool(#[fail(cause)] R2d2Error),
     #[fail(display = "Int Conversion Error: {}", _0)]
     IntConversion(#[fail(cause)] TryFromIntError),
     #[fail(display = "Serialization: {}", _0)]
     Serialize(#[fail(cause)] SerdeError),
+    #[fail(display = "Desub {}", _0)]
+    Desub(#[fail(cause)] DesubError),
+    #[fail(display = "Rpc Comms {}", _0)]
+    Subxt(#[fail(cause)] SubxtError),
+    #[fail(display = "Concurrency Error, Mutex Poisoned!")]
+    Concurrency,
 
     #[fail(display = "Call type unhandled, not committing to database")]
     UnhandledCallType,
     // if trying to insert unsupported type into database
     // (as of this writing, anything other than a block or storage type)
-    #[fail(display = "Unhandled Data type, not committing to database")]
-    UnhandledDataType(String),
+    #[fail(display = "Unhandled or Unknown Data type, not committing to database")]
+    UnhandledDataType,
     #[fail(display = "{} not found, or does not exist", _0)]
     DataNotFound(String),
     #[fail(display = "{}", _0)]
     UnexpectedType(String),
-    #[fail(display = "Metadata {}", _0)]
-    Metadata(MetadataError),
+    #[fail(display = "Unexpected Error Occurred: {}", _0)]
+    General(String),
+    // #[fail(display = "Metadata {}", _0)]
+    // Metadata(MetadataError),
 }
 
-impl From<JoinError> for Error {
-    fn from(err: JoinError) -> Error {
-        Error::Join(err.to_string())
+impl From<&str> for Error {
+    fn from(err: &str) -> Error {
+        Error::General(err.to_string())
+    }
+}
+
+impl From<SubxtError> for Error {
+    fn from(err: SubxtError) -> Error {
+        Error::Subxt(err)
+    }
+}
+
+impl From<DesubError> for Error {
+    fn from(err: DesubError) -> Error {
+        Error::Desub(err)
     }
 }
 
@@ -84,21 +91,9 @@ impl From<SerdeError> for Error {
     }
 }
 
-impl From<MetadataError> for Error {
-    fn from(err: MetadataError) -> Error {
-        Error::Metadata(err)
-    }
-}
-
 impl From<TryFromIntError> for Error {
     fn from(err: TryFromIntError) -> Error {
         Error::IntConversion(err)
-    }
-}
-
-impl From<R2d2Error> for Error {
-    fn from(err: R2d2Error) -> Error {
-        Error::DbPool(err)
     }
 }
 
@@ -114,18 +109,6 @@ impl From<EnvironmentError> for Error {
     }
 }
 
-impl From<ConnectionError> for Error {
-    fn from(err: ConnectionError) -> Error {
-        Error::DbConnection(err)
-    }
-}
-
-impl From<DieselError> for Error {
-    fn from(err: DieselError) -> Error {
-        Error::Db(err)
-    }
-}
-
 impl From<IoError> for Error {
     fn from(err: IoError) -> Error {
         Error::Io(err)
@@ -138,14 +121,8 @@ impl<T> From<TrySendError<T>> for Error {
     }
 }
 
-impl From<JsonRpcError> for Error {
-    fn from(err: JsonRpcError) -> Error {
-        Error::Rpc(err)
-    }
-}
-
-impl From<ParseError> for Error {
-    fn from(err: ParseError) -> Error {
-        Error::Parse(err)
+impl<T> From<PoisonError<T>> for Error {
+    fn from(err: PoisonError<T>) -> Error {
+        Error::Concurrency
     }
 }

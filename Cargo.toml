@@ -1,75 +1,53 @@
 [package]
 name = "substrate-archive"
-version = "0.1.0"
+version = "0.2.0-alpha.1"
 authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
 edition = "2018"
 
 [lib]
 path = "src/lib.rs"
 
-[workspace]
-members = [
-	"polkadot-archive",
-]
-
 [dependencies]
+# external
 log = "0.4"
-futures01 = { version = "0.1" }
-futures = { version = "0.3.1", features = ["compat", "async-await"] }
-futures-util = "0.3.1"
-async-trait = "0.1.17"
-tokio = { version = "0.2.1", features = ["rt-core", "blocking"] }
+futures = { version = "0.3" }
 failure = "0.1"
 chrono = "0.4"
-primitive-types = "0.5"
-dotenv = "0.14"
-url = "1.7"
-serde = { version = "1.0.41", features = ["derive"] }
-serde_json = { version = "1.0.41", features = ["arbitrary_precision"] }
-r2d2 = "0.8"
-dirs = "2.0.2"
-derive_more = "0.15.0"
+primitive-types = "0.7"
+serde = { version = "1.0.105", features = ["derive"] }
+# enabling arbitrary_precision for serde_json may cause rpc requests to fail
+serde_json = "1.0.50"
+dirs = "2"
+fern = { version = "0.6", features = ["colored"] }
+bastion = "0.3.4"
+tempdir = "0.3.7"
+async-std = "1.5.0"
 
-fern = { version = "0.5", features = ["colored"] }
-diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }
-codec = { package = "parity-scale-codec", version = "1.0.0" }
-jsonrpc-core-client = { version = "14.0", features = ["ws", "arbitrary_precision"] }
-runtime-metadata = { git = "https://github.com/paritytech/substrate/", package = "frame-metadata", branch = "polkadot-master" }
-frame-system = { git = "https://github.com/paritytech/substrate/", package = "frame-system", branch="polkadot-master"}
-substrate-rpc-api = { git = "https://github.com/paritytech/substrate/", package = "sc-rpc-api", branch="polkadot-master"}
-substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", package = "sp-rpc", branch="polkadot-master"}
-substrate-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-core", branch="polkadot-master"}
-runtime-primitives = { git = "https://github.com/paritytech/substrate/", package = "sp-runtime", branch="polkadot-master"}
-runtime-support = { git = "https://github.com/paritytech/substrate/", package = "frame-support", branch="polkadot-master"}
-inherents = { git = "https://github.com/paritytech/substrate/", package = "sp-inherents", branch="polkadot-master"}
-websocket = { version = "0.24" }
+# Local
+desub = { path = "../desub/core/", package="desub-core" }
+subxt = { path = "../substrate-subxt", package = "substrate-subxt"}
 
-# pallet-assets = { git = "https://github.com/paritytech/substrate/", package = "pallet-assets", branch="polkadot-master"}
-pallet-nicks = {git = "https://github.com/paritytech/substrate/", package = "pallet-nicks", branch = "polkadot-master"}
-pallet-staking = {git = "https://github.com/paritytech/substrate/", package = "pallet-staking", branch = "polkadot-master"}
-pallet-grandpa = {git = "https://github.com/paritytech/substrate/", package = "pallet-grandpa", branch = "polkadot-master"}
-pallet-babe = {git = "https://github.com/paritytech/substrate/", package = "pallet-babe", branch = "polkadot-master"}
-pallet-democracy = {git = "https://github.com/paritytech/substrate/", package = "pallet-democracy", branch = "polkadot-master"}
-pallet-session = { git = "https://github.com/paritytech/substrate/", package = "pallet-session", branch = "polkadot-master"}
-pallet-aura = { git = "https://github.com/paritytech/substrate/", package = "pallet-aura", branch = "polkadot-master"}
-pallet-timestamp = { git = "https://github.com/paritytech/substrate/", package = "pallet-timestamp", branch = "polkadot-master"}
-pallet-finality-tracker = { git = "https://github.com/paritytech/substrate", package = "pallet-finality-tracker", branch = "polkadot-master"}
-pallet-sudo = { git = "https://github.com/paritytech/substrate", package = "pallet-sudo", branch = "polkadot-master"}
-pallet-im-online = { git = "https://github.com/paritytech/substrate", package = "pallet-im-online", branch = "polkadot-master"}
-pallet-treasury = { git = "https://github.com/paritytech/substrate", package = "pallet-treasury", branch = "polkadot-master"}
-pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", package = "pallet-elections-phragmen", branch = "polkadot-master"}
-pallet-elections = { git = "https://github.com/paritytech/substrate", package = "pallet-elections", branch = "polkadot-master"}
-pallet-balances = { git = "https://github.com/paritytech/substrate", package = "pallet-balances", branch = "polkadot-master"}
-pallet-collective = { git = "https://github.com/paritytech/substrate", package = "pallet-collective", branch = "polkadot-master"}
+# Parity
+kvdb = "0.6"
+kvdb-rocksdb = "0.8"
+parity-util-mem = "0.6.1"
+codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
 
-[patch.crates-io]
-jsonrpc-core-client = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn", features = ["ws", "arbitrary_precision"] }
-jsonrpc-client-transports = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn", features = ["ws", "arbitrary_precision"] }
-jsonrpc-core = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn", features = ["arbitrary_precision"] }
-jsonrpc-derive = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn" }
-jsonrpc-pubsub = { git = "https://github.com/insipx/jsonrpc", branch = "insipx/patch-tokio-spawn" }
-codec = { git = "https://github.com/insipx/parity-scale-codec", branch = "insipx/debugging", package = "parity-scale-codec" }
+# Substrate
+
+sp-database = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package="sp-database" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-service" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-client-db" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-runtime" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-client-api" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-blockchain" }
+substrate-rpc-primitives = {  git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-rpc" }
+sp-core = {  git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-core" }
+runtime-version = {  git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-version" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-executor" }
+sc-transaction-graph = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-transaction-graph" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-chain-spec" }
 
 [dev-dependencies]
-node-runtime = { git = "https://github.com/paritytech/substrate", package="node-runtime", branch="polkadot-master" }
-rand = "0.7"
+desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
+polkadot-service = { package = "polkadot-service", path = "../polkadot/service", default-features = false }

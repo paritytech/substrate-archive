@@ -53,10 +53,13 @@ table! {
         id -> Int4,
         block_num -> Int8,
         hash -> Bytea,
+        from_addr -> Jsonb,
         module -> Varchar,
         call -> Varchar,
         parameters -> Jsonb,
         tx_index -> Int4,
+        signature -> Jsonb,
+        extra -> Nullable<Jsonb>,
         transaction_version -> Int4,
     }
 }

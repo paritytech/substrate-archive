@@ -24,6 +24,9 @@ os_ver() {
 	    # Older Debian/Ubuntu/etc.
 	    OS=Debian
 	    VER=$(cat /etc/debian_version)
+	elif [ -f /etc/pop-os ]; then
+		OS=Debian
+		VER=$(cat /etc/pop-os/os-release)
 	elif [ -f /etc/SuSe-release ]; then
 	    # Older SuSE/etc.
 	    ...
@@ -45,6 +48,8 @@ install() {
 		sudo systemctl enable postgresql
 	elif [ $OS == "Ubuntu" ]; then
 		sudo apt-get install postgresql postgresql-contrib libpq-dev
+	elif [ $OS == "Debian" ]; then
+		sudo apt install postgresql postgresql-contrib libpq-dev
 	else 
 		printf "%s[ERROR] Distribution not supported. Install postgresql dependencies seperately.%s\n", "$red_color" "$color_end"
 	fi
@@ -55,7 +60,7 @@ install() {
 	printf "%s[WARNING] change the password of user 'archive'. Default password being used...%s\n" "$yellow_color" "$color_end"
 	printf "If you would rather configure the database yourself, all settings \n\
 	are stored in .env file in the root directory and init.sql\n\n"
-	cp init.sql /tmp/init.sql
+	cp ./init.sql /tmp/init.sql &&
 	while true; do
 	    read -p "Do you wish to proceed? [Y\\n] " yn
 	    case $yn in

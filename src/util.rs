@@ -13,9 +13,13 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
-use crate::extrinsics::RawExtrinsic;
+//! logging and general utilities
+
+use chrono::{DateTime, TimeZone, Utc};
+use desub::{decoder::GenericExtrinsic, SubstrateType};
 use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
+use std::convert::TryFrom;
 
 // panics if it fails because of anything other than the directory already exists
 pub fn create_dir(path: std::path::PathBuf) {
@@ -31,31 +35,27 @@ pub fn create_dir(path: std::path::PathBuf) {
     }
 }
 
-pub fn log_extrinsics(raw: &RawExtrinsic) -> String {
-    match &raw {
-        RawExtrinsic::Signed(ext) => {
-            let (module, call) = ext.call.extract_call();
-            let res = call.function();
-
-            let (fn_name, _params) = if res.is_err() {
-                ("Not Decoded".to_string(), serde_json::json!({}))
-            } else {
-                res.expect("checked for err; qed")
+/// tries to get timestamp inherent and convert it to UTC format
+/// if it exists within the extrinsics
+pub fn try_to_get_time(ext: &[GenericExtrinsic]) -> Option<DateTime<Utc>> {
+    // todo: the assumption here is that the timestamp is a u64
+    for e in ext.iter() {
+        if e.ext_module() == "Timestamp" && e.ext_call() == "set" {
+            let t = e.args().iter().find(|a| a.name == "now")?;
+            let t: i64 = match t.arg {
+                SubstrateType::U64(t) => {
+                    let t = i64::try_from(t).ok();
+                    if t.is_none() {
+                        log::warn!("Not a valid UNIX timestamp");
+                    }
+                    t?
+                }
+                _ => return None,
             };
-            format!("Decoded: {}:{}", module, fn_name)
-        }
-        RawExtrinsic::NotSigned(ext) => {
-            let (module, call) = ext.call.extract_call();
-            let res = call.function();
-
-            let (fn_name, _params) = if res.is_err() {
-                ("Not Decoded".to_string(), serde_json::json!({}))
-            } else {
-                res.expect("Checked for err; qed")
-            };
-            format!("Decoded: {}:{}", module, fn_name)
+            return Some(Utc.timestamp_millis(t));
         }
     }
+    None
 }
 
 pub fn init_logger(std: log::LevelFilter, file_lvl: log::LevelFilter) {
@@ -87,8 +87,8 @@ pub fn init_logger(std: log::LevelFilter, file_lvl: log::LevelFilter) {
             fern::Dispatch::new()
                 .level(log::LevelFilter::Info)
                 .level_for("substrate_archive", file_lvl)
-                // .level_for("cratename", log::LevelFilter::Trace)
-                // .level_for("crate_name", log::LevelFilter::Trace)
+                .level_for("desub_core", log::LevelFilter::Debug)
+                // .level_for("bastion", log:kgT:LevelFilter::Trace)
                 // .level_for("crate_name", log::LevelFilter::Trace)
                 .chain(
                     fern::log_file(log_dir).expect("Failed to create substrate_archive.logs file"),

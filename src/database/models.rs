@@ -89,7 +89,7 @@ pub struct InsertTransaction<'a> {
     // pub transaction_hash: &'a [u8],
     pub block_num: &'a i64,
     pub hash: &'a [u8],
-    // pub from_addr: &'a [u8],
+    pub from_addr: Value,
     // pub to_addr: Option<&'a [u8]>,
     pub module: &'a str,
     pub call: &'a str,
@@ -97,7 +97,8 @@ pub struct InsertTransaction<'a> {
     // pub success: &'a bool,
     // pub nonce: &'a i32,
     pub tx_index: &'a i32,
-    // pub signature: &'a [u8],
+    pub signature: Value,
+    pub extra: Option<Value>,
     pub transaction_version: &'a i32,
 }
 
@@ -107,7 +108,7 @@ pub struct InsertTransactionOwned {
     // pub transaction_hash: Vec<u8>,
     pub block_num: i64,
     pub hash: Vec<u8>,
-    // pub from_addr: Vec<u8>,
+    pub from_addr: Value,
     // pub to_addr: Option<Vec<u8>>,
     pub module: String,
     pub call: String,
@@ -115,7 +116,8 @@ pub struct InsertTransactionOwned {
     // pub success: bool,
     // pub nonce: i32,
     pub tx_index: i32,
-    // pub signature: Vec<u8>,
+    pub signature: Value,
+    pub extra: Option<Value>,
     pub transaction_version: i32,
 }
 
