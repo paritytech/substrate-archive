@@ -14,13 +14,30 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use subxt::{balances::Balances, system::System};
+//! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
-/// Consolidation of substrate traits representing fundamental types
-pub trait Substrate: System + Balances + Send + Sync {}
+mod client;
+mod database;
+mod util;
 
-impl<T> Substrate for T where T: System + Balances + Send + Sync {}
+pub use self::{client::client, util::open_database};
+use sc_client_api::{backend::StorageProvider, client::BlockBackend};
+use sp_blockchain::HeaderBackend;
+use sp_runtime::traits::Block as BlockT;
 
-pub trait ChainInfo<T: Substrate> {
-    fn get_hash(&self) -> T::Hash;
+/// Super trait defining what access the archive node needs to siphon data from running chains
+pub trait ChainAccess<Block>:
+    StorageProvider<Block, sc_client_db::Backend<Block>> + BlockBackend<Block> + HeaderBackend<Block>
+where
+    Block: BlockT,
+{
+}
+
+impl<T, Block> ChainAccess<Block> for T
+where
+    Block: BlockT,
+    T: StorageProvider<Block, sc_client_db::Backend<Block>>
+        + BlockBackend<Block>
+        + HeaderBackend<Block>,
+{
 }

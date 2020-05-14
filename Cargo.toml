@@ -1,6 +1,6 @@
 [package]
 name = "substrate-archive"
-version = "0.2.0-alpha"
+version = "0.2.0-alpha.1"
 authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
 edition = "2018"
 
@@ -8,32 +8,46 @@ edition = "2018"
 path = "src/lib.rs"
 
 [dependencies]
+# external
 log = "0.4"
 futures = { version = "0.3" }
-# async-trait = "0.1.26"
 failure = "0.1"
 chrono = "0.4"
 primitive-types = "0.7"
-dotenv = "0.15"
 serde = { version = "1.0.105", features = ["derive"] }
 # enabling arbitrary_precision for serde_json may cause rpc requests to fail
 serde_json = "1.0.50"
-r2d2 = "0.8"
 dirs = "2"
-desub = { git = "https://github.com/paritytech/desub", branch = "master", package="desub-core" }
+fern = { version = "0.6", features = ["colored"] }
+bastion = "0.3.4"
+tempdir = "0.3.7"
+async-std = "1.5.0"
+
+# Local
+desub = { path = "../desub/core/", package="desub-core" }
 subxt = { path = "../substrate-subxt", package = "substrate-subxt"}
 
-fern = { version = "0.6", features = ["colored"] }
-diesel = { version = "1.4", features = ["postgres", "chrono", "numeric", "r2d2", "serde_json"] }
+# Parity
+kvdb = "0.6"
+kvdb-rocksdb = "0.8"
+parity-util-mem = "0.6.1"
 codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
 
-substrate-rpc-primitives = { version = "2.0.0-alpha.5", package = "sp-rpc" }
-substrate-primitives = { version = "2.0.0-alpha.5", package = "sp-core" }
-runtime-primitives = { version = "2.0.0-alpha.5", package = "sp-runtime" }
-runtime-version = { version = "2.0.0-alpha.5", package = "sp-version" }
-sp-arithmetic = { version = "2.0.0-alpha.5", package = "sp-arithmetic" }
-itertools = "0.9.0"
+# Substrate
+
+sp-database = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package="sp-database" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-service" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-client-db" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-runtime" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-client-api" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-blockchain" }
+substrate-rpc-primitives = {  git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-rpc" }
+sp-core = {  git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-core" }
+runtime-version = {  git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-version" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-executor" }
+sc-transaction-graph = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-transaction-graph" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-chain-spec" }
 
 [dev-dependencies]
-async-std = "1.5.0"
-desub-extras = { git = "https://github.com/paritytech/desub", branch = "master", package="desub-extras", features = ["polkadot"] }
+desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
+polkadot-service = { package = "polkadot-service", path = "../polkadot/service", default-features = false }

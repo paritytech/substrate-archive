@@ -14,13 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use subxt::{balances::Balances, system::System};
+use crate::types::Substrate;
+use bastion::prelude::*;
 
-/// Consolidation of substrate traits representing fundamental types
-pub trait Substrate: System + Balances + Send + Sync {}
+pub const REDUNDANCY: usize = 5;
 
-impl<T> Substrate for T where T: System + Balances + Send + Sync {}
-
-pub trait ChainInfo<T: Substrate> {
-    fn get_hash(&self) -> T::Hash;
+pub fn actor<T>(extractors: ChildrenRef) -> Result<ChildrenRef, ()>
+where
+    T: Substrate,
+{
+    Bastion::children(|children: Children| {
+        children
+            .with_redundancy(REDUNDANCY)
+            .with_exec(move |ctx: BastionContext| {
+                async move {
+                    // extract
+                    // insert into database (sqlx)
+                    unimplemented!();
+                }
+            })
+    })
 }

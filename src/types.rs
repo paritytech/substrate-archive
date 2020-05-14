@@ -15,21 +15,28 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod traits;
+use codec::Encode;
 use desub::decoder::Metadata;
-use runtime_primitives::{
+use sp_core::storage::{StorageChangeSet, StorageData};
+use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
     traits::{Block as _, Header as _},
 };
-use substrate_primitives::storage::{StorageChangeSet, StorageData};
 use subxt::system::System;
 
 pub use self::traits::ChainInfo;
 pub use self::traits::Substrate;
 
 /// A generic substrate block
-pub type SubstrateBlock<T> =
-    SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
+pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
 
+/// Just one of those low-life not-signed types
+pub type NotSignedBlock<T> = BlockT<<T as System>::Header, <T as System>::Extrinsic>;
+
+/// Read-Only RocksDb backed Backend Type
+pub type ArchiveBackend<T> = sc_client_db::Backend<NotSignedBlock<T>>;
+
+#[derive(Debug)]
 pub enum BatchData<T: Substrate> {
     BatchBlock(BatchBlock<T>),
     BatchStorage(BatchStorage<T>),
@@ -61,7 +68,7 @@ where
 {
     fn get_hash(&self) -> T::Hash {
         match self {
-            Data::Header(h) | Data::FinalizedHead(h) => *h.hash(),
+            Data::Header(h) | Data::FinalizedHead(h) => h.hash(),
             Data::Block(b) => b.inner.block.header.hash(),
             Data::Storage(s) => *s.hash(),
             Data::Event(e) => e.hash(),
@@ -95,35 +102,19 @@ impl<T: Substrate> Header<T> {
         &self.inner
     }
 
-    pub fn hash(&self) -> &T::Hash {
-        self.hash()
+    pub fn hash(&self) -> T::Hash {
+        self.inner.hash()
     }
 }
 
-/// NewType for Block
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block<T: Substrate> {
-    inner: SubstrateBlock<T>,
-}
-
-impl<T: Substrate> Block<T> {
-    pub fn new(block: SubstrateBlock<T>) -> Self {
-        Self { inner: block }
-    }
-
-    pub fn inner(&self) -> &SubstrateBlock<T> {
-        &self.inner
-    }
-}
-
-#[derive(Debug)]
-pub struct BatchBlockItem<T: Substrate> {
     pub inner: SubstrateBlock<T>,
     pub meta: Metadata,
     pub spec: u32,
 }
 
-impl<T> ChainInfo<T> for BatchBlockItem<T>
+impl<T> ChainInfo<T> for Block<T>
 where
     T: Substrate,
 {
@@ -131,8 +122,8 @@ where
         self.inner.block.header().hash()
     }
 }
-
-impl<T> BatchBlockItem<T>
+// TODO: Possibly split block into extrinsics / digest / etc so that it can be sent in seperate parts to decode threads
+impl<T> Block<T>
 where
     T: Substrate,
 {
@@ -143,21 +134,60 @@ where
             spec,
         }
     }
+
+    pub fn inner(&self) -> &SubstrateBlock<T> {
+        &self.inner
+    }
 }
 
 /// NewType for committing many blocks to the database at once
 #[derive(Debug)]
 pub struct BatchBlock<T: Substrate> {
-    inner: Vec<BatchBlockItem<T>>,
+    inner: Vec<Block<T>>,
 }
 
 impl<T: Substrate> BatchBlock<T> {
-    pub fn new(blocks: Vec<BatchBlockItem<T>>) -> Self {
+    pub fn new(blocks: Vec<Block<T>>) -> Self {
         Self { inner: blocks }
     }
 
-    pub fn inner(&self) -> &Vec<BatchBlockItem<T>> {
+    pub fn inner(&self) -> &Vec<Block<T>> {
         &self.inner
+    }
+}
+
+impl<T: Substrate> From<BatchBlock<T>> for Vec<Vec<Extrinsic<T>>> {
+    fn from(batch_block: BatchBlock<T>) -> Vec<Vec<Extrinsic<T>>> {
+        batch_block.inner().iter().map(|b| b.into()).collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct Extrinsic<T: Substrate + Send + Sync> {
+    pub inner: Vec<u8>,
+    pub hash: T::Hash,
+    pub spec: u32,
+    pub meta: Metadata,
+}
+
+impl<T: Substrate + Send + Sync> From<&Block<T>> for Vec<Extrinsic<T>> {
+    fn from(block: &Block<T>) -> Vec<Extrinsic<T>> {
+        let block = block.clone();
+        let hash = block.get_hash();
+        let spec = block.spec;
+        let meta = block.meta.clone();
+        block
+            .inner()
+            .block
+            .extrinsics
+            .iter()
+            .map(move |e| Extrinsic {
+                inner: e.encode(),
+                hash,
+                spec,
+                meta: meta.clone(),
+            })
+            .collect()
     }
 }
 

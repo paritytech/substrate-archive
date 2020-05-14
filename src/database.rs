@@ -23,7 +23,7 @@ use diesel::r2d2::ConnectionManager;
 use diesel::{pg::PgConnection, prelude::*, sql_types::BigInt};
 use dotenv::dotenv;
 use r2d2::Pool;
-use runtime_primitives::traits::Header;
+use sp_runtime::traits::Header;
 
 use codec::{Decode, Encode};
 use desub::{
