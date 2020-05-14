@@ -32,6 +32,7 @@ pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, <T as Sys
 
 /// Just one of those low-life not-signed types
 // pub type NotSignedBlock<T> = BlockT<<T as System>::Header, <T as System>::Extrinsic>;
+// TODO: `NotSignedBlock` and `ArchiveBackend` types should be generic over BlockNumber, Hash type and Extrinsic type
 pub type NotSignedBlock = BlockT<
     sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>,
     sp_runtime::OpaqueExtrinsic,
