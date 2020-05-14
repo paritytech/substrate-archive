@@ -22,12 +22,12 @@ use sc_service::{
         RpcMethods, TaskType, TransactionPoolOptions,
     },
     error::Error as ServiceError,
-    ChainSpec, GenericChainSpec, TracingReceiver,
+    ChainSpec, TracingReceiver,
 };
 use sc_transaction_graph::base_pool::Limit;
 
 use sp_runtime::traits::Block as BlockT;
-use std::{future::Future, path::PathBuf, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use super::ChainAccess;
 
@@ -38,7 +38,7 @@ use super::ChainAccess;
 pub fn client<T: Substrate, RA, EX, S>(
     db_config: DatabaseConfig,
     spec: S,
-) -> Result<Arc<impl ChainAccess<NotSignedBlock<T>>>, ServiceError>
+) -> Result<Arc<impl ChainAccess<NotSignedBlock>>, ServiceError>
 where
     S: ChainSpec + 'static,
     RA: Send + Sync + 'static,
@@ -91,12 +91,9 @@ where
         chain_spec: Box::new(spec),
     };
 
-    Ok(internal_client::<
-        NotSignedBlock<T>,
-        ArchiveBackend<T>,
-        RA,
-        EX,
-    >(&config)?)
+    Ok(internal_client::<NotSignedBlock, ArchiveBackend, RA, EX>(
+        &config,
+    )?)
 }
 
 // FIXME: This currently pulls many substrate dependencies that we don't need IE Transaction pooling etc

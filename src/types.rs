@@ -31,10 +31,14 @@ pub use self::traits::Substrate;
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
 
 /// Just one of those low-life not-signed types
-pub type NotSignedBlock<T> = BlockT<<T as System>::Header, <T as System>::Extrinsic>;
+// pub type NotSignedBlock<T> = BlockT<<T as System>::Header, <T as System>::Extrinsic>;
+pub type NotSignedBlock = BlockT<
+    sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>,
+    sp_runtime::OpaqueExtrinsic,
+>;
 
 /// Read-Only RocksDb backed Backend Type
-pub type ArchiveBackend<T> = sc_client_db::Backend<NotSignedBlock<T>>;
+pub type ArchiveBackend = sc_client_db::Backend<NotSignedBlock>;
 
 #[derive(Debug)]
 pub enum BatchData<T: Substrate> {

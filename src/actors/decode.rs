@@ -72,7 +72,7 @@ where
     // top-level actor
     // actor that manages decode state, but sends decoding to other actors
     // TODO: could be a supervisor
-    // TODO: rework desub so that decoder doesn't need to be cloend everytime we send it to an actor
+    // TODO: rework desub so that decoder doesn't need to be cloned everytime we send it to an actor
     // could do a 'stateless' approach that only sends the current spec + metadata to the decoder to decode with
     // rather than keeping all metadata ever presented
     Bastion::children(|children: Children| {

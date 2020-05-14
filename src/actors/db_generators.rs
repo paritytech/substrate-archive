@@ -29,9 +29,7 @@ use sc_client_api::client::BlockBackend as _;
 use sp_runtime::generic::BlockId;
 use std::{sync::Arc, time::Duration};
 
-pub fn actor<T>(
-    client: Arc<impl ChainAccess<NotSignedBlock<T>> + 'static>,
-) -> Result<ChildrenRef, ()>
+pub fn actor<T>(client: Arc<impl ChainAccess<NotSignedBlock> + 'static>) -> Result<ChildrenRef, ()>
 where
     T: Substrate,
 {
@@ -43,7 +41,7 @@ where
             /// query for missing blocks
             async move {
                 while let Some(_) = interval.next().await {
-                    let block = client.block(&BlockId::Number(T::BlockNumber::from(5)));
+                    let block = client.block(&BlockId::Number(5));
                     println!("Got the fifth block: {:?}", block);
                 }
                 Ok(())

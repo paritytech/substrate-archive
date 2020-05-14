@@ -41,8 +41,6 @@ where
     // TODO use answers to handle errors in the supervisor
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
-
-    //let decode_workers = self::decode::actor::<T, P>(decoder).expect("Couldn't start decode children");
     let decode_workers =
         self::decode::actor::<T, P>(decoder).expect("Couldn't start decode children");
     self::network::actor::<T>(decode_workers.clone(), url).expect("Couldn't add blocks child");
