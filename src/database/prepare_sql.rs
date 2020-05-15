@@ -121,7 +121,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 
             Ok(sqlx::query(
                 r#"
-INSERT INTO extrinsics (hash, block_num, module, call, parameters, in_index, transaction_version)
+INSERT INTO inherents (hash, block_num, module, call, parameters, in_index, transaction_version)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 "#,
             )

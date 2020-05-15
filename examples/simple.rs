@@ -4,9 +4,9 @@ use desub::decoder::Decoder;
 use desub_extras::polkadot::PolkadotTypes;
 use polkadot_service::kusama_runtime as real_ksm_runtime;
 use sc_service::config::DatabaseConfig; // integrate this into Archive Proper
+use sp_blockchain::HeaderBackend as _;
 use substrate_archive::{backend, init, NotSignedBlock};
 use subxt::KusamaRuntime;
-use sp_blockchain::HeaderBackend as _;
 
 // type Block = NotSignedBlock<KusamaRuntime>;
 type Block = NotSignedBlock;
@@ -17,10 +17,13 @@ pub fn main() {
     let decoder = Decoder::new(types, "kusama");
 
     // FIXME Database and spec initialization can be done in the lib with a convenience func
-    let db =
-        backend::open_database::<Block>("/home/insipx/.local/share/polkadot/chains/ksmcc3/db/", 1024).unwrap();
+    let db = backend::open_database::<Block>(
+        "/home/insipx/.local/share/polkadot/chains/ksmcc3/db",
+        4096,
+    )
+    .unwrap();
     let conf = DatabaseConfig::Custom(db);
-  
+
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
     let client = backend::client::<
         KusamaRuntime,
@@ -28,10 +31,11 @@ pub fn main() {
         polkadot_service::KusamaExecutor,
         _,
     >(conf, spec)
-        .unwrap();
+    .unwrap();
 
     let info = client.info();
     println!("{:?}", info);
 
-    init::<KusamaRuntime, PolkadotTypes, _>(decoder, client, "ws://127.0.0.1:9944".to_string()).unwrap();
+    init::<KusamaRuntime, PolkadotTypes, _>(decoder, client, "ws://127.0.0.1:9944".to_string())
+        .unwrap();
 }
