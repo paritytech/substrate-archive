@@ -24,7 +24,9 @@ use crate::types::*;
 use crate::error::{ArchiveResult, Error as ArchiveError};
 
 pub trait PrepareSql<'a> {
+    /// prepare a query for insertion
     fn prep_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
+    /// add values to a query (to do a batch insert, for instance)
     fn add(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
 }
 

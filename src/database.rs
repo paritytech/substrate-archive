@@ -17,7 +17,6 @@
 //! IO for the PostgreSQL database connected to Substrate Archive Node
 //! Handles inserting of data into the database
 
-// pub mod models;
 mod prepare_sql;
 
 use sqlx::PgConnection;
@@ -50,6 +49,15 @@ pub trait Insert: Sync {
 pub struct Database {
     /// pool of database connections
     pool: DbConnection,
+}
+
+// clones a database connection
+impl Clone for Database {
+    fn clone(&self) -> Self {
+        Database {
+            pool: self.pool.clone()
+        }
+    }
 }
 
 impl Database {

@@ -2370,6 +2370,7 @@ dependencies = [
 [[package]]
 name = "kusama-runtime"
 version = "0.7.33"
+source = "git+https://github.com/paritytech/polkadot#952acb6fecafe8cf65cae3e92942cee37df24c7f"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -4237,6 +4238,7 @@ checksum = "05da548ad6865900e60eaba7f589cc0783590a92e940c26953ff81ddbab2d677"
 [[package]]
 name = "polkadot-parachain"
 version = "0.7.33"
+source = "git+https://github.com/paritytech/polkadot#952acb6fecafe8cf65cae3e92942cee37df24c7f"
 dependencies = [
  "derive_more",
  "log 0.4.8",
@@ -4256,6 +4258,7 @@ dependencies = [
 [[package]]
 name = "polkadot-primitives"
 version = "0.7.33"
+source = "git+https://github.com/paritytech/polkadot#952acb6fecafe8cf65cae3e92942cee37df24c7f"
 dependencies = [
  "bitvec",
  "frame-system",
@@ -4276,6 +4279,7 @@ dependencies = [
 [[package]]
 name = "polkadot-rpc"
 version = "0.7.33"
+source = "git+https://github.com/paritytech/polkadot#952acb6fecafe8cf65cae3e92942cee37df24c7f"
 dependencies = [
  "jsonrpc-core",
  "pallet-transaction-payment-rpc",
@@ -4295,6 +4299,7 @@ dependencies = [
 [[package]]
 name = "polkadot-runtime"
 version = "0.7.33"
+source = "git+https://github.com/paritytech/polkadot#952acb6fecafe8cf65cae3e92942cee37df24c7f"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -4354,6 +4359,7 @@ dependencies = [
 [[package]]
 name = "polkadot-runtime-common"
 version = "0.7.33"
+source = "git+https://github.com/paritytech/polkadot#952acb6fecafe8cf65cae3e92942cee37df24c7f"
 dependencies = [
  "bitvec",
  "frame-support",
@@ -4384,6 +4390,7 @@ dependencies = [
 [[package]]
 name = "polkadot-service"
 version = "0.7.33"
+source = "git+https://github.com/paritytech/polkadot#952acb6fecafe8cf65cae3e92942cee37df24c7f"
 dependencies = [
  "frame-benchmarking",
  "frame-system-rpc-runtime-api",
@@ -6984,7 +6991,6 @@ dependencies = [
  "dirs",
  "failure",
  "fern",
- "frame-support",
  "futures 0.3.5",
  "kvdb",
  "kvdb-rocksdb",
@@ -8160,6 +8166,7 @@ dependencies = [
 [[package]]
 name = "westend-runtime"
 version = "0.7.33"
+source = "git+https://github.com/paritytech/polkadot#952acb6fecafe8cf65cae3e92942cee37df24c7f"
 dependencies = [
  "bitvec",
  "frame-executive",

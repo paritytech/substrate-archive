@@ -22,7 +22,12 @@ mod decode;
 mod network;
 mod scheduler;
 
-use super::{error::Error as ArchiveError, types::{Substrate, NotSignedBlock}, backend::ChainAccess};
+use super::{
+    error::Error as ArchiveError,
+    types::{Substrate, NotSignedBlock},
+    backend::ChainAccess,
+    database::Database,
+};
 use std::{sync::Arc, env};
 use bastion::prelude::*;
 use sqlx::postgres::PgPool;
@@ -48,12 +53,14 @@ where
         .max_size(10)
         .build(&env::var("DATABASE_URL")?))?;
 
+    let db = Database::new(&pool)?;
    
     // TODO use answers to handle errors in the supervisor
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
+    let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
     let decode_workers =
-        self::decode::actor::<T, P>(decoder).expect("Couldn't start decode children");
+        self::decode::actor::<T, P>(db_workers, decoder).expect("Couldn't start decode children");
     self::network::actor::<T>(decode_workers.clone(), url).expect("Couldn't add blocks child");
     self::db_generators::actor::<T, _>(client, pool).expect("Couldn't start db work generators");
 

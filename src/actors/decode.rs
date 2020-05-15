@@ -29,7 +29,7 @@ const REDUNDANCY: usize = 64;
 
 /// the main actor
 /// holds the internal decoder state
-pub fn actor<T, P>(decoder: Decoder<P>) -> Result<ChildrenRef, ()>
+pub fn actor<T, P>(db_workers: ChildrenRef, decoder: Decoder<P>) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     P: TypeDetective + Send + Sync + 'static,
@@ -39,32 +39,23 @@ where
         children
             .with_redundancy(REDUNDANCY)
             .with_exec(move |ctx: BastionContext| {
+                let db_workers = db_workers.clone();
                 async move {
+                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &db_workers);
                     loop {
                         msg! {
                             ctx.recv().await?,
                             block: Block<T> =!> { // should be Storage<T> 
-                                process_block(block);
+                                process_block(block, &mut sched);
                                 let _ = answer!(ctx, super::ArchiveAnswer::Success);
                             };
                             blocks: Vec<Block<T>> =!> {
-                                log::info!("Got {} blocks", blocks.len());
+                                process_blocks(blocks, &mut sched);
                                 let _ = answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
                             };
                             extrinsics: (Decoder<P>, Vec<RawExtrinsic<T>>) =!> {
-                                log::info!("Got Extrinsic!");
                                 let (decoder, extrinsics) = extrinsics;
-                                let mut ext: Vec<Extrinsic<T>> = Vec::new();
-                                for e in extrinsics.iter() {
-                                    ext.push(
-                                        {
-                                            let ext = decoder.decode_extrinsic(e.spec, e.inner.as_slice()).expect("Decoding extrinsic failed");
-                                            Extrinsic::new(ext, e.hash, e.index, e.block_num)
-                                        }
-                                    )
-                                }
-                                log::info!("Decoded {} extrinsics", ext.len());
-                                log::debug!("{:?}", ext);
+                                process_extrinsics::<T, P>(decoder, extrinsics, &mut sched);
                                 let _ = answer!(ctx, super::ArchiveAnswer::Success).expect("could not answer");
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
@@ -87,29 +78,30 @@ where
                 let mut decoder = decoder.clone();
                 async move {
                     log::info!("Decode worker started");
-                    let mut sched = Scheduler::new(Algorithm::RoundRobin);
+                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                     loop {
                         msg! {
                             ctx.recv().await?,
                             block: Block<T> =!> {
-
                                 decoder.register_version(block.spec, &block.meta);
-                                let _ = sched.next(&ctx, &workers, block.clone())
-                                    .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
+
+                                let _ = sched.next(block.clone())
+                                             .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
 
                                 let extrinsics: Vec<RawExtrinsic<T>> = (&block).into();
-                                let answer = sched.next(&ctx, &workers, (decoder.clone(), extrinsics))
+                                let answer = sched.next((decoder.clone(), extrinsics))
+
                                     .map_err(|e| log::error!("{:?}", e)).expect("Failed to send extrinsics to actor").await?;
                                 answer!(ctx, answer).expect("couldn't answer");
                              };
                              blocks: Vec<Block<T>> =!> {
                                  blocks.iter().for_each(|b| decoder.register_version(b.spec, &b.meta));
 
-                                 let answer = sched.next(&ctx, &workers, blocks)
+                                 let answer = sched.next(blocks)
                                      .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
                                 answer!(ctx, answer).expect("couldn't answer");
                             };
-                             e: _ => log::warn!("Received unknown data {:?}", e);
+                            e: _ => log::warn!("Received unknown data {:?}", e);
                         }
                     }
                 }
@@ -117,6 +109,43 @@ where
     })
 }
 
-pub fn process_block<T: Substrate + Send + Sync>(block: Block<T>) {
-    println!("Got Block {:?}", block);
+pub fn process_block<T: Substrate + Send + Sync>(block: Block<T>, sched: &mut Scheduler) {
+    log::info!("Block");
+    match sched.next(block) {
+        Ok(_) => (),
+        Err(e) => log::error!("{:?}", e)
+    }
+}
+
+pub fn process_extrinsics<T, P>(decoder: Decoder<P>, extrinsics: Vec<RawExtrinsic<T>>, sched: &mut Scheduler)
+where
+    T: Substrate + Send + Sync,
+    P: TypeDetective + Send + Sync + 'static,
+{
+    let mut ext: Vec<Extrinsic<T>> = Vec::new();
+    for e in extrinsics.iter() {
+        ext.push(
+            {
+                let ext = decoder.decode_extrinsic(e.spec, e.inner.as_slice()).expect("Decoding extrinsic failed");
+                Extrinsic::new(ext, e.hash, e.index, e.block_num)
+            }
+        )
+    }
+    log::info!("Decoded {} extrinsics", ext.len());
+    log::debug!("{:?}", ext);
+    match sched.next(extrinsics) {
+        Ok(_) => (),
+        Err(e) => log::error!("{:?}", e)
+    }
+}
+
+pub fn process_blocks<T>(blocks: Vec<Block<T>>, sched: &mut Scheduler)
+where
+    T: Substrate + Send + Sync
+{
+    log::info!("Processing blocks");
+    match sched.next(blocks) {
+        Ok(_) => (),
+        Err(e) => log::error!("{:?}", e)
+    }
 }

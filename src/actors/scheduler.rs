@@ -20,23 +20,24 @@ pub enum Algorithm {
     RoundRobin,
 }
 
-pub struct Scheduler {
+pub struct Scheduler<'a> {
     last_executed: usize,
     alg: Algorithm,
+    ctx: &'a BastionContext,
+    workers: &'a ChildrenRef,
+
 }
 
-impl Scheduler {
-    pub fn new(alg: Algorithm) -> Self {
+impl<'a> Scheduler<'a> {
+    pub fn new(alg: Algorithm, ctx: &'a BastionContext, workers: &'a ChildrenRef) -> Self {
         Self {
             last_executed: 0,
-            alg,
+            alg, ctx, workers
         }
     }
 
     pub fn next<T>(
         &mut self,
-        ctx: &BastionContext,
-        workers: &ChildrenRef,
         data: T,
     ) -> Result<Answer, T>
     where
@@ -45,8 +46,8 @@ impl Scheduler {
         match self.alg {
             Algorithm::RoundRobin => {
                 self.last_executed += 1;
-                let next_executed = self.last_executed % workers.elems().len();
-                ctx.ask(&workers.elems()[next_executed].addr(), data)
+                let next_executed = self.last_executed % self.workers.elems().len();
+                self.ctx.ask(&self.workers.elems()[next_executed].addr(), data)
             }
         }
     }

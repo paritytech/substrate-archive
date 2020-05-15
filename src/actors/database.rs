@@ -14,24 +14,79 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::types::Substrate;
+use crate::types::*;
+use crate::database::Database;
+use subxt::system::System;
 use bastion::prelude::*;
 
 pub const REDUNDANCY: usize = 5;
 
-pub fn actor<T>(extractors: ChildrenRef) -> Result<ChildrenRef, ()>
+pub fn actor<T>(db: Database) -> Result<ChildrenRef, ()>
 where
-    T: Substrate,
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
 {
     Bastion::children(|children: Children| {
         children
             .with_redundancy(REDUNDANCY)
             .with_exec(move |ctx: BastionContext| {
+                let db = db.clone();
                 async move {
-                    // extract
-                    // insert into database (sqlx)
-                    unimplemented!();
+                    loop {
+                        msg! {
+                            ctx.recv().await?,
+                            block: Block<T> =!> {
+                                process_block(&db, block);
+                                let _ = answer!(ctx, super::ArchiveAnswer::Success);
+                            };
+                            blocks: Vec<Block<T>> =!> {
+                                process_blocks(&db, blocks);
+                                let _ = answer!(ctx, super::ArchiveAnswer::Success);
+                            };
+                            extrinsics: Vec<Extrinsic<T>> =!> {
+                                process_extrinsics(&db, extrinsics);
+                                let _ = answer!(ctx, super::ArchiveAnswer::Success);
+                            };
+                            e: _ => log::warn!("Received unknown data {:?}", e);
+                        };
+                    }
                 }
             })
     })
+}
+
+
+
+async fn process_block<T>(db: &Database, block: Block<T>)
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    match db.insert(block).await {
+        Ok(_) => (),
+        Err(e) => log::error!("{:?}", e)
+    }
+}
+
+
+async fn process_blocks<T>(db: &Database, blocks: Vec<Block<T>>)
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    match db.insert(BatchBlock::new(blocks)).await {
+        Ok(_) => (),
+        Err(e) => log::error!("{:?}", e)
+    }
+}
+
+async fn process_extrinsics<T>(db: &Database, extrinsics: Vec<Extrinsic<T>>)
+where
+    T: Substrate + Send + Sync,
+{
+
+    match db.insert(extrinsics).await {
+        Ok(_) => (),
+        Err(e) => log::error!("{:?}", e)
+    }
 }
