@@ -23,6 +23,7 @@ bastion = "0.3.4"
 tempdir = "0.3.7"
 async-std = "1.5.0"
 sqlx = { version = "0.3.5", features = ["postgres", "chrono", "json"] }
+async-trait = "0.1.31"
 # Local
 desub = { path = "../desub/core/", package="desub-core" }
 subxt = { path = "../substrate-subxt", package = "substrate-subxt"}
@@ -35,19 +36,19 @@ codec = { package = "parity-scale-codec", version = "1.2.0", default-features = 
 
 # Substrate
 
-sp-database = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package="sp-database" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-service" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-client-db" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-runtime" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-client-api" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-blockchain" }
-substrate-rpc-primitives = {  git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-rpc" }
-sp-core = {  git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-core" }
-runtime-version = {  git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sp-version" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-executor" }
-sc-transaction-graph = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-transaction-graph" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "insipx/substrate-archive", package = "sc-chain-spec" }
-
+sp-database = { git = "https://github.com/paritytech/substrate", branch = "master", package="sp-database" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-service" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-client-db" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-runtime" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-client-api" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-blockchain" }
+substrate-rpc-primitives = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-rpc" }
+sp-core = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }
+runtime-version = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-version" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-executor" }
+sc-transaction-graph = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-transaction-graph" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
+frame-support = { package = "frame-support", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }

@@ -47,6 +47,7 @@ pub(crate) async fn missing_blocks(latest: Option<u32>, pool: &sqlx::Pool<PgConn
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     //! Must be connected to a postgres database

@@ -26,6 +26,7 @@ use super::{error::Error as ArchiveError, types::{Substrate, NotSignedBlock}, ba
 use std::{sync::Arc, env};
 use bastion::prelude::*;
 use sqlx::postgres::PgPool;
+use subxt::system::System;
 
 use desub::{decoder::Decoder, TypeDetective};
 
@@ -37,7 +38,8 @@ pub fn init<T, P, C>(decoder: Decoder<P>, client: Arc<C>, url: String) -> Result
 where
     T: Substrate + Send + Sync,
     P: TypeDetective + Send + Sync + 'static,
-    C: ChainAccess<NotSignedBlock> + 'static
+    C: ChainAccess<NotSignedBlock> + 'static,
+    <T as System>::BlockNumber: Into<u32>,
 {
     Bastion::init();
 

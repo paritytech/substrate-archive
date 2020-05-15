@@ -26,6 +26,8 @@ use std::sync::PoisonError;
 use sqlx::Error as SqlError;
 use subxt::Error as SubxtError;
 
+pub type ArchiveResult<T> = Result<T, Error>;
+
 #[derive(Debug, Fail)]
 pub enum Error {
     #[fail(display = "Could not send to parent process {}", _0)]

@@ -18,9 +18,10 @@
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 
-use crate::types::{Block, ChainInfo as _, Extrinsic, Substrate};
+use crate::types::{Block, RawExtrinsic, Extrinsic, Substrate};
 use bastion::prelude::*;
 use desub::{decoder::Decoder, TypeDetective};
+use subxt::system::System;
 
 use super::scheduler::{Algorithm, Scheduler};
 
@@ -32,6 +33,7 @@ pub fn actor<T, P>(decoder: Decoder<P>) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     P: TypeDetective + Send + Sync + 'static,
+    <T as System>::BlockNumber: Into<u32>,
 {
     let workers = Bastion::children(|children: Children| {
         children
@@ -49,13 +51,16 @@ where
                                 log::info!("Got {} blocks", blocks.len());
                                 let _ = answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
                             };
-                            extrinsics: (Decoder<P>, Vec<Extrinsic<T>>) =!> {
+                            extrinsics: (Decoder<P>, Vec<RawExtrinsic<T>>) =!> {
                                 log::info!("Got Extrinsic!");
                                 let (decoder, extrinsics) = extrinsics;
-                                let mut ext = Vec::new();
+                                let mut ext: Vec<Extrinsic<T>> = Vec::new();
                                 for e in extrinsics.iter() {
                                     ext.push(
-                                        decoder.decode_extrinsic(e.spec, e.inner.as_slice()).expect("Decoding extrinsic failed")
+                                        {
+                                            let ext = decoder.decode_extrinsic(e.spec, e.inner.as_slice()).expect("Decoding extrinsic failed");
+                                            Extrinsic::new(ext, e.hash, e.index, e.block_num)
+                                        }
                                     )
                                 }
                                 log::info!("Decoded {} extrinsics", ext.len());
@@ -92,7 +97,7 @@ where
                                 let _ = sched.next(&ctx, &workers, block.clone())
                                     .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
 
-                                let extrinsics: Vec<Extrinsic<T>> = (&block).into();
+                                let extrinsics: Vec<RawExtrinsic<T>> = (&block).into();
                                 let answer = sched.next(&ctx, &workers, (decoder.clone(), extrinsics))
                                     .map_err(|e| log::error!("{:?}", e)).expect("Failed to send extrinsics to actor").await?;
                                 answer!(ctx, answer).expect("couldn't answer");
@@ -113,5 +118,5 @@ where
 }
 
 pub fn process_block<T: Substrate + Send + Sync>(block: Block<T>) {
-    println!("Got Block {}, version: {}", block.get_hash(), block.spec)
+    println!("Got Block {:?}", block);
 }

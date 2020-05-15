@@ -23,6 +23,7 @@ mod queries;
 mod actors;
 mod types;
 mod util;
+mod database;
 pub use error::Error;
 pub use types::{NotSignedBlock, Substrate};
 

@@ -23,7 +23,7 @@ use crate::{
     backend::ChainAccess,
     types::{NotSignedBlock, Substrate},
 };
-use sqlx::{PgConnection};
+use sqlx::PgConnection;
 use async_std::prelude::*;
 use bastion::prelude::*;
 use async_std::stream;
@@ -39,7 +39,7 @@ where
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
-            let mut interval = stream::interval(Duration::from_secs(60));
+            let mut interval = stream::interval(Duration::from_secs(20));
             let client = client.clone();
             /// query for missing blocks
             let pool = pool.clone();
