@@ -25,21 +25,19 @@ pub struct Scheduler<'a> {
     alg: Algorithm,
     ctx: &'a BastionContext,
     workers: &'a ChildrenRef,
-
 }
 
 impl<'a> Scheduler<'a> {
     pub fn new(alg: Algorithm, ctx: &'a BastionContext, workers: &'a ChildrenRef) -> Self {
         Self {
             last_executed: 0,
-            alg, ctx, workers
+            alg,
+            ctx,
+            workers,
         }
     }
 
-    pub fn next<T>(
-        &mut self,
-        data: T,
-    ) -> Result<Answer, T>
+    pub fn next<T>(&mut self, data: T) -> Result<Answer, T>
     where
         T: Send + Sync + std::fmt::Debug + 'static,
     {
@@ -47,7 +45,8 @@ impl<'a> Scheduler<'a> {
             Algorithm::RoundRobin => {
                 self.last_executed += 1;
                 let next_executed = self.last_executed % self.workers.elems().len();
-                self.ctx.ask(&self.workers.elems()[next_executed].addr(), data)
+                self.ctx
+                    .ask(&self.workers.elems()[next_executed].addr(), data)
             }
         }
     }

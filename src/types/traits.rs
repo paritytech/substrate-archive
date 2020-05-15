@@ -17,10 +17,6 @@
 use subxt::{balances::Balances, system::System};
 
 /// Consolidation of substrate traits representing fundamental types
-pub trait Substrate: System + Balances + Send
-{}
+pub trait Substrate: System + Balances + Send {}
 
-impl<T> Substrate for T
-where
-    T: System + Balances + Send + Sync,
-{}
+impl<T> Substrate for T where T: System + Balances + Send + Sync {}

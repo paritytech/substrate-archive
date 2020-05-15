@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::types::*;
 use crate::database::Database;
-use subxt::system::System;
+use crate::types::*;
 use bastion::prelude::*;
+use subxt::system::System;
 
 pub const REDUNDANCY: usize = 5;
 
@@ -55,8 +55,6 @@ where
     })
 }
 
-
-
 async fn process_block<T>(db: &Database, block: Block<T>)
 where
     T: Substrate + Send + Sync,
@@ -64,10 +62,9 @@ where
 {
     match db.insert(block).await {
         Ok(_) => (),
-        Err(e) => log::error!("{:?}", e)
+        Err(e) => log::error!("{:?}", e),
     }
 }
-
 
 async fn process_blocks<T>(db: &Database, blocks: Vec<Block<T>>)
 where
@@ -76,7 +73,7 @@ where
 {
     match db.insert(BatchBlock::new(blocks)).await {
         Ok(_) => (),
-        Err(e) => log::error!("{:?}", e)
+        Err(e) => log::error!("{:?}", e),
     }
 }
 
@@ -84,9 +81,8 @@ async fn process_extrinsics<T>(db: &Database, extrinsics: Vec<Extrinsic<T>>)
 where
     T: Substrate + Send + Sync,
 {
-
     match db.insert(extrinsics).await {
         Ok(_) => (),
-        Err(e) => log::error!("{:?}", e)
+        Err(e) => log::error!("{:?}", e),
     }
 }

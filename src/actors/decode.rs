@@ -18,7 +18,7 @@
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 
-use crate::types::{Block, RawExtrinsic, Extrinsic, Substrate};
+use crate::types::{Block, Extrinsic, RawExtrinsic, Substrate};
 use bastion::prelude::*;
 use desub::{decoder::Decoder, TypeDetective};
 use subxt::system::System;
@@ -113,39 +113,42 @@ pub fn process_block<T: Substrate + Send + Sync>(block: Block<T>, sched: &mut Sc
     log::info!("Block");
     match sched.next(block) {
         Ok(_) => (),
-        Err(e) => log::error!("{:?}", e)
+        Err(e) => log::error!("{:?}", e),
     }
 }
 
-pub fn process_extrinsics<T, P>(decoder: Decoder<P>, extrinsics: Vec<RawExtrinsic<T>>, sched: &mut Scheduler)
-where
+pub fn process_extrinsics<T, P>(
+    decoder: Decoder<P>,
+    extrinsics: Vec<RawExtrinsic<T>>,
+    sched: &mut Scheduler,
+) where
     T: Substrate + Send + Sync,
     P: TypeDetective + Send + Sync + 'static,
 {
     let mut ext: Vec<Extrinsic<T>> = Vec::new();
     for e in extrinsics.iter() {
-        ext.push(
-            {
-                let ext = decoder.decode_extrinsic(e.spec, e.inner.as_slice()).expect("Decoding extrinsic failed");
-                Extrinsic::new(ext, e.hash, e.index, e.block_num)
-            }
-        )
+        ext.push({
+            let ext = decoder
+                .decode_extrinsic(e.spec, e.inner.as_slice())
+                .expect("Decoding extrinsic failed");
+            Extrinsic::new(ext, e.hash, e.index, e.block_num)
+        })
     }
     log::info!("Decoded {} extrinsics", ext.len());
     log::debug!("{:?}", ext);
     match sched.next(extrinsics) {
         Ok(_) => (),
-        Err(e) => log::error!("{:?}", e)
+        Err(e) => log::error!("{:?}", e),
     }
 }
 
 pub fn process_blocks<T>(blocks: Vec<Block<T>>, sched: &mut Scheduler)
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     log::info!("Processing blocks");
     match sched.next(blocks) {
         Ok(_) => (),
-        Err(e) => log::error!("{:?}", e)
+        Err(e) => log::error!("{:?}", e),
     }
 }

@@ -19,22 +19,17 @@
 
 mod prepare_sql;
 
-use sqlx::PgConnection;
-use sp_runtime::traits::Header as _;
-use codec::{Decode, Encode};
 use async_trait::async_trait;
+use codec::{Decode, Encode};
+use sp_runtime::traits::Header as _;
+use sqlx::PgConnection;
 use std::{convert::TryFrom, env, sync::RwLock};
 
 use desub::decoder::{GenericExtrinsic, GenericSignature, Metadata};
 use subxt::system::System;
 
 use self::prepare_sql::PrepareSql as _;
-use crate::{
-    queries,
-    error::Error as ArchiveError,
-    types::*,
-    types::Substrate
-};
+use crate::{error::Error as ArchiveError, queries, types::Substrate, types::*};
 
 pub type DbReturn = Result<u64, ArchiveError>;
 pub type DbConnection = sqlx::Pool<PgConnection>;
@@ -55,7 +50,7 @@ pub struct Database {
 impl Clone for Database {
     fn clone(&self) -> Self {
         Database {
-            pool: self.pool.clone()
+            pool: self.pool.clone(),
         }
     }
 }
@@ -110,10 +105,9 @@ where
 #[async_trait]
 impl<T> Insert for Vec<Extrinsic<T>>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     async fn insert(self, db: DbConnection) -> DbReturn {
-
         let mut query = None;
         for e in self.into_iter() {
             if query.is_some() {
@@ -132,10 +126,7 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    async fn insert(
-        self,
-        db: DbConnection,
-    ) -> DbReturn {
+    async fn insert(self, db: DbConnection) -> DbReturn {
         log::info!("Batch inserting {} blocks into DB", self.inner().len());
 
         let mut query = None;
@@ -146,7 +137,11 @@ where
                 query = Some(block.prep_insert()?)
             }
         }
-        query.expect("Query should not be none").execute(&db).await.map_err(Into::into)
+        query
+            .expect("Query should not be none")
+            .execute(&db)
+            .await
+            .map_err(Into::into)
     }
 }
 

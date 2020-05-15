@@ -16,7 +16,9 @@
 
 mod traits;
 use codec::Encode;
-use desub::decoder::{GenericExtrinsic, GenericSignature, GenericCall, ExtrinsicArgument, Metadata};
+use desub::decoder::{
+    ExtrinsicArgument, GenericCall, GenericExtrinsic, GenericSignature, Metadata,
+};
 use sp_core::storage::{StorageChangeSet, StorageData};
 use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
@@ -45,15 +47,20 @@ pub struct Extrinsic<T: Substrate + Send + Sync> {
     inner: GenericExtrinsic,
     index: usize,
     hash: T::Hash,
-    block_num: u32
+    block_num: u32,
 }
 
 impl<T> Extrinsic<T>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     pub fn new(extrinsic: GenericExtrinsic, hash: T::Hash, index: usize, block_num: u32) -> Self {
-        Self { inner: extrinsic, hash, index, block_num}
+        Self {
+            inner: extrinsic,
+            hash,
+            index,
+            block_num,
+        }
     }
 
     pub fn inner(&self) -> &GenericExtrinsic {
@@ -131,7 +138,11 @@ where
     T: Substrate + Send + Sync,
 {
     pub fn new(block: SubstrateBlock<T>, meta: Metadata, spec: u32) -> Self {
-        Self { inner: block, meta, spec }
+        Self {
+            inner: block,
+            meta,
+            spec,
+        }
     }
 
     pub fn inner(&self) -> &SubstrateBlock<T> {
@@ -143,14 +154,14 @@ where
 #[derive(Debug)]
 pub struct BatchBlock<T>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     inner: Vec<Block<T>>,
 }
 
 impl<T> BatchBlock<T>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     pub fn new(blocks: Vec<Block<T>>) -> Self {
         Self { inner: blocks }
@@ -160,7 +171,6 @@ where
         &self.inner
     }
 }
-
 
 /// newType for Storage Data
 #[derive(Debug)]
@@ -174,10 +184,7 @@ where
     T: Substrate + Send + Sync,
 {
     pub fn new(data: StorageData, hash: T::Hash) -> Self {
-        Self {
-            data,
-            hash,
-        }
+        Self { data, hash }
     }
 
     pub fn data(&self) -> &StorageData {
@@ -216,14 +223,14 @@ where
 #[derive(Debug, PartialEq, Eq)]
 pub struct Event<T>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     change_set: StorageChangeSet<T::Hash>,
 }
 
 impl<T> Event<T>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     pub fn new(change_set: StorageChangeSet<T::Hash>) -> Self {
         Self { change_set }
@@ -248,7 +255,7 @@ pub struct RawExtrinsic<T: Substrate + Send + Sync> {
     pub spec: u32,
     pub meta: Metadata,
     pub index: usize,
-    pub block_num: u32
+    pub block_num: u32,
 }
 
 impl<T> From<&Block<T>> for Vec<RawExtrinsic<T>>
@@ -274,7 +281,7 @@ where
                 spec,
                 meta: meta.clone(),
                 index: i,
-                block_num: (*num).into()
+                block_num: (*num).into(),
             })
             .collect()
     }

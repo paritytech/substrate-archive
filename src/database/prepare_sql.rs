@@ -16,12 +16,12 @@
 
 //! prepared statements for sqlx
 
+use crate::error::{ArchiveResult, Error as ArchiveError};
+use crate::types::*;
+use sp_runtime::traits::Header as _;
 use sqlx::PgConnection;
 use sqlx::Postgres;
-use sp_runtime::traits::Header as _;
 use subxt::system::System;
-use crate::types::*;
-use crate::error::{ArchiveResult, Error as ArchiveError};
 
 pub trait PrepareSql<'a> {
     /// prepare a query for insertion
@@ -43,23 +43,24 @@ where
         let state_root = self.inner.block.header.state_root().as_ref();
         let extrinsics_root = self.inner.block.header.extrinsics_root().as_ref();
 
-        Ok(sqlx::query(r#"
+        Ok(sqlx::query(
+            r#"
 INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root)
 VALUES ($1, $2, $3, $4, $5)
-"#
+"#,
         )
-            .bind(parent_hash)
-            .bind(hash.as_ref())
-            .bind(block_num)
-            .bind(state_root)
-            .bind(extrinsics_root))
+        .bind(parent_hash)
+        .bind(hash.as_ref())
+        .bind(block_num)
+        .bind(state_root)
+        .bind(extrinsics_root))
     }
 
     fn add(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        let parent_hash     = self.inner.block.header.parent_hash().as_ref();
-        let hash            = self.inner.block.header.hash();
-        let block_num: u32  = (*self.inner.block.header.number()).into();
-        let state_root      = self.inner.block.header.state_root().as_ref();
+        let parent_hash = self.inner.block.header.parent_hash().as_ref();
+        let hash = self.inner.block.header.hash();
+        let block_num: u32 = (*self.inner.block.header.number()).into();
+        let state_root = self.inner.block.header.state_root().as_ref();
         let extrinsics_root = self.inner.block.header.extrinsics_root().as_ref();
 
         Ok(query
@@ -73,7 +74,7 @@ VALUES ($1, $2, $3, $4, $5)
 
 impl<'a, T> PrepareSql<'a> for Extrinsic<T>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     fn prep_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         if self.is_signed() {
@@ -109,28 +110,28 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 .bind(self.index() as u32)
                 .bind(sig)
                 .bind(Some(extra))
-                .bind(0))// FIXME: Transaction version incorrect
+                .bind(0)) // FIXME: Transaction version incorrect
         } else {
             // FIXME
             // workaround for serde not serializing u128 to value
             // and diesel only supporting serde_Json::Value for jsonb in postgres
             // u128 are used in balance transfers
             let parameters = serde_json::to_string(&self.args()).unwrap();
-            let parameters: serde_json::Value =
-                serde_json::from_str(&parameters).unwrap();
+            let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
 
-            Ok(sqlx::query(r#"
+            Ok(sqlx::query(
+                r#"
 INSERT INTO extrinsics (hash, block_num, module, call, parameters, in_index, transaction_version)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-"#
+"#,
             )
-                .bind(self.hash().as_ref())
-                .bind(self.block_num())
-                .bind(self.ext_module())
-                .bind(self.ext_call())
-                .bind(Some(parameters))
-                .bind(self.index() as u32)
-                .bind(0 as u32))
+            .bind(self.hash().as_ref())
+            .bind(self.block_num())
+            .bind(self.ext_module())
+            .bind(self.ext_call())
+            .bind(Some(parameters))
+            .bind(self.index() as u32)
+            .bind(0 as u32))
         }
     }
 
@@ -172,8 +173,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)
             // and diesel only supporting serde_Json::Value for jsonb in postgres
             // u128 are used in balance transfers
             let parameters = serde_json::to_string(&self.args()).unwrap();
-            let parameters: serde_json::Value =
-                serde_json::from_str(&parameters).unwrap();
+            let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
 
             Ok(query
                 .bind(self.hash().as_ref())

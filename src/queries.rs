@@ -16,37 +16,43 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
-use sqlx::{PgConnection, QueryAs as _, postgres::PgQueryAs as _, prelude::Cursor};
-use futures::{Stream, stream::{StreamExt, TryStreamExt}};
 use crate::error::Error as ArchiveError;
+use futures::{
+    stream::{StreamExt, TryStreamExt},
+    Stream,
+};
+use sqlx::{postgres::PgQueryAs as _, prelude::Cursor, PgConnection, QueryAs as _};
 
 #[derive(sqlx::FromRow)]
 pub struct Block {
-    pub block_num: u32
+    pub block_num: u32,
 }
-
 
 /// get missing blocks from relational database
-pub(crate) async fn missing_blocks(latest: Option<u32>, pool: &sqlx::Pool<PgConnection>)
-                                   -> impl Stream<Item = Result<Block, ArchiveError>> + '_
-{
+pub(crate) async fn missing_blocks(
+    latest: Option<u32>,
+    pool: &sqlx::Pool<PgConnection>,
+) -> impl Stream<Item = Result<Block, ArchiveError>> + '_ {
     if let Some(latest) = latest {
         sqlx::query_as(
-           "SELECT generate_series
+            "SELECT generate_series
             FROM generate_series('0'::bigint, '{}'::bigint)
             WHERE
-            NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)"
-        ).fetch(pool).map_err(Into::into)
+            NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)",
+        )
+        .fetch(pool)
+        .map_err(Into::into)
     } else {
         sqlx::query_as(
-           "SELECT generate_series
+            "SELECT generate_series
             FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
             WHERE
-            NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)"
-        ).fetch(pool).map_err(Into::into)
+            NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)",
+        )
+        .fetch(pool)
+        .map_err(Into::into)
     }
 }
-
 
 #[cfg(test)]
 mod tests {

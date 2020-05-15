@@ -23,14 +23,14 @@ mod network;
 mod scheduler;
 
 use super::{
-    error::Error as ArchiveError,
-    types::{Substrate, NotSignedBlock},
     backend::ChainAccess,
     database::Database,
+    error::Error as ArchiveError,
+    types::{NotSignedBlock, Substrate},
 };
-use std::{sync::Arc, env};
 use bastion::prelude::*;
 use sqlx::postgres::PgPool;
+use std::{env, sync::Arc};
 use subxt::system::System;
 
 use desub::{decoder::Decoder, TypeDetective};
@@ -49,12 +49,14 @@ where
     Bastion::init();
 
     /// TODO: could be initialized asyncronously somewhere
-    let pool = async_std::task::block_on(PgPool::builder()
-        .max_size(10)
-        .build(&env::var("DATABASE_URL")?))?;
+    let pool = async_std::task::block_on(
+        PgPool::builder()
+            .max_size(10)
+            .build(&env::var("DATABASE_URL")?),
+    )?;
 
     let db = Database::new(&pool)?;
-   
+
     // TODO use answers to handle errors in the supervisor
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...

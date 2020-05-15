@@ -19,22 +19,22 @@
 //! Gathers Missing blocks -> passes to metadata -> passes to extractors -> passes to decode -> passes to insert
 
 use crate::{
-    queries,
     backend::ChainAccess,
+    queries,
     types::{NotSignedBlock, Substrate},
 };
-use sqlx::PgConnection;
 use async_std::prelude::*;
-use bastion::prelude::*;
 use async_std::stream;
+use bastion::prelude::*;
 use sc_client_api::client::BlockBackend as _;
 use sp_runtime::generic::BlockId;
+use sqlx::PgConnection;
 use std::{sync::Arc, time::Duration};
 
 pub fn actor<T, C>(client: Arc<C>, pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
 where
     T: Substrate,
-    C: ChainAccess<NotSignedBlock> + 'static
+    C: ChainAccess<NotSignedBlock> + 'static,
 {
     // generate work from missing blocks
     Bastion::children(|children| {

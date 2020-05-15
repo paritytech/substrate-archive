@@ -19,11 +19,11 @@ use futures::channel::mpsc::TrySendError;
 // use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
 use desub::Error as DesubError;
 use serde_json::Error as SerdeError;
+use sqlx::Error as SqlError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
 use std::sync::PoisonError;
-use sqlx::Error as SqlError;
 use subxt::Error as SubxtError;
 
 pub type ArchiveResult<T> = Result<T, Error>;

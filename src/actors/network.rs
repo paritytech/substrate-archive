@@ -121,22 +121,27 @@ where
 
 async fn meta_process_block<T>(block: SubstrateBlock<T>, rpc: Rpc<T>, sched: &mut Scheduler<'_>)
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
-    let (ver, meta) = rpc.meta_and_version(Some(block.block.header().hash()).clone()).await.unwrap();
+    let (ver, meta) = rpc
+        .meta_and_version(Some(block.block.header().hash()).clone())
+        .await
+        .unwrap();
     let block = Block::<T>::new(block, meta, ver.spec_version);
     // send block and metadata to decode actors
     match sched.next(block) {
         Ok(_) => (),
-        Err(e) => log::error!("{:?}", e)
+        Err(e) => log::error!("{:?}", e),
     }
 }
 
-async fn meta_process_blocks<T>(blocks: Vec<SubstrateBlock<T>>, rpc: Rpc<T>, sched: &mut Scheduler<'_>)
-where
-    T: Substrate + Send + Sync
+async fn meta_process_blocks<T>(
+    blocks: Vec<SubstrateBlock<T>>,
+    rpc: Rpc<T>,
+    sched: &mut Scheduler<'_>,
+) where
+    T: Substrate + Send + Sync,
 {
-
     let mut meta_futures = Vec::new();
     // for first and last block check metadata version
     // if it's the same, don't get version for rest of blocks
@@ -144,19 +149,32 @@ where
     // you could evolve this to be some kind of sort-algorithm that significantly cuts down
     // on the amount of RPC calls done
     let (first, last) = (blocks[0].clone(), blocks[blocks.len()].clone());
-    let first_meta = rpc.meta_and_version(Some(first.block.header().hash()).clone()).await.unwrap();
-    let last_meta = rpc.meta_and_version(Some(last.block.header().hash()).clone()).await.unwrap();
+    let first_meta = rpc
+        .meta_and_version(Some(first.block.header().hash()).clone())
+        .await
+        .unwrap();
+    let last_meta = rpc
+        .meta_and_version(Some(last.block.header().hash()).clone())
+        .await
+        .unwrap();
 
     let mut batch_items = Vec::new();
     if first_meta.0.spec_version == last_meta.0.spec_version {
         for b in blocks.into_iter() {
-            batch_items.push(Block::<T>::new(b, first_meta.1.clone(), first_meta.0.spec_version));
+            batch_items.push(Block::<T>::new(
+                b,
+                first_meta.1.clone(),
+                first_meta.0.spec_version,
+            ));
         }
     } else {
         for b in blocks.iter() {
             meta_futures.push(rpc.meta_and_version(Some(b.block.header().hash()).clone()))
         }
-        let metadata = join_all(meta_futures).await.into_iter().collect::<Result<Vec<_>, _>>();
+        let metadata = join_all(meta_futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>();
 
         // handle error directly
         let metadata = match metadata {
@@ -167,13 +185,13 @@ where
             }
         };
 
-        for (b, m) in blocks.into_iter().zip(metadata.into_iter())  {
+        for (b, m) in blocks.into_iter().zip(metadata.into_iter()) {
             batch_items.push(Block::<T>::new(b, m.1, m.0.spec_version));
         }
     }
 
     match sched.next(batch_items) {
         Ok(_) => (),
-        Err(e) => log::error!("{:?}", e)
+        Err(e) => log::error!("{:?}", e),
     }
 }
