@@ -20,37 +20,46 @@
 
 use crate::{
     rpc::Rpc,
-    types::{Block, Substrate, SubstrateBlock},
+    types::{Block, Substrate, SubstrateBlock, NotSignedBlock},
+    backend::ChainAccess,
 };
+use sc_client_api::BlockBackend;
+use sp_runtime::generic::BlockId;
+use std::sync::Arc;
 use bastion::prelude::*;
 use futures::future::join_all;
 use sp_runtime::traits::{Block as _, Header as _};
+use subxt::system::System;
 
 use super::scheduler::{Algorithm, Scheduler};
 
 const REDUNDANCY: usize = 5;
 
 /// instantiate all the block workers
-pub fn actor<T>(decode_workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()>
+pub fn actor<T, C>(decode_workers: ChildrenRef, client: Arc<C>, url: String) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
+    C: ChainAccess<NotSignedBlock> + 'static,
+    <T as System>::BlockNumber: Into<u32>,
 {
     let metadata_workers = metadata::<T>(decode_workers, url.clone())?;
-    blocks::<T>(metadata_workers, url.clone())
+    blocks::<T, _>(metadata_workers, client, url.clone())
 }
 
 /// Subscribe to new blocks via RPC
 /// this is a worker that never stops
-fn blocks<T>(meta_workers: ChildrenRef, url: String) -> Result<ChildrenRef, ()>
+fn blocks<T, C>(meta_workers: ChildrenRef, client: Arc<C>, url: String) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
+    C: ChainAccess<NotSignedBlock> + 'static,
+    <T as System>::BlockNumber: Into<u32>,
 {
     // actor which produces work in the form of collecting blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let meta_workers = meta_workers.clone();
             let url: String = url.clone();
-
+            let client = client.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &meta_workers);
                 let rpc = super::connect::<T>(url.as_str()).await;
@@ -60,11 +69,9 @@ where
                     .expect("Subscription failed");
                 while let head = subscription.next().await {
                     log::info!("Awaiting next head...");
-                    // let head = subscription.next().await;
                     log::info!("Converting to block...");
-                    let block = rpc
-                        .block(Some(head.hash()))
-                        .await
+                    let block = client
+                        .block(&BlockId::Number((*head.number()).into()))
                         .map_err(|e| log::error!("{:?}", e))
                         .unwrap();
                     log::info!("Received a new block!");

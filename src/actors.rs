@@ -63,7 +63,7 @@ where
     let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
     let decode_workers =
         self::decode::actor::<T, P>(db_workers, decoder).expect("Couldn't start decode children");
-    self::network::actor::<T>(decode_workers.clone(), url).expect("Couldn't add blocks child");
+    self::network::actor::<T, _>(decode_workers.clone(), client.clone(), url).expect("Couldn't add blocks child");
     // self::db_generators::actor::<T, _>(client, pool).expect("Couldn't start db work generators");
 
     Bastion::start();
