@@ -44,8 +44,12 @@ where
                                 process_blocks(&db, blocks).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
-                            extrinsics: Vec<ExtrinsicType<T>> =!> {
+                            extrinsics: Vec<SignedExtrinsic<T>> =!> {
                                 process_extrinsics(&db, extrinsics).await;
+                                answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
+                            };
+                            inherents: Vec<Inherent<T>> =!> {
+                                process_inherents(&db, inherents).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
@@ -78,12 +82,22 @@ where
     }
 }
 
-async fn process_extrinsics<T>(db: &Database, extrinsics: Vec<ExtrinsicType<T>>)
+async fn process_extrinsics<T>(db: &Database, extrinsics: Vec<SignedExtrinsic<T>>)
 where
     T: Substrate + Send + Sync,
 {
     match db.insert(extrinsics).await {
         Ok(_) => (),
         Err(e) => log::error!("{:?}", e),
+    }
+}
+
+async fn process_inherents<T>(db: &Database, inherents: Vec<Inherent<T>>)
+where
+    T: Substrate + Send + Sync,
+{
+    match db.insert(inherents).await {
+        Ok(_) => (),
+        Err(e) => log::error!("{:?}", e)
     }
 }

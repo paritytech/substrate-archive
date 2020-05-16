@@ -104,48 +104,39 @@ where
 }
 
 #[async_trait]
-impl<T> Insert for Vec<ExtrinsicType<T>>
+impl<T> Insert for Vec<SignedExtrinsic<T>>
 where
     T: Substrate + Send + Sync,
 {
     async fn insert(self, db: DbConnection) -> DbReturn {
-        let (mut signed_query, mut not_signed_query) = (None, None);
-        for e in self.into_iter() {
-            match e {
-                ExtrinsicType::Signed(e) => {
-                    if signed_query.is_some() {
-                        signed_query =
-                            Some(e.add(signed_query.expect("Checked for existence; qed"))?)
-                    } else {
-                        signed_query = Some(e.prep_insert()?)
-                    }
-                }
-                ExtrinsicType::NotSigned(e) => {
-                    if not_signed_query.is_some() {
-                        not_signed_query =
-                            Some(e.add(not_signed_query.expect("Checked for existence; qed"))?)
-                    } else {
-                        not_signed_query = Some(e.prep_insert()?)
-                    }
-                }
-            }
-        }
         let mut futures = Vec::new();
+        let mut counter = 0;
+        for ext in self.into_iter() {
+            futures.push(ext.prep_insert()?.execute(&db).map_err(ArchiveError::from));
+        }
+        for r in future::join_all(futures).await.into_iter() {
+            counter += r?;
+        }
+        Ok(counter)
+    }
+}
 
-        if let Some(q) = signed_query {
-            futures.push(q.execute(&db).map_err(ArchiveError::from))
+#[async_trait]
+impl<T> Insert for Vec<Inherent<T>>
+where
+    T: Substrate + Send + Sync,
+{
+    async fn insert(self, db: DbConnection) -> DbReturn {
+        let mut futures = Vec::new();
+        let mut counter = 0;
+        for ext in self.into_iter() {
+            futures.push(ext.prep_insert()?.execute(&db).map_err(ArchiveError::from));
         }
 
-        if let Some(q) = not_signed_query {
-            futures.push(q.execute(&db).map_err(ArchiveError::from))
+        for r in future::join_all(futures).await.into_iter() {
+            counter += r?;
         }
-
-        //FIXME should return real result
-        match future::join_all(futures).await[0].as_ref() {
-            Ok(_) => (),
-            Err(e) => log::error!("{:?}", e),
-        };
-        Ok(99999999999999)
+        Ok(counter)
     }
 }
 
@@ -166,6 +157,7 @@ where
                 query = Some(block.prep_insert()?)
             }
         }
+
         query
             .expect("Query should not be none")
             .execute(&db)

@@ -42,26 +42,84 @@ pub type NotSignedBlock = BlockT<
 /// Read-Only RocksDb backed Backend Type
 pub type ArchiveBackend = sc_client_db::Backend<NotSignedBlock>;
 
-#[derive(Debug)]
-pub enum ExtrinsicType<T: Substrate + Send + Sync> {
-    Signed(Extrinsic<T>),
-    NotSigned(Extrinsic<T>),
-}
 
 #[derive(Debug)]
-/// Generic Not-signed extrinsic
-pub struct Extrinsic<T: Substrate + Send + Sync> {
+pub struct SignedExtrinsic<T: Substrate + Send + Sync> {
     inner: GenericExtrinsic,
     index: usize,
     hash: T::Hash,
     block_num: u32,
 }
 
-impl<T> Extrinsic<T>
+impl<T> SignedExtrinsic<T>
 where
     T: Substrate + Send + Sync,
 {
     pub fn new(extrinsic: GenericExtrinsic, hash: T::Hash, index: usize, block_num: u32) -> Self {
+        assert!(extrinsic.is_signed());
+
+        Self {
+            inner: extrinsic,
+            hash,
+            index,
+            block_num,
+        }
+    }
+
+    pub fn inner(&self) -> &GenericExtrinsic {
+        &self.inner
+    }
+
+    pub fn signature(&self) -> Option<&GenericSignature> {
+        self.inner.signature()
+    }
+
+    pub fn call(&self) -> &GenericCall {
+        self.inner.call()
+    }
+
+    pub fn ext_module(&self) -> &str {
+        self.inner.ext_module()
+    }
+
+    pub fn ext_call(&self) -> &str {
+        self.inner.ext_call()
+    }
+
+    pub fn args(&self) -> &[ExtrinsicArgument] {
+        self.inner.args()
+    }
+
+    pub fn hash(&self) -> &T::Hash {
+        &self.hash
+    }
+
+    pub fn index(&self) -> usize {
+        self.index
+    }
+
+    pub fn block_num(&self) -> u32 {
+        self.block_num
+    }
+}
+
+
+#[derive(Debug)]
+/// Generic Not-signed extrinsic
+pub struct Inherent<T: Substrate + Send + Sync> {
+    inner: GenericExtrinsic,
+    index: usize,
+    hash: T::Hash,
+    block_num: u32,
+}
+
+impl<T> Inherent<T>
+where
+    T: Substrate + Send + Sync,
+{
+    pub fn new(extrinsic: GenericExtrinsic, hash: T::Hash, index: usize, block_num: u32) -> Self {
+        assert!( ! extrinsic.is_signed());
+
         Self {
             inner: extrinsic,
             hash,

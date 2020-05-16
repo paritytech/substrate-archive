@@ -46,7 +46,7 @@ where
         Ok(sqlx::query(
             r#"
 INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root)
-VALUES ($1, $2, $3, $4, $5)
+VALUES($1, $2, $3, $4, $5)
 "#,
         )
         .bind(parent_hash)
@@ -72,117 +72,148 @@ VALUES ($1, $2, $3, $4, $5)
     }
 }
 
-impl<'a, T> PrepareSql<'a> for Extrinsic<T>
+impl<'a, T> PrepareSql<'a> for SignedExtrinsic<T>
 where
     T: Substrate + Send + Sync,
 {
     fn prep_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        if self.is_signed() {
-            // FIXME
-            // workaround for serde not serializing u128 to value
-            // and diesel only supporting serde_Json::Value for jsonb in postgres
-            // u128 are used in balance transfers
-            let parameters = serde_json::to_string(&self.args())?;
-            let parameters: serde_json::Value = serde_json::from_str(&parameters)?;
-            let (addr, sig, extra) = self
-                .signature()
-                .ok_or(ArchiveError::DataNotFound("Signature".to_string()))?
-                .parts();
+        // FIXME
+        // workaround for serde not serializing u128 to value
+        // and diesel only supporting serde_Json::Value for jsonb in postgres
+        // u128 are used in balance transfers
+        let parameters = serde_json::to_string(&self.args())?;
+        let parameters: serde_json::Value = serde_json::from_str(&parameters)?;
 
-            let addr = serde_json::to_string(addr)?;
-            let sig = serde_json::to_string(sig)?;
-            let extra = serde_json::to_string(extra)?;
-            let addr: serde_json::Value = serde_json::from_str(&addr)?;
-            let sig: serde_json::Value = serde_json::from_str(&sig)?;
-            let extra: serde_json::Value = serde_json::from_str(&extra)?;
+        let (addr, sig, extra) = self
+            .signature()
+            .ok_or(ArchiveError::DataNotFound("Signature".to_string()))?
+            .parts();
 
-            Ok(sqlx::query(r#"
+        let addr = serde_json::to_string(addr)?;
+        let sig = serde_json::to_string(sig)?;
+        let extra = serde_json::to_string(extra)?;
+
+        let addr: serde_json::Value = serde_json::from_str(&addr)?;
+        let sig: serde_json::Value = serde_json::from_str(&sig)?;
+        let extra: serde_json::Value = serde_json::from_str(&extra)?;
+
+        Ok(sqlx::query(r#"
 INSERT INTO signed_extrinsics (hash, block_num, from_addr, module, call, parameters, tx_index, signature, extra, transaction_version)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 "#
-            )
-                .bind(self.hash().as_ref())
-                .bind(self.block_num())
-                .bind(addr)
-                .bind(self.ext_module())
-                .bind(self.ext_call())
-                .bind(parameters)
-                .bind(self.index() as u32)
-                .bind(sig)
-                .bind(Some(extra))
-                .bind(0)) // FIXME: Transaction version incorrect
-        } else {
-            // FIXME
-            // workaround for serde not serializing u128 to value
-            // and diesel only supporting serde_Json::Value for jsonb in postgres
-            // u128 are used in balance transfers
-            let parameters = serde_json::to_string(&self.args()).unwrap();
-            let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
+        )
+            .bind(self.hash().as_ref())
+            .bind(self.block_num())
+            .bind(addr)
+            .bind(self.ext_module())
+            .bind(self.ext_call())
+            .bind(parameters)
+            .bind(self.index() as u32)
+            .bind(sig)
+            .bind(Some(extra))
+            .bind(0)) // FIXME: Transaction version incorrect
 
-            Ok(sqlx::query(
-                r#"
+    }
+
+    fn add(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        // FIXME
+        // workaround for serde not serializing u128 to value
+        // and sqlx only supporting serde_Json::Value for jsonb in postgres
+        // u128 are used in balance transfers
+        // Can write own Postgres Encoder for value with sqlx
+        let parameters = serde_json::to_string(&self.args())?;
+        let parameters: serde_json::Value = serde_json::from_str(&parameters)?;
+        let (addr, sig, extra) = self
+            .signature()
+            .ok_or(ArchiveError::DataNotFound("Signature".to_string()))?
+            .parts();
+
+        let addr = serde_json::to_string(addr)?;
+        let sig = serde_json::to_string(sig)?;
+        let extra = serde_json::to_string(extra)?;
+
+        let addr: serde_json::Value = serde_json::from_str(&addr)?;
+        let sig: serde_json::Value = serde_json::from_str(&sig)?;
+        let extra: serde_json::Value = serde_json::from_str(&extra)?;
+
+        Ok(query
+            .bind(self.hash().as_ref())
+            .bind(self.block_num())
+            .bind(addr)
+            .bind(self.ext_module())
+            .bind(self.ext_call())
+            .bind(parameters)
+            .bind(self.index() as u32)
+            .bind(sig)
+            .bind(Some(extra))
+            .bind(0)) // FIXME: Transaction version incorrect
+    }
+}
+
+impl<'a, T> PrepareSql<'a> for Inherent<T>
+where
+    T: Substrate + Send + Sync,
+{
+    fn prep_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        // FIXME
+        // workaround for serde not serializing u128 to value
+        // and sqlx only supporting serde_Json::Value for jsonb in postgres
+        // u128 are used in balance transfers
+        // Can write own Postgres Encoder for value with sqlx
+        let parameters = serde_json::to_string(&self.args()).unwrap();
+        let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
+
+        log::info!("================== EXT ===============");
+        log::info!("Preparing Inherent {}", self.index());
+        log::info!("Hash {:?}", self.hash().as_ref());
+        log::info!("Num: {}", self.block_num());
+        log::info!("Module: {}", self.ext_module());
+        log::info!("Call: {}", self.ext_call());
+        log::info!("Parameters: {:?}", parameters);
+        log::info!("Index: {}", self.index() as u32);
+        log::info!("Transaction Version {}", 0 as u32);
+        log::info!("================== EXT ===============");
+
+        Ok(sqlx::query(
+            r#"
 INSERT INTO inherents (hash, block_num, module, call, parameters, in_index, transaction_version)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+VALUES($1, $2, $3, $4, $5, $6, $7)
 "#,
-            )
+        )
+        .bind(self.hash().as_ref())
+        .bind(self.block_num())
+        .bind(self.ext_module())
+        .bind(self.ext_call())
+        .bind(parameters)
+        .bind(self.index() as u32)
+        .bind(0 as u32))
+    }
+
+    fn add(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        // FIXME
+        // workaround for serde not serializing u128 to value
+        // and diesel only supporting serde_Json::Value for jsonb in postgres
+        // u128 are used in balance transfers
+        // Can write own Postgres Encoder for value with sqlx
+        let parameters = serde_json::to_string(&self.args()).unwrap();
+        let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
+        log::info!("================== EXT ===============");
+        log::info!("Adding Inherent {}", self.index());
+        log::info!("Hash {:?}", self.hash().as_ref());
+        log::info!("Num: {}", self.block_num());
+        log::info!("Module: {}", self.ext_module());
+        log::info!("Call: {}", self.ext_call());
+        log::info!("Parameters: {:?}", parameters);
+        log::info!("Index: {}", self.index() as u32);
+        log::info!("Transaction Version {}", 0 as u32);
+        log::info!("================== EXT ===============");
+        Ok(query
             .bind(self.hash().as_ref())
             .bind(self.block_num())
             .bind(self.ext_module())
             .bind(self.ext_call())
-            .bind(Some(parameters))
+            .bind(parameters)
             .bind(self.index() as u32)
             .bind(0 as u32))
-        }
-    }
-
-    fn add(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        if self.is_signed() {
-            // FIXME
-            // workaround for serde not serializing u128 to value
-            // and diesel only supporting serde_Json::Value for jsonb in postgres
-            // u128 are used in balance transfers
-            let parameters = serde_json::to_string(&self.args())?;
-            let parameters: serde_json::Value = serde_json::from_str(&parameters)?;
-            let (addr, sig, extra) = self
-                .signature()
-                .ok_or(ArchiveError::DataNotFound("Signature".to_string()))?
-                .parts();
-
-            let addr = serde_json::to_string(addr)?;
-            let sig = serde_json::to_string(sig)?;
-            let extra = serde_json::to_string(extra)?;
-
-            let addr: serde_json::Value = serde_json::from_str(&addr)?;
-            let sig: serde_json::Value = serde_json::from_str(&sig)?;
-            let extra: serde_json::Value = serde_json::from_str(&extra)?;
-
-            Ok(query
-                .bind(self.hash().as_ref())
-                .bind(self.block_num())
-                .bind(addr)
-                .bind(self.ext_module())
-                .bind(self.ext_call())
-                .bind(Some(parameters))
-                .bind(self.index() as u32)
-                .bind(sig)
-                .bind(Some(extra))
-                .bind(0)) // FIXME: Transaction version incorrect
-        } else {
-            // FIXME
-            // workaround for serde not serializing u128 to value
-            // and diesel only supporting serde_Json::Value for jsonb in postgres
-            // u128 are used in balance transfers
-            let parameters = serde_json::to_string(&self.args()).unwrap();
-            let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
-
-            Ok(query
-                .bind(self.hash().as_ref())
-                .bind(self.block_num())
-                .bind(self.ext_module())
-                .bind(self.ext_call())
-                .bind(Some(parameters))
-                .bind(self.index() as u32)
-                .bind(0 as u32))
-        }
     }
 }

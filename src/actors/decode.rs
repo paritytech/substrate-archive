@@ -18,7 +18,7 @@
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 
-use crate::types::{Block, Extrinsic, ExtrinsicType, RawExtrinsic, Substrate};
+use crate::types::{Block, SignedExtrinsic, Inherent, RawExtrinsic, Substrate};
 use bastion::prelude::*;
 use desub::{decoder::Decoder, TypeDetective};
 use subxt::system::System;
@@ -86,6 +86,38 @@ where
     log::debug!("{:?}", v);
 }
 
+#[derive(Debug)]
+enum ExtrinsicType<T: Substrate + Send + Sync> {
+    Signed(SignedExtrinsic<T>),
+    NotSigned(Inherent<T>)
+}
+
+
+struct ExtVec<T>(Vec<ExtrinsicType<T>>) where T: Substrate + Send + Sync;
+impl<T> ExtVec<T> where T: Substrate + Send + Sync {
+    fn split(self) -> (Vec<SignedExtrinsic<T>>, Vec<Inherent<T>>) {
+        let s = self.0;
+        let (mut signed, mut not_signed) = (Vec::new(), Vec::new());
+        for e in s.into_iter() {
+            match e {
+                ExtrinsicType::Signed(e) => {
+                    signed.push(e)
+                },
+                ExtrinsicType::NotSigned(e) => {
+                    not_signed.push(e)
+                }
+            }
+        }
+        (signed, not_signed)
+    }
+}
+
+impl<T> From<Vec<ExtrinsicType<T>>> for ExtVec<T> where T: Substrate + Send + Sync {
+    fn from(ext: Vec<ExtrinsicType<T>>) -> ExtVec<T> {
+        ExtVec(ext)
+    }
+}
+
 pub async fn process_extrinsics<T, P>(
     mut decoder: Decoder<P>,
     blocks: Vec<Block<T>>,
@@ -99,7 +131,7 @@ pub async fn process_extrinsics<T, P>(
         .iter()
         .for_each(|b| decoder.register_version(b.spec, &b.meta));
 
-    let extrinsics = blocks
+    let ext: ExtVec<T> = blocks
         .iter()
         .map(|b| Vec::<RawExtrinsic<T>>::from(b))
         .flatten()
@@ -108,15 +140,22 @@ pub async fn process_extrinsics<T, P>(
                 .decode_extrinsic(e.spec, e.inner.as_slice())
                 .expect("decoding extrinsic failed");
             if ext.is_signed() {
-                ExtrinsicType::Signed(Extrinsic::new(ext, e.hash, e.index, e.block_num))
+                ExtrinsicType::Signed(SignedExtrinsic::new(ext, e.hash, e.index, e.block_num))
             } else {
-                ExtrinsicType::NotSigned(Extrinsic::new(ext, e.hash, e.index, e.block_num))
+                ExtrinsicType::NotSigned(Inherent::new(ext, e.hash, e.index, e.block_num))
             }
         })
-        .collect::<Vec<ExtrinsicType<T>>>();
+        .collect::<Vec<ExtrinsicType<T>>>()
+        .into();
 
-    log::info!("Decoded {} extrinsics", extrinsics.len());
-    log::debug!("{:?}", extrinsics);
-    let v = sched.ask_next(extrinsics).unwrap().await;
-    log::debug!("{:?}", v);
+    let (signed, not_signed) = ext.split();
+    log::info!("Decoded {} extrinsics", signed.len() + not_signed.len());
+
+    if signed.len() > 0 {
+        let v = sched.ask_next(signed).unwrap().await;
+        log::debug!("{:?}", v);
+    }
+    if not_signed.len() > 0 {
+        let v = sched.ask_next(not_signed).unwrap().await;
+    }
 }
