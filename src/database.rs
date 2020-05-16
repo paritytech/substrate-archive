@@ -19,6 +19,7 @@
 
 mod prepare_sql;
 
+use futures::future::{self, TryFutureExt};
 use async_trait::async_trait;
 use codec::{Decode, Encode};
 use sp_runtime::traits::Header as _;
@@ -103,20 +104,46 @@ where
 }
 
 #[async_trait]
-impl<T> Insert for Vec<Extrinsic<T>>
+impl<T> Insert for Vec<ExtrinsicType<T>>
 where
     T: Substrate + Send + Sync,
 {
     async fn insert(self, db: DbConnection) -> DbReturn {
-        let mut query = None;
+        let (mut signed_query, mut not_signed_query) = (None, None);
         for e in self.into_iter() {
-            if query.is_some() {
-                query = Some(e.add(query.expect("Checked for existence; qed"))?)
-            } else {
-                query = Some(e.prep_insert()?)
+            match e {
+                ExtrinsicType::Signed(e) => {
+                    if signed_query.is_some() {
+                        signed_query = Some(e.add(signed_query.expect("Checked for existence; qed"))?)
+                    } else {
+                        signed_query = Some(e.prep_insert()?)
+                    }
+                },
+                ExtrinsicType::NotSigned(e) => {
+                    if not_signed_query.is_some() {
+                        not_signed_query = Some(e.add(not_signed_query.expect("Checked for existence; qed"))?)
+                    } else {
+                        not_signed_query = Some(e.prep_insert()?)
+                    }
+                }
             }
         }
-        query.unwrap().execute(&db).await.map_err(Into::into)
+        let mut futures = Vec::new();
+
+        if let Some(q) = signed_query {
+            futures.push(q.execute(&db).map_err(ArchiveError::from))
+        }
+
+        if let Some(q) = not_signed_query {
+            futures.push(q.execute(&db).map_err(ArchiveError::from))
+        }
+
+        //FIXME should return real result
+        match future::join_all(futures).await[0].as_ref() {
+            Ok(_) => (),
+            Err(e) => log::error!("{:?}", e)
+        };
+        Ok(99999999999999)
     }
 }
 

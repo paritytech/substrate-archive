@@ -12,7 +12,7 @@ use subxt::KusamaRuntime;
 type Block = NotSignedBlock;
 
 pub fn main() {
-    substrate_archive::init_logger(log::LevelFilter::Info, log::LevelFilter::Debug);
+    substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Debug);
     let types = PolkadotTypes::new().unwrap();
     let decoder = Decoder::new(types, "kusama");
 

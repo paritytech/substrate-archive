@@ -58,10 +58,9 @@ where
                     .subscribe_finalized_blocks()
                     .await
                     .expect("Subscription failed");
-
-                loop {
+                while let head = subscription.next().await {
                     log::info!("Awaiting next head...");
-                    let head = subscription.next().await;
+                    // let head = subscription.next().await;
                     log::info!("Converting to block...");
                     let block = rpc
                         .block(Some(head.hash()))
@@ -72,12 +71,12 @@ where
 
                     if let Some(b) = block {
                         log::trace!("{:?}", b);
-                        let _ = sched.next(b).unwrap().await?;
+                        sched.ask_next(b).unwrap().await?;
                     } else {
                         log::warn!("Block does not exist!");
                     }
-                    // TODO: need some kind of handler to break out of the loop
                 }
+                Bastion::stop();
                 Ok(())
             }
         })
@@ -102,7 +101,6 @@ where
                         msg! {
                             ctx.recv().await?,
                             block: SubstrateBlock<T> =!> {
-
                                 meta_process_block::<T>(block, rpc.clone(), &mut sched).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
                             };
@@ -129,10 +127,8 @@ where
         .unwrap();
     let block = Block::<T>::new(block, meta, ver.spec_version);
     // send block and metadata to decode actors
-    match sched.next(block) {
-        Ok(_) => (),
-        Err(e) => log::error!("{:?}", e),
-    }
+    let v = sched.ask_next(block).unwrap().await;
+    log::debug!("{:?}", v);
 }
 
 async fn meta_process_blocks<T>(
@@ -149,10 +145,12 @@ async fn meta_process_blocks<T>(
     // you could evolve this to be some kind of sort-algorithm that significantly cuts down
     // on the amount of RPC calls done
     let (first, last) = (blocks[0].clone(), blocks[blocks.len()].clone());
+
     let first_meta = rpc
         .meta_and_version(Some(first.block.header().hash()).clone())
         .await
         .unwrap();
+
     let last_meta = rpc
         .meta_and_version(Some(last.block.header().hash()).clone())
         .await
@@ -190,8 +188,6 @@ async fn meta_process_blocks<T>(
         }
     }
 
-    match sched.next(batch_items) {
-        Ok(_) => (),
-        Err(e) => log::error!("{:?}", e),
-    }
+    let v = sched.ask_next(batch_items).unwrap().await;
+    log::debug!("{:?}", v);
 }

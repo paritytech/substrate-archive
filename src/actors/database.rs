@@ -36,16 +36,16 @@ where
                         msg! {
                             ctx.recv().await?,
                             block: Block<T> =!> {
-                                process_block(&db, block);
-                                let _ = answer!(ctx, super::ArchiveAnswer::Success);
+                                process_block(&db, block).await;
+                                answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't Answer");
                             };
                             blocks: Vec<Block<T>> =!> {
-                                process_blocks(&db, blocks);
-                                let _ = answer!(ctx, super::ArchiveAnswer::Success);
+                                process_blocks(&db, blocks).await;
+                                answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
-                            extrinsics: Vec<Extrinsic<T>> =!> {
-                                process_extrinsics(&db, extrinsics);
-                                let _ = answer!(ctx, super::ArchiveAnswer::Success);
+                            extrinsics: Vec<ExtrinsicType<T>> =!> {
+                                process_extrinsics(&db, extrinsics).await;
+                                answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
                         };
@@ -77,7 +77,7 @@ where
     }
 }
 
-async fn process_extrinsics<T>(db: &Database, extrinsics: Vec<Extrinsic<T>>)
+async fn process_extrinsics<T>(db: &Database, extrinsics: Vec<ExtrinsicType<T>>)
 where
     T: Substrate + Send + Sync,
 {

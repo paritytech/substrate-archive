@@ -42,7 +42,15 @@ pub type NotSignedBlock = BlockT<
 /// Read-Only RocksDb backed Backend Type
 pub type ArchiveBackend = sc_client_db::Backend<NotSignedBlock>;
 
+
 #[derive(Debug)]
+pub enum ExtrinsicType<T: Substrate + Send + Sync> {
+    Signed(Extrinsic<T>),
+    NotSigned(Extrinsic<T>)
+}
+
+#[derive(Debug)]
+/// Generic Not-signed extrinsic
 pub struct Extrinsic<T: Substrate + Send + Sync> {
     inner: GenericExtrinsic,
     index: usize,

@@ -37,7 +37,7 @@ impl<'a> Scheduler<'a> {
         }
     }
 
-    pub fn next<T>(&mut self, data: T) -> Result<Answer, T>
+    pub fn ask_next<T>(&mut self, data: T) -> Result<Answer, T>
     where
         T: Send + Sync + std::fmt::Debug + 'static,
     {
@@ -47,6 +47,20 @@ impl<'a> Scheduler<'a> {
                 let next_executed = self.last_executed % self.workers.elems().len();
                 self.ctx
                     .ask(&self.workers.elems()[next_executed].addr(), data)
+            }
+        }
+    }
+
+    pub fn tell_next<T>(&mut self, data: T) -> Result<(), T>
+    where
+        T: Send + Sync + std::fmt::Debug + 'static
+    {
+        match self.alg {
+            Algorithm::RoundRobin => {
+                self.last_executed += 1;
+                let next_executed = self.last_executed % self.workers.elems().len();
+                self.ctx
+                    .tell(&self.workers.elems()[next_executed].addr(), data)
             }
         }
     }
