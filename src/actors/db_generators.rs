@@ -18,20 +18,29 @@
 //! IE: Missing Blocks/Storage/Inherents/Transactions
 //! Gathers Missing blocks -> passes to metadata -> passes to extractors -> passes to decode -> passes to insert
 
+use super::scheduler::{Algorithm, Scheduler};
 use crate::{
     backend::ChainAccess,
+    database::Insert,
     queries,
-    types::{NotSignedBlock, Substrate},
+    types::{BatchBlock, NotSignedBlock, Substrate},
 };
 use async_std::prelude::*;
 use async_std::stream;
 use bastion::prelude::*;
+use bigdecimal::ToPrimitive;
 use sc_client_api::client::BlockBackend as _;
 use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
 use std::{sync::Arc, time::Duration};
 
-pub fn actor<T, C>(client: Arc<C>, pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
+const DURATION: u64 = 10;
+
+pub fn actor<T, C>(
+    client: Arc<C>,
+    meta_workers: ChildrenRef,
+    pool: sqlx::Pool<PgConnection>,
+) -> Result<ChildrenRef, ()>
 where
     T: Substrate,
     C: ChainAccess<NotSignedBlock> + 'static,
@@ -39,17 +48,33 @@ where
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
-            let mut interval = stream::interval(Duration::from_secs(20));
+            let mut interval = stream::interval(Duration::from_secs(DURATION));
             let client = client.clone();
-            /// query for missing blocks
             let pool = pool.clone();
+            let workers = meta_workers.clone();
             async move {
+                let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                 while let Some(_) = interval.next().await {
                     let mut cursor = queries::missing_blocks(None, &pool).await;
+                    let mut blocks = Vec::new();
                     while let Some(block) = cursor.next().await {
-                        let b = client.block(&BlockId::Number(block.unwrap().block_num));
-                        println!("Got Block {:?}", b);
+                        let num = block
+                            .unwrap()
+                            .generate_series
+                            .to_u32()
+                            .expect("Could not convert into u32");
+                        let b = client
+                            .block(&BlockId::Number(num))
+                            .expect("Error getting block");
+                        if b.is_none() {
+                            log::warn!("Block does not exist!")
+                        } else {
+                            blocks.push(b.expect("Checked for none; qed"));
+                        }
                     }
+                    log::info!("Got {} blocks", blocks.len());
+                    let answer = sched.ask_next(blocks).unwrap().await;
+                    log::debug!("{:?}", answer);
                 }
                 Ok(())
             }

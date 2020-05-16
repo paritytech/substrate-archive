@@ -392,6 +392,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "271e48689ed6b78f7275193b86537764739174d5856e20d25e63f731218af379"
 
 [[package]]
+name = "bigdecimal"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1374191e2dd25f9ae02e3aa95041ed5d747fc77b3c102b49fe2dd9a8117a6244"
+dependencies = [
+ "num-bigint",
+ "num-integer",
+ "num-traits 0.2.11",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.50.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6839,6 +6850,7 @@ dependencies = [
  "async-std",
  "async-stream",
  "base64 0.12.1",
+ "bigdecimal",
  "bitflags",
  "byteorder",
  "chrono",
@@ -6853,6 +6865,7 @@ dependencies = [
  "log 0.4.8",
  "md-5",
  "memchr",
+ "num-bigint",
  "percent-encoding 2.1.0",
  "rand 0.7.3",
  "serde",
@@ -6985,10 +6998,12 @@ dependencies = [
  "async-std",
  "async-trait",
  "bastion",
+ "bigdecimal",
  "chrono",
  "desub-core",
  "desub-extras",
  "dirs",
+ "env_logger 0.7.1",
  "failure",
  "fern",
  "futures 0.3.5",
@@ -7804,7 +7819,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
 dependencies = [
- "rand 0.3.23",
+ "rand 0.7.3",
 ]
 
 [[package]]

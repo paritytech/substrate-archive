@@ -40,6 +40,7 @@ where
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't Answer");
                             };
                             blocks: Vec<Block<T>> =!> {
+                                log::info!("Inserting {} blocks into the database!EEEEEEEEEEEEEEEEEEEEEEEEEE", blocks.len());
                                 process_blocks(&db, blocks).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
