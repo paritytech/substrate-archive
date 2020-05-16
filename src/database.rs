@@ -19,9 +19,9 @@
 
 mod prepare_sql;
 
-use futures::future::{self, TryFutureExt};
 use async_trait::async_trait;
 use codec::{Decode, Encode};
+use futures::future::{self, TryFutureExt};
 use sp_runtime::traits::Header as _;
 use sqlx::PgConnection;
 use std::{convert::TryFrom, env, sync::RwLock};
@@ -114,14 +114,16 @@ where
             match e {
                 ExtrinsicType::Signed(e) => {
                     if signed_query.is_some() {
-                        signed_query = Some(e.add(signed_query.expect("Checked for existence; qed"))?)
+                        signed_query =
+                            Some(e.add(signed_query.expect("Checked for existence; qed"))?)
                     } else {
                         signed_query = Some(e.prep_insert()?)
                     }
-                },
+                }
                 ExtrinsicType::NotSigned(e) => {
                     if not_signed_query.is_some() {
-                        not_signed_query = Some(e.add(not_signed_query.expect("Checked for existence; qed"))?)
+                        not_signed_query =
+                            Some(e.add(not_signed_query.expect("Checked for existence; qed"))?)
                     } else {
                         not_signed_query = Some(e.prep_insert()?)
                     }
@@ -141,7 +143,7 @@ where
         //FIXME should return real result
         match future::join_all(futures).await[0].as_ref() {
             Ok(_) => (),
-            Err(e) => log::error!("{:?}", e)
+            Err(e) => log::error!("{:?}", e),
         };
         Ok(99999999999999)
     }

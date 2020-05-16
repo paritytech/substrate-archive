@@ -18,7 +18,7 @@
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 
-use crate::types::{Block, Extrinsic, RawExtrinsic, ExtrinsicType, Substrate};
+use crate::types::{Block, Extrinsic, ExtrinsicType, RawExtrinsic, Substrate};
 use bastion::prelude::*;
 use desub::{decoder::Decoder, TypeDetective};
 use subxt::system::System;
@@ -95,15 +95,18 @@ pub async fn process_extrinsics<T, P>(
     P: TypeDetective + Send + Sync + 'static,
     <T as System>::BlockNumber: Into<u32>,
 {
-    blocks.iter().for_each(|b| decoder.register_version(b.spec, &b.meta));
+    blocks
+        .iter()
+        .for_each(|b| decoder.register_version(b.spec, &b.meta));
 
     let extrinsics = blocks
         .iter()
         .map(|b| Vec::<RawExtrinsic<T>>::from(b))
         .flatten()
         .map(|e| {
-            let ext = decoder.decode_extrinsic(e.spec, e.inner.as_slice())
-                            .expect("decoding extrinsic failed");
+            let ext = decoder
+                .decode_extrinsic(e.spec, e.inner.as_slice())
+                .expect("decoding extrinsic failed");
             if ext.is_signed() {
                 ExtrinsicType::Signed(Extrinsic::new(ext, e.hash, e.index, e.block_num))
             } else {

@@ -53,7 +53,7 @@ impl<'a> Scheduler<'a> {
 
     pub fn tell_next<T>(&mut self, data: T) -> Result<(), T>
     where
-        T: Send + Sync + std::fmt::Debug + 'static
+        T: Send + Sync + std::fmt::Debug + 'static,
     {
         match self.alg {
             Algorithm::RoundRobin => {

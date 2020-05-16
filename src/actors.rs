@@ -66,7 +66,6 @@ where
     self::network::actor::<T>(decode_workers.clone(), url).expect("Couldn't add blocks child");
     // self::db_generators::actor::<T, _>(client, pool).expect("Couldn't start db work generators");
 
-
     Bastion::start();
     Bastion::block_until_stopped();
     Ok(())
