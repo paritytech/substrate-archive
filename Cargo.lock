@@ -7003,7 +7003,6 @@ dependencies = [
  "desub-core",
  "desub-extras",
  "dirs",
- "env_logger 0.7.1",
  "failure",
  "fern",
  "futures 0.3.5",

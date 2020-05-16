@@ -57,6 +57,7 @@ where
                 while let Some(_) = interval.next().await {
                     let mut cursor = queries::missing_blocks(None, &pool).await;
                     let mut blocks = Vec::new();
+                    log::info!("Starting to crawl for missing blocks...");
                     while let Some(block) = cursor.next().await {
                         let num = block
                             .unwrap()

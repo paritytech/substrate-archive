@@ -53,4 +53,3 @@ bigdecimal = "0.1.2"
 [dev-dependencies]
 desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
 polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
-env_logger = "0.7"

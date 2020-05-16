@@ -14,6 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Actor that takes context and workers and schedules them according to a scheduling algorithm
+//! currently only supports 'RoundRobin'
+
+// TODO: Maybe make an actor (supervisor?) that schedules other actors
+// otherwise there could be conflicts where one actor starves another because its waiting on some work to finish,
+// whereas there are other redundant workers sitting idly
 use bastion::prelude::*;
 
 pub enum Algorithm {
