@@ -19,16 +19,16 @@
 //! they mostly wait on network IO
 
 use crate::{
-    rpc::Rpc,
-    types::{Block, Substrate, SubstrateBlock, NotSignedBlock},
     backend::ChainAccess,
+    rpc::Rpc,
+    types::{Block, NotSignedBlock, Substrate, SubstrateBlock},
 };
-use sc_client_api::BlockBackend;
-use sp_runtime::generic::BlockId;
-use std::sync::Arc;
 use bastion::prelude::*;
 use futures::future::join_all;
+use sc_client_api::BlockBackend;
+use sp_runtime::generic::BlockId;
 use sp_runtime::traits::{Block as _, Header as _};
+use std::sync::Arc;
 use subxt::system::System;
 
 use super::scheduler::{Algorithm, Scheduler};
@@ -36,7 +36,11 @@ use super::scheduler::{Algorithm, Scheduler};
 const REDUNDANCY: usize = 5;
 
 /// instantiate all the block workers
-pub fn actor<T, C>(decode_workers: ChildrenRef, client: Arc<C>, url: String) -> Result<ChildrenRef, ()>
+pub fn actor<T, C>(
+    decode_workers: ChildrenRef,
+    client: Arc<C>,
+    url: String,
+) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
