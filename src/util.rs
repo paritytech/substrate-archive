@@ -34,7 +34,7 @@ pub fn create_dir(path: std::path::PathBuf) {
     }
 }
 
-pub fn init_logger(std: log::LevelFilter, file_lvl: log::LevelFilter) {
+pub fn init_logger(std: log::LevelFilter) {
     let colors = ColoredLevelConfig::new()
         .info(Color::Green)
         .warn(Color::Yellow)
@@ -61,8 +61,8 @@ pub fn init_logger(std: log::LevelFilter, file_lvl: log::LevelFilter) {
         })
         .chain(
             fern::Dispatch::new()
-                .level(log::LevelFilter::Info)
-                .level_for("substrate_archive", file_lvl)
+                .level(std)
+                .level_for("substrate_archive", std)
                 // .level_for("desub_core", log::LevelFilter::Debug)
                 // .level_for("bastion", log:kgT:LevelFilter::Trace)
                 // .level_for("crate_name", log::LevelFilter::Trace)

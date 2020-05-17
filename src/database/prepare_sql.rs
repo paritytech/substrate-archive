@@ -80,7 +80,6 @@ VALUES {}
 "#,
              build_batch_insert(self.len(), 6)
         );
-        log::info!("Statement: {}", stmt);
         stmt
     }
 

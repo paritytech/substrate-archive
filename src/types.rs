@@ -62,7 +62,7 @@ impl Metadata {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Extrinsic<T: Substrate + Send + Sync> {
     pub hash: Vec<u8>,
     /// The SCALE-encoded extrinsic

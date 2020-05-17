@@ -87,27 +87,46 @@ async fn meta_process_blocks<T>(
 ) where
     T: Substrate + Send + Sync,
 {
-
+    log::info!("Got {} blocks", blocks.len());
     let mut batch_items = Vec::new();
-    for b in blocks.into_iter() {
-        let hash = b.block.header().hash();
-        let ver = rpc.version(Some(hash).clone()).await.unwrap();
-        meta_checker(ver.spec_version, Some(hash), &rpc, pool, sched);
-        batch_items.push(Block::<T>::new(b, ver.spec_version))
+
+    // let specs = blocks.clone();
+    // specs.as_mut_slice().sort_by_key(|b| b.spec);
+    // let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
+    // specs.dedup();
+    let now = std::time::Instant::now();
+    let first = rpc.version(Some(blocks[0].block.header().hash())).await.unwrap();
+    let elapsed = now.elapsed();
+    log::info!("Rpc request for version took {} milli-seconds", elapsed.as_millis());
+    let last = rpc.version(Some(blocks[blocks.len() - 1].block.header().hash())).await.unwrap();
+    log::info!("First Version: {}, Last Version: {}", first.spec_version, last.spec_version);
+    if first == last {
+        meta_checker(first.spec_version, Some(blocks[0].block.header().hash()), &rpc, pool, sched).await;
+        blocks.into_iter().for_each(|b| batch_items.push(Block::<T>::new(b, first.spec_version)));
+    } else {
+        for b in blocks.into_iter() {
+            let hash = b.block.header().hash();
+            let ver = rpc.version(Some(hash).clone()).await.unwrap();
+            meta_checker(ver.spec_version, Some(hash), &rpc, pool, sched).await;
+            batch_items.push(Block::<T>::new(b, ver.spec_version))
+        }
     }
+
     let v = sched.ask_next(batch_items).unwrap().await;
     log::debug!("{:?}", v);
+}
+struct SplitBlocks {
+    block: u32,
+    spec: u32
 }
 
 async fn meta_checker<T>(ver: u32, hash: Option<T::Hash>, rpc: &Rpc<T>, pool: &sqlx::Pool<PgConnection>, sched: &mut Scheduler<'_>)
 where
     T: Substrate + Send + Sync,
 {
-    log::info!("checking if version {} exists", ver);
     if ! queries::check_if_meta_exists(ver, pool).await.expect("Couldn't check if meta version exists") {
         let meta = rpc.metadata(hash).await.expect("Couldn't get metadata");
         let meta = Metadata::new(ver, meta);
         let v = sched.ask_next(meta).unwrap().await;
-        log::debug!("{:?}", v);
     }
 }

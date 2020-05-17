@@ -35,15 +35,17 @@ pub struct Block {
 /// get missing blocks from relational database
 pub(crate) async fn missing_blocks(
     pool: &sqlx::Pool<PgConnection>,
-) -> impl Stream<Item = Result<Block, ArchiveError>> + '_ {
+) -> Result<Vec<Block>, ArchiveError> {
     sqlx::query_as(
         "SELECT generate_series
         FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
         WHERE
-        NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)",
+        NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
+        LIMIT 10000",
     )
-    .fetch(pool)
-    .map_err(Into::into)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
 }
 
 /// check if a runtime versioned metadata exists in the database
@@ -61,7 +63,7 @@ pub(crate) async fn check_if_meta_exists(
 }
 #[derive(sqlx::FromRow, Debug)]
 pub struct Version {
-    pub version: u32
+    pub version: i32
 }
 
 pub(crate) async fn get_versions(pool: &sqlx::Pool<PgConnection>

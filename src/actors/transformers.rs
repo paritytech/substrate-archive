@@ -39,7 +39,7 @@ where
             .with_exec(move |ctx: BastionContext| {
                 let workers = db_workers.clone();
                 async move {
-                    log::info!("Decode worker started");
+                    log::info!("Transformer started");
                     let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                     loop {
                         msg! {
@@ -75,6 +75,8 @@ where
     log::debug!("{:?}", v);
     let v = sched.ask_next(ext).unwrap().await;
     log::debug!("{:?}", v);
+
+
 }
 
 pub async fn process_blocks<T>(blocks: Vec<Block<T>>, sched: &mut Scheduler<'_>)
@@ -82,6 +84,7 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
+    log::info!("Got {} blocks", blocks.len());
     //TODO: Join these futures
     let batch_blocks = BatchBlock::new(blocks.clone());
     let ext: Vec<Extrinsic<T>> = batch_blocks.into();
@@ -90,4 +93,7 @@ where
     log::debug!("{:?}", v);
     let v = sched.ask_next(ext).unwrap().await;
     log::debug!("{:?}", v);
+
+
+
 }

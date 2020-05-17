@@ -55,12 +55,16 @@ where
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                 while let Some(_) = interval.next().await {
-                    let mut cursor = queries::missing_blocks(&pool).await;
+                    let mut block_nums = queries::missing_blocks(&pool).await.unwrap();
                     let mut blocks = Vec::new();
-                    log::info!("Starting to crawl for missing blocks...");
-                    while let Some(block) = cursor.next().await {
-                        let num = block
-                            .unwrap()
+                    if block_nums.len() > 0 {
+                        log::info!("Starting to crawl for {} missing blocks, from {} .. {} ...",
+                                block_nums.len(),
+                                block_nums[0].generate_series,
+                                   block_nums[block_nums.len() - 1].generate_series);
+                    }
+                    for block_num in block_nums.iter() {
+                        let num = block_num
                             .generate_series
                             .to_u32()
                             .expect("Could not convert into u32");

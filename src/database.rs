@@ -152,8 +152,13 @@ where
     T: Substrate + Send + Sync,
 {
     async fn insert(self, db: DbConnection) -> DbReturn {
-        let sql = self.build_sql();
-        self.batch_insert(&sql)?.execute(&db).await.map_err(Into::into)
+        let mut rows_changed = 0;
+        for ext in self.chunks(15_000) {
+            let ext = ext.to_vec();
+            let sql = ext.build_sql();
+            rows_changed += ext.batch_insert(&sql)?.execute(&db).await?;
+        }
+        Ok(rows_changed)
     }
 }
 

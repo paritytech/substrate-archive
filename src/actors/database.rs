@@ -81,12 +81,19 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-
+    log::info!("Got {} blocks", blocks.len());
     let mut specs = blocks.clone();
     specs.as_mut_slice().sort_by_key(|b| b.spec);
-    let specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
+    let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
+    specs.dedup();
     'meta: loop {
-        let versions = queries::get_versions(db.pool()).await.unwrap();
+        let versions = match queries::get_versions(db.pool()).await {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("{:?}", e);
+                panic!("Error");
+            }
+        };
         if db_contains_metadata(specs.as_slice(), versions) {
             break 'meta;
         }
@@ -100,7 +107,7 @@ where
 }
 
 fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -> bool {
-    let versions = versions.into_iter().map(|v| v.version).collect::<Vec<u32>>();
+    let versions = versions.into_iter().map(|v| v.version as u32).collect::<Vec<u32>>();
     for spec in specs.iter() {
         if !versions.contains(spec) {
             return false;
