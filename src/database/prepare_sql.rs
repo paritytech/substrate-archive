@@ -24,16 +24,12 @@ use sqlx::Postgres;
 use sqlx::postgres::PgArguments;
 use subxt::system::System;
 
-pub trait SuperTrait<'a>: PrepareSql<'a> + PrepareBatchSql<'a> + GetArguments
+pub trait SuperTrait<'a>: PrepareSql<'a> + PrepareBatchSql<'a>
 {}
-
-pub trait GetArguments {
-    fn get_arguments(&self) -> ArchiveResult<PgArguments>;
-}
 
 impl<'a, T> SuperTrait<'a> for T
 where
-    T: PrepareSql<'a> + PrepareBatchSql<'a> + GetArguments
+    T: PrepareSql<'a> + PrepareBatchSql<'a>
 {}
 
 pub trait BindAll<'a> {
@@ -61,8 +57,8 @@ where
         let query =
             sqlx::query(
                 r#"
-    INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root)
-    VALUES($1, $2, $3, $4, $5)
+    INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, spec)
+    VALUES($1, $2, $3, $4, $5, $6)
     "#);
 
         self.bind_all_arguments(query)
@@ -77,13 +73,15 @@ where
 {
 
     fn build_sql(&self) -> String {
-        format!(
+        let stmt = format!(
             r#"
-INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root)
+INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, spec)
 VALUES {}
 "#,
-             build_batch_insert(self.len(), 5)
-        )
+             build_batch_insert(self.len(), 6)
+        );
+        log::info!("Statement: {}", stmt);
+        stmt
     }
 
     fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
@@ -97,97 +95,50 @@ VALUES {}
     }
 }
 
-impl<'a, T> PrepareSql<'a> for SignedExtrinsic<T>
+impl<'a> PrepareSql<'a> for Metadata {
+    fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        let query =
+            sqlx::query(r#"
+INSERT INTO metadata (version, meta)
+VALUES($1, $2)
+"#);
+        self.bind_all_arguments(query)
+    }
+}
+
+impl<'a, T> PrepareSql<'a> for Extrinsic<T>
 where
     T: Substrate + Send + Sync,
 {
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         let query =
             sqlx::query(r#"
-INSERT INTO signed_extrinsics (hash, block_num, from_addr, module, call, parameters, tx_index, signature, extra, transaction_version)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO extrinsics (hash, spec, index, ext)
+VALUES($1, $2, $3, $4)
 "#);
         self.bind_all_arguments(query)
     }
 }
 
-impl<'a, T> PrepareBatchSql<'a> for Vec<SignedExtrinsic<T>>
+impl<'a, T> PrepareBatchSql<'a> for Vec<Extrinsic<T>>
 where
     T: Substrate + Send + Sync,
 {
     fn build_sql(&self) -> String {
-        format!(
+         format!(
             r#"
-INSERT INTO signed_extrinsics (hash, block_num, from_addr, module, call, parameters, tx_index, signature, extra, transaction_version)
+INSERT INTO extrinsics (hash, spec, index, ext)
 VALUES {}
 "#,
-        build_batch_insert(self.len(), 10)
+        build_batch_insert(self.len(), 4)
         )
     }
 
     fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-
-        Ok(
+         Ok(
             self.iter()
                 .fold(sqlx::query(sql), |q, ext| {
                     // let arguments = ext.get_arguments().unwrap();
-                    ext.bind_all_arguments(q).unwrap()
-                })
-        )
-    }
-}
-
-
-impl<'a, T> PrepareSql<'a> for Inherent<T>
-where
-    T: Substrate + Send + Sync,
-{
-    fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        // log::info!("================== EXT ===============");
-        // log::info!("Preparing Inherent {}", self.index());
-        // log::info!("Hash {:?}", self.hash().as_ref());
-        // log::info!("Num: {}", self.block_num());
-        // log::info!("Module: {}", self.ext_module());
-        // log::info!("Call: {}", self.ext_call());
-        // log::info!("Parameters: {:?}", parameters);
-        // log::info!("Index: {}", self.index() as u32);
-        // log::info!("Transaction Version {}", 0 as u32);
-        // log::info!("================== EXT ===============");
-
-        let query =
-            sqlx::query(
-            r#"
-INSERT INTO inherents (hash, block_num, module, call, parameters, in_index, transaction_version)
-VALUES($1, $2, $3, $4, $5, $6, $7)
-"#,
-            );
-        self.bind_all_arguments(query)
-    }
-}
-
-impl<'a, T> PrepareBatchSql<'a> for Vec<Inherent<T>>
-where
-    T: Substrate + Send + Sync,
-{
-
-    fn build_sql(&self) -> String {
-        let stmt = format!(
-            r#"
-INSERT INTO inherents (hash, block_num, module, call, parameters, in_index, transaction_version)
-VALUES {}
-"#,
-            build_batch_insert(self.len(), 7)
-        );
-
-        log::info!("INHERENT SQL STATEMENT: {}", stmt);
-        stmt
-    }
-
-    fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-
-        Ok(
-            self.iter()
-                .fold(sqlx::query(sql), |q, ext| {
                     ext.bind_all_arguments(q).unwrap()
                 })
         )

@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::queries;
 use crate::database::Database;
 use crate::types::*;
 use bastion::prelude::*;
 use subxt::system::System;
 
-pub const REDUNDANCY: usize = 5;
+pub const REDUNDANCY: usize = 10;
 
 pub fn actor<T>(db: Database) -> Result<ChildrenRef, ()>
 where
@@ -44,12 +45,12 @@ where
                                 process_blocks(&db, blocks).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
-                            extrinsics: Vec<SignedExtrinsic<T>> =!> {
+                            extrinsics: Vec<Extrinsic<T>> =!> {
                                 process_extrinsics(&db, extrinsics).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
-                            inherents: Vec<Inherent<T>> =!> {
-                                process_inherents(&db, inherents).await;
+                            metadata: Metadata =!> {
+                                process_metadata(&db, metadata).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
@@ -65,6 +66,10 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
+
+    while !queries::check_if_meta_exists(block.spec, db.pool()).await.unwrap() {
+        async_std::task::sleep(std::time::Duration::from_millis(10)).await;
+    }
     match db.insert(block).await {
         Ok(_) => (),
         Err(e) => log::error!("{:?}", e),
@@ -76,13 +81,35 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
+
+    let mut specs = blocks.clone();
+    specs.as_mut_slice().sort_by_key(|b| b.spec);
+    let specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
+    'meta: loop {
+        let versions = queries::get_versions(db.pool()).await.unwrap();
+        if db_contains_metadata(specs.as_slice(), versions) {
+            break 'meta;
+        }
+        async_std::task::sleep(std::time::Duration::from_millis(20)).await;
+    }
+
     match db.insert(BatchBlock::new(blocks)).await {
         Ok(_) => (),
         Err(e) => log::error!("{:?}", e),
     }
 }
 
-async fn process_extrinsics<T>(db: &Database, extrinsics: Vec<SignedExtrinsic<T>>)
+fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -> bool {
+    let versions = versions.into_iter().map(|v| v.version).collect::<Vec<u32>>();
+    for spec in specs.iter() {
+        if !versions.contains(spec) {
+            return false;
+        }
+    }
+    return true;
+}
+
+async fn process_extrinsics<T>(db: &Database, extrinsics: Vec<Extrinsic<T>>)
 where
     T: Substrate + Send + Sync,
 {
@@ -92,11 +119,8 @@ where
     }
 }
 
-async fn process_inherents<T>(db: &Database, inherents: Vec<Inherent<T>>)
-where
-    T: Substrate + Send + Sync,
-{
-    match db.insert(inherents).await {
+async fn process_metadata(db: &Database, meta: Metadata) {
+    match db.insert(meta).await {
         Ok(_) => (),
         Err(e) => log::error!("{:?}", e)
     }

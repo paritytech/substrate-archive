@@ -1,7 +1,5 @@
 //! A simple example
 
-use desub::decoder::Decoder;
-use desub_extras::polkadot::PolkadotTypes;
 use polkadot_service::kusama_runtime as real_ksm_runtime;
 use sc_service::config::DatabaseConfig; // integrate this into Archive Proper
 use sp_blockchain::HeaderBackend as _;
@@ -13,8 +11,6 @@ type Block = NotSignedBlock;
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Info, log::LevelFilter::Debug);
-    let types = PolkadotTypes::new().unwrap();
-    let decoder = Decoder::new(types, "kusama");
 
     // FIXME Database and spec initialization can be done in the lib with a convenience func
     let db = backend::open_database::<Block>(
@@ -36,6 +32,6 @@ pub fn main() {
     let info = client.info();
     println!("{:?}", info);
 
-    init::<KusamaRuntime, PolkadotTypes, _>(decoder, client, "ws://127.0.0.1:9944".to_string())
+    init::<KusamaRuntime, _>(client, "ws://127.0.0.1:9944".to_string())
         .unwrap();
 }

@@ -19,7 +19,7 @@
 use crate::error::Error as ArchiveError;
 use futures::{
     stream::{StreamExt, TryStreamExt},
-    Stream,
+    Future, Stream,
 };
 use sqlx::{
     postgres::{PgQueryAs as _, PgRow},
@@ -34,7 +34,6 @@ pub struct Block {
 
 /// get missing blocks from relational database
 pub(crate) async fn missing_blocks(
-    _latest: Option<u32>,
     pool: &sqlx::Pool<PgConnection>,
 ) -> impl Stream<Item = Result<Block, ArchiveError>> + '_ {
     sqlx::query_as(
@@ -46,6 +45,36 @@ pub(crate) async fn missing_blocks(
     .fetch(pool)
     .map_err(Into::into)
 }
+
+/// check if a runtime versioned metadata exists in the database
+pub(crate) async fn check_if_meta_exists(
+    spec: u32,
+    pool: &sqlx::Pool<PgConnection>
+) -> Result<bool, ArchiveError> {
+    let row: (bool,) = sqlx::query_as(
+        r#"SELECT EXISTS(SELECT 1 FROM metadata WHERE version=$1)"#
+    )
+        .bind(spec)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0)
+}
+#[derive(sqlx::FromRow, Debug)]
+pub struct Version {
+    pub version: u32
+}
+
+pub(crate) async fn get_versions(pool: &sqlx::Pool<PgConnection>
+) -> Result<Vec<Version>, ArchiveError> {
+    sqlx::query_as::<_, Version>(
+        "SELECT version FROM metadata"
+    )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+
+}
+
 
 #[cfg(test)]
 mod tests {

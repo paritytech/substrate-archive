@@ -20,7 +20,7 @@
 
 
 
-use crate::types::{Block, SignedExtrinsic, Inherent, RawExtrinsic, Substrate};
+use crate::types::*;
 use bastion::prelude::*;
 use subxt::system::System;
 
@@ -51,6 +51,10 @@ where
                              blocks: Vec<Block<T>> =!> {
                                  process_blocks(blocks.clone(), &mut sched).await;
                                  answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
+                             };
+                            meta: Metadata =!> {
+                                let v = sched.ask_next(meta).unwrap().await;
+                                log::debug!("{:?}", v);
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
                         }
@@ -63,17 +67,27 @@ where
 pub async fn process_block<T>(block: Block<T>, sched: &mut Scheduler<'_>)
 where
     T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
 {
+    // TODO: join these futures
+    let ext: Vec<Extrinsic<T>> = (&block).into();
     let v = sched.ask_next(block).unwrap().await;
+    log::debug!("{:?}", v);
+    let v = sched.ask_next(ext).unwrap().await;
     log::debug!("{:?}", v);
 }
 
 pub async fn process_blocks<T>(blocks: Vec<Block<T>>, sched: &mut Scheduler<'_>)
 where
     T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
 {
+    //TODO: Join these futures
+    let batch_blocks = BatchBlock::new(blocks.clone());
+    let ext: Vec<Extrinsic<T>> = batch_blocks.into();
     log::info!("Processing blocks");
     let v = sched.ask_next(blocks).unwrap().await;
     log::debug!("{:?}", v);
+    let v = sched.ask_next(ext).unwrap().await;
+    log::debug!("{:?}", v);
 }
-

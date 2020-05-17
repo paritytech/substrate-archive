@@ -16,7 +16,6 @@
 //! logging and general utilities
 
 use chrono::{DateTime, TimeZone, Utc};
-use desub::{decoder::GenericExtrinsic, SubstrateType};
 use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
 use std::convert::TryFrom;
@@ -33,29 +32,6 @@ pub fn create_dir(path: std::path::PathBuf) {
         },
         Ok(_) => (),
     }
-}
-
-/// tries to get timestamp inherent and convert it to UTC format
-/// if it exists within the extrinsics
-pub fn try_to_get_time(ext: &[GenericExtrinsic]) -> Option<DateTime<Utc>> {
-    // todo: the assumption here is that the timestamp is a u64
-    for e in ext.iter() {
-        if e.ext_module() == "Timestamp" && e.ext_call() == "set" {
-            let t = e.args().iter().find(|a| a.name == "now")?;
-            let t: i64 = match t.arg {
-                SubstrateType::U64(t) => {
-                    let t = i64::try_from(t).ok();
-                    if t.is_none() {
-                        log::warn!("Not a valid UNIX timestamp");
-                    }
-                    t?
-                }
-                _ => return None,
-            };
-            return Some(Utc.timestamp_millis(t));
-        }
-    }
-    None
 }
 
 pub fn init_logger(std: log::LevelFilter, file_lvl: log::LevelFilter) {

@@ -41,19 +41,43 @@ pub type NotSignedBlock = BlockT<
 pub type ArchiveBackend = sc_client_db::Backend<NotSignedBlock>;
 
 #[derive(Debug)]
+pub struct Metadata {
+    version: u32,
+    meta: Vec<u8>,
+}
+
+impl Metadata {
+    pub fn new(version: u32, meta: Vec<u8>) -> Self {
+        Self {
+            version, meta
+        }
+    }
+
+    pub fn version(&self) -> u32 {
+        self.version
+    }
+
+    pub fn meta(&self) -> &[u8] {
+        self.meta.as_slice()
+    }
+}
+
+#[derive(Debug)]
 pub struct Extrinsic<T: Substrate + Send + Sync> {
+    pub hash: Vec<u8>,
     /// The SCALE-encoded extrinsic
-    inner: Vec<u8>,
+    pub inner: Vec<u8>,
     /// Spec that the extrinsic is from
-    spec: u32,
-    index: u32,
+    pub spec: u32,
+    pub index: u32,
     _marker: PhantomData<T>
 }
 
 impl<T> Extrinsic<T> where T: Substrate + Send + Sync {
 
-    pub fn new(ext: &T::Extrinsic, index: u32, spec: u32) -> Self {
+    pub fn new(ext: &T::Extrinsic, hash: T::Hash, index: u32, spec: u32) -> Self {
         Self {
+            hash: hash.as_ref().to_vec(),
             inner: ext.encode(),
             _marker: PhantomData,
             index, spec,
@@ -105,7 +129,11 @@ where
     }
 
     pub fn spec(&self) -> u32 {
-        *self.spec
+        self.spec
+    }
+
+    pub fn hash(&self) -> T::Hash {
+        self.inner().block.header.hash()
     }
 }
 
@@ -212,22 +240,23 @@ where
 
     fn from(block: &Block<T>) -> Vec<Extrinsic<T>> {
         let spec = block.spec;
+        let hash = block.hash();
         block
             .inner()
             .block
             .extrinsics
             .iter()
             .enumerate()
-            .map(move |(i, e)| Extrinsic::new(e, i as u32, spec)).collect::<Vec<Extrinsic<T>>>()
+            .map(move |(i, e)| Extrinsic::new(e, hash, i as u32, spec)).collect::<Vec<Extrinsic<T>>>()
     }
 }
 
-impl<T> From<BatchBlock<T>> for Vec<Vec<Extrinsic<T>>>
+impl<T> From<BatchBlock<T>> for Vec<Extrinsic<T>>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    fn from(batch_block: BatchBlock<T>) -> Vec<Vec<Extrinsic<T>>> {
-        batch_block.inner().iter().map(|b| b.into()).collect()
+    fn from(batch_block: BatchBlock<T>) -> Vec<Extrinsic<T>> {
+        batch_block.inner().iter().map(|b| b.into()).collect::<Vec<Vec<Extrinsic<T>>>>().into_iter().flatten().collect()
     }
 }

@@ -39,7 +39,7 @@ use subxt::system::System;
 
 /// initialize substrate archive
 /// if a child actor panics or errors, it is up to the supervisor to handle it
-pub fn init<T, P, C>(client: Arc<C>, url: String) -> Result<(), ArchiveError>
+pub fn init<T, C>(client: Arc<C>, url: String) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
@@ -61,7 +61,7 @@ where
     // but the defaults seem to be working fine so far...
     let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
     let transformers = self::transformers::actor::<T>(db_workers).expect("Couldn't start transform workers");
-    let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone())
+    let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone(), pool.clone())
         .expect("Couldnt start metadata");
 
     // network generator. Gets headers from network but uses client to fetch block bodies
