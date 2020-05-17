@@ -16,7 +16,6 @@
 
 //! Wrapper RPC convenience functions
 
-use desub::decoder::Metadata;
 use futures::{future::join, TryFutureExt};
 use runtime_version::RuntimeVersion;
 use substrate_rpc_primitives::number::NumberOrHex;
@@ -45,7 +44,7 @@ where
     pub(crate) async fn meta_and_version(
         &self,
         hash: Option<T::Hash>,
-    ) -> Result<(RuntimeVersion, Metadata), ArchiveError> {
+    ) -> Result<(RuntimeVersion, Vec<u8>), ArchiveError> {
         let meta = self
             .client
             .raw_metadata(hash.as_ref())
@@ -57,7 +56,8 @@ where
         let (meta, version) = join(meta, version).await;
         let meta = meta?;
         let version = version?;
-        Ok((version, Metadata::new(meta.as_slice())))
+        Ok((version, meta))
+        // Ok((version, Metadata::new(meta.as_slice())))
     }
 
     pub async fn block_from_number(

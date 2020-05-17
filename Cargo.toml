@@ -25,7 +25,7 @@ async-std = "1.5.0"
 sqlx = { version = "0.3.5", features = ["postgres", "chrono", "json", "bigdecimal"] }
 async-trait = "0.1.31"
 # Local
-desub = { path = "../desub/core/", package="desub-core" }
+# desub = { path = "../desub/core/", package="desub-core" }
 subxt = { path = "../substrate-subxt", package = "substrate-subxt"}
 
 # Parity
@@ -52,5 +52,5 @@ bigdecimal = "0.1.2"
 itertools = "0.9.0"
 
 [dev-dependencies]
-desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
+# desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
 polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }

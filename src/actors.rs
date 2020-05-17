@@ -18,7 +18,7 @@
 
 mod database;
 mod db_generators;
-mod decode;
+mod transformers;
 mod metadata;
 mod network;
 mod scheduler;
@@ -34,16 +34,14 @@ use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
 use subxt::system::System;
 
-use desub::{decoder::Decoder, TypeDetective};
 
 // TODO: 'cut!' macro to handle errors from within actors
 
 /// initialize substrate archive
 /// if a child actor panics or errors, it is up to the supervisor to handle it
-pub fn init<T, P, C>(decoder: Decoder<P>, client: Arc<C>, url: String) -> Result<(), ArchiveError>
+pub fn init<T, P, C>(client: Arc<C>, url: String) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    P: TypeDetective + Send + Sync + 'static,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
 {
@@ -62,9 +60,8 @@ where
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
     let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
-    let decode_workers =
-        self::decode::actor::<T, P>(db_workers, decoder).expect("Couldn't start decode children");
-    let meta_workers = self::metadata::actor::<T>(decode_workers.clone(), url.clone())
+    let transformers = self::transformers::actor::<T>(db_workers).expect("Couldn't start transform workers");
+    let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone())
         .expect("Couldnt start metadata");
 
     // network generator. Gets headers from network but uses client to fetch block bodies
