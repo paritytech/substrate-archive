@@ -19,21 +19,20 @@
 use crate::error::{ArchiveResult, Error as ArchiveError};
 use crate::types::*;
 use sp_runtime::traits::Header as _;
+use sqlx::postgres::PgArguments;
 use sqlx::PgConnection;
 use sqlx::Postgres;
-use sqlx::postgres::PgArguments;
 use subxt::system::System;
 
-pub trait SuperTrait<'a>: PrepareSql<'a> + PrepareBatchSql<'a>
-{}
+pub trait SuperTrait<'a>: PrepareSql<'a> + PrepareBatchSql<'a> {}
 
-impl<'a, T> SuperTrait<'a> for T
-where
-    T: PrepareSql<'a> + PrepareBatchSql<'a>
-{}
+impl<'a, T> SuperTrait<'a> for T where T: PrepareSql<'a> + PrepareBatchSql<'a> {}
 
 pub trait BindAll<'a> {
-    fn bind_all_arguments(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
+    fn bind_all_arguments(
+        &self,
+        query: sqlx::Query<'a, Postgres>,
+    ) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
 }
 
 pub trait PrepareSql<'a> {
@@ -53,13 +52,12 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-
-        let query =
-            sqlx::query(
-                r#"
+        let query = sqlx::query(
+            r#"
     INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, spec)
     VALUES($1, $2, $3, $4, $5, $6)
-    "#);
+    "#,
+        );
 
         self.bind_all_arguments(query)
     }
@@ -69,38 +67,34 @@ impl<'a, T> PrepareBatchSql<'a> for Vec<Block<T>>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: From<u32>,
-<T as System>::BlockNumber: Into<u32>,
+    <T as System>::BlockNumber: Into<u32>,
 {
-
     fn build_sql(&self, _rows: Option<u32>) -> String {
         let stmt = format!(
             r#"
 INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, spec)
 VALUES {}
 "#,
-             build_batch_insert(self.len(), 6)
+            build_batch_insert(self.len(), 6)
         );
         stmt
     }
 
     fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-
-        Ok(
-            self.iter()
-                .fold(sqlx::query(sql), |q, block| {
-                    block.bind_all_arguments(q).unwrap()
-            })
-        )
+        Ok(self.iter().fold(sqlx::query(sql), |q, block| {
+            block.bind_all_arguments(q).unwrap()
+        }))
     }
 }
 
 impl<'a> PrepareSql<'a> for Metadata {
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        let query =
-            sqlx::query(r#"
+        let query = sqlx::query(
+            r#"
 INSERT INTO metadata (version, meta)
 VALUES($1, $2)
-"#);
+"#,
+        );
         self.bind_all_arguments(query)
     }
 }
@@ -110,11 +104,12 @@ where
     T: Substrate + Send + Sync,
 {
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        let query =
-            sqlx::query(r#"
+        let query = sqlx::query(
+            r#"
 INSERT INTO extrinsics (hash, spec, index, ext)
 VALUES($1, $2, $3, $4)
-"#);
+"#,
+        );
         self.bind_all_arguments(query)
     }
 }
@@ -124,23 +119,20 @@ where
     T: Substrate + Send + Sync,
 {
     fn build_sql(&self, _rows: Option<u32>) -> String {
-         format!(
+        format!(
             r#"
 INSERT INTO extrinsics (hash, spec, index, ext)
 VALUES {}
 "#,
-        build_batch_insert(self.len(), 4)
+            build_batch_insert(self.len(), 4)
         )
     }
 
     fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-         Ok(
-            self.iter()
-                .fold(sqlx::query(sql), |q, ext| {
-                    // let arguments = ext.get_arguments().unwrap();
-                    ext.bind_all_arguments(q).unwrap()
-                })
-        )
+        Ok(self.iter().fold(sqlx::query(sql), |q, ext| {
+            // let arguments = ext.get_arguments().unwrap();
+            ext.bind_all_arguments(q).unwrap()
+        }))
     }
 }
 
@@ -149,11 +141,12 @@ where
     T: Substrate + Send + Sync,
 {
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        let query =
-            sqlx::query(r#"
+        let query = sqlx::query(
+            r#"
 INSERT INTO storage (block_num, hash, spec, key, storage)
 VALUES (#1, $2, $3, $4, $5)
-"#);
+"#,
+        );
         self.bind_all_arguments(query)
     }
 }
@@ -163,29 +156,31 @@ where
     T: Substrate + Send + Sync,
 {
     fn build_sql(&self, rows: Option<u32>) -> String {
-
         if let Some(r) = rows {
             format!(
                 r#"
     INSERT INTO storage (block_num, hash, spec, key, storage)
     VALUES {}
-    "#,  build_batch_insert(r as usize, 5))
+    "#,
+                build_batch_insert(r as usize, 5)
+            )
         } else {
             format!(
-                        r#"
+                r#"
             INSERT INTO storage (block_num, hash, spec, key, storage)
             VALUES {}
-            "#,  build_batch_insert(self.len(), 5))
+            "#,
+                build_batch_insert(self.len(), 5)
+            )
         }
     }
 
     fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(
-            self.iter()
-                .fold(sqlx::query(sql), |q, storg| {
-                    storg.bind_all_arguments(q).expect("Could not bind storage arguments")
-                })
-        )
+        Ok(self.iter().fold(sqlx::query(sql), |q, storg| {
+            storg
+                .bind_all_arguments(q)
+                .expect("Could not bind storage arguments")
+        }))
     }
 }
 

@@ -15,14 +15,14 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-    rpc::Rpc,
-    types::{Block, Substrate, SubstrateBlock, Metadata},
     queries,
+    rpc::Rpc,
+    types::{Block, Metadata, Substrate, SubstrateBlock},
 };
-use sqlx::PgConnection;
 use bastion::prelude::*;
 use futures::future::join_all;
 use sp_runtime::traits::{Block as _, Header as _};
+use sqlx::PgConnection;
 
 use super::scheduler::{Algorithm, Scheduler};
 
@@ -30,7 +30,11 @@ const REDUNDANCY: usize = 10;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub fn actor<T>(transform_workers: ChildrenRef, url: String, pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
+pub fn actor<T>(
+    transform_workers: ChildrenRef,
+    url: String,
+    pool: sqlx::Pool<PgConnection>,
+) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
 {
@@ -64,11 +68,12 @@ where
     })
 }
 
-async fn meta_process_block<T>(block: SubstrateBlock<T>,
-                               rpc: Rpc<T>,
-                               pool: &sqlx::Pool<PgConnection>,
-                               sched: &mut Scheduler<'_>)
-where
+async fn meta_process_block<T>(
+    block: SubstrateBlock<T>,
+    rpc: Rpc<T>,
+    pool: &sqlx::Pool<PgConnection>,
+    sched: &mut Scheduler<'_>,
+) where
     T: Substrate + Send + Sync,
 {
     let hash = block.block.header().hash();
@@ -91,14 +96,36 @@ async fn meta_process_blocks<T>(
     let mut batch_items = Vec::new();
 
     let now = std::time::Instant::now();
-    let first = rpc.version(Some(blocks[0].block.header().hash())).await.unwrap();
+    let first = rpc
+        .version(Some(blocks[0].block.header().hash()))
+        .await
+        .unwrap();
     let elapsed = now.elapsed();
-    log::info!("Rpc request for version took {} milli-seconds", elapsed.as_millis());
-    let last = rpc.version(Some(blocks[blocks.len() - 1].block.header().hash())).await.unwrap();
-    log::info!("First Version: {}, Last Version: {}", first.spec_version, last.spec_version);
+    log::info!(
+        "Rpc request for version took {} milli-seconds",
+        elapsed.as_millis()
+    );
+    let last = rpc
+        .version(Some(blocks[blocks.len() - 1].block.header().hash()))
+        .await
+        .unwrap();
+    log::info!(
+        "First Version: {}, Last Version: {}",
+        first.spec_version,
+        last.spec_version
+    );
     if first == last {
-        meta_checker(first.spec_version, Some(blocks[0].block.header().hash()), &rpc, pool, sched).await;
-        blocks.into_iter().for_each(|b| batch_items.push(Block::<T>::new(b, first.spec_version)));
+        meta_checker(
+            first.spec_version,
+            Some(blocks[0].block.header().hash()),
+            &rpc,
+            pool,
+            sched,
+        )
+        .await;
+        blocks
+            .into_iter()
+            .for_each(|b| batch_items.push(Block::<T>::new(b, first.spec_version)));
     } else {
         for b in blocks.into_iter() {
             let hash = b.block.header().hash();
@@ -113,14 +140,22 @@ async fn meta_process_blocks<T>(
 }
 struct SplitBlocks {
     block: u32,
-    spec: u32
+    spec: u32,
 }
 
-async fn meta_checker<T>(ver: u32, hash: Option<T::Hash>, rpc: &Rpc<T>, pool: &sqlx::Pool<PgConnection>, sched: &mut Scheduler<'_>)
-where
+async fn meta_checker<T>(
+    ver: u32,
+    hash: Option<T::Hash>,
+    rpc: &Rpc<T>,
+    pool: &sqlx::Pool<PgConnection>,
+    sched: &mut Scheduler<'_>,
+) where
     T: Substrate + Send + Sync,
 {
-    if ! queries::check_if_meta_exists(ver, pool).await.expect("Couldn't check if meta version exists") {
+    if !queries::check_if_meta_exists(ver, pool)
+        .await
+        .expect("Couldn't check if meta version exists")
+    {
         let meta = rpc.metadata(hash).await.expect("Couldn't get metadata");
         let meta = Metadata::new(ver, meta);
         let v = sched.ask_next(meta).unwrap().await;

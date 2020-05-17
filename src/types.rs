@@ -18,11 +18,11 @@ mod traits;
 use codec::Encode;
 use std::marker::PhantomData;
 // use sp_core::storage::{StorageChangeSet, StorageData};
-use sp_storage::{StorageData, StorageKey};
 use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
     traits::{Block as _, Header as _},
 };
+use sp_storage::{StorageData, StorageKey};
 use subxt::system::System;
 
 pub use self::traits::Substrate;
@@ -49,9 +49,7 @@ pub struct Metadata {
 
 impl Metadata {
     pub fn new(version: u32, meta: Vec<u8>) -> Self {
-        Self {
-            version, meta
-        }
+        Self { version, meta }
     }
 
     pub fn version(&self) -> u32 {
@@ -71,17 +69,20 @@ pub struct Extrinsic<T: Substrate + Send + Sync> {
     /// Spec that the extrinsic is from
     pub spec: u32,
     pub index: u32,
-    _marker: PhantomData<T>
+    _marker: PhantomData<T>,
 }
 
-impl<T> Extrinsic<T> where T: Substrate + Send + Sync {
-
+impl<T> Extrinsic<T>
+where
+    T: Substrate + Send + Sync,
+{
     pub fn new(ext: &T::Extrinsic, hash: T::Hash, index: u32, spec: u32) -> Self {
         Self {
             hash: hash.as_ref().to_vec(),
             inner: ext.encode(),
             _marker: PhantomData,
-            index, spec,
+            index,
+            spec,
         }
     }
 }
@@ -119,10 +120,7 @@ where
     T: Substrate + Send + Sync,
 {
     pub fn new(block: SubstrateBlock<T>, spec: u32) -> Self {
-        Self {
-            inner: block,
-            spec,
-        }
+        Self { inner: block, spec }
     }
 
     pub fn inner(&self) -> &SubstrateBlock<T> {
@@ -174,8 +172,20 @@ impl<T> Storage<T>
 where
     T: Substrate + Send + Sync,
 {
-    pub fn new(block_num: u32, spec: u32, hash: T::Hash, key: StorageKey, data: StorageData) -> Self {
-        Self { block_num, hash, spec, key, data }
+    pub fn new(
+        block_num: u32,
+        spec: u32,
+        hash: T::Hash,
+        key: StorageKey,
+        data: StorageData,
+    ) -> Self {
+        Self {
+            block_num,
+            hash,
+            spec,
+            key,
+            data,
+        }
     }
 
     pub fn block_num(&self) -> u32 {
@@ -199,12 +209,11 @@ where
     }
 }
 
-impl<T> From <&Block<T>> for Vec<Extrinsic<T>>
+impl<T> From<&Block<T>> for Vec<Extrinsic<T>>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-
     fn from(block: &Block<T>) -> Vec<Extrinsic<T>> {
         let spec = block.spec;
         let hash = block.hash();
@@ -214,7 +223,8 @@ where
             .extrinsics
             .iter()
             .enumerate()
-            .map(move |(i, e)| Extrinsic::new(e, hash, i as u32, spec)).collect::<Vec<Extrinsic<T>>>()
+            .map(move |(i, e)| Extrinsic::new(e, hash, i as u32, spec))
+            .collect::<Vec<Extrinsic<T>>>()
     }
 }
 
@@ -224,6 +234,13 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     fn from(batch_block: BatchBlock<T>) -> Vec<Extrinsic<T>> {
-        batch_block.inner().iter().map(|b| b.into()).collect::<Vec<Vec<Extrinsic<T>>>>().into_iter().flatten().collect()
+        batch_block
+            .inner()
+            .iter()
+            .map(|b| b.into())
+            .collect::<Vec<Vec<Extrinsic<T>>>>()
+            .into_iter()
+            .flatten()
+            .collect()
     }
 }

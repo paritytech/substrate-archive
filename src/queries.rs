@@ -43,19 +43,17 @@ pub(crate) async fn missing_blocks(
         NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
         LIMIT 10000",
     )
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+    .fetch_all(pool)
+    .await
+    .map_err(Into::into)
 }
 
 /// check if a runtime versioned metadata exists in the database
 pub(crate) async fn check_if_meta_exists(
     spec: u32,
-    pool: &sqlx::Pool<PgConnection>
+    pool: &sqlx::Pool<PgConnection>,
 ) -> Result<bool, ArchiveError> {
-    let row: (bool,) = sqlx::query_as(
-        r#"SELECT EXISTS(SELECT 1 FROM metadata WHERE version=$1)"#
-    )
+    let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM metadata WHERE version=$1)"#)
         .bind(spec)
         .fetch_one(pool)
         .await?;
@@ -63,20 +61,17 @@ pub(crate) async fn check_if_meta_exists(
 }
 #[derive(sqlx::FromRow, Debug)]
 pub struct Version {
-    pub version: i32
+    pub version: i32,
 }
 
-pub(crate) async fn get_versions(pool: &sqlx::Pool<PgConnection>
+pub(crate) async fn get_versions(
+    pool: &sqlx::Pool<PgConnection>,
 ) -> Result<Vec<Version>, ArchiveError> {
-    sqlx::query_as::<_, Version>(
-        "SELECT version FROM metadata"
-    )
+    sqlx::query_as::<_, Version>("SELECT version FROM metadata")
         .fetch_all(pool)
         .await
         .map_err(Into::into)
-
 }
-
 
 #[cfg(test)]
 mod tests {

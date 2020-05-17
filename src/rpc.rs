@@ -60,12 +60,21 @@ where
         // Ok((version, Metadata::new(meta.as_slice())))
     }
 
-    pub(crate) async fn version(&self, hash: Option<T::Hash>) -> Result<RuntimeVersion, ArchiveError> {
-        self.client.runtime_version(hash.as_ref()).map_err(Into::into).await
+    pub(crate) async fn version(
+        &self,
+        hash: Option<T::Hash>,
+    ) -> Result<RuntimeVersion, ArchiveError> {
+        self.client
+            .runtime_version(hash.as_ref())
+            .map_err(Into::into)
+            .await
     }
 
     pub(crate) async fn metadata(&self, hash: Option<T::Hash>) -> Result<Vec<u8>, ArchiveError> {
-        self.client.raw_metadata(hash.as_ref()).map_err(ArchiveError::from).await
+        self.client
+            .raw_metadata(hash.as_ref())
+            .map_err(ArchiveError::from)
+            .await
     }
 
     pub async fn block_from_number(

@@ -57,13 +57,14 @@ where
                 while let Some(_) = interval.next().await {
                     let mut block_nums = queries::missing_blocks(&pool).await.unwrap();
                     let mut blocks = Vec::new();
-                    if ! block_nums.len() > 0 {
+                    if !block_nums.len() > 0 {
                         break;
                     }
-                    log::info!("Starting to crawl for {} missing blocks, from {} .. {} ...",
-                            block_nums.len(),
-                            block_nums[0].generate_series,
-                               block_nums[block_nums.len() - 1].generate_series
+                    log::info!(
+                        "Starting to crawl for {} missing blocks, from {} .. {} ...",
+                        block_nums.len(),
+                        block_nums[0].generate_series,
+                        block_nums[block_nums.len() - 1].generate_series
                     );
                     for block_num in block_nums.iter() {
                         let num = block_num

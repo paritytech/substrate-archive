@@ -18,10 +18,10 @@
 
 mod database;
 mod db_generators;
-mod transformers;
 mod metadata;
 mod network;
 mod scheduler;
+mod transformers;
 
 use super::{
     backend::ChainAccess,
@@ -33,7 +33,6 @@ use bastion::prelude::*;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
 use subxt::system::System;
-
 
 // TODO: 'cut!' macro to handle errors from within actors
 
@@ -60,7 +59,8 @@ where
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
     let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
-    let transformers = self::transformers::actor::<T, _>(db_workers, client.clone()).expect("Couldn't start transform workers");
+    let transformers = self::transformers::actor::<T, _>(db_workers, client.clone())
+        .expect("Couldn't start transform workers");
     let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone(), pool.clone())
         .expect("Couldnt start metadata");
 

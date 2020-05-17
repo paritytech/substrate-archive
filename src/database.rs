@@ -23,13 +23,17 @@ use async_trait::async_trait;
 use codec::{Decode, Encode};
 use futures::future::{self, TryFutureExt};
 use sp_runtime::traits::Header as _;
-use sqlx::{PgConnection, Postgres, arguments::Arguments as _, postgres::PgArguments};
+use sqlx::{arguments::Arguments as _, postgres::PgArguments, PgConnection, Postgres};
 use std::{convert::TryFrom, env, sync::RwLock};
 
 use subxt::system::System;
 
-use self::prepare_sql::{PrepareSql as _, PrepareBatchSql as _, BindAll};
-use crate::{error::{Error as ArchiveError, ArchiveResult}, queries, types::*};
+use self::prepare_sql::{BindAll, PrepareBatchSql as _, PrepareSql as _};
+use crate::{
+    error::{ArchiveResult, Error as ArchiveError},
+    queries,
+    types::*,
+};
 
 pub type DbReturn = Result<u64, ArchiveError>;
 pub type DbConnection = sqlx::Pool<PgConnection>;
@@ -87,22 +91,23 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    fn bind_all_arguments(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+    fn bind_all_arguments(
+        &self,
+        query: sqlx::Query<'a, Postgres>,
+    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         let parent_hash = self.inner.block.header.parent_hash().as_ref();
         let hash = self.inner.block.header.hash();
         let block_num: u32 = (*self.inner.block.header.number()).into();
         let state_root = self.inner.block.header.state_root().as_ref();
         let extrinsics_root = self.inner.block.header.extrinsics_root().as_ref();
 
-        Ok(
-            query
-                .bind(parent_hash)
-                .bind(hash.as_ref())
-                .bind(block_num)
-                .bind(state_root)
-                .bind(extrinsics_root)
-                .bind(self.spec)
-        )
+        Ok(query
+            .bind(parent_hash)
+            .bind(hash.as_ref())
+            .bind(block_num)
+            .bind(state_root)
+            .bind(extrinsics_root)
+            .bind(self.spec))
     }
 }
 
@@ -126,11 +131,15 @@ where
         let mut sizes = Vec::new();
         let chunks = self.chunks(12_000);
 
-        for chunk in chunks.clone() { // FIXME should not clone here
+        for chunk in chunks.clone() {
+            // FIXME should not clone here
             sizes.push(chunk.len())
         }
 
-        let queries = sizes.into_iter().map(|s| self.build_sql(Some(s as u32))).collect::<Vec<String>>();
+        let queries = sizes
+            .into_iter()
+            .map(|s| self.build_sql(Some(s as u32)))
+            .collect::<Vec<String>>();
         let mut counter = 0;
         let mut futures = Vec::new();
         for s in chunks {
@@ -139,29 +148,31 @@ where
             counter += 1;
         }
         let mut rows_changed = 0;
-        future::join_all(futures).await.iter().for_each(|r| {
-            match r {
+        future::join_all(futures)
+            .await
+            .iter()
+            .for_each(|r| match r {
                 Ok(v) => rows_changed += v,
-                Err(e) => log::error!("{:?}", e)
-            }
-        });
+                Err(e) => log::error!("{:?}", e),
+            });
         Ok(rows_changed)
     }
 }
 
 impl<'a, T> BindAll<'a> for Storage<T>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
-    fn bind_all_arguments(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(
-            query
-                .bind(self.block_num())
-                .bind(self.hash().as_ref())
-                .bind(self.spec())
-                .bind(self.key().0.as_slice())
-                .bind(self.data().0.as_slice())
-        )
+    fn bind_all_arguments(
+        &self,
+        query: sqlx::Query<'a, Postgres>,
+    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        Ok(query
+            .bind(self.block_num())
+            .bind(self.hash().as_ref())
+            .bind(self.spec())
+            .bind(self.key().0.as_slice())
+            .bind(self.data().0.as_slice()))
     }
 }
 
@@ -173,12 +184,11 @@ impl Insert for Metadata {
 }
 
 impl<'a> BindAll<'a> for Metadata {
-    fn bind_all_arguments(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(
-            query
-                .bind(self.version())
-                .bind(self.meta())
-        )
+    fn bind_all_arguments(
+        &self,
+        query: sqlx::Query<'a, Postgres>,
+    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        Ok(query.bind(self.version()).bind(self.meta()))
     }
 }
 
@@ -202,14 +212,15 @@ impl<'a, T> BindAll<'a> for Extrinsic<T>
 where
     T: Substrate + Send + Sync,
 {
-    fn bind_all_arguments(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(
-            query
-                .bind(self.hash.as_slice())
-                .bind(self.spec)
-                .bind(self.index)
-                .bind(self.inner.as_slice())
-        )
+    fn bind_all_arguments(
+        &self,
+        query: sqlx::Query<'a, Postgres>,
+    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        Ok(query
+            .bind(self.hash.as_slice())
+            .bind(self.spec)
+            .bind(self.index)
+            .bind(self.inner.as_slice()))
     }
 }
 
@@ -222,7 +233,11 @@ where
     async fn insert(self, db: DbConnection) -> DbReturn {
         log::info!("Batch inserting {} blocks into DB", self.inner().len());
         let sql = self.inner().build_sql(None);
-        self.inner().batch_insert(&sql)?.execute(&db).await.map_err(Into::into)
+        self.inner()
+            .batch_insert(&sql)?
+            .execute(&db)
+            .await
+            .map_err(Into::into)
     }
 }
 

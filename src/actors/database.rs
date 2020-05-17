@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::queries;
 use crate::database::Database;
+use crate::queries;
 use crate::types::*;
 use bastion::prelude::*;
 use subxt::system::System;
@@ -70,8 +70,10 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-
-    while !queries::check_if_meta_exists(block.spec, db.pool()).await.unwrap() {
+    while !queries::check_if_meta_exists(block.spec, db.pool())
+        .await
+        .unwrap()
+    {
         async_std::task::sleep(std::time::Duration::from_millis(10)).await;
     }
     match db.insert(block).await {
@@ -111,7 +113,10 @@ where
 }
 
 fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -> bool {
-    let versions = versions.into_iter().map(|v| v.version as u32).collect::<Vec<u32>>();
+    let versions = versions
+        .into_iter()
+        .map(|v| v.version as u32)
+        .collect::<Vec<u32>>();
     for spec in specs.iter() {
         if !versions.contains(spec) {
             return false;
@@ -133,16 +138,16 @@ where
 async fn process_metadata(db: &Database, meta: Metadata) {
     match db.insert(meta).await {
         Ok(_) => (),
-        Err(e) => log::error!("{:?}", e)
+        Err(e) => log::error!("{:?}", e),
     }
 }
 
 async fn process_storage<T>(db: &Database, storage: Vec<Storage<T>>)
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     match db.insert(storage).await {
         Ok(_) => (),
-        Err(e) => log::error!("{:?}", e)
+        Err(e) => log::error!("{:?}", e),
     }
 }

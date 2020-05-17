@@ -18,17 +18,18 @@
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 
-
-
-use crate::types::*;
-use crate::backend::ChainAccess;
-use std::sync::Arc;
-use bastion::prelude::*;
-use subxt::system::System;
-use sc_client_api::backend::StorageProvider;
-use sp_runtime::{traits::{Header as _, Block as _},generic::BlockId};
-use sp_storage::{StorageKey, StorageData};
 use super::scheduler::{Algorithm, Scheduler};
+use crate::backend::ChainAccess;
+use crate::types::*;
+use bastion::prelude::*;
+use sc_client_api::backend::StorageProvider;
+use sp_runtime::{
+    generic::BlockId,
+    traits::{Block as _, Header as _},
+};
+use sp_storage::{StorageData, StorageKey};
+use std::sync::Arc;
+use subxt::system::System;
 
 const REDUNDANCY: usize = 5;
 
@@ -37,7 +38,7 @@ pub fn actor<T, C>(db_workers: ChildrenRef, client: Arc<C>) -> Result<ChildrenRe
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
-    <T as System>::BlockNumber: Into<u32>
+    <T as System>::BlockNumber: Into<u32>,
 {
     Bastion::children(|children: Children| {
         children
@@ -84,7 +85,6 @@ where
     log::debug!("{:?}", v);
     let v = sched.ask_next(ext).unwrap().await;
     log::debug!("{:?}", v);
-
 }
 
 pub async fn process_blocks<T>(blocks: Vec<Block<T>>, sched: &mut Scheduler<'_>)
@@ -95,7 +95,8 @@ where
     log::info!("Got {} blocks", blocks.len());
     //TODO: Join these futures
     let batch_blocks = BatchBlock::new(blocks.clone());
-    let ext: Vec<Extrinsic<T>> = batch_blocks.into(); log::info!("Processing blocks");
+    let ext: Vec<Extrinsic<T>> = batch_blocks.into();
+    log::info!("Processing blocks");
     let v = sched.ask_next(blocks).unwrap().await;
     log::debug!("{:?}", v);
     let v = sched.ask_next(ext).unwrap().await;
@@ -114,23 +115,26 @@ where
         let block_num: u32 = (*block.inner().block.header.number()).into();
         // get all storage for a block
         let storage: Vec<(StorageKey, StorageData)> =
-            match
-                client
-                    .storage_pairs(&BlockId::Number(block_num), &StorageKey(Vec::new()))
-        {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!("{:?}", e);
-                panic!("Could not get storage from client")
-            }
-        };
+            match client.storage_pairs(&BlockId::Number(block_num), &StorageKey(Vec::new())) {
+                Ok(v) => v,
+                Err(e) => {
+                    log::error!("{:?}", e);
+                    panic!("Could not get storage from client")
+                }
+            };
 
         let hash = block.inner().block.header.hash();
         let spec = block.spec;
-        storg.push(storage.into_iter().map(|(k, v)| Storage::new(block_num, spec, hash, k, v)).collect::<Vec<Storage<T>>>());
+        storg.push(
+            storage
+                .into_iter()
+                .map(|(k, v)| Storage::new(block_num, spec, hash, k, v))
+                .collect::<Vec<Storage<T>>>(),
+        );
     }
     let storg = storg.into_iter().flatten().collect::<Vec<Storage<T>>>();
     let elapsed = now.elapsed();
-    log::info!("Took {} milli-seconds to transform storage", elapsed.as_millis());
+    log::info!("Took {} milli-seconds to transform storage", elapsed.as_millis())
     let v = sched.ask_next(storg).unwrap().await;
+    log::debug!("{:?}", v);
 }
