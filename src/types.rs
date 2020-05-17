@@ -16,9 +16,7 @@
 
 mod traits;
 use codec::Encode;
-use desub::decoder::{
-    ExtrinsicArgument, GenericCall, GenericExtrinsic, GenericSignature, Metadata,
-};
+use std::marker::PhantomData;
 use sp_core::storage::{StorageChangeSet, StorageData};
 use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
@@ -42,130 +40,24 @@ pub type NotSignedBlock = BlockT<
 /// Read-Only RocksDb backed Backend Type
 pub type ArchiveBackend = sc_client_db::Backend<NotSignedBlock>;
 
-
 #[derive(Debug)]
-pub struct SignedExtrinsic<T: Substrate + Send + Sync> {
-    inner: GenericExtrinsic,
-    index: usize,
-    hash: T::Hash,
-    block_num: u32,
+pub struct Extrinsic<T: Substrate + Send + Sync> {
+    /// The SCALE-encoded extrinsic
+    inner: Vec<u8>,
+    /// Spec that the extrinsic is from
+    spec: u32,
+    index: u32,
+    _marker: PhantomData<T>
 }
 
-impl<T> SignedExtrinsic<T>
-where
-    T: Substrate + Send + Sync,
-{
-    pub fn new(extrinsic: GenericExtrinsic, hash: T::Hash, index: usize, block_num: u32) -> Self {
-        assert!(extrinsic.is_signed());
+impl<T> Extrinsic<T> where T: Substrate + Send + Sync {
 
+    pub fn new(ext: &T::Extrinsic, index: u32, spec: u32) -> Self {
         Self {
-            inner: extrinsic,
-            hash,
-            index,
-            block_num,
+            inner: ext.encode(),
+            _marker: PhantomData,
+            index, spec,
         }
-    }
-
-    pub fn inner(&self) -> &GenericExtrinsic {
-        &self.inner
-    }
-
-    pub fn signature(&self) -> Option<&GenericSignature> {
-        self.inner.signature()
-    }
-
-    pub fn call(&self) -> &GenericCall {
-        self.inner.call()
-    }
-
-    pub fn ext_module(&self) -> &str {
-        self.inner.ext_module()
-    }
-
-    pub fn ext_call(&self) -> &str {
-        self.inner.ext_call()
-    }
-
-    pub fn args(&self) -> &[ExtrinsicArgument] {
-        self.inner.args()
-    }
-
-    pub fn hash(&self) -> &T::Hash {
-        &self.hash
-    }
-
-    pub fn index(&self) -> usize {
-        self.index
-    }
-
-    pub fn block_num(&self) -> u32 {
-        self.block_num
-    }
-}
-
-
-#[derive(Debug)]
-/// Generic Not-signed extrinsic
-pub struct Inherent<T: Substrate + Send + Sync> {
-    inner: GenericExtrinsic,
-    index: usize,
-    hash: T::Hash,
-    block_num: u32,
-}
-
-impl<T> Inherent<T>
-where
-    T: Substrate + Send + Sync,
-{
-    pub fn new(extrinsic: GenericExtrinsic, hash: T::Hash, index: usize, block_num: u32) -> Self {
-        assert!( ! extrinsic.is_signed());
-
-        Self {
-            inner: extrinsic,
-            hash,
-            index,
-            block_num,
-        }
-    }
-
-    pub fn inner(&self) -> &GenericExtrinsic {
-        &self.inner
-    }
-
-    pub fn signature(&self) -> Option<&GenericSignature> {
-        self.inner.signature()
-    }
-
-    pub fn call(&self) -> &GenericCall {
-        self.inner.call()
-    }
-
-    pub fn ext_module(&self) -> &str {
-        self.inner.ext_module()
-    }
-
-    pub fn ext_call(&self) -> &str {
-        self.inner.ext_call()
-    }
-
-    pub fn args(&self) -> &[ExtrinsicArgument] {
-        self.inner.args()
-    }
-
-    pub fn hash(&self) -> &T::Hash {
-        &self.hash
-    }
-
-    pub fn index(&self) -> usize {
-        self.index
-    }
-
-    pub fn block_num(&self) -> u32 {
-        self.block_num
-    }
-
-    pub fn is_signed(&self) -> bool {
-        self.inner.is_signed()
     }
 }
 
@@ -193,7 +85,6 @@ impl<T: Substrate + Send + Sync> Header<T> {
 #[derive(Debug, Clone)]
 pub struct Block<T: Substrate + Send + Sync> {
     pub inner: SubstrateBlock<T>,
-    pub meta: Metadata,
     pub spec: u32,
 }
 
@@ -202,16 +93,19 @@ impl<T> Block<T>
 where
     T: Substrate + Send + Sync,
 {
-    pub fn new(block: SubstrateBlock<T>, meta: Metadata, spec: u32) -> Self {
+    pub fn new(block: SubstrateBlock<T>, spec: u32) -> Self {
         Self {
             inner: block,
-            meta,
             spec,
         }
     }
 
     pub fn inner(&self) -> &SubstrateBlock<T> {
         &self.inner
+    }
+
+    pub fn spec(&self) -> u32 {
+        *self.spec
     }
 }
 
@@ -310,54 +204,30 @@ where
     }
 }
 
-/// Raw Extrinsic that can be sent between actors
-/// before it's decoded into a `Extrinsic` type
-/// this type is not sent to the database so it is not part of 'Data' enum
-#[derive(Debug)]
-pub struct RawExtrinsic<T: Substrate + Send + Sync> {
-    pub inner: Vec<u8>,
-    pub hash: T::Hash,
-    pub spec: u32,
-    pub meta: Metadata,
-    pub index: usize,
-    pub block_num: u32,
-}
-
-impl<T> From<&Block<T>> for Vec<RawExtrinsic<T>>
+impl<T> From <&Block<T>> for Vec<Extrinsic<T>>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    fn from(block: &Block<T>) -> Vec<RawExtrinsic<T>> {
-        let block = block.clone();
-        let hash = block.inner.block.header.hash();
+
+    fn from(block: &Block<T>) -> Vec<Extrinsic<T>> {
         let spec = block.spec;
-        let meta = block.meta.clone();
-        let num = block.inner.block.header.number();
         block
             .inner()
             .block
             .extrinsics
             .iter()
             .enumerate()
-            .map(move |(i, e)| RawExtrinsic {
-                inner: e.encode(),
-                hash,
-                spec,
-                meta: meta.clone(),
-                index: i,
-                block_num: (*num).into(),
-            })
-            .collect()
+            .map(move |(i, e)| Extrinsic::new(e, i as u32, spec)).collect::<Vec<Extrinsic<T>>>()
     }
 }
 
-impl<T> From<BatchBlock<T>> for Vec<Vec<RawExtrinsic<T>>>
+impl<T> From<BatchBlock<T>> for Vec<Vec<Extrinsic<T>>>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    fn from(batch_block: BatchBlock<T>) -> Vec<Vec<RawExtrinsic<T>>> {
+    fn from(batch_block: BatchBlock<T>) -> Vec<Vec<Extrinsic<T>>> {
         batch_block.inner().iter().map(|b| b.into()).collect()
     }
 }
