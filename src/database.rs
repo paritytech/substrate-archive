@@ -29,7 +29,7 @@ use std::{convert::TryFrom, env, sync::RwLock};
 use desub::decoder::{GenericExtrinsic, GenericSignature, Metadata};
 use subxt::system::System;
 
-use self::prepare_sql::{PrepareSql as _, PrepareBatchSql as _, GetArguments};
+use self::prepare_sql::{PrepareSql as _, PrepareBatchSql as _, GetArguments, BindAll};
 use crate::{error::{Error as ArchiveError, ArchiveResult}, queries, types::Substrate, types::*};
 
 pub type DbReturn = Result<u64, ArchiveError>;
@@ -102,26 +102,26 @@ where
     }
 }
 
-impl<T> GetArguments for Block<T>
+impl<'a, T> BindAll<'a> for Block<T>
 where
     T: Substrate + Send + Sync,
-<T as System>::BlockNumber: Into<u32>,
+    <T as System>::BlockNumber: Into<u32>,
 {
-    fn get_arguments(&self) -> ArchiveResult<PgArguments> {
+    fn bind_all_arguments(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         let parent_hash = self.inner.block.header.parent_hash().as_ref();
         let hash = self.inner.block.header.hash();
         let block_num: u32 = (*self.inner.block.header.number()).into();
         let state_root = self.inner.block.header.state_root().as_ref();
         let extrinsics_root = self.inner.block.header.extrinsics_root().as_ref();
 
-
-        let mut arguments = PgArguments::default();
-        arguments.add(parent_hash);
-        arguments.add(hash.as_ref());
-        arguments.add(block_num);
-        arguments.add(state_root);
-        arguments.add(extrinsics_root);
-        Ok(arguments)
+        Ok(
+            query
+                .bind(parent_hash)
+                .bind(hash.as_ref())
+                .bind(block_num)
+                .bind(state_root)
+                .bind(extrinsics_root)
+        )
     }
 }
 
@@ -137,11 +137,11 @@ where
     }
 }
 
-impl<T> GetArguments for SignedExtrinsic<T>
+impl<'a, T> BindAll<'a> for SignedExtrinsic<T>
 where
     T: Substrate + Send + Sync,
 {
-    fn get_arguments(&self) -> ArchiveResult<PgArguments> {
+    fn bind_all_arguments(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         // FIXME
         // workaround for serde not serializing u128 to value
         // and diesel only supporting serde_Json::Value for jsonb in postgres
@@ -161,19 +161,19 @@ where
         let addr: serde_json::Value = serde_json::from_str(&addr)?;
         let sig: serde_json::Value = serde_json::from_str(&sig)?;
         let extra: serde_json::Value = serde_json::from_str(&extra)?;
-
-        let mut arguments = PgArguments::default();
-        arguments.add(self.hash().as_ref());
-        arguments.add(self.block_num());
-        arguments.add(addr);
-        arguments.add(self.ext_module());
-        arguments.add(self.ext_call());
-        arguments.add(parameters);
-        arguments.add(self.index() as u32);
-        arguments.add(sig);
-        arguments.add(Some(extra));
-        arguments.add(0 as u32);
-        Ok(arguments)
+        Ok(
+            query
+                .bind(self.hash().as_ref())
+                .bind(self.block_num())
+                .bind(addr)
+                .bind(self.ext_module())
+                .bind(self.ext_call())
+                .bind(parameters)
+                .bind(self.index() as u32)
+                .bind(sig)
+                .bind(Some(extra))
+                .bind(0 as u32)
+        )
     }
 }
 
@@ -188,11 +188,11 @@ where
     }
 }
 
-impl<T> GetArguments for Inherent<T>
+impl<'a, T> BindAll<'a> for Inherent<T>
 where
     T: Substrate + Send + Sync,
 {
-    fn get_arguments(&self) -> ArchiveResult<PgArguments> {
+    fn bind_all_arguments(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         // FIXME
         // workaround for serde not serializing u128 to value
         // and sqlx only supporting serde_Json::Value for jsonb in postgres
@@ -200,16 +200,16 @@ where
         // Can write own Postgres Encoder for value with sqlx
         let parameters = serde_json::to_string(&self.args()).unwrap();
         let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
-
-        let mut arguments = PgArguments::default();
-        arguments.add(self.hash().as_ref());
-        arguments.add(self.block_num());
-        arguments.add(self.ext_module());
-        arguments.add(self.ext_call());
-        arguments.add(parameters);
-        arguments.add(self.index() as u32);
-        arguments.add(0 as u32);
-        Ok(arguments)
+        Ok(
+            query
+                .bind(self.hash().as_ref())
+                .bind(self.block_num())
+                .bind(self.ext_module())
+                .bind(self.ext_call())
+                .bind(parameters)
+                .bind(self.index() as u32)
+                .bind(0 as u32)
+        )
     }
 }
 

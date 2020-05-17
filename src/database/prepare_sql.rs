@@ -37,7 +37,7 @@ where
 {}
 
 pub trait BindAll<'a> {
-    fn bind_all_arguments(&self, query: sqlx::Query<'a, Postgres>) -> sqlx::Query<'a, Postgres>;
+    fn bind_all_arguments(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
 }
 
 pub trait PrepareSql<'a> {
@@ -58,14 +58,14 @@ where
 {
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
 
-        let arguments = self.get_arguments()?;
-        Ok(sqlx::query(
-            r#"
-INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root)
-VALUES($1, $2, $3, $4, $5)
-"#,
-        )
-        .bind_all(arguments))
+        let query =
+            sqlx::query(
+                r#"
+    INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root)
+    VALUES($1, $2, $3, $4, $5)
+    "#);
+
+        self.bind_all_arguments(query)
     }
 }
 
@@ -90,9 +90,8 @@ VALUES {}
 
         Ok(
             self.iter()
-            .fold(sqlx::query(sql), |q, block| {
-                let arguments = block.get_arguments().unwrap();
-                q.bind_all(arguments)
+                .fold(sqlx::query(sql), |q, block| {
+                    block.bind_all_arguments(q).unwrap()
             })
         )
     }
@@ -103,16 +102,12 @@ where
     T: Substrate + Send + Sync,
 {
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-
-        let arguments = self.get_arguments()?;
-        Ok(
+        let query =
             sqlx::query(r#"
 INSERT INTO signed_extrinsics (hash, block_num, from_addr, module, call, parameters, tx_index, signature, extra, transaction_version)
 VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-"#
-            ).bind_all(arguments)
-        )
-
+"#);
+        self.bind_all_arguments(query)
     }
 }
 
@@ -135,8 +130,8 @@ VALUES {}
         Ok(
             self.iter()
                 .fold(sqlx::query(sql), |q, ext| {
-                    let arguments = ext.get_arguments().unwrap();
-                    q.bind_all(arguments)
+                    // let arguments = ext.get_arguments().unwrap();
+                    ext.bind_all_arguments(q).unwrap()
                 })
         )
     }
@@ -158,16 +153,15 @@ where
         // log::info!("Index: {}", self.index() as u32);
         // log::info!("Transaction Version {}", 0 as u32);
         // log::info!("================== EXT ===============");
-        let arguments = self.get_arguments()?;
-        Ok(
+
+        let query =
             sqlx::query(
             r#"
 INSERT INTO inherents (hash, block_num, module, call, parameters, in_index, transaction_version)
 VALUES($1, $2, $3, $4, $5, $6, $7)
 "#,
-            ).bind_all(arguments)
-        )
-
+            );
+        self.bind_all_arguments(query)
     }
 }
 
@@ -194,8 +188,7 @@ VALUES {}
         Ok(
             self.iter()
                 .fold(sqlx::query(sql), |q, ext| {
-                    let arguments = ext.get_arguments().unwrap();
-                    q.bind_all(arguments)
+                    ext.bind_all_arguments(q).unwrap()
                 })
         )
     }
