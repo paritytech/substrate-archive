@@ -26,7 +26,7 @@ use sp_runtime::traits::{Block as _, Header as _};
 
 use super::scheduler::{Algorithm, Scheduler};
 
-const REDUNDANCY: usize = 5;
+const REDUNDANCY: usize = 10;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
@@ -90,10 +90,6 @@ async fn meta_process_blocks<T>(
     log::info!("Got {} blocks", blocks.len());
     let mut batch_items = Vec::new();
 
-    // let specs = blocks.clone();
-    // specs.as_mut_slice().sort_by_key(|b| b.spec);
-    // let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
-    // specs.dedup();
     let now = std::time::Instant::now();
     let first = rpc.version(Some(blocks[0].block.header().hash())).await.unwrap();
     let elapsed = now.elapsed();

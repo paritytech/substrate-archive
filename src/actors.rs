@@ -60,7 +60,7 @@ where
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
     let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
-    let transformers = self::transformers::actor::<T>(db_workers).expect("Couldn't start transform workers");
+    let transformers = self::transformers::actor::<T, _>(db_workers, client.clone()).expect("Couldn't start transform workers");
     let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone(), pool.clone())
         .expect("Couldnt start metadata");
 

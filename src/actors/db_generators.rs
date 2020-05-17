@@ -42,7 +42,7 @@ pub fn actor<T, C>(
     pool: sqlx::Pool<PgConnection>,
 ) -> Result<ChildrenRef, ()>
 where
-    T: Substrate,
+    T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
 {
     // generate work from missing blocks
@@ -57,12 +57,14 @@ where
                 while let Some(_) = interval.next().await {
                     let mut block_nums = queries::missing_blocks(&pool).await.unwrap();
                     let mut blocks = Vec::new();
-                    if block_nums.len() > 0 {
-                        log::info!("Starting to crawl for {} missing blocks, from {} .. {} ...",
-                                block_nums.len(),
-                                block_nums[0].generate_series,
-                                   block_nums[block_nums.len() - 1].generate_series);
+                    if ! block_nums.len() > 0 {
+                        break;
                     }
+                    log::info!("Starting to crawl for {} missing blocks, from {} .. {} ...",
+                            block_nums.len(),
+                            block_nums[0].generate_series,
+                               block_nums[block_nums.len() - 1].generate_series
+                    );
                     for block_num in block_nums.iter() {
                         let num = block_num
                             .generate_series

@@ -17,7 +17,8 @@
 mod traits;
 use codec::Encode;
 use std::marker::PhantomData;
-use sp_core::storage::{StorageChangeSet, StorageData};
+// use sp_core::storage::{StorageChangeSet, StorageData};
+use sp_storage::{StorageData, StorageKey};
 use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
     traits::{Block as _, Header as _},
@@ -160,75 +161,41 @@ where
 }
 
 /// newType for Storage Data
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Storage<T: Substrate + Send + Sync> {
-    data: StorageData,
+    block_num: u32,
     hash: T::Hash,
+    spec: u32,
+    key: StorageKey,
+    data: StorageData,
 }
 
 impl<T> Storage<T>
 where
     T: Substrate + Send + Sync,
 {
-    pub fn new(data: StorageData, hash: T::Hash) -> Self {
-        Self { data, hash }
+    pub fn new(block_num: u32, spec: u32, hash: T::Hash, key: StorageKey, data: StorageData) -> Self {
+        Self { block_num, hash, spec, key, data }
     }
 
-    pub fn data(&self) -> &StorageData {
-        &self.data
+    pub fn block_num(&self) -> u32 {
+        self.block_num
     }
 
     pub fn hash(&self) -> &T::Hash {
         &self.hash
     }
-}
 
-/// NewType for committing many storage items into the database at once
-#[derive(Debug)]
-pub struct BatchStorage<T: Substrate + Send + Sync> {
-    inner: Vec<Storage<T>>,
-}
-
-impl<T> BatchStorage<T>
-where
-    T: Substrate + Send + Sync,
-{
-    pub fn new(data: Vec<Storage<T>>) -> Self {
-        Self { inner: data }
+    pub fn spec(&self) -> u32 {
+        self.spec
     }
 
-    pub fn inner(&self) -> &Vec<Storage<T>> {
-        &self.inner
+    pub fn key(&self) -> &StorageKey {
+        &self.key
     }
 
-    pub fn consume(self) -> Vec<Storage<T>> {
-        self.inner
-    }
-}
-
-/// NewType for committing Events to the database
-#[derive(Debug, PartialEq, Eq)]
-pub struct Event<T>
-where
-    T: Substrate + Send + Sync,
-{
-    change_set: StorageChangeSet<T::Hash>,
-}
-
-impl<T> Event<T>
-where
-    T: Substrate + Send + Sync,
-{
-    pub fn new(change_set: StorageChangeSet<T::Hash>) -> Self {
-        Self { change_set }
-    }
-
-    pub fn change_set(&self) -> &StorageChangeSet<T::Hash> {
-        &self.change_set
-    }
-
-    pub fn hash(&self) -> T::Hash {
-        self.change_set.block
+    pub fn data(&self) -> &StorageData {
+        &self.data
     }
 }
 

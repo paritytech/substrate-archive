@@ -6602,6 +6602,7 @@ dependencies = [
  "sp-database",
  "sp-rpc",
  "sp-runtime",
+ "sp-storage",
  "sp-version",
  "sqlx",
  "substrate-subxt",

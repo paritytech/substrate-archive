@@ -53,6 +53,10 @@ where
                                 process_metadata(&db, metadata).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
+                            storage: Vec<Storage<T>> =!> {
+                                process_storage(&db, storage).await;
+                                answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
+                            };
                             e: _ => log::warn!("Received unknown data {:?}", e);
                         };
                     }
@@ -128,6 +132,16 @@ where
 
 async fn process_metadata(db: &Database, meta: Metadata) {
     match db.insert(meta).await {
+        Ok(_) => (),
+        Err(e) => log::error!("{:?}", e)
+    }
+}
+
+async fn process_storage<T>(db: &Database, storage: Vec<Storage<T>>)
+where
+    T: Substrate + Send + Sync
+{
+    match db.insert(storage).await {
         Ok(_) => (),
         Err(e) => log::error!("{:?}", e)
     }
