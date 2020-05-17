@@ -49,6 +49,7 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-transaction-graph = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-transaction-graph" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
 bigdecimal = "0.1.2"
+itertools = "0.9.0"
 
 [dev-dependencies]
 desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }

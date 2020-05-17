@@ -23,14 +23,14 @@ use async_trait::async_trait;
 use codec::{Decode, Encode};
 use futures::future::{self, TryFutureExt};
 use sp_runtime::traits::Header as _;
-use sqlx::PgConnection;
+use sqlx::{PgConnection, Postgres, arguments::Arguments as _, postgres::PgArguments};
 use std::{convert::TryFrom, env, sync::RwLock};
 
 use desub::decoder::{GenericExtrinsic, GenericSignature, Metadata};
 use subxt::system::System;
 
-use self::prepare_sql::PrepareSql as _;
-use crate::{error::Error as ArchiveError, queries, types::Substrate, types::*};
+use self::prepare_sql::{PrepareSql as _, PrepareBatchSql as _, GetArguments};
+use crate::{error::{Error as ArchiveError, ArchiveResult}, queries, types::Substrate, types::*};
 
 pub type DbReturn = Result<u64, ArchiveError>;
 pub type DbConnection = sqlx::Pool<PgConnection>;
@@ -58,11 +58,11 @@ impl Clone for Database {
 
 impl Database {
     /// Connect to the database
-    pub fn new(pool: &DbConnection) -> Result<Self, ArchiveError> {
+    pub fn new(pool: &DbConnection) -> ArchiveResult<Self> {
         Ok(Self { pool: pool.clone() })
     }
 
-    pub async fn insert(&self, data: impl Insert) -> Result<u64, ArchiveError> {
+    pub async fn insert(&self, data: impl Insert) -> ArchiveResult<u64> {
         data.insert(self.pool.clone()).await
     }
 }
@@ -98,10 +98,33 @@ where
     async fn insert(self, db: DbConnection) -> DbReturn {
         log::info!("hash = {:X?}", self.inner.block.header.hash().as_ref());
         log::info!("block_num = {:?}", self.inner.block.header.number());
-
-        self.prep_insert()?.execute(&db).await.map_err(Into::into)
+        self.single_insert()?.execute(&db).await.map_err(Into::into)
     }
 }
+
+impl<T> GetArguments for Block<T>
+where
+    T: Substrate + Send + Sync,
+<T as System>::BlockNumber: Into<u32>,
+{
+    fn get_arguments(&self) -> ArchiveResult<PgArguments> {
+        let parent_hash = self.inner.block.header.parent_hash().as_ref();
+        let hash = self.inner.block.header.hash();
+        let block_num: u32 = (*self.inner.block.header.number()).into();
+        let state_root = self.inner.block.header.state_root().as_ref();
+        let extrinsics_root = self.inner.block.header.extrinsics_root().as_ref();
+
+
+        let mut arguments = PgArguments::default();
+        arguments.add(parent_hash);
+        arguments.add(hash.as_ref());
+        arguments.add(block_num);
+        arguments.add(state_root);
+        arguments.add(extrinsics_root);
+        Ok(arguments)
+    }
+}
+
 
 #[async_trait]
 impl<T> Insert for Vec<SignedExtrinsic<T>>
@@ -109,15 +132,48 @@ where
     T: Substrate + Send + Sync,
 {
     async fn insert(self, db: DbConnection) -> DbReturn {
-        let mut futures = Vec::new();
-        let mut counter = 0;
-        for ext in self.into_iter() {
-            futures.push(ext.prep_insert()?.execute(&db).map_err(ArchiveError::from));
-        }
-        for r in future::join_all(futures).await.into_iter() {
-            counter += r?;
-        }
-        Ok(counter)
+        let sql = self.build_sql();
+        self.batch_insert(&sql)?.execute(&db).await.map_err(Into::into)
+    }
+}
+
+impl<T> GetArguments for SignedExtrinsic<T>
+where
+    T: Substrate + Send + Sync,
+{
+    fn get_arguments(&self) -> ArchiveResult<PgArguments> {
+        // FIXME
+        // workaround for serde not serializing u128 to value
+        // and diesel only supporting serde_Json::Value for jsonb in postgres
+        // u128 are used in balance transfers
+        let parameters = serde_json::to_string(&self.args())?;
+        let parameters: serde_json::Value = serde_json::from_str(&parameters)?;
+
+        let (addr, sig, extra) = self
+            .signature()
+            .ok_or(ArchiveError::DataNotFound("Signature".to_string()))?
+            .parts();
+
+        let addr = serde_json::to_string(addr)?;
+        let sig = serde_json::to_string(sig)?;
+        let extra = serde_json::to_string(extra)?;
+
+        let addr: serde_json::Value = serde_json::from_str(&addr)?;
+        let sig: serde_json::Value = serde_json::from_str(&sig)?;
+        let extra: serde_json::Value = serde_json::from_str(&extra)?;
+
+        let mut arguments = PgArguments::default();
+        arguments.add(self.hash().as_ref());
+        arguments.add(self.block_num());
+        arguments.add(addr);
+        arguments.add(self.ext_module());
+        arguments.add(self.ext_call());
+        arguments.add(parameters);
+        arguments.add(self.index() as u32);
+        arguments.add(sig);
+        arguments.add(Some(extra));
+        arguments.add(0 as u32);
+        Ok(arguments)
     }
 }
 
@@ -127,16 +183,33 @@ where
     T: Substrate + Send + Sync,
 {
     async fn insert(self, db: DbConnection) -> DbReturn {
-        let mut futures = Vec::new();
-        let mut counter = 0;
-        for ext in self.into_iter() {
-            futures.push(ext.prep_insert()?.execute(&db).map_err(ArchiveError::from));
-        }
+        let sql = self.build_sql();
+        self.batch_insert(&sql)?.execute(&db).await.map_err(Into::into)
+    }
+}
 
-        for r in future::join_all(futures).await.into_iter() {
-            counter += r?;
-        }
-        Ok(counter)
+impl<T> GetArguments for Inherent<T>
+where
+    T: Substrate + Send + Sync,
+{
+    fn get_arguments(&self) -> ArchiveResult<PgArguments> {
+        // FIXME
+        // workaround for serde not serializing u128 to value
+        // and sqlx only supporting serde_Json::Value for jsonb in postgres
+        // u128 are used in balance transfers
+        // Can write own Postgres Encoder for value with sqlx
+        let parameters = serde_json::to_string(&self.args()).unwrap();
+        let parameters: serde_json::Value = serde_json::from_str(&parameters).unwrap();
+
+        let mut arguments = PgArguments::default();
+        arguments.add(self.hash().as_ref());
+        arguments.add(self.block_num());
+        arguments.add(self.ext_module());
+        arguments.add(self.ext_call());
+        arguments.add(parameters);
+        arguments.add(self.index() as u32);
+        arguments.add(0 as u32);
+        Ok(arguments)
     }
 }
 
@@ -148,21 +221,8 @@ where
 {
     async fn insert(self, db: DbConnection) -> DbReturn {
         log::info!("Batch inserting {} blocks into DB", self.inner().len());
-
-        let mut query = None;
-        for block in self.inner().into_iter() {
-            if query.is_some() {
-                query = Some(block.add(query.expect("Checked for existence; qed"))?)
-            } else {
-                query = Some(block.prep_insert()?)
-            }
-        }
-
-        query
-            .expect("Query should not be none")
-            .execute(&db)
-            .await
-            .map_err(Into::into)
+        let sql = self.inner().build_sql();
+        self.inner().batch_insert(&sql)?.execute(&db).await.map_err(Into::into)
     }
 }
 
