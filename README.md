@@ -1,4 +1,4 @@
-# Substrate Archive Node
+# Substrate Archive Db
 
 Run this alongside the substrate client to sync all historical TxData. Indexes all Blocks, State, and Extrinsic date from a running node.
 
