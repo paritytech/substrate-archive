@@ -16,37 +16,62 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
-use sqlx::{PgConnection, QueryAs as _, postgres::PgQueryAs as _, prelude::Cursor};
-use futures::{Stream, stream::{StreamExt, TryStreamExt}};
 use crate::error::Error as ArchiveError;
+use futures::{
+    stream::{StreamExt, TryStreamExt},
+    Future, Stream,
+};
+use sqlx::{
+    postgres::{PgQueryAs as _, PgRow},
+    prelude::Cursor,
+    PgConnection, QueryAs as _,
+};
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, Debug)]
 pub struct Block {
-    pub block_num: u32
+    pub generate_series: i64,
 }
-
 
 /// get missing blocks from relational database
-pub(crate) async fn missing_blocks(latest: Option<u32>, pool: &sqlx::Pool<PgConnection>)
-                                   -> impl Stream<Item = Result<Block, ArchiveError>> + '_
-{
-    if let Some(latest) = latest {
-        sqlx::query_as(
-           "SELECT generate_series
-            FROM generate_series('0'::bigint, '{}'::bigint)
-            WHERE
-            NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)"
-        ).fetch(pool).map_err(Into::into)
-    } else {
-        sqlx::query_as(
-           "SELECT generate_series
-            FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
-            WHERE
-            NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)"
-        ).fetch(pool).map_err(Into::into)
-    }
+pub(crate) async fn missing_blocks(
+    pool: &sqlx::Pool<PgConnection>,
+) -> Result<Vec<Block>, ArchiveError> {
+    sqlx::query_as(
+        "SELECT generate_series
+        FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
+        WHERE
+        NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
+        LIMIT 10000",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(Into::into)
 }
 
+/// check if a runtime versioned metadata exists in the database
+pub(crate) async fn check_if_meta_exists(
+    spec: u32,
+    pool: &sqlx::Pool<PgConnection>,
+) -> Result<bool, ArchiveError> {
+    let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM metadata WHERE version=$1)"#)
+        .bind(spec)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0)
+}
+#[derive(sqlx::FromRow, Debug)]
+pub struct Version {
+    pub version: i32,
+}
+
+pub(crate) async fn get_versions(
+    pool: &sqlx::Pool<PgConnection>,
+) -> Result<Vec<Version>, ArchiveError> {
+    sqlx::query_as::<_, Version>("SELECT version FROM metadata")
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+}
 
 #[cfg(test)]
 mod tests {

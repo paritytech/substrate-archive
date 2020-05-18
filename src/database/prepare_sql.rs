@@ -16,16 +16,33 @@
 
 //! prepared statements for sqlx
 
+use crate::error::{ArchiveResult, Error as ArchiveError};
+use crate::types::*;
+use sp_runtime::traits::Header as _;
+use sqlx::postgres::PgArguments;
 use sqlx::PgConnection;
 use sqlx::Postgres;
-use sp_runtime::traits::Header as _;
 use subxt::system::System;
-use crate::types::*;
-use crate::error::{ArchiveResult, Error as ArchiveError};
+
+pub trait SuperTrait<'a>: PrepareSql<'a> + PrepareBatchSql<'a> {}
+
+impl<'a, T> SuperTrait<'a> for T where T: PrepareSql<'a> + PrepareBatchSql<'a> {}
+
+pub trait BindAll<'a> {
+    fn bind_all_arguments(
+        &self,
+        query: sqlx::Query<'a, Postgres>,
+    ) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
+}
 
 pub trait PrepareSql<'a> {
-    fn prep_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
-    fn add(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
+    /// prepare a query for insertion
+    fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
+}
+
+pub trait PrepareBatchSql<'a> {
+    fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
+    fn build_sql(&self, rows: Option<u32>) -> String;
 }
 
 impl<'a, T> PrepareSql<'a> for Block<T>
@@ -34,153 +51,151 @@ where
     <T as System>::BlockNumber: From<u32>,
     <T as System>::BlockNumber: Into<u32>,
 {
-    fn prep_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        let parent_hash = self.inner.block.header.parent_hash().as_ref();
-        let hash = self.inner.block.header.hash();
-        let block_num: u32 = (*self.inner.block.header.number()).into();
-        let state_root = self.inner.block.header.state_root().as_ref();
-        let extrinsics_root = self.inner.block.header.extrinsics_root().as_ref();
+    fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        let query = sqlx::query(
+            r#"
+    INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, spec)
+    VALUES($1, $2, $3, $4, $5, $6)
+    "#,
+        );
 
-        Ok(sqlx::query(r#"
-INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root)
-VALUES ($1, $2, $3, $4, $5)
-"#
-        )
-            .bind(parent_hash)
-            .bind(hash.as_ref())
-            .bind(block_num)
-            .bind(state_root)
-            .bind(extrinsics_root))
+        self.bind_all_arguments(query)
+    }
+}
+
+impl<'a, T> PrepareBatchSql<'a> for Vec<Block<T>>
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: From<u32>,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    fn build_sql(&self, _rows: Option<u32>) -> String {
+        let stmt = format!(
+            r#"
+INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, spec)
+VALUES {}
+"#,
+            build_batch_insert(self.len(), 6)
+        );
+        stmt
     }
 
-    fn add(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        let parent_hash     = self.inner.block.header.parent_hash().as_ref();
-        let hash            = self.inner.block.header.hash();
-        let block_num: u32  = (*self.inner.block.header.number()).into();
-        let state_root      = self.inner.block.header.state_root().as_ref();
-        let extrinsics_root = self.inner.block.header.extrinsics_root().as_ref();
+    fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        Ok(self.iter().fold(sqlx::query(sql), |q, block| {
+            block.bind_all_arguments(q).unwrap()
+        }))
+    }
+}
 
-        Ok(query
-            .bind(parent_hash)
-            .bind(hash.as_ref())
-            .bind(block_num)
-            .bind(state_root)
-            .bind(extrinsics_root))
+impl<'a> PrepareSql<'a> for Metadata {
+    fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        let query = sqlx::query(
+            r#"
+INSERT INTO metadata (version, meta)
+VALUES($1, $2)
+"#,
+        );
+        self.bind_all_arguments(query)
     }
 }
 
 impl<'a, T> PrepareSql<'a> for Extrinsic<T>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
-    fn prep_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        if self.is_signed() {
-            // FIXME
-            // workaround for serde not serializing u128 to value
-            // and diesel only supporting serde_Json::Value for jsonb in postgres
-            // u128 are used in balance transfers
-            let parameters = serde_json::to_string(&self.args())?;
-            let parameters: serde_json::Value = serde_json::from_str(&parameters)?;
-            let (addr, sig, extra) = self
-                .signature()
-                .ok_or(ArchiveError::DataNotFound("Signature".to_string()))?
-                .parts();
+    fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        let query = sqlx::query(
+            r#"
+INSERT INTO extrinsics (hash, spec, index, ext)
+VALUES($1, $2, $3, $4)
+"#,
+        );
+        self.bind_all_arguments(query)
+    }
+}
 
-            let addr = serde_json::to_string(addr)?;
-            let sig = serde_json::to_string(sig)?;
-            let extra = serde_json::to_string(extra)?;
-            let addr: serde_json::Value = serde_json::from_str(&addr)?;
-            let sig: serde_json::Value = serde_json::from_str(&sig)?;
-            let extra: serde_json::Value = serde_json::from_str(&extra)?;
+impl<'a, T> PrepareBatchSql<'a> for Vec<Extrinsic<T>>
+where
+    T: Substrate + Send + Sync,
+{
+    fn build_sql(&self, _rows: Option<u32>) -> String {
+        format!(
+            r#"
+INSERT INTO extrinsics (hash, spec, index, ext)
+VALUES {}
+"#,
+            build_batch_insert(self.len(), 4)
+        )
+    }
 
-            Ok(sqlx::query(r#"
-INSERT INTO signed_extrinsics (hash, block_num, from_addr, module, call, parameters, tx_index, signature, extra, transaction_version)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-"#
+    fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        Ok(self.iter().fold(sqlx::query(sql), |q, ext| {
+            // let arguments = ext.get_arguments().unwrap();
+            ext.bind_all_arguments(q).unwrap()
+        }))
+    }
+}
+
+impl<'a, T> PrepareSql<'a> for Storage<T>
+where
+    T: Substrate + Send + Sync,
+{
+    fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        let query = sqlx::query(
+            r#"
+INSERT INTO storage (block_num, hash, spec, key, storage)
+VALUES (#1, $2, $3, $4, $5)
+"#,
+        );
+        self.bind_all_arguments(query)
+    }
+}
+
+impl<'a, T> PrepareBatchSql<'a> for Vec<Storage<T>>
+where
+    T: Substrate + Send + Sync,
+{
+    fn build_sql(&self, rows: Option<u32>) -> String {
+        if let Some(r) = rows {
+            format!(
+                r#"
+    INSERT INTO storage (block_num, hash, spec, key, storage)
+    VALUES {}
+    "#,
+                build_batch_insert(r as usize, 5)
             )
-                .bind(self.hash().as_ref())
-                .bind(self.block_num())
-                .bind(addr)
-                .bind(self.ext_module())
-                .bind(self.ext_call())
-                .bind(Some(parameters))
-                .bind(self.index() as u32)
-                .bind(sig)
-                .bind(Some(extra))
-                .bind(0))// FIXME: Transaction version incorrect
         } else {
-            // FIXME
-            // workaround for serde not serializing u128 to value
-            // and diesel only supporting serde_Json::Value for jsonb in postgres
-            // u128 are used in balance transfers
-            let parameters = serde_json::to_string(&self.args()).unwrap();
-            let parameters: serde_json::Value =
-                serde_json::from_str(&parameters).unwrap();
-
-            Ok(sqlx::query(r#"
-INSERT INTO extrinsics (hash, block_num, module, call, parameters, in_index, transaction_version)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-"#
+            format!(
+                r#"
+            INSERT INTO storage (block_num, hash, spec, key, storage)
+            VALUES {}
+            "#,
+                build_batch_insert(self.len(), 5)
             )
-                .bind(self.hash().as_ref())
-                .bind(self.block_num())
-                .bind(self.ext_module())
-                .bind(self.ext_call())
-                .bind(Some(parameters))
-                .bind(self.index() as u32)
-                .bind(0 as u32))
         }
     }
 
-    fn add(&self, query: sqlx::Query<'a, Postgres>) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        if self.is_signed() {
-            // FIXME
-            // workaround for serde not serializing u128 to value
-            // and diesel only supporting serde_Json::Value for jsonb in postgres
-            // u128 are used in balance transfers
-            let parameters = serde_json::to_string(&self.args())?;
-            let parameters: serde_json::Value = serde_json::from_str(&parameters)?;
-            let (addr, sig, extra) = self
-                .signature()
-                .ok_or(ArchiveError::DataNotFound("Signature".to_string()))?
-                .parts();
-
-            let addr = serde_json::to_string(addr)?;
-            let sig = serde_json::to_string(sig)?;
-            let extra = serde_json::to_string(extra)?;
-
-            let addr: serde_json::Value = serde_json::from_str(&addr)?;
-            let sig: serde_json::Value = serde_json::from_str(&sig)?;
-            let extra: serde_json::Value = serde_json::from_str(&extra)?;
-
-            Ok(query
-                .bind(self.hash().as_ref())
-                .bind(self.block_num())
-                .bind(addr)
-                .bind(self.ext_module())
-                .bind(self.ext_call())
-                .bind(Some(parameters))
-                .bind(self.index() as u32)
-                .bind(sig)
-                .bind(Some(extra))
-                .bind(0)) // FIXME: Transaction version incorrect
-        } else {
-            // FIXME
-            // workaround for serde not serializing u128 to value
-            // and diesel only supporting serde_Json::Value for jsonb in postgres
-            // u128 are used in balance transfers
-            let parameters = serde_json::to_string(&self.args()).unwrap();
-            let parameters: serde_json::Value =
-                serde_json::from_str(&parameters).unwrap();
-
-            Ok(query
-                .bind(self.hash().as_ref())
-                .bind(self.block_num())
-                .bind(self.ext_module())
-                .bind(self.ext_call())
-                .bind(Some(parameters))
-                .bind(self.index() as u32)
-                .bind(0 as u32))
-        }
+    fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        Ok(self.iter().fold(sqlx::query(sql), |q, storg| {
+            storg
+                .bind_all_arguments(q)
+                .expect("Could not bind storage arguments")
+        }))
     }
+}
+
+/// Create a batch insert statement
+///
+/// This code created by @mehcode
+/// https://discordapp.com/channels/665528275556106240/665528275556106243/694835667401703444
+fn build_batch_insert(rows: usize, columns: usize) -> String {
+    use itertools::Itertools;
+    (0..rows)
+        .format_with(",", |i, f| {
+            f(&format_args!(
+                "({})",
+                (1..=columns).format_with(",", |j, f| f(&format_args!("${}", j + (i * columns))))
+            ))
+        })
+        .to_string()
 }

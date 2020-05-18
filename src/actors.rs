@@ -18,50 +18,58 @@
 
 mod database;
 mod db_generators;
-mod decode;
+mod metadata;
 mod network;
 mod scheduler;
+mod transformers;
 
-use super::{error::Error as ArchiveError, types::{Substrate, NotSignedBlock}, backend::ChainAccess};
-use std::{sync::Arc, env};
+use super::{
+    backend::ChainAccess,
+    database::Database,
+    error::Error as ArchiveError,
+    types::{NotSignedBlock, Substrate},
+};
 use bastion::prelude::*;
 use sqlx::postgres::PgPool;
+use std::{env, sync::Arc};
 use subxt::system::System;
-
-use desub::{decoder::Decoder, TypeDetective};
 
 // TODO: 'cut!' macro to handle errors from within actors
 
 /// initialize substrate archive
 /// if a child actor panics or errors, it is up to the supervisor to handle it
-pub fn init<T, P, C>(decoder: Decoder<P>, client: Arc<C>, url: String) -> Result<(), ArchiveError>
+pub fn init<T, C>(client: Arc<C>, url: String) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    P: TypeDetective + Send + Sync + 'static,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
 {
     Bastion::init();
 
     /// TODO: could be initialized asyncronously somewhere
-    let pool = async_std::task::block_on(PgPool::builder()
-        .max_size(10)
-        .build(&env::var("DATABASE_URL")?))?;
+    let pool = async_std::task::block_on(
+        PgPool::builder()
+            .max_size(10)
+            .build(&env::var("DATABASE_URL")?),
+    )?;
 
-   
+    let db = Database::new(&pool)?;
+
     // TODO use answers to handle errors in the supervisor
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
-    let decode_workers =
-        self::decode::actor::<T, P>(decoder).expect("Couldn't start decode children");
-    self::network::actor::<T>(decode_workers.clone(), url).expect("Couldn't add blocks child");
-    self::db_generators::actor::<T, _>(client, pool).expect("Couldn't start db work generators");
+    let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
+    let transformers = self::transformers::actor::<T, _>(db_workers, client.clone())
+        .expect("Couldn't start transform workers");
+    let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone(), pool.clone())
+        .expect("Couldnt start metadata");
 
-    // generate work
-    // seperates blocks into different datatypes
-
-    // generate work
-    // fetches blocks
+    // network generator. Gets headers from network but uses client to fetch block bodies
+    self::network::actor::<T, _>(meta_workers.clone(), client.clone(), url)
+        .expect("Couldn't add blocks child");
+    // IO/kvdb generator (missing blocks/storage/etc)
+    self::db_generators::actor::<T, _>(client, meta_workers.clone(), pool)
+        .expect("Couldn't start db work generators");
 
     Bastion::start();
     Bastion::block_until_stopped();

@@ -1,0 +1,143 @@
+// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// This file is part of substrate-archive.
+
+// substrate-archive is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// substrate-archive is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
+
+//! Actors which do work by decoding data before it's inserted into the database
+//! these actors may do highly parallelized work
+//! These actors do not make any external connections to a Database or Network
+
+use super::scheduler::{Algorithm, Scheduler};
+use crate::backend::ChainAccess;
+use crate::types::*;
+use bastion::prelude::*;
+use sc_client_api::backend::StorageProvider;
+use sp_runtime::{
+    generic::BlockId,
+    traits::{Block as _, Header as _},
+};
+use sp_storage::{StorageData, StorageKey};
+use std::sync::Arc;
+use subxt::system::System;
+
+const REDUNDANCY: usize = 5;
+
+// actor that takes blocks and transforms them into different types
+pub fn actor<T, C>(db_workers: ChildrenRef, client: Arc<C>) -> Result<ChildrenRef, ()>
+where
+    T: Substrate + Send + Sync,
+    C: ChainAccess<NotSignedBlock> + 'static,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    Bastion::children(|children: Children| {
+        children
+            .with_redundancy(REDUNDANCY)
+            .with_exec(move |ctx: BastionContext| {
+                let workers = db_workers.clone();
+                let client = client.clone();
+                async move {
+                    log::info!("Transformer started");
+                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
+                    loop {
+                        msg! {
+                            ctx.recv().await?,
+                            block: Block<T> =!> {
+                                process_block(block.clone(), &mut sched).await;
+                                extract_storage(vec![block].as_slice(), &client, &mut sched).await;
+                                answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
+                             };
+                             blocks: Vec<Block<T>> =!> {
+                                 process_blocks(blocks.clone(), &mut sched).await;
+                                 extract_storage(blocks.as_slice(), &client, &mut sched).await;
+                                 answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
+                             };
+                            meta: Metadata =!> {
+                                let v = sched.ask_next(meta).unwrap().await;
+                                log::debug!("{:?}", v);
+                            };
+                            e: _ => log::warn!("Received unknown data {:?}", e);
+                        }
+                    }
+                }
+            })
+    })
+}
+
+pub async fn process_block<T>(block: Block<T>, sched: &mut Scheduler<'_>)
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    // TODO: join these futures
+    let ext: Vec<Extrinsic<T>> = (&block).into();
+    let v = sched.ask_next(block).unwrap().await;
+    log::debug!("{:?}", v);
+    let v = sched.ask_next(ext).unwrap().await;
+    log::debug!("{:?}", v);
+}
+
+pub async fn process_blocks<T>(blocks: Vec<Block<T>>, sched: &mut Scheduler<'_>)
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    log::info!("Got {} blocks", blocks.len());
+    //TODO: Join these futures
+    let batch_blocks = BatchBlock::new(blocks.clone());
+    let ext: Vec<Extrinsic<T>> = batch_blocks.into();
+    log::info!("Processing blocks");
+    let v = sched.ask_next(blocks).unwrap().await;
+    log::debug!("{:?}", v);
+    let v = sched.ask_next(ext).unwrap().await;
+    log::debug!("{:?}", v);
+}
+
+pub async fn extract_storage<T, C>(blocks: &[Block<T>], client: &Arc<C>, sched: &mut Scheduler<'_>)
+where
+    T: Substrate + Send + Sync,
+    C: ChainAccess<NotSignedBlock> + 'static,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    let mut storg: Vec<Vec<Storage<T>>> = Vec::new();
+    let now = std::time::Instant::now();
+    for block in blocks.iter() {
+        let block_num: u32 = (*block.inner().block.header.number()).into();
+        // get all storage for a block
+        let storage: Vec<(StorageKey, StorageData)> =
+            match client.storage_pairs(&BlockId::Number(block_num), &StorageKey(Vec::new())) {
+                Ok(v) => v,
+                Err(e) => {
+                    log::error!("{:?}", e);
+                    panic!("Could not get storage from client")
+                }
+            };
+
+        let hash = block.inner().block.header.hash();
+        let spec = block.spec;
+        storg.push(
+            storage
+                .into_iter()
+                .map(|(k, v)| Storage::new(block_num, spec, hash, k, v))
+                .collect::<Vec<Storage<T>>>(),
+        );
+    }
+    let storg = storg.into_iter().flatten().collect::<Vec<Storage<T>>>();
+    let elapsed = now.elapsed();
+    log::info!(
+        "Took {} milli-seconds to transform storage",
+        elapsed.as_millis()
+    );
+    let v = sched.ask_next(storg).unwrap().await;
+    log::debug!("{:?}", v);
+}

@@ -14,39 +14,59 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Actor that takes context and workers and schedules them according to a scheduling algorithm
+//! currently only supports 'RoundRobin'
+
+// TODO: Maybe make an actor (supervisor?) that schedules other actors
+// otherwise there could be conflicts where one actor starves another because its waiting on some work to finish,
+// whereas there are other redundant workers sitting idly
 use bastion::prelude::*;
 
 pub enum Algorithm {
     RoundRobin,
 }
 
-pub struct Scheduler {
+pub struct Scheduler<'a> {
     last_executed: usize,
     alg: Algorithm,
+    ctx: &'a BastionContext,
+    workers: &'a ChildrenRef,
 }
 
-impl Scheduler {
-    pub fn new(alg: Algorithm) -> Self {
+impl<'a> Scheduler<'a> {
+    pub fn new(alg: Algorithm, ctx: &'a BastionContext, workers: &'a ChildrenRef) -> Self {
         Self {
             last_executed: 0,
             alg,
+            ctx,
+            workers,
         }
     }
 
-    pub fn next<T>(
-        &mut self,
-        ctx: &BastionContext,
-        workers: &ChildrenRef,
-        data: T,
-    ) -> Result<Answer, T>
+    pub fn ask_next<T>(&mut self, data: T) -> Result<Answer, T>
     where
         T: Send + Sync + std::fmt::Debug + 'static,
     {
         match self.alg {
             Algorithm::RoundRobin => {
                 self.last_executed += 1;
-                let next_executed = self.last_executed % workers.elems().len();
-                ctx.ask(&workers.elems()[next_executed].addr(), data)
+                let next_executed = self.last_executed % self.workers.elems().len();
+                self.ctx
+                    .ask(&self.workers.elems()[next_executed].addr(), data)
+            }
+        }
+    }
+
+    pub fn tell_next<T>(&mut self, data: T) -> Result<(), T>
+    where
+        T: Send + Sync + std::fmt::Debug + 'static,
+    {
+        match self.alg {
+            Algorithm::RoundRobin => {
+                self.last_executed += 1;
+                let next_executed = self.last_executed % self.workers.elems().len();
+                self.ctx
+                    .tell(&self.workers.elems()[next_executed].addr(), data)
             }
         }
     }

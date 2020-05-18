@@ -50,9 +50,14 @@ impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
     }
 
     fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
-        self.inner.try_catch_up_with_primary().ok();
-        // TODO: log error if occurs here
-        self.inner.get(col, key).ok()?
+        self.inner.try_catch_up_with_primary().ok()?;
+        match self.inner.get(col, key) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("{:?}", e);
+                None
+            }
+        }
     }
     // with_get -> default is fine
 
@@ -74,10 +79,18 @@ impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
 
 impl KeyValueDB for ReadOnlyDatabase {
     fn get(&self, col: u32, key: &[u8]) -> io::Result<Option<DBValue>> {
+        match self.inner.try_catch_up_with_primary() {
+            Ok(_) => (),
+            Err(e) => log::error!("Could not catch up {:?}", e),
+        };
         self.inner.get(col, key)
     }
 
     fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Option<Box<[u8]>> {
+        match self.inner.try_catch_up_with_primary() {
+            Ok(_) => (),
+            Err(e) => log::error!("Could not catch up {:?}", e),
+        };
         self.inner.get_by_prefix(col, prefix)
     }
 

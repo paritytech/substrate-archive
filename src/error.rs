@@ -17,13 +17,12 @@ use codec::Error as CodecError;
 use failure::Fail;
 use futures::channel::mpsc::TrySendError;
 // use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
-use desub::Error as DesubError;
 use serde_json::Error as SerdeError;
+use sqlx::Error as SqlError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
 use std::sync::PoisonError;
-use sqlx::Error as SqlError;
 use subxt::Error as SubxtError;
 
 pub type ArchiveResult<T> = Result<T, Error>;
@@ -46,8 +45,6 @@ pub enum Error {
     IntConversion(#[fail(cause)] TryFromIntError),
     #[fail(display = "Serialization: {}", _0)]
     Serialize(#[fail(cause)] SerdeError),
-    #[fail(display = "Desub {}", _0)]
-    Desub(#[fail(cause)] DesubError),
     #[fail(display = "Rpc Comms {}", _0)]
     Subxt(#[fail(cause)] SubxtError),
     #[fail(display = "Sql {}", _0)]
@@ -87,12 +84,6 @@ impl From<&str> for Error {
 impl From<SubxtError> for Error {
     fn from(err: SubxtError) -> Error {
         Error::Subxt(err)
-    }
-}
-
-impl From<DesubError> for Error {
-    fn from(err: DesubError) -> Error {
-        Error::Desub(err)
     }
 }
 

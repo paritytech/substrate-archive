@@ -16,12 +16,13 @@
 
 mod traits;
 use codec::Encode;
-use desub::decoder::{GenericExtrinsic, GenericSignature, GenericCall, ExtrinsicArgument, Metadata};
-use sp_core::storage::{StorageChangeSet, StorageData};
+use std::marker::PhantomData;
+// use sp_core::storage::{StorageChangeSet, StorageData};
 use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
     traits::{Block as _, Header as _},
 };
+use sp_storage::{StorageData, StorageKey};
 use subxt::system::System;
 
 pub use self::traits::Substrate;
@@ -41,59 +42,48 @@ pub type NotSignedBlock = BlockT<
 pub type ArchiveBackend = sc_client_db::Backend<NotSignedBlock>;
 
 #[derive(Debug)]
+pub struct Metadata {
+    version: u32,
+    meta: Vec<u8>,
+}
+
+impl Metadata {
+    pub fn new(version: u32, meta: Vec<u8>) -> Self {
+        Self { version, meta }
+    }
+
+    pub fn version(&self) -> u32 {
+        self.version
+    }
+
+    pub fn meta(&self) -> &[u8] {
+        self.meta.as_slice()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Extrinsic<T: Substrate + Send + Sync> {
-    inner: GenericExtrinsic,
-    index: usize,
-    hash: T::Hash,
-    block_num: u32
+    pub hash: Vec<u8>,
+    /// The SCALE-encoded extrinsic
+    pub inner: Vec<u8>,
+    /// Spec that the extrinsic is from
+    pub spec: u32,
+    pub index: u32,
+    _marker: PhantomData<T>,
 }
 
 impl<T> Extrinsic<T>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
-    pub fn new(extrinsic: GenericExtrinsic, hash: T::Hash, index: usize, block_num: u32) -> Self {
-        Self { inner: extrinsic, hash, index, block_num}
-    }
-
-    pub fn inner(&self) -> &GenericExtrinsic {
-        &self.inner
-    }
-
-    pub fn signature(&self) -> Option<&GenericSignature> {
-        self.inner.signature()
-    }
-
-    pub fn call(&self) -> &GenericCall {
-        self.inner.call()
-    }
-
-    pub fn ext_module(&self) -> &str {
-        self.inner.ext_module()
-    }
-
-    pub fn ext_call(&self) -> &str {
-        self.inner.ext_call()
-    }
-
-    pub fn args(&self) -> &[ExtrinsicArgument] {
-        self.inner.args()
-    }
-
-    pub fn hash(&self) -> &T::Hash {
-        &self.hash
-    }
-
-    pub fn index(&self) -> usize {
-        self.index
-    }
-
-    pub fn block_num(&self) -> u32 {
-        self.block_num
-    }
-
-    pub fn is_signed(&self) -> bool {
-        self.inner.is_signed()
+    pub fn new(ext: &T::Extrinsic, hash: T::Hash, index: u32, spec: u32) -> Self {
+        Self {
+            hash: hash.as_ref().to_vec(),
+            inner: ext.encode(),
+            _marker: PhantomData,
+            index,
+            spec,
+        }
     }
 }
 
@@ -121,7 +111,6 @@ impl<T: Substrate + Send + Sync> Header<T> {
 #[derive(Debug, Clone)]
 pub struct Block<T: Substrate + Send + Sync> {
     pub inner: SubstrateBlock<T>,
-    pub meta: Metadata,
     pub spec: u32,
 }
 
@@ -130,12 +119,20 @@ impl<T> Block<T>
 where
     T: Substrate + Send + Sync,
 {
-    pub fn new(block: SubstrateBlock<T>, meta: Metadata, spec: u32) -> Self {
-        Self { inner: block, meta, spec }
+    pub fn new(block: SubstrateBlock<T>, spec: u32) -> Self {
+        Self { inner: block, spec }
     }
 
     pub fn inner(&self) -> &SubstrateBlock<T> {
         &self.inner
+    }
+
+    pub fn spec(&self) -> u32 {
+        self.spec
+    }
+
+    pub fn hash(&self) -> T::Hash {
+        self.inner().block.header.hash()
     }
 }
 
@@ -143,14 +140,14 @@ where
 #[derive(Debug)]
 pub struct BatchBlock<T>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     inner: Vec<Block<T>>,
 }
 
 impl<T> BatchBlock<T>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     pub fn new(blocks: Vec<Block<T>>) -> Self {
         Self { inner: blocks }
@@ -161,131 +158,89 @@ where
     }
 }
 
-
 /// newType for Storage Data
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Storage<T: Substrate + Send + Sync> {
-    data: StorageData,
+    block_num: u32,
     hash: T::Hash,
+    spec: u32,
+    key: StorageKey,
+    data: StorageData,
 }
 
 impl<T> Storage<T>
 where
     T: Substrate + Send + Sync,
 {
-    pub fn new(data: StorageData, hash: T::Hash) -> Self {
+    pub fn new(
+        block_num: u32,
+        spec: u32,
+        hash: T::Hash,
+        key: StorageKey,
+        data: StorageData,
+    ) -> Self {
         Self {
-            data,
+            block_num,
             hash,
+            spec,
+            key,
+            data,
         }
     }
 
-    pub fn data(&self) -> &StorageData {
-        &self.data
+    pub fn block_num(&self) -> u32 {
+        self.block_num
     }
 
     pub fn hash(&self) -> &T::Hash {
         &self.hash
     }
-}
 
-/// NewType for committing many storage items into the database at once
-#[derive(Debug)]
-pub struct BatchStorage<T: Substrate + Send + Sync> {
-    inner: Vec<Storage<T>>,
-}
-
-impl<T> BatchStorage<T>
-where
-    T: Substrate + Send + Sync,
-{
-    pub fn new(data: Vec<Storage<T>>) -> Self {
-        Self { inner: data }
+    pub fn spec(&self) -> u32 {
+        self.spec
     }
 
-    pub fn inner(&self) -> &Vec<Storage<T>> {
-        &self.inner
+    pub fn key(&self) -> &StorageKey {
+        &self.key
     }
 
-    pub fn consume(self) -> Vec<Storage<T>> {
-        self.inner
+    pub fn data(&self) -> &StorageData {
+        &self.data
     }
 }
 
-/// NewType for committing Events to the database
-#[derive(Debug, PartialEq, Eq)]
-pub struct Event<T>
-where
-    T: Substrate + Send + Sync
-{
-    change_set: StorageChangeSet<T::Hash>,
-}
-
-impl<T> Event<T>
-where
-    T: Substrate + Send + Sync
-{
-    pub fn new(change_set: StorageChangeSet<T::Hash>) -> Self {
-        Self { change_set }
-    }
-
-    pub fn change_set(&self) -> &StorageChangeSet<T::Hash> {
-        &self.change_set
-    }
-
-    pub fn hash(&self) -> T::Hash {
-        self.change_set.block
-    }
-}
-
-/// Raw Extrinsic that can be sent between actors
-/// before it's decoded into a `Extrinsic` type
-/// this type is not sent to the database so it is not part of 'Data' enum
-#[derive(Debug)]
-pub struct RawExtrinsic<T: Substrate + Send + Sync> {
-    pub inner: Vec<u8>,
-    pub hash: T::Hash,
-    pub spec: u32,
-    pub meta: Metadata,
-    pub index: usize,
-    pub block_num: u32
-}
-
-impl<T> From<&Block<T>> for Vec<RawExtrinsic<T>>
+impl<T> From<&Block<T>> for Vec<Extrinsic<T>>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    fn from(block: &Block<T>) -> Vec<RawExtrinsic<T>> {
-        let block = block.clone();
-        let hash = block.inner.block.header.hash();
+    fn from(block: &Block<T>) -> Vec<Extrinsic<T>> {
         let spec = block.spec;
-        let meta = block.meta.clone();
-        let num = block.inner.block.header.number();
+        let hash = block.hash();
         block
             .inner()
             .block
             .extrinsics
             .iter()
             .enumerate()
-            .map(move |(i, e)| RawExtrinsic {
-                inner: e.encode(),
-                hash,
-                spec,
-                meta: meta.clone(),
-                index: i,
-                block_num: (*num).into()
-            })
-            .collect()
+            .map(move |(i, e)| Extrinsic::new(e, hash, i as u32, spec))
+            .collect::<Vec<Extrinsic<T>>>()
     }
 }
 
-impl<T> From<BatchBlock<T>> for Vec<Vec<RawExtrinsic<T>>>
+impl<T> From<BatchBlock<T>> for Vec<Extrinsic<T>>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    fn from(batch_block: BatchBlock<T>) -> Vec<Vec<RawExtrinsic<T>>> {
-        batch_block.inner().iter().map(|b| b.into()).collect()
+    fn from(batch_block: BatchBlock<T>) -> Vec<Extrinsic<T>> {
+        batch_block
+            .inner()
+            .iter()
+            .map(|b| b.into())
+            .collect::<Vec<Vec<Extrinsic<T>>>>()
+            .into_iter()
+            .flatten()
+            .collect()
     }
 }

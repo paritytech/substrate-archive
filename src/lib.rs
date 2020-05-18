@@ -17,13 +17,13 @@
 #![allow(warnings)]
 #![forbid(unsafe_code)]
 
+mod actors;
 pub mod backend;
+mod database;
 mod error;
 mod queries;
-mod actors;
 mod types;
 mod util;
-mod database;
 pub use error::Error;
 pub use types::{NotSignedBlock, Substrate};
 

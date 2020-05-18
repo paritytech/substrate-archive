@@ -17,24 +17,22 @@
 //! IO for the PostgreSQL database connected to Substrate Archive Node
 //! Handles inserting of data into the database
 
-// pub mod models;
 mod prepare_sql;
 
-use sqlx::PgConnection;
-use sp_runtime::traits::Header as _;
-use codec::{Decode, Encode};
 use async_trait::async_trait;
+use codec::{Decode, Encode};
+use futures::future::{self, TryFutureExt};
+use sp_runtime::traits::Header as _;
+use sqlx::{arguments::Arguments as _, postgres::PgArguments, PgConnection, Postgres};
 use std::{convert::TryFrom, env, sync::RwLock};
 
-use desub::decoder::{GenericExtrinsic, GenericSignature, Metadata};
 use subxt::system::System;
 
-use self::prepare_sql::PrepareSql as _;
+use self::prepare_sql::{BindAll, PrepareBatchSql as _, PrepareSql as _};
 use crate::{
+    error::{ArchiveResult, Error as ArchiveError},
     queries,
-    error::Error as ArchiveError,
     types::*,
-    types::Substrate
 };
 
 pub type DbReturn = Result<u64, ArchiveError>;
@@ -46,42 +44,32 @@ pub trait Insert: Sync {
     where
         Self: Sized;
 }
-
 pub struct Database {
     /// pool of database connections
     pool: DbConnection,
 }
 
+// clones a database connection
+impl Clone for Database {
+    fn clone(&self) -> Self {
+        Database {
+            pool: self.pool.clone(),
+        }
+    }
+}
+
 impl Database {
     /// Connect to the database
-    pub fn new(pool: &DbConnection) -> Result<Self, ArchiveError> {
+    pub fn new(pool: &DbConnection) -> ArchiveResult<Self> {
         Ok(Self { pool: pool.clone() })
     }
 
-    pub async fn insert(&self, data: impl Insert) -> Result<u64, ArchiveError> {
+    pub fn pool(&self) -> &sqlx::Pool<PgConnection> {
+        &self.pool
+    }
+
+    pub async fn insert(&self, data: impl Insert) -> ArchiveResult<u64> {
         data.insert(self.pool.clone()).await
-    }
-}
-
-// TODO Make storage insertions generic over any type of insertin
-// not only timestamps
-#[async_trait]
-impl<T> Insert for Storage<T>
-where
-    T: Substrate + Send + Sync,
-{
-    async fn insert(self, db: DbConnection) -> DbReturn {
-        unimplemented!();
-    }
-}
-
-#[async_trait]
-impl<T> Insert for BatchStorage<T>
-where
-    T: Substrate + Send + Sync,
-{
-    async fn insert(self, db: DbConnection) -> DbReturn {
-        unimplemented!();
     }
 }
 
@@ -94,27 +82,145 @@ where
     async fn insert(self, db: DbConnection) -> DbReturn {
         log::info!("hash = {:X?}", self.inner.block.header.hash().as_ref());
         log::info!("block_num = {:?}", self.inner.block.header.number());
+        self.single_insert()?.execute(&db).await.map_err(Into::into)
+    }
+}
 
-        self.prep_insert()?.execute(&db).await.map_err(Into::into)
+impl<'a, T> BindAll<'a> for Block<T>
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    fn bind_all_arguments(
+        &self,
+        query: sqlx::Query<'a, Postgres>,
+    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        let parent_hash = self.inner.block.header.parent_hash().as_ref();
+        let hash = self.inner.block.header.hash();
+        let block_num: u32 = (*self.inner.block.header.number()).into();
+        let state_root = self.inner.block.header.state_root().as_ref();
+        let extrinsics_root = self.inner.block.header.extrinsics_root().as_ref();
+
+        Ok(query
+            .bind(parent_hash)
+            .bind(hash.as_ref())
+            .bind(block_num)
+            .bind(state_root)
+            .bind(extrinsics_root)
+            .bind(self.spec))
+    }
+}
+
+#[async_trait]
+impl<T> Insert for Storage<T>
+where
+    T: Substrate + Send + Sync,
+{
+    async fn insert(self, db: DbConnection) -> DbReturn {
+        self.single_insert()?.execute(&db).await.map_err(Into::into)
+    }
+}
+
+#[async_trait]
+impl<T> Insert for Vec<Storage<T>>
+where
+    T: Substrate + Send + Sync,
+{
+    async fn insert(self, db: DbConnection) -> DbReturn {
+        // let sql = storg.build_sql(Some(storg.len() as u32));
+        let mut sizes = Vec::new();
+        let chunks = self.chunks(12_000);
+
+        for chunk in chunks.clone() {
+            // FIXME should not clone here
+            sizes.push(chunk.len())
+        }
+
+        let queries = sizes
+            .into_iter()
+            .map(|s| self.build_sql(Some(s as u32)))
+            .collect::<Vec<String>>();
+        let mut counter = 0;
+        let mut futures = Vec::new();
+        for s in chunks {
+            let storg = s.to_vec();
+            futures.push(storg.batch_insert(&queries[counter])?.execute(&db));
+            counter += 1;
+        }
+        let mut rows_changed = 0;
+        future::join_all(futures)
+            .await
+            .iter()
+            .for_each(|r| match r {
+                Ok(v) => rows_changed += v,
+                Err(e) => log::error!("{:?}", e),
+            });
+        Ok(rows_changed)
+    }
+}
+
+impl<'a, T> BindAll<'a> for Storage<T>
+where
+    T: Substrate + Send + Sync,
+{
+    fn bind_all_arguments(
+        &self,
+        query: sqlx::Query<'a, Postgres>,
+    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        Ok(query
+            .bind(self.block_num())
+            .bind(self.hash().as_ref())
+            .bind(self.spec())
+            .bind(self.key().0.as_slice())
+            .bind(self.data().0.as_slice()))
+    }
+}
+
+#[async_trait]
+impl Insert for Metadata {
+    async fn insert(self, db: DbConnection) -> DbReturn {
+        self.single_insert()?.execute(&db).await.map_err(Into::into)
+    }
+}
+
+impl<'a> BindAll<'a> for Metadata {
+    fn bind_all_arguments(
+        &self,
+        query: sqlx::Query<'a, Postgres>,
+    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        Ok(query.bind(self.version()).bind(self.meta()))
     }
 }
 
 #[async_trait]
 impl<T> Insert for Vec<Extrinsic<T>>
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     async fn insert(self, db: DbConnection) -> DbReturn {
-
-        let mut query = None;
-        for e in self.into_iter() {
-            if query.is_some() {
-                query = Some(e.add(query.expect("Checked for existence; qed"))?)
-            } else {
-                query = Some(e.prep_insert()?)
-            }
+        let mut rows_changed = 0;
+        for ext in self.chunks(15_000) {
+            let ext = ext.to_vec();
+            let sql = ext.build_sql(None);
+            rows_changed += ext.batch_insert(&sql)?.execute(&db).await?;
         }
-        query.unwrap().execute(&db).await.map_err(Into::into)
+        Ok(rows_changed)
+    }
+}
+
+impl<'a, T> BindAll<'a> for Extrinsic<T>
+where
+    T: Substrate + Send + Sync,
+{
+    fn bind_all_arguments(
+        &self,
+        query: sqlx::Query<'a, Postgres>,
+    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        Ok(query
+            .bind(self.hash.as_slice())
+            .bind(self.spec)
+            .bind(self.index)
+            .bind(self.inner.as_slice()))
     }
 }
 
@@ -124,21 +230,14 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    async fn insert(
-        self,
-        db: DbConnection,
-    ) -> DbReturn {
+    async fn insert(self, db: DbConnection) -> DbReturn {
         log::info!("Batch inserting {} blocks into DB", self.inner().len());
-
-        let mut query = None;
-        for block in self.inner().into_iter() {
-            if query.is_some() {
-                query = Some(block.add(query.expect("Checked for existence; qed"))?)
-            } else {
-                query = Some(block.prep_insert()?)
-            }
-        }
-        query.expect("Query should not be none").execute(&db).await.map_err(Into::into)
+        let sql = self.inner().build_sql(None);
+        self.inner()
+            .batch_insert(&sql)?
+            .execute(&db)
+            .await
+            .map_err(Into::into)
     }
 }
 

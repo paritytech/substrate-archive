@@ -18,7 +18,7 @@
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 
-use crate::types::{Block, RawExtrinsic, Extrinsic, Substrate};
+use crate::types::{Block, SignedExtrinsic, Inherent, RawExtrinsic, Substrate};
 use bastion::prelude::*;
 use desub::{decoder::Decoder, TypeDetective};
 use subxt::system::System;
@@ -29,52 +29,12 @@ const REDUNDANCY: usize = 64;
 
 /// the main actor
 /// holds the internal decoder state
-pub fn actor<T, P>(decoder: Decoder<P>) -> Result<ChildrenRef, ()>
+pub fn actor<T, P>(db_workers: ChildrenRef, decoder: Decoder<P>) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     P: TypeDetective + Send + Sync + 'static,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let workers = Bastion::children(|children: Children| {
-        children
-            .with_redundancy(REDUNDANCY)
-            .with_exec(move |ctx: BastionContext| {
-                async move {
-                    loop {
-                        msg! {
-                            ctx.recv().await?,
-                            block: Block<T> =!> { // should be Storage<T> 
-                                process_block(block);
-                                let _ = answer!(ctx, super::ArchiveAnswer::Success);
-                            };
-                            blocks: Vec<Block<T>> =!> {
-                                log::info!("Got {} blocks", blocks.len());
-                                let _ = answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
-                            };
-                            extrinsics: (Decoder<P>, Vec<RawExtrinsic<T>>) =!> {
-                                log::info!("Got Extrinsic!");
-                                let (decoder, extrinsics) = extrinsics;
-                                let mut ext: Vec<Extrinsic<T>> = Vec::new();
-                                for e in extrinsics.iter() {
-                                    ext.push(
-                                        {
-                                            let ext = decoder.decode_extrinsic(e.spec, e.inner.as_slice()).expect("Decoding extrinsic failed");
-                                            Extrinsic::new(ext, e.hash, e.index, e.block_num)
-                                        }
-                                    )
-                                }
-                                log::info!("Decoded {} extrinsics", ext.len());
-                                log::debug!("{:?}", ext);
-                                let _ = answer!(ctx, super::ArchiveAnswer::Success).expect("could not answer");
-                            };
-                            e: _ => log::warn!("Received unknown data {:?}", e);
-                        }
-                    }
-                }
-            })
-    }).expect("Could not start worker actor");
-
-    // top-level actor
     // actor that manages decode state, but sends decoding to other actors
     // TODO: could be a supervisor
     // TODO: rework desub so that decoder doesn't need to be cloned everytime we send it to an actor
@@ -83,33 +43,25 @@ where
     Bastion::children(|children: Children| {
         children
             .with_exec(move |ctx: BastionContext| {
-                let workers = workers.clone();
+                let workers = db_workers.clone();
                 let mut decoder = decoder.clone();
                 async move {
                     log::info!("Decode worker started");
-                    let mut sched = Scheduler::new(Algorithm::RoundRobin);
+                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                     loop {
                         msg! {
                             ctx.recv().await?,
                             block: Block<T> =!> {
-
-                                decoder.register_version(block.spec, &block.meta);
-                                let _ = sched.next(&ctx, &workers, block.clone())
-                                    .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
-
-                                let extrinsics: Vec<RawExtrinsic<T>> = (&block).into();
-                                let answer = sched.next(&ctx, &workers, (decoder.clone(), extrinsics))
-                                    .map_err(|e| log::error!("{:?}", e)).expect("Failed to send extrinsics to actor").await?;
-                                answer!(ctx, answer).expect("couldn't answer");
+                                process_block(block.clone(), &mut sched).await;
+                                process_extrinsics::<T, P>(decoder.clone(), vec![block], &mut sched).await;
+                                answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                              };
                              blocks: Vec<Block<T>> =!> {
-                                 blocks.iter().for_each(|b| decoder.register_version(b.spec, &b.meta));
-
-                                 let answer = sched.next(&ctx, &workers, blocks)
-                                     .map_err(|e| log::error!("{:?}", e)).unwrap().await?;
-                                answer!(ctx, answer).expect("couldn't answer");
+                                 process_blocks(blocks.clone(), &mut sched).await;
+                                 process_extrinsics(decoder.clone(), blocks, &mut sched).await;
+                                 answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                             };
-                             e: _ => log::warn!("Received unknown data {:?}", e);
+                            e: _ => log::warn!("Received unknown data {:?}", e);
                         }
                     }
                 }
@@ -117,6 +69,93 @@ where
     })
 }
 
-pub fn process_block<T: Substrate + Send + Sync>(block: Block<T>) {
-    println!("Got Block {:?}", block);
+pub async fn process_block<T>(block: Block<T>, sched: &mut Scheduler<'_>)
+where
+    T: Substrate + Send + Sync,
+{
+    let v = sched.ask_next(block).unwrap().await;
+    log::debug!("{:?}", v);
+}
+
+pub async fn process_blocks<T>(blocks: Vec<Block<T>>, sched: &mut Scheduler<'_>)
+where
+    T: Substrate + Send + Sync,
+{
+    log::info!("Processing blocks");
+    let v = sched.ask_next(blocks).unwrap().await;
+    log::debug!("{:?}", v);
+}
+
+#[derive(Debug)]
+enum ExtrinsicType<T: Substrate + Send + Sync> {
+    Signed(SignedExtrinsic<T>),
+    NotSigned(Inherent<T>)
+}
+
+
+struct ExtVec<T>(Vec<ExtrinsicType<T>>) where T: Substrate + Send + Sync;
+impl<T> ExtVec<T> where T: Substrate + Send + Sync {
+    fn split(self) -> (Vec<SignedExtrinsic<T>>, Vec<Inherent<T>>) {
+        let s = self.0;
+        let (mut signed, mut not_signed) = (Vec::new(), Vec::new());
+        for e in s.into_iter() {
+            match e {
+                ExtrinsicType::Signed(e) => {
+                    signed.push(e)
+                },
+                ExtrinsicType::NotSigned(e) => {
+                    not_signed.push(e)
+                }
+            }
+        }
+        (signed, not_signed)
+    }
+}
+
+impl<T> From<Vec<ExtrinsicType<T>>> for ExtVec<T> where T: Substrate + Send + Sync {
+    fn from(ext: Vec<ExtrinsicType<T>>) -> ExtVec<T> {
+        ExtVec(ext)
+    }
+}
+
+pub async fn process_extrinsics<T, P>(
+    mut decoder: Decoder<P>,
+    blocks: Vec<Block<T>>,
+    sched: &mut Scheduler<'_>,
+) where
+    T: Substrate + Send + Sync,
+    P: TypeDetective + Send + Sync + 'static,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    blocks
+        .iter()
+        .for_each(|b| decoder.register_version(b.spec, &b.meta));
+
+    let ext: ExtVec<T> = blocks
+        .iter()
+        .map(|b| Vec::<RawExtrinsic<T>>::from(b))
+        .flatten()
+        .map(|e| {
+            let ext = decoder
+                .decode_extrinsic(e.spec, e.inner.as_slice())
+                .expect("decoding extrinsic failed");
+            if ext.is_signed() {
+                ExtrinsicType::Signed(SignedExtrinsic::new(ext, e.hash, e.index, e.block_num))
+            } else {
+                ExtrinsicType::NotSigned(Inherent::new(ext, e.hash, e.index, e.block_num))
+            }
+        })
+        .collect::<Vec<ExtrinsicType<T>>>()
+        .into();
+
+    let (signed, not_signed) = ext.split();
+    log::info!("Decoded {} extrinsics", signed.len() + not_signed.len());
+
+    if signed.len() > 0 {
+        let v = sched.ask_next(signed).unwrap().await;
+        log::debug!("{:?}", v);
+    }
+    if not_signed.len() > 0 {
+        let v = sched.ask_next(not_signed).unwrap().await;
+    }
 }
