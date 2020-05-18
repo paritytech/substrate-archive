@@ -134,7 +134,10 @@ where
     }
     let storg = storg.into_iter().flatten().collect::<Vec<Storage<T>>>();
     let elapsed = now.elapsed();
-    log::info!("Took {} milli-seconds to transform storage", elapsed.as_millis())
+    log::info!(
+        "Took {} milli-seconds to transform storage",
+        elapsed.as_millis()
+    );
     let v = sched.ask_next(storg).unwrap().await;
     log::debug!("{:?}", v);
 }
