@@ -35,6 +35,7 @@ pub fn main() {
 	
     // get the kusama chain-spec from `polkadot-service`
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
+    // create a kusama blockchain client with a rocksdb backend
     let client = backend::client::<
         KusamaRuntime,
         real_ksm_runtime::RuntimeApi,
@@ -43,9 +44,11 @@ pub fn main() {
     >(conf, spec)
     .unwrap();
 
+    // print some info about your node (optional)
     let info = client.info();
     println!("{:?}", info);
-
+	
+    // start indexing, supplying the url to the node
     init::<KusamaRuntime, _>(client, "ws://127.0.0.1:9944".to_string())
         .unwrap();
 }
