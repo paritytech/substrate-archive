@@ -18,6 +18,7 @@
 
 mod database;
 mod db_generators;
+mod storage;
 mod metadata;
 mod network;
 mod scheduler;
@@ -43,6 +44,7 @@ where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
+    <T as System>::Hash: From<primitive_types::H256>
 {
     Bastion::init();
 
@@ -59,11 +61,13 @@ where
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
     let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
-    let transformers = self::transformers::actor::<T, _>(db_workers, client.clone())
+    let transformers = self::transformers::actor::<T, _>(db_workers.clone(), client.clone())
         .expect("Couldn't start transform workers");
     let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone(), pool.clone())
         .expect("Couldnt start metadata");
 
+    self::storage::actor::<T, _>(db_workers, client.clone(), url.clone(), pool.clone())
+        .expect("Couldn't add storage indexer");
     // network generator. Gets headers from network but uses client to fetch block bodies
     self::network::actor::<T, _>(meta_workers.clone(), client.clone(), url)
         .expect("Couldn't add blocks child");

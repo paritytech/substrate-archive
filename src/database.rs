@@ -170,7 +170,6 @@ where
         Ok(query
             .bind(self.block_num())
             .bind(self.hash().as_ref())
-            .bind(self.spec())
             .bind(self.key().0.as_slice())
             .bind(self.data().0.as_slice()))
     }

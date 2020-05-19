@@ -159,9 +159,8 @@ where
 /// newType for Storage Data
 #[derive(Clone, Debug)]
 pub struct Storage<T: Substrate + Send + Sync> {
-    block_num: u32,
     hash: T::Hash,
-    spec: u32,
+    block_num: u32,
     key: StorageKey,
     data: StorageData,
 }
@@ -171,16 +170,14 @@ where
     T: Substrate + Send + Sync,
 {
     pub fn new(
-        block_num: u32,
-        spec: u32,
         hash: T::Hash,
+        block_num: u32,
         key: StorageKey,
         data: StorageData,
     ) -> Self {
         Self {
             block_num,
             hash,
-            spec,
             key,
             data,
         }
@@ -192,10 +189,6 @@ where
 
     pub fn hash(&self) -> &T::Hash {
         &self.hash
-    }
-
-    pub fn spec(&self) -> u32 {
-        self.spec
     }
 
     pub fn key(&self) -> &StorageKey {

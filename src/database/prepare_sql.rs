@@ -143,7 +143,7 @@ where
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         let query = sqlx::query(
             r#"
-INSERT INTO storage (block_num, hash, spec, key, storage)
+INSERT INTO storage (block_num, hash, key, storage)
 VALUES (#1, $2, $3, $4, $5)
 "#,
         );
@@ -159,7 +159,7 @@ where
         if let Some(r) = rows {
             format!(
                 r#"
-    INSERT INTO storage (block_num, hash, spec, key, storage)
+    INSERT INTO storage (block_num, hash, key, storage)
     VALUES {}
     "#,
                 build_batch_insert(r as usize, 5)
@@ -167,7 +167,7 @@ where
         } else {
             format!(
                 r#"
-            INSERT INTO storage (block_num, hash, spec, key, storage)
+            INSERT INTO storage (block_num, hash, key, storage)
             VALUES {}
             "#,
                 build_batch_insert(self.len(), 5)

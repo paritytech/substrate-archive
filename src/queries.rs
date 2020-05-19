@@ -17,6 +17,7 @@
 //! Common Sql queries on Archive Database abstracted into rust functions
 
 use crate::error::Error as ArchiveError;
+use crate::types::Substrate;
 use futures::{
     stream::{StreamExt, TryStreamExt},
     Future, Stream,
@@ -71,6 +72,26 @@ pub(crate) async fn get_versions(
         .fetch_all(pool)
         .await
         .map_err(Into::into)
+}
+
+pub(crate) async fn get_max_storage(
+    pool: &sqlx::Pool<PgConnection>
+) -> Result<(u32, Vec<u8>), ArchiveError> {
+    let row: (i64, Vec<u8>) =
+        sqlx::query_as(r#"SELECT block_num, hash FROM storage WHERE block_num = (SELECT MAX(block_num) FROM storage)"#)
+        .fetch_one(pool)
+        .await?;
+    Ok((row.0 as u32, row.1))
+}
+
+pub(crate) async fn get_max_block_num(
+    pool: &sqlx::Pool<PgConnection>
+) -> Result<(u32, Vec<u8>), ArchiveError> {
+    let row: (i64, Vec<u8>) =
+        sqlx::query_as(r#"SELECT block_num, hash FROM blocks WHERE block_num = (SELECT MAX(block_num) FROM blocks)"#)
+        .fetch_one(pool)
+        .await?;
+    Ok((row.0 as u32, row.1))
 }
 
 #[cfg(test)]

@@ -18,8 +18,9 @@
 
 use futures::{future::join, TryFutureExt};
 use runtime_version::RuntimeVersion;
+use sp_storage::{StorageKey, StorageChangeSet};
 use substrate_rpc_primitives::number::NumberOrHex;
-use subxt::Client;
+use subxt::{Client, system::System};
 
 use crate::{
     error::Error as ArchiveError,
@@ -83,6 +84,15 @@ where
     ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
         let hash = self.client.block_hash(Some(number.into())).await?;
         self.client.block(hash).await.map_err(Into::into)
+    }
+
+    pub async fn query_storage(&self, from: T::Hash, to: Option<T::Hash>, keys: Vec<StorageKey>)
+                               -> Result<Vec<StorageChangeSet<<T as System>::Hash>>, ArchiveError>
+    {
+        self.client
+            .query_storage(keys, from, to)
+            .map_err(ArchiveError::from)
+            .await
     }
 
     // pub async fn storage()
