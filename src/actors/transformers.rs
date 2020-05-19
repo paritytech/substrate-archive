@@ -54,12 +54,12 @@ where
                             ctx.recv().await?,
                             block: Block<T> =!> {
                                 process_block(block.clone(), &mut sched).await;
-                                extract_storage(vec![block].as_slice(), &client, &mut sched).await;
+                                // extract_storage(vec![block].as_slice(), &client, &mut sched).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                              };
                              blocks: Vec<Block<T>> =!> {
                                  process_blocks(blocks.clone(), &mut sched).await;
-                                 extract_storage(blocks.as_slice(), &client, &mut sched).await;
+                                 // extract_storage(blocks.as_slice(), &client, &mut sched).await;
                                  answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                              };
                             meta: Metadata =!> {
@@ -102,7 +102,7 @@ where
     let v = sched.ask_next(ext).unwrap().await;
     log::debug!("{:?}", v);
 }
-
+/*
 pub async fn extract_storage<T, C>(blocks: &[Block<T>], client: &Arc<C>, sched: &mut Scheduler<'_>)
 where
     T: Substrate + Send + Sync,
@@ -141,3 +141,4 @@ where
     let v = sched.ask_next(storg).unwrap().await;
     log::debug!("{:?}", v);
 }
+*/

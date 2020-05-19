@@ -6582,6 +6582,7 @@ dependencies = [
  "fern",
  "futures 0.3.5",
  "itertools 0.9.0",
+ "kusama-runtime",
  "kvdb",
  "kvdb-rocksdb",
  "log 0.4.8",

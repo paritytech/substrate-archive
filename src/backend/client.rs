@@ -35,11 +35,12 @@ use super::ChainAccess;
 // defs
 
 // create a macro `new_archive!` to simplify all these type constraints in the archive node library
-pub fn client<T: Substrate, RA, EX, S>(
+pub fn client<T, RA, EX, S>(
     db_config: DatabaseConfig,
     spec: S,
 ) -> Result<Arc<impl ChainAccess<NotSignedBlock>>, ServiceError>
 where
+    T: Substrate,
     S: ChainSpec + 'static,
     RA: Send + Sync + 'static,
     EX: NativeExecutionDispatch + 'static,

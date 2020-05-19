@@ -1,12 +1,12 @@
 //! A simple example
 
 use polkadot_service::kusama_runtime as real_ksm_runtime;
+use sc_client_api::backend::StorageProvider;
 use sc_service::config::DatabaseConfig; // integrate this into Archive Proper
 use sp_blockchain::HeaderBackend as _;
-use substrate_archive::{backend, init, NotSignedBlock};
-use sc_client_api::backend::StorageProvider;
-use sp_storage::StorageKey;
 use sp_runtime::generic::BlockId;
+use sp_storage::StorageKey;
+use substrate_archive::{backend, init, NotSignedBlock};
 use subxt::KusamaRuntime;
 
 // type Block = NotSignedBlock<KusamaRuntime>;
@@ -35,6 +35,5 @@ pub fn main() {
     let info = client.info();
     println!("{:?}", info);
 
-    init::<KusamaRuntime, _>(client, "ws://127.0.0.1:9944".to_string())
-        .unwrap();
+    init::<KusamaRuntime, _>(client, "ws://127.0.0.1:9944".to_string()).unwrap();
 }

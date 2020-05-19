@@ -18,16 +18,17 @@
 
 mod client;
 mod database;
+// mod storage_backend;
 mod util;
 
 pub use self::{client::client, util::open_database};
 use sc_client_api::{backend::StorageProvider, client::BlockBackend};
-use sp_blockchain::HeaderBackend;
+use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_runtime::traits::Block as BlockT;
 
 /// Super trait defining what access the archive node needs to siphon data from running chains
 pub trait ChainAccess<Block>:
-    StorageProvider<Block, sc_client_db::Backend<Block>> + BlockBackend<Block> + HeaderBackend<Block>
+    StorageProvider<Block, sc_client_db::Backend<Block>> + BlockBackend<Block> + HeaderBackend<Block> + HeaderMetadata<Block>
 where
     Block: BlockT,
 {
@@ -37,7 +38,8 @@ impl<T, Block> ChainAccess<Block> for T
 where
     Block: BlockT,
     T: StorageProvider<Block, sc_client_db::Backend<Block>>
-        + BlockBackend<Block>
-        + HeaderBackend<Block>,
+    + BlockBackend<Block>
+    + HeaderBackend<Block>
+    + HeaderMetadata<Block>,
 {
 }
