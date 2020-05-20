@@ -86,6 +86,7 @@ where
         } else { true }
     });
 
+    log::info!("STORAGE: inserting {} Deferred storage entries", ready.len());
     let answer = sched
         .ask_next(ready)
         .unwrap()
