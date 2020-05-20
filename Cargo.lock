@@ -6590,6 +6590,7 @@ dependencies = [
  "parity-util-mem",
  "polkadot-service",
  "primitive-types",
+ "rayon",
  "sc-chain-spec",
  "sc-client-api",
  "sc-client-db",

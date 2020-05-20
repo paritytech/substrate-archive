@@ -22,6 +22,7 @@ use super::scheduler::{Algorithm, Scheduler};
 use crate::backend::ChainAccess;
 use crate::types::*;
 use bastion::prelude::*;
+use sqlx::PgConnection;
 use sc_client_api::backend::StorageProvider;
 use sp_runtime::{
     generic::BlockId,
@@ -31,15 +32,17 @@ use sp_storage::{StorageData, StorageKey};
 use std::sync::Arc;
 use subxt::system::System;
 
-const REDUNDANCY: usize = 5;
+const REDUNDANCY: usize = 3;
 
 // actor that takes blocks and transforms them into different types
-pub fn actor<T, C>(db_workers: ChildrenRef, client: Arc<C>) -> Result<ChildrenRef, ()>
+pub fn actor<T, C>(client: Arc<C>, pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
 {
+    let db = crate::database::Database::new(&pool).expect("Database intialization error");
+    let db_workers = super::database::actor::<T>(db).expect("Couldn't start db workers");
     Bastion::children(|children: Children| {
         children
             .with_redundancy(REDUNDANCY)

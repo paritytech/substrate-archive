@@ -32,19 +32,23 @@ use bigdecimal::ToPrimitive;
 use sc_client_api::client::BlockBackend as _;
 use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
+use subxt::system::System;
 use std::{sync::Arc, time::Duration};
 
-const DURATION: u64 = 10;
+const DURATION: u64 = 5;
 
 pub fn actor<T, C>(
     client: Arc<C>,
-    meta_workers: ChildrenRef,
     pool: sqlx::Pool<PgConnection>,
+    url: String,
 ) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
+    <T as System>::BlockNumber: Into<u32>,
 {
+    let meta_workers = super::metadata::actor::<T, _>(url, pool.clone(), client.clone())
+        .expect("Couldn't start metadata workers");
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
@@ -57,8 +61,9 @@ where
                 while let Some(_) = interval.next().await {
                     let mut block_nums = queries::missing_blocks(&pool).await.unwrap();
                     let mut blocks = Vec::new();
+                    log::info!("BLOCK NUM LENGTH: {}", block_nums.len());
                     if !block_nums.len() > 0 {
-                        break;
+                        continue;
                     }
                     log::info!(
                         "Starting to crawl for {} missing blocks, from {} .. {} ...",

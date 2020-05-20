@@ -64,22 +64,22 @@ where
     // TODO use answers to handle errors in the supervisor
     // maybe add a custom configured supervisor later
     // but the defaults seem to be working fine so far...
-    let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
-    let transformers = self::transformers::actor::<T, _>(db_workers.clone(), client.clone())
-        .expect("Couldn't start transform workers");
-    let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone(), pool.clone())
-        .expect("Couldnt start metadata");
+    // let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
+    // let transformers = self::transformers::actor::<T, _>(client.clone(), pool.clone())
+    //    .expect("Couldn't start transform workers");
+    // let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone(), pool.clone())
+    //    .expect("Couldnt start metadata");
 
    
     self::storage::actor::<T, _>(client.clone(), pool.clone(), keys)
         .expect("Couldn't add storage indexer");
 
     // network generator. Gets headers from network but uses client to fetch block bodies
-    self::network::actor::<T, _>(meta_workers.clone(), client.clone(), url)
+    self::network::actor::<T, _>(client.clone(), pool.clone(), url.clone())
         .expect("Couldn't add blocks child");
 
     // IO/kvdb generator (missing blocks)
-    self::db_generators::actor::<T, _>(client, meta_workers.clone(), pool)
+    self::db_generators::actor::<T, _>(client, pool, url)
         .expect("Couldn't start db work generators");
 
     Bastion::start();

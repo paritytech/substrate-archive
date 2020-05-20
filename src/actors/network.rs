@@ -29,6 +29,7 @@ use sp_runtime::generic::BlockId;
 use sp_runtime::traits::{Block as _, Header as _};
 use std::sync::Arc;
 use subxt::system::System;
+use sqlx::PgConnection;
 
 use super::scheduler::{Algorithm, Scheduler};
 
@@ -37,8 +38,8 @@ const REDUNDANCY: usize = 5;
 /// Subscribe to new blocks via RPC
 /// this is a worker that never stops
 pub fn actor<T, C>(
-    meta_workers: ChildrenRef,
     client: Arc<C>,
+    pool: sqlx::Pool<PgConnection>,
     url: String,
 ) -> Result<ChildrenRef, ()>
 where
@@ -46,6 +47,8 @@ where
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
 {
+    let meta_workers = super::metadata::actor::<T, _>(url.clone(), pool, client.clone())
+        .expect("Couldn't start metadata workers");
     // actor which produces work in the form of collecting blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {

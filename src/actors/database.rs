@@ -20,7 +20,7 @@ use crate::types::*;
 use bastion::prelude::*;
 use subxt::system::System;
 
-pub const REDUNDANCY: usize = 10;
+pub const REDUNDANCY: usize = 5;
 
 pub fn actor<T>(db: Database) -> Result<ChildrenRef, ()>
 where

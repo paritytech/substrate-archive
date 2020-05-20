@@ -17,27 +17,32 @@
 use crate::{
     queries,
     rpc::Rpc,
-    types::{Block, Metadata, Substrate, SubstrateBlock},
+    types::{Block, Metadata, Substrate, SubstrateBlock, NotSignedBlock},
+    backend::ChainAccess
 };
+use std::sync::Arc;
 use bastion::prelude::*;
 use futures::future::join_all;
 use sp_runtime::traits::{Block as _, Header as _};
 use sqlx::PgConnection;
-
+use subxt::system::System;
 use super::scheduler::{Algorithm, Scheduler};
 
-const REDUNDANCY: usize = 10;
+const REDUNDANCY: usize = 3;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub fn actor<T>(
-    transform_workers: ChildrenRef,
+pub fn actor<T, C>(
     url: String,
     pool: sqlx::Pool<PgConnection>,
+    client: Arc<C>
 ) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
+    C: ChainAccess<NotSignedBlock> + 'static,
+    <T as System>::BlockNumber: Into<u32>,
 {
+    let transform_workers = super::transformers::actor::<T, _>(client, pool.clone()).expect("Couldn't start transformers");
     Bastion::children(|children| {
         children
             .with_redundancy(REDUNDANCY)

@@ -14,7 +14,7 @@ use subxt::KusamaRuntime;
 type Block = NotSignedBlock;
 
 pub fn main() {
-    substrate_archive::init_logger(log::LevelFilter::Info);
+    substrate_archive::init_logger(log::LevelFilter::Warn);
 
     // FIXME Database and spec initialization can be done in the lib with a convenience func
     let db = backend::open_database::<Block>(
