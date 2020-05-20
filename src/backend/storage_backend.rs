@@ -35,7 +35,7 @@ use std::marker::PhantomData;
 use std::ops::Range;
 use std::sync::Arc;
 
-pub struct StorageBackend<C: ChainAccess<NotSignedBlock>, T: Substrate> {
+pub struct StorageBackend<T: Substrate, C: ChainAccess<NotSignedBlock>> {
     client: Arc<C>,
     _marker: PhantomData<T>,
 }
@@ -54,7 +54,7 @@ struct QueryStorageRange<Block: BlockT> {
     pub filtered_range: Option<Range<usize>>,
 }
 
-impl<T, C> StorageBackend<C, T>
+impl<T, C> StorageBackend<T, C>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock>,
@@ -115,7 +115,7 @@ where
     ) -> Result<(), ArchiveError> {
         let (begin, end) = match range.filtered_range {
             Some(ref filtered_range) => (
-                range.first_number + filtered_range.start.saturated_into(),
+                range.first_number + filtered_range.start.saturated_into::<u32>(),
                 BlockId::Hash(range.hashes[filtered_range.end - 1].clone()),
             ),
             None => return Ok(()),
@@ -128,7 +128,7 @@ where
             let key_changes = self
                 .client
                 .key_changes(begin, end, None, key)
-                .map_err(Into::into)?;
+                .map_err(ArchiveError::from)?;
             for (block, _) in key_changes.into_iter().rev() {
                 if last_block == Some(block) {
                     continue;
@@ -168,11 +168,13 @@ where
         &self,
         from: H256,
         to: Option<H256>,
-    ) -> Result<QueryStorageRange<NotSignedBlock>, ArchiveError> {
+    ) -> Result<QueryStorageRange<NotSignedBlock>, ArchiveError>
+    {
+
         let to = self.block_or_best(to)?;
 
-        let invalid_block_err =
-            |e: ClientError| invalid_block::<NotSignedBlock>(from, Some(to), e.to_string());
+        // let invalid_block_err =
+        //    |e: ClientError| invalid_block::<NotSignedBlock>(from, Some(to), e.to_string());
 
         let from_meta = self.client.header_metadata(H256::from_slice(from.as_ref()))?;
         let to_meta = self.client.header_metadata(H256::from_slice(to.as_ref()))?;

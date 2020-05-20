@@ -33,8 +33,6 @@ use sqlx::PgConnection;
 
 use super::scheduler::{Algorithm, Scheduler};
 
-const REDUNDANCY: usize = 5;
-
 /// Subscribe to new blocks via RPC
 /// this is a worker that never stops
 pub fn actor<T, C>(

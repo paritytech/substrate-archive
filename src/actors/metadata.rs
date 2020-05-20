@@ -28,7 +28,7 @@ use sqlx::PgConnection;
 use subxt::system::System;
 use super::scheduler::{Algorithm, Scheduler};
 
-const REDUNDANCY: usize = 3;
+const REDUNDANCY: usize = 5;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC

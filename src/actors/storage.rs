@@ -17,7 +17,7 @@
 //! Indexes storage deltas
 
 use super::scheduler::{Algorithm, Scheduler};
-use crate::{backend::ChainAccess, error::Error as ArchiveError, queries, types::*};
+use crate::{backend::{ChainAccess, StorageBackend}, error::Error as ArchiveError, queries, types::*};
 use bastion::prelude::*;
 use primitive_types::H256;
 use rayon::prelude::*;
@@ -82,6 +82,7 @@ where
 {
     if queries::is_storage_empty(pool).await? {
         async_std::task::sleep(Duration::from_secs(5)).await;
+        return Ok(());
     }
 
     let (max_storage_num, storage_hash) = queries::get_max_storage(&pool).await.unwrap_or((
@@ -102,6 +103,9 @@ where
         async_std::task::sleep(Duration::from_secs(5)).await;
         return Ok(());
     }
+
+    let storage_backend = StorageBackend::<T, C>::new(client.clone());
+
     log::info!(
         "storage num: {:?}, storage hash {:?}",
         max_storage_num,
@@ -109,33 +113,45 @@ where
     );
     log::info!("block num: {:?}, block hash {:?}", max_block, block_hash);
     let storage_hash = H256::from_slice(storage_hash.as_slice());
-    let max_block_hash = H256::from_slice(block_hash.as_slice());
+    let mut max_block_hash = H256::from_slice(block_hash.as_slice());
 
     if (max_block - max_storage_num) > 1500 {
-        max_block = max_storage_num + 1500;
+        max_block = max_storage_num + 100;
+        max_block_hash = client.hash(max_block)?.expect("Block not found!");
     }
 
-    let storage = Mutex::new(Vec::new());
     log::info!("Indexing storage from {} to {}", max_storage_num, max_block);
-    for num in (max_storage_num..max_block) {
-        keys.par_iter().for_each(|key| {
-            let now = std::time::Instant::now();
-            let storage_pairs = client.storage_pairs(&BlockId::Number(num), key).unwrap();
-            let elapsed = now.elapsed();
-            log::info!(
-                "Took {} seconds for storage pairs, {} milli-seconds",
-                elapsed.as_secs(),
-                elapsed.as_millis()
-            );
-            let hash = client.hash(num).unwrap().unwrap(); // TODO: Handle None
-            let s = storage_pairs
+    let now = std::time::Instant::now();
+    let change_set = storage_backend.query_storage(T::Hash::from(storage_hash), Some(T::Hash::from(max_block_hash)), keys.clone())?;
+    let elapsed = now.elapsed();
+    log::info!(
+        "Took {} seconds for query storage, {} milli-seconds",
+        elapsed.as_secs(),
+        elapsed.as_millis()
+    );
+    let storage = change_set.into_iter().map(|change| {
+        let num = client.number(H256::from_slice(change.block.as_ref())).expect("Couldn't get block number for hash");
+        let block_hash = change.block;
+        if let Some(num) = num {
+            change
+                .changes
                 .into_iter()
-                .map(|(k, v)| Storage::new(T::Hash::from(hash), num, k, v))
-                .collect::<Vec<Storage<T>>>();
-            (*storage.lock().unwrap()).extend(s.into_iter());
-        })
-    }
-    let storage = storage.into_inner()?;
+                .filter_map(|(k, d)| {
+                    if d.is_some() {
+                        Some((k, d))
+                    } else {
+                        None
+                    }
+                })
+                .map(|c| {
+                    Storage::new(T::Hash::from(block_hash), num, c.0, c.1.expect("checked in filter"))
+                }).collect::<Vec<Storage<T>>>()
+        } else {
+            log::error!("Block doesn't exist!");
+            Vec::new()
+        }
+    }).flatten().collect::<Vec<Storage<T>>>();
+
     log::info!("Indexing {} storage entries", storage.len());
     let answer = sched
         .ask_next(storage)

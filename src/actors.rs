@@ -31,6 +31,7 @@ use super::{
     types::{NotSignedBlock, Substrate},
 };
 use sp_storage::StorageKey;
+use sp_blockchain::HeaderMetadata;
 use bastion::prelude::*;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
@@ -48,7 +49,7 @@ where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
-    <T as System>::Hash: From<primitive_types::H256>
+    <T as System>::Hash: From<primitive_types::H256>,
 {
     Bastion::init();
 
@@ -60,17 +61,7 @@ where
     )?;
 
     let db = Database::new(&pool)?;
-
-    // TODO use answers to handle errors in the supervisor
-    // maybe add a custom configured supervisor later
-    // but the defaults seem to be working fine so far...
-    // let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
-    // let transformers = self::transformers::actor::<T, _>(client.clone(), pool.clone())
-    //    .expect("Couldn't start transform workers");
-    // let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone(), pool.clone())
-    //    .expect("Couldnt start metadata");
-
-   
+  
     self::storage::actor::<T, _>(client.clone(), pool.clone(), keys)
         .expect("Couldn't add storage indexer");
 
