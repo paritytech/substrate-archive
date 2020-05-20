@@ -34,9 +34,20 @@ pub fn main() {
     let info = client.info();
     println!("{:?}", info);
 
+    // TODO: create a 'key builder' for key prefixes
+    // this may already exist in substrate (haven't checked)
+    let system_key = twox_128(b"System").to_vec();
+    let events_key = twox_128(b"Events").to_vec();
+    let accounts_key = twox_128(b"Account").to_vec();
     let mut keys = Vec::new();
-    keys.push(StorageKey(twox_128(b"SystemAccount").to_vec()));
-    keys.push(StorageKey(twox_128(b"SystemEvents").to_vec()));
+
+    let mut system_accounts = system_key.clone();
+    system_accounts.extend(accounts_key);
+    let mut system_events = system_key.clone();
+    system_events.extend(events_key);
+
+    keys.push(StorageKey(system_accounts));
+    keys.push(StorageKey(system_events));
 
     init::<KusamaRuntime, _>(client, "ws://127.0.0.1:9944".to_string(), keys).unwrap();
 }

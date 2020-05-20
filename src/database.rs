@@ -80,8 +80,9 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     async fn insert(self, db: DbConnection) -> DbReturn {
-        log::info!("hash = {:X?}", self.inner.block.header.hash().as_ref());
-        log::info!("block_num = {:?}", self.inner.block.header.number());
+        log::info!("block_num = {:?}, hash = {:X?}",
+                   self.inner.block.header.number(),
+                   hex::encode(self.inner.block.header.hash().as_ref()));
         self.single_insert()?.execute(&db).await.map_err(Into::into)
     }
 }

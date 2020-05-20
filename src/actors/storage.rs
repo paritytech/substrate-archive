@@ -48,7 +48,6 @@ where
 {
     let db = crate::database::Database::new(&pool).expect("Database intialization error");
     let db_workers = super::database::actor::<T>(db).expect("Couldn't start storage db workers");
-
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let workers = db_workers.clone();
@@ -56,9 +55,10 @@ where
             let client = client.clone();
             let keys = keys.clone();
             async move {
+                let mut max_storage: u32 = 0;
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                 loop {
-                    match entry::<T, C>(&client, &pool, &mut sched, &keys).await {
+                    match entry::<T, C>(&client, &pool, &mut sched, &keys, &mut max_storage).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
@@ -74,23 +74,23 @@ pub async fn entry<T, C>(
     pool: &sqlx::Pool<PgConnection>,
     sched: &mut Scheduler<'_>,
     keys: &Vec<StorageKey>,
+    max_storage: &mut u32
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::Hash: From<H256>,
 {
-    if queries::is_storage_empty(pool).await? {
+    if queries::is_blocks_empty(pool).await? {
         async_std::task::sleep(Duration::from_secs(5)).await;
         return Ok(());
     }
 
     let (max_storage_num, storage_hash) = queries::get_max_storage(&pool).await.unwrap_or((
-        0,
+        *max_storage,
         client
-            .hash(0)
-            .expect("Couldn't get hash")
-            .unwrap()
+            .hash(*max_storage)?
+            .expect("Block doesn't exist!")
             .as_ref()
             .to_vec(),
     ));
@@ -109,14 +109,14 @@ where
     log::info!(
         "storage num: {:?}, storage hash {:?}",
         max_storage_num,
-        storage_hash
+        hex::encode(storage_hash.as_slice())
     );
-    log::info!("block num: {:?}, block hash {:?}", max_block, block_hash);
+    log::info!("block num: {:?}, block hash {:?}", max_block, hex::encode(block_hash.as_slice()));
     let storage_hash = H256::from_slice(storage_hash.as_slice());
     let mut max_block_hash = H256::from_slice(block_hash.as_slice());
 
     if (max_block - max_storage_num) > 1500 {
-        max_block = max_storage_num + 100;
+        max_block = max_storage_num + 500;
         max_block_hash = client.hash(max_block)?.expect("Block not found!");
     }
 
@@ -151,7 +151,11 @@ where
             Vec::new()
         }
     }).flatten().collect::<Vec<Storage<T>>>();
-
+    if !(storage.len() > 0) {
+        *max_storage = max_block;
+        return Ok(());
+    }
+    log::info!("{:?}", storage);
     log::info!("Indexing {} storage entries", storage.len());
     let answer = sched
         .ask_next(storage)

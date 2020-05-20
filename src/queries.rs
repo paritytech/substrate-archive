@@ -99,14 +99,18 @@ pub(crate) async fn is_blocks_empty(pool: &sqlx::Pool<PgConnection>) -> Result<b
     let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) from blocks"#)
         .fetch_one(pool)
         .await?;
-    Ok(row.0 > 0)
+    Ok(! (row.0 > 0))
 }
 
 pub(crate) async fn is_storage_empty(pool: &sqlx::Pool<PgConnection>) -> Result<bool, ArchiveError> {
     let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) from storage"#)
         .fetch_one(pool)
         .await?;
-    Ok(row.0 > 0)
+    Ok( !(row.0 > 0))
+}
+
+pub(crate) async check_if_storage_exists(pool: &sqlx::Pool<PgConnection>) -> Result<bool, ArchiveError> {
+    unimplemented!();
 }
 
 

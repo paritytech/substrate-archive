@@ -162,7 +162,7 @@ where
     INSERT INTO storage (block_num, hash, key, storage)
     VALUES {}
     "#,
-                build_batch_insert(r as usize, 5)
+                build_batch_insert(r as usize, 4)
             )
         } else {
             format!(
@@ -170,7 +170,7 @@ where
             INSERT INTO storage (block_num, hash, key, storage)
             VALUES {}
             "#,
-                build_batch_insert(self.len(), 5)
+                build_batch_insert(self.len(), 4)
             )
         }
     }

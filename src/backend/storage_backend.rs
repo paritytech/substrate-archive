@@ -16,6 +16,7 @@
 
 //! Storage API backend
 //! Largely taken from `substrate/client/rpc/src/state/state_full.rs`
+//! (Not using RPC because query_storage calls will hang RPC for any other calls that are made to it)
 
 use super::ChainAccess;
 use crate::{
@@ -173,9 +174,6 @@ where
 
         let to = self.block_or_best(to)?;
 
-        // let invalid_block_err =
-        //    |e: ClientError| invalid_block::<NotSignedBlock>(from, Some(to), e.to_string());
-
         let from_meta = self.client.header_metadata(H256::from_slice(from.as_ref()))?;
         let to_meta = self.client.header_metadata(H256::from_slice(to.as_ref()))?;
 
@@ -231,12 +229,23 @@ where
         })
     }
 
+    fn storage_keys(&self, block: Option<T::Hash>, prefix: StorageKey) -> Result<Vec<StorageKey>, ArchiveError> {
+        let block = self.block_or_best(block.map(|h| H256::from_slice(h.as_ref())))?;
+        self.client.storage_keys(&BlockId::Hash(block), &prefix).map_err(Into::into)
+    }
+
     pub fn query_storage(
         &self,
         from: T::Hash,
         to: Option<T::Hash>,
         keys: Vec<StorageKey>,
     ) -> Result<Vec<StorageChangeSet<H256>>, ArchiveError> {
+        let mut full_keys = Vec::new();
+        for prefix in keys.into_iter() {
+            full_keys.extend(self.storage_keys(Some(from), prefix)?.into_iter())
+        }
+        log::info!("Full Keys: {:?}", full_keys.iter().map(|k| hex::encode(k.0.as_slice())).collect::<Vec<String>>());
+        let keys = full_keys;
         let range = self.split_query_storage_range(H256::from_slice(from.as_ref()), to.map(|h| H256::from_slice(h.as_ref())))?;
         let mut changes = Vec::new();
         let mut last_values = std::collections::HashMap::new();

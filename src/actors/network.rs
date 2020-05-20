@@ -61,7 +61,6 @@ where
                     .await
                     .expect("Subscription failed");
                 while let head = subscription.next().await {
-                    log::info!("Converting {:?} to block...", head.number());
                     let block = client
                         .block(&BlockId::Number((*head.number()).into()))
                         .map_err(|e| log::error!("{:?}", e))

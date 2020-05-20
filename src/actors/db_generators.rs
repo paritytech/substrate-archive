@@ -85,7 +85,7 @@ where
     let mut block_nums = queries::missing_blocks(&pool).await?;
     log::info!("BLOCK NUM LENGTH: {}", block_nums.len());
     if !(block_nums.len() > 0) {
-        async_std::task::sleep(Duration::from_secs(DURATION));
+        async_std::task::sleep(Duration::from_secs(DURATION)).await;
         return Ok(());
     }
     log::info!(
