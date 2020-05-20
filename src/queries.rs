@@ -49,6 +49,21 @@ pub(crate) async fn missing_blocks(
     .map_err(Into::into)
 }
 
+pub(crate) async fn missing_blocks_min_max(pool: &sqlx::Pool<PgConnection>, min: u32, max: u32
+) -> Result<Vec<Block>, ArchiveError> {
+    sqlx::query_as(
+        "SELECT generate_series
+         FROM (SELECT $1 as a, $2 as z FROM blocks) x, generate_series(a, z)
+         WHERE
+         NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)"
+    )
+        .bind(min as i64)
+        .bind(max as i64)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+}
+
 /// check if a runtime versioned metadata exists in the database
 pub(crate) async fn check_if_meta_exists(
     spec: u32,

@@ -2,8 +2,7 @@
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
+// it under the terms of the GNU General Public License as published by // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
 // substrate-archive is distributed in the hope that it will be useful,
@@ -69,5 +68,13 @@ impl<'a> Scheduler<'a> {
                     .tell(&self.workers.elems()[next_executed].addr(), data)
             }
         }
+    }
+
+    pub fn workers(&'a self) -> &'a ChildrenRef {
+        self.workers
+    }
+
+    pub fn context(&'a self) -> &'a BastionContext {
+        self.ctx
     }
 }
