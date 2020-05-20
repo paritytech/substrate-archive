@@ -109,8 +109,12 @@ pub(crate) async fn is_storage_empty(pool: &sqlx::Pool<PgConnection>) -> Result<
     Ok( !(row.0 > 0))
 }
 
-pub(crate) async check_if_storage_exists(pool: &sqlx::Pool<PgConnection>) -> Result<bool, ArchiveError> {
-    unimplemented!();
+pub(crate) async fn check_if_storage_exists(pool: &sqlx::Pool<PgConnection>, num: u32) -> Result<bool, ArchiveError> {
+    let row: (bool, ) = sqlx::query_as(r#"SELECT EXISTS (SELECT TRUE from storage WHERE block_num=$1)"#)
+        .bind(num)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0)
 }
 
 

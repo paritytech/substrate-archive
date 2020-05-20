@@ -136,18 +136,15 @@ where
             change
                 .changes
                 .into_iter()
-                .filter_map(|(k, d)| {
-                    if d.is_some() {
-                        Some((k, d))
+                .map(|(key, data)| {
+                    if num == max_storage_num {
+                        Storage::new(T::Hash::from(block_hash), num, true, key, data)
                     } else {
-                        None
+                        Storage::new(T::Hash::from(block_hash), num, false, key, data)
                     }
-                })
-                .map(|c| {
-                    Storage::new(T::Hash::from(block_hash), num, c.0, c.1.expect("checked in filter"))
                 }).collect::<Vec<Storage<T>>>()
         } else {
-            log::error!("Block doesn't exist!");
+            log::warn!("Block doesn't exist!");
             Vec::new()
         }
     }).flatten().collect::<Vec<Storage<T>>>();

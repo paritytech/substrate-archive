@@ -38,6 +38,7 @@ pub trait BindAll<'a> {
 pub trait PrepareSql<'a> {
     /// prepare a query for insertion
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
+    fn single_update(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
 }
 
 pub trait PrepareBatchSql<'a> {
@@ -60,6 +61,10 @@ where
         );
 
         self.bind_all_arguments(query)
+    }
+
+    fn single_update(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        unimplemented!()
     }
 }
 
@@ -97,6 +102,10 @@ VALUES($1, $2)
         );
         self.bind_all_arguments(query)
     }
+
+    fn single_update(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        unimplemented!()
+    }
 }
 
 impl<'a, T> PrepareSql<'a> for Extrinsic<T>
@@ -111,6 +120,9 @@ VALUES($1, $2, $3, $4)
 "#,
         );
         self.bind_all_arguments(query)
+    }
+    fn single_update(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        unimplemented!()
     }
 }
 
@@ -143,9 +155,20 @@ where
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         let query = sqlx::query(
             r#"
-INSERT INTO storage (block_num, hash, key, storage)
+INSERT INTO storage (block_num, hash, is_full, key, storage)
 VALUES (#1, $2, $3, $4, $5)
 "#,
+        );
+        self.bind_all_arguments(query)
+    }
+
+    fn single_update(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        let query = sqlx::query(
+            r#"
+UPDATE storage
+SET block_num = $1, hash = $2, is_full = $3, key = $4, storage = $5
+WHERE block_num = $1
+"#
         );
         self.bind_all_arguments(query)
     }
@@ -159,18 +182,18 @@ where
         if let Some(r) = rows {
             format!(
                 r#"
-    INSERT INTO storage (block_num, hash, key, storage)
+    INSERT INTO storage (block_num, hash, is_full, key, storage)
     VALUES {}
     "#,
-                build_batch_insert(r as usize, 4)
+                build_batch_insert(r as usize, 5)
             )
         } else {
             format!(
                 r#"
-            INSERT INTO storage (block_num, hash, key, storage)
+            INSERT INTO storage (block_num, hash, is_full, key, storage)
             VALUES {}
             "#,
-                build_batch_insert(self.len(), 4)
+                build_batch_insert(self.len(), 5)
             )
         }
     }

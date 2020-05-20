@@ -161,8 +161,9 @@ where
 pub struct Storage<T: Substrate + Send + Sync> {
     hash: T::Hash,
     block_num: u32,
+    full_storage: bool,
     key: StorageKey,
-    data: StorageData,
+    data: Option<StorageData>,
 }
 
 impl<T> Storage<T>
@@ -172,15 +173,21 @@ where
     pub fn new(
         hash: T::Hash,
         block_num: u32,
+        full_storage: bool,
         key: StorageKey,
-        data: StorageData,
+        data: Option<StorageData>,
     ) -> Self {
         Self {
             block_num,
             hash,
+            full_storage,
             key,
             data,
         }
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.full_storage
     }
 
     pub fn block_num(&self) -> u32 {
@@ -195,8 +202,8 @@ where
         &self.key
     }
 
-    pub fn data(&self) -> &StorageData {
-        &self.data
+    pub fn data(&self) -> Option<&StorageData> {
+        self.data.as_ref()
     }
 }
 
