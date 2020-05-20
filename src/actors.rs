@@ -16,13 +16,9 @@
 
 //! where the main actor framework is defined
 
-mod database;
-mod db_generators;
-mod storage;
-mod metadata;
-mod network;
+mod workers;
+mod generators;
 mod scheduler;
-mod transformers;
 
 use super::{
     backend::ChainAccess,
@@ -62,15 +58,15 @@ where
 
     let db = Database::new(&pool)?;
   
-    self::storage::actor::<T, _>(client.clone(), pool.clone(), keys)
+    self::generators::storage::<T, _>(client.clone(), pool.clone(), keys)
         .expect("Couldn't add storage indexer");
 
     // network generator. Gets headers from network but uses client to fetch block bodies
-    self::network::actor::<T, _>(client.clone(), pool.clone(), url.clone())
+    self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())
         .expect("Couldn't add blocks child");
 
     // IO/kvdb generator (missing blocks)
-    self::db_generators::actor::<T, _>(client, pool, url)
+    self::generators::db::<T, _>(client, pool, url)
         .expect("Couldn't start db work generators");
 
     Bastion::start();
