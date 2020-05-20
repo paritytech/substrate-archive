@@ -7,6 +7,7 @@ use sp_blockchain::HeaderBackend as _;
 use sp_runtime::generic::BlockId;
 use sp_storage::StorageKey;
 use substrate_archive::{backend, init, NotSignedBlock};
+use sp_core::twox_128;
 use subxt::KusamaRuntime;
 
 // type Block = NotSignedBlock<KusamaRuntime>;
@@ -35,5 +36,9 @@ pub fn main() {
     let info = client.info();
     println!("{:?}", info);
 
-    init::<KusamaRuntime, _>(client, "ws://127.0.0.1:9944".to_string()).unwrap();
+    let mut keys = Vec::new();
+    keys.push(StorageKey(twox_128(b"SystemAccount").to_vec()));
+    keys.push(StorageKey(twox_128(b"SystemEvents").to_vec()));
+
+    init::<KusamaRuntime, _>(client, "ws://127.0.0.1:9944".to_string(), keys).unwrap();
 }

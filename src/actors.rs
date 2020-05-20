@@ -30,6 +30,7 @@ use super::{
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate},
 };
+use sp_storage::StorageKey;
 use bastion::prelude::*;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
@@ -38,8 +39,11 @@ use subxt::system::System;
 // TODO: 'cut!' macro to handle errors from within actors
 
 /// initialize substrate archive
-/// if a child actor panics or errors, it is up to the supervisor to handle it
-pub fn init<T, C>(client: Arc<C>, url: String) -> Result<(), ArchiveError>
+/// Requires a substrate client, url to running RPC node, and a list of keys to index from storage
+/// EX: If you want to query all keys for 'System Account'
+/// twox('System') + twox('Account')
+/// Prefixes are preferred, they will be more performant
+pub fn init<T, C>(client: Arc<C>, url: String, keys: Vec<StorageKey>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
@@ -51,7 +55,7 @@ where
     /// TODO: could be initialized asyncronously somewhere
     let pool = async_std::task::block_on(
         PgPool::builder()
-            .max_size(10)
+            .max_size(15)
             .build(&env::var("DATABASE_URL")?),
     )?;
 
@@ -66,12 +70,15 @@ where
     let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone(), pool.clone())
         .expect("Couldnt start metadata");
 
-    self::storage::actor::<T, _>(db_workers, client.clone(), url.clone(), pool.clone())
+   
+    self::storage::actor::<T, _>(client.clone(), pool.clone(), keys)
         .expect("Couldn't add storage indexer");
+
     // network generator. Gets headers from network but uses client to fetch block bodies
     self::network::actor::<T, _>(meta_workers.clone(), client.clone(), url)
         .expect("Couldn't add blocks child");
-    // IO/kvdb generator (missing blocks/storage/etc)
+
+    // IO/kvdb generator (missing blocks)
     self::db_generators::actor::<T, _>(client, meta_workers.clone(), pool)
         .expect("Couldn't start db work generators");
 

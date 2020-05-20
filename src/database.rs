@@ -127,7 +127,7 @@ where
     T: Substrate + Send + Sync,
 {
     async fn insert(self, db: DbConnection) -> DbReturn {
-        // let sql = storg.build_sql(Some(storg.len() as u32));
+        log::info!("Inserting {} storage entries", self.len());
         let mut sizes = Vec::new();
         let chunks = self.chunks(12_000);
 

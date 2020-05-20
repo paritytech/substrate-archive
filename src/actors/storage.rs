@@ -20,83 +20,95 @@ use bastion::prelude::*;
 use subxt::system::System;
 use sqlx::PgConnection;
 use std::{sync::Arc, time::Duration};
+use sp_runtime::generic::BlockId;
 use sp_blockchain::HeaderBackend;
 use sp_storage::{StorageKey, StorageData, StorageChangeSet};
 use primitive_types::H256;
 use super::scheduler::{Algorithm, Scheduler};
-use crate::{types::*, queries, backend::ChainAccess};
+use crate::{types::*, queries, backend::ChainAccess, error::Error as ArchiveError};
 
-pub fn actor<T, C>(db_workers: ChildrenRef, client: Arc<C>, url: String, pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
+//TODO need to find a better way to speed up indexing
+/// Actor to index storage for PostgreSQL database
+/// accepts a list of storage keys to index
+/// Indexing all keys will take a very long time. Key prefixes work as well as full keys
+pub fn actor<T, C>(client: Arc<C>, pool: sqlx::Pool<PgConnection>, keys: Vec<StorageKey>) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
-    <T as System>::Hash: From<H256>
+    <T as System>::Hash: From<H256>,
+    <T as System>::BlockNumber: Into<u32>,
 {
+    let db = crate::database::Database::new(&pool).expect("Database intialization error");
+    let db_workers = super::database::actor::<T>(db).expect("Couldn't start storage db workers");
 
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let workers = db_workers.clone();
-            let url = url.clone();
             let pool = pool.clone();
             let client = client.clone();
+            let keys = keys.clone();
             async move {
+                let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                 loop {
-                    let rpc = super::connect::<T>(url.as_str()).await;
-                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
-                    let (max_storage_num, storage_hash) = queries::get_max_storage(&pool)
-                        .await
-                        .unwrap_or((1, client.hash(1).expect("Couldn't get hash").unwrap().as_ref().to_vec()));
-                    let (max_block, block_hash) = match queries::get_max_block_num(&pool).await {
-                        Err(e) => {
-                            log::error!("{:?}", e);
-                            // we might just not have anything in the database yet
-                            async_std::task::sleep(Duration::from_secs(1)).await;
-                            continue;
-                        },
-                        Ok(v) => v
-                    };
-                    // we've already collected storage up to most recent block
-                    if max_storage_num == max_block {
-                        async_std::task::sleep(Duration::from_secs(5)).await;
-                        continue;
+                    match entry::<T, C>(&client, &pool, &mut sched, &keys).await {
+                        Ok(_) => (),
+                        Err(e) => log::error!("{:?}", e)
                     }
-                    log::info!("storage num: {:?}, storage hash {:?}", max_storage_num, storage_hash);
-                    log::info!("block num: {:?}, block hash {:?}", max_block, block_hash);
-                    let storage_hash = H256::from_slice(storage_hash.as_slice());
-                    let max_block_hash = H256::from_slice(block_hash.as_slice());
-                    log::info!("Querying storage");
-                    let change_set = rpc.query_storage(Vec::new(), T::Hash::from(storage_hash), Some(T::Hash::from(max_block_hash)))
-                                        .await
-                                        .expect("Querying storage failed");
-                    log::info!("Change set: {:?}", change_set);
-                    let storage = change_set.into_iter().map(|change| {
-                        let num = client.number(H256::from_slice(change.block.as_ref())).expect("Couldn't get block number for hash");
-                        let block = change.block;
-                        if let Some(num) = num {
-                            change
-                                .changes
-                                .into_iter()
-                                .filter_map(|(k, d)| {
-                                    if d.is_some() {
-                                        Some((k, d))
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .map(|c| {
-                                    Storage::new(block, num, c.0, c.1.expect("checked in filter"))
-                                }).collect::<Vec<Storage<T>>>()
-                        } else {
-                            log::error!("Block doesn't exist!");
-                            Vec::new()
-                        }
-                    }).flatten().collect::<Vec<Storage<T>>>();
-                    log::info!("Storage: {:?}", storage);
-                    let answer = sched.ask_next(storage).unwrap().await.expect("Couldn't send storage to transformers");
-                    log::debug!("{:?}", answer);
                 }
                 Ok(())
             }
         })
     })
+}
+
+pub async fn entry<T, C>(client: &Arc<C>, pool: &sqlx::Pool<PgConnection>, sched: &mut Scheduler<'_>, keys: &Vec<StorageKey>) -> Result<(), ArchiveError>
+where
+    T: Substrate + Send + Sync,
+    C: ChainAccess<NotSignedBlock> + 'static,
+    <T as System>::Hash: From<H256>
+{
+    if queries::is_storage_empty(pool).await? {
+        async_std::task::sleep(Duration::from_secs(5)).await;
+    }
+
+    let (max_storage_num, storage_hash) = queries::get_max_storage(&pool)
+        .await
+        .unwrap_or((0, client.hash(0).expect("Couldn't get hash").unwrap().as_ref().to_vec()));
+
+    let (mut max_block, block_hash) = queries::get_max_block_num(&pool).await?;
+
+    // we've already collected storage up to most recent block
+    if max_storage_num == max_block {
+        // sleep for 5 secs (block time)
+        async_std::task::sleep(Duration::from_secs(5)).await;
+        return Ok(());
+    }
+    log::info!("storage num: {:?}, storage hash {:?}", max_storage_num, storage_hash);
+    log::info!("block num: {:?}, block hash {:?}", max_block, block_hash);
+    let storage_hash = H256::from_slice(storage_hash.as_slice());
+    let max_block_hash = H256::from_slice(block_hash.as_slice());
+
+    if (max_block - max_storage_num) > 1500 {
+        max_block = max_storage_num + 1500;
+    }
+
+    let mut storage = Vec::new();
+    log::info!("Indexing storage from {} to {}", max_storage_num, max_block);
+    for num in (max_storage_num .. max_block) {
+        let now = std::time::Instant::now();
+        for key in keys.iter() {
+            let storage_pairs = client.storage_pairs(&BlockId::Number(num), key)?;
+            let elapsed = now.elapsed();
+            log::info!("Took {} seconds for storage pairs, {} milli-seconds", elapsed.as_secs(), elapsed.as_millis());
+            let hash = client.hash(num)?.unwrap(); // TODO: Handle None
+            let s = storage_pairs.into_iter().map(|(k, v)| {
+                Storage::new(T::Hash::from(hash), num, k, v)
+            }).collect::<Vec<Storage<T>>>();
+            storage.extend(s.into_iter());
+        }
+    }
+    log::info!("Indexing {} storage entries", storage.len());
+    let answer = sched.ask_next(storage).unwrap().await.expect("Couldn't send storage to transformers");
+    log::debug!("{:?}", answer);
+    Ok(())
 }

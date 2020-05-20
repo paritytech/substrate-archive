@@ -94,6 +94,22 @@ pub(crate) async fn get_max_block_num(
     Ok((row.0 as u32, row.1))
 }
 
+pub(crate) async fn is_blocks_empty(pool: &sqlx::Pool<PgConnection>) -> Result<bool, ArchiveError> {
+
+    let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) from blocks"#)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0 > 0)
+}
+
+pub(crate) async fn is_storage_empty(pool: &sqlx::Pool<PgConnection>) -> Result<bool, ArchiveError> {
+    let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) from storage"#)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0 > 0)
+}
+
+
 #[cfg(test)]
 mod tests {
     //! Must be connected to a postgres database
