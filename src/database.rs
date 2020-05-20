@@ -43,9 +43,6 @@ pub trait Insert: Sync {
     async fn insert(mut self, db: DbConnection) -> DbReturn
     where
         Self: Sized;
-    async fn update(mut self, db: DbConnection) -> DbReturn
-    where
-        Self: Sized;
 }
 pub struct Database {
     /// pool of database connections
@@ -88,10 +85,6 @@ where
                    hex::encode(self.inner.block.header.hash().as_ref()));
         self.single_insert()?.execute(&db).await.map_err(Into::into)
     }
-
-    async fn update(mut self, _db: DbConnection) -> DbReturn {
-        unimplemented!()
-    }
 }
 
 impl<'a, T> BindAll<'a> for Block<T>
@@ -126,10 +119,6 @@ where
 {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
         self.single_insert()?.execute(&db).await.map_err(Into::into)
-    }
-
-    async fn update(mut self, db: DbConnection) -> DbReturn {
-        self.single_update()?.execute(&db).await.map_err(Into::into)
     }
 }
 
@@ -170,14 +159,6 @@ where
             });
         Ok(rows_changed)
     }
-
-    async fn update(mut self, db: DbConnection) -> DbReturn {
-        let mut rows_changed = 0;
-        for entry in self.into_iter() {
-            rows_changed += entry.single_update()?.execute(&db).await?;
-        }
-        Ok(rows_changed)
-    }
 }
 
 impl<'a, T> BindAll<'a> for Storage<T>
@@ -201,9 +182,6 @@ where
 impl Insert for Metadata {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
         self.single_insert()?.execute(&db).await.map_err(Into::into)
-    }
-    async fn update(mut self, _db: DbConnection) -> DbReturn {
-        unimplemented!()
     }
 }
 
@@ -229,9 +207,6 @@ where
             rows_changed += ext.batch_insert(&sql)?.execute(&db).await?;
         }
         Ok(rows_changed)
-    }
-    async fn update(mut self, _db: DbConnection) -> DbReturn {
-        unimplemented!()
     }
 }
 
@@ -265,9 +240,6 @@ where
             .execute(&db)
             .await
             .map_err(Into::into)
-    }
-    async fn update(mut self, _db: DbConnection) -> DbReturn {
-        unimplemented!()
     }
 }
 
