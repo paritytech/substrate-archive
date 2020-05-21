@@ -16,8 +16,8 @@
 use codec::Error as CodecError;
 use failure::Fail;
 use futures::channel::mpsc::TrySendError;
-use sp_blockchain::Error as BlockchainError;
 use serde_json::Error as SerdeError;
+use sp_blockchain::Error as BlockchainError;
 use sqlx::Error as SqlError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
@@ -52,7 +52,11 @@ pub enum Error {
     #[fail(display = "Blockchain {}", _0)]
     Blockchain(String),
     #[fail(display = "Invalid Block Range from {} to {}. {}", _0, _1, _2)]
-    InvalidBlockRange{from: String, to: String, details: String},
+    InvalidBlockRange {
+        from: String,
+        to: String,
+        details: String,
+    },
     #[fail(display = "Concurrency Error, Mutex Poisoned!")]
     Concurrency,
 

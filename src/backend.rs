@@ -21,15 +21,15 @@ mod database;
 mod storage_backend;
 mod util;
 
-pub use self::{client::client, util::open_database};
 pub use self::storage_backend::StorageBackend;
+pub use self::{client::client, util::open_database};
 use sc_client_api::{backend::StorageProvider, client::BlockBackend};
-use sp_blockchain::{HeaderBackend, HeaderMetadata, Error as BlockchainError};
+use sp_blockchain::{Error as BlockchainError, HeaderBackend, HeaderMetadata};
 use sp_runtime::traits::Block as BlockT;
 
 /// Super trait defining what access the archive node needs to siphon data from running chains
 pub trait ChainAccess<Block>:
-StorageProvider<Block, sc_client_db::Backend<Block>>
+    StorageProvider<Block, sc_client_db::Backend<Block>>
     + BlockBackend<Block>
     + HeaderBackend<Block>
     + HeaderMetadata<Block, Error = BlockchainError>
@@ -42,8 +42,8 @@ impl<T, Block> ChainAccess<Block> for T
 where
     Block: BlockT,
     T: StorageProvider<Block, sc_client_db::Backend<Block>>
-    + BlockBackend<Block>
-    + HeaderBackend<Block>
-    + HeaderMetadata<Block, Error = BlockchainError>,
+        + BlockBackend<Block>
+        + HeaderBackend<Block>
+        + HeaderMetadata<Block, Error = BlockchainError>,
 {
 }

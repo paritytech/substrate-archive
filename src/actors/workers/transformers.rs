@@ -21,13 +21,13 @@ use crate::actors::scheduler::{Algorithm, Scheduler};
 use crate::backend::ChainAccess;
 use crate::types::*;
 use bastion::prelude::*;
-use sqlx::PgConnection;
 use sc_client_api::backend::StorageProvider;
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as _, Header as _},
 };
 use sp_storage::{StorageData, StorageKey};
+use sqlx::PgConnection;
 use std::sync::Arc;
 use subxt::system::System;
 

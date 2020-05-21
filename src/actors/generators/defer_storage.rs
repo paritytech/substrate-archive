@@ -20,8 +20,12 @@
 //! This actor isn't always running in the background
 //! it will be started by the storage actor on a needs basis
 
-use crate::{types::{Storage, Substrate}, error::Error as ArchiveError, queries};
 use crate::actors::scheduler::{Algorithm, Scheduler};
+use crate::{
+    error::Error as ArchiveError,
+    queries,
+    types::{Storage, Substrate},
+};
 use bastion::prelude::*;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -45,7 +49,7 @@ where
                 loop {
                     match entry::<T>(pool.clone(), &mut sched, &mut storage).await {
                         Ok(_) => (),
-                        Err(e) => log::error!("{:?}", e)
+                        Err(e) => log::error!("{:?}", e),
                     }
                     async_std::task::sleep(std::time::Duration::from_secs(5)).await;
                     if !(storage.len() > 0) {
@@ -58,10 +62,10 @@ where
     })
 }
 
-
-async fn entry<T>(pool: sqlx::Pool<PgConnection>,
-                     sched: &mut Scheduler<'_>,
-                     storage: &mut Vec<Storage<T>>,
+async fn entry<T>(
+    pool: sqlx::Pool<PgConnection>,
+    sched: &mut Scheduler<'_>,
+    storage: &mut Vec<Storage<T>>,
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
@@ -69,13 +73,11 @@ where
     let mut missing = storage.iter().map(|s| s.block_num()).collect::<Vec<u32>>();
     missing.as_mut_slice().sort();
 
-    let missing =
-        queries::missing_blocks_min_max(&pool, missing[0], missing[missing.len() - 1])
+    let missing = queries::missing_blocks_min_max(&pool, missing[0], missing[missing.len() - 1])
         .await?
         .into_iter()
-         .map(|b| b.generate_series as u32)
+        .map(|b| b.generate_series as u32)
         .collect::<Vec<u32>>();
-
 
     let mut ready: Vec<Storage<T>> = Vec::new();
 
@@ -83,10 +85,15 @@ where
         if !missing.contains(&s.block_num()) {
             ready.push(s.clone());
             false
-        } else { true }
+        } else {
+            true
+        }
     });
 
-    log::info!("STORAGE: inserting {} Deferred storage entries", ready.len());
+    log::info!(
+        "STORAGE: inserting {} Deferred storage entries",
+        ready.len()
+    );
     let answer = sched
         .ask_next(ready)
         .unwrap()

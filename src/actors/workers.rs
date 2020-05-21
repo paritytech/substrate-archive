@@ -21,4 +21,4 @@ mod transformers;
 pub use self::database::actor as db;
 pub use self::metadata::actor as metadata;
 pub use self::transformers::actor as transformer;
-use super::{connect as connect, ArchiveAnswer};
+use super::{connect, ArchiveAnswer};

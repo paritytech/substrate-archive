@@ -16,9 +16,9 @@
 
 //! where the main actor framework is defined
 
-mod workers;
 mod generators;
 mod scheduler;
+mod workers;
 
 use super::{
     backend::ChainAccess,
@@ -26,9 +26,9 @@ use super::{
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate},
 };
-use sp_storage::StorageKey;
-use sp_blockchain::HeaderMetadata;
 use bastion::prelude::*;
+use sp_blockchain::HeaderMetadata;
+use sp_storage::StorageKey;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
 use subxt::system::System;
@@ -57,7 +57,7 @@ where
     )?;
 
     let db = Database::new(&pool)?;
-  
+
     self::generators::storage::<T, _>(client.clone(), pool.clone(), keys)
         .expect("Couldn't add storage indexer");
 
@@ -66,8 +66,7 @@ where
         .expect("Couldn't add blocks child");
 
     // IO/kvdb generator (missing blocks)
-    self::generators::db::<T, _>(client, pool, url)
-        .expect("Couldn't start db work generators");
+    self::generators::db::<T, _>(client, pool, url).expect("Couldn't start db work generators");
 
     Bastion::start();
     Bastion::block_until_stopped();

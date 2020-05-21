@@ -14,20 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::actors::{
+    self,
+    scheduler::{Algorithm, Scheduler},
+};
 use crate::{
+    backend::ChainAccess,
     queries,
     rpc::Rpc,
-    types::{Block, Metadata, Substrate, SubstrateBlock, NotSignedBlock},
-    backend::ChainAccess
+    types::{Block, Metadata, NotSignedBlock, Substrate, SubstrateBlock},
 };
-use crate::actors::{self, scheduler::{Algorithm, Scheduler}};
-use std::sync::Arc;
 use bastion::prelude::*;
 use futures::future::join_all;
 use sp_runtime::traits::{Block as _, Header as _};
 use sqlx::PgConnection;
+use std::sync::Arc;
 use subxt::system::System;
-
 
 const REDUNDANCY: usize = 5;
 
@@ -36,14 +38,15 @@ const REDUNDANCY: usize = 5;
 pub fn actor<T, C>(
     url: String,
     pool: sqlx::Pool<PgConnection>,
-    client: Arc<C>
+    client: Arc<C>,
 ) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let transform_workers = super::transformers::actor::<T, _>(client, pool.clone()).expect("Couldn't start transformers");
+    let transform_workers = super::transformers::actor::<T, _>(client, pool.clone())
+        .expect("Couldn't start transformers");
     Bastion::children(|children| {
         children
             .with_redundancy(REDUNDANCY)

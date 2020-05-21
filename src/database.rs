@@ -80,9 +80,11 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
-        log::info!("block_num = {:?}, hash = {:X?}",
-                   self.inner.block.header.number(),
-                   hex::encode(self.inner.block.header.hash().as_ref()));
+        log::info!(
+            "block_num = {:?}, hash = {:X?}",
+            self.inner.block.header.number(),
+            hex::encode(self.inner.block.header.hash().as_ref())
+        );
         self.single_insert()?.execute(&db).await.map_err(Into::into)
     }
 }
@@ -170,11 +172,11 @@ where
         query: sqlx::Query<'a, Postgres>,
     ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         Ok(query
-           .bind(self.block_num())
-           .bind(self.hash().as_ref())
-           .bind(self.is_full())
-           .bind(self.key().0.as_slice())
-           .bind(self.data().map(|d| d.0.as_slice())))
+            .bind(self.block_num())
+            .bind(self.hash().as_ref())
+            .bind(self.is_full())
+            .bind(self.key().0.as_slice())
+            .bind(self.data().map(|d| d.0.as_slice())))
     }
 }
 

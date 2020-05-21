@@ -18,19 +18,23 @@
 //! These aggregate data for child actors to work with
 //! they mostly wait on network IO
 
+use crate::actors::{
+    self,
+    scheduler::{Algorithm, Scheduler},
+    workers,
+};
 use crate::{
     backend::ChainAccess,
     rpc::Rpc,
     types::{Block, NotSignedBlock, Substrate, SubstrateBlock},
 };
-use crate::actors::{self, scheduler::{Algorithm, Scheduler}, workers};
 use bastion::prelude::*;
 use sc_client_api::BlockBackend;
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::{Block as _, Header as _};
+use sqlx::PgConnection;
 use std::sync::Arc;
 use subxt::system::System;
-use sqlx::PgConnection;
 
 /// Subscribe to new blocks via RPC
 /// this is a worker that never stops

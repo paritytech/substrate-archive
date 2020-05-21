@@ -25,11 +25,11 @@ use crate::{
 };
 use primitive_types::H256;
 use sc_client_api::StorageProvider;
+use sp_blockchain::{CachedHeaderMetadata, Error as ClientError, HeaderBackend, HeaderMetadata};
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, CheckedSub, NumberFor, SaturatedConversion},
 };
-use sp_blockchain::{CachedHeaderMetadata, HeaderBackend, HeaderMetadata, Error as ClientError};
 use sp_storage::{StorageChangeSet, StorageData, StorageKey};
 use std::collections::{BTreeMap, HashMap};
 use std::marker::PhantomData;
@@ -169,12 +169,12 @@ where
         &self,
         from: H256,
         to: Option<H256>,
-    ) -> Result<QueryStorageRange<NotSignedBlock>, ArchiveError>
-    {
-
+    ) -> Result<QueryStorageRange<NotSignedBlock>, ArchiveError> {
         let to = self.block_or_best(to)?;
 
-        let from_meta = self.client.header_metadata(H256::from_slice(from.as_ref()))?;
+        let from_meta = self
+            .client
+            .header_metadata(H256::from_slice(from.as_ref()))?;
         let to_meta = self.client.header_metadata(H256::from_slice(to.as_ref()))?;
 
         if from_meta.number > to_meta.number {
@@ -191,10 +191,9 @@ where
             let mut hashes = vec![to_meta.hash];
             let mut last = to_meta.clone();
             while last.number > from_number {
-                let header_metadata = self
-                    .client
-                    .header_metadata(last.parent)
-                    .map_err(|e| invalid_block_range::<NotSignedBlock>(&last, &to_meta, e.to_string()))?;
+                let header_metadata = self.client.header_metadata(last.parent).map_err(|e| {
+                    invalid_block_range::<NotSignedBlock>(&last, &to_meta, e.to_string())
+                })?;
                 hashes.push(header_metadata.hash);
                 last = header_metadata;
             }
@@ -229,9 +228,15 @@ where
         })
     }
 
-    fn storage_keys(&self, block: Option<T::Hash>, prefix: StorageKey) -> Result<Vec<StorageKey>, ArchiveError> {
+    fn storage_keys(
+        &self,
+        block: Option<T::Hash>,
+        prefix: StorageKey,
+    ) -> Result<Vec<StorageKey>, ArchiveError> {
         let block = self.block_or_best(block.map(|h| H256::from_slice(h.as_ref())))?;
-        self.client.storage_keys(&BlockId::Hash(block), &prefix).map_err(Into::into)
+        self.client
+            .storage_keys(&BlockId::Hash(block), &prefix)
+            .map_err(Into::into)
     }
 
     pub fn query_storage(
@@ -241,14 +246,27 @@ where
         keys: Vec<StorageKey>,
     ) -> Result<Vec<StorageChangeSet<H256>>, ArchiveError> {
         let mut full_keys = Vec::new();
-        log::info!("Prefixes: {:?}", keys.iter().map(|k| hex::encode(k.0.as_slice())).collect::<Vec<String>>()
+        log::info!(
+            "Prefixes: {:?}",
+            keys.iter()
+                .map(|k| hex::encode(k.0.as_slice()))
+                .collect::<Vec<String>>()
         );
         for prefix in keys.into_iter() {
             full_keys.extend(self.storage_keys(Some(from), prefix)?.into_iter())
         }
-        log::info!("Full Keys: {:?}", full_keys.iter().map(|k| hex::encode(k.0.as_slice())).collect::<Vec<String>>());
+        log::info!(
+            "Full Keys: {:?}",
+            full_keys
+                .iter()
+                .map(|k| hex::encode(k.0.as_slice()))
+                .collect::<Vec<String>>()
+        );
         let keys = full_keys;
-        let range = self.split_query_storage_range(H256::from_slice(from.as_ref()), to.map(|h| H256::from_slice(h.as_ref())))?;
+        let range = self.split_query_storage_range(
+            H256::from_slice(from.as_ref()),
+            to.map(|h| H256::from_slice(h.as_ref())),
+        )?;
         let mut changes = Vec::new();
         let mut last_values = std::collections::HashMap::new();
         self.query_storage_unfiltered(&range, &keys, &mut last_values, &mut changes)?;
@@ -260,10 +278,7 @@ where
 /// Splits passed range into two subranges where:
 /// - first range has at least one element in it;
 /// - second range (optionally) starts at given `middle` element.
-fn split_range(
-    size: usize,
-    middle: Option<usize>,
-) -> (Range<usize>, Option<Range<usize>>) {
+fn split_range(size: usize, middle: Option<usize>) -> (Range<usize>, Option<Range<usize>>) {
     // check if we can filter blocks-with-changes from some (sub)range using changes tries
     let range2_begin = match middle {
         // some of required changes tries are pruned => use available tries

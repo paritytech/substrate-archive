@@ -18,6 +18,11 @@
 //! IE: Missing Blocks/Storage/Inherents/Transactions
 //! Gathers Missing blocks -> passes to metadata -> passes to extractors -> passes to decode -> passes to insert
 
+use crate::actors::{
+    self,
+    scheduler::{Algorithm, Scheduler},
+    workers,
+};
 use crate::{
     backend::ChainAccess,
     database::Insert,
@@ -25,7 +30,6 @@ use crate::{
     queries,
     types::{BatchBlock, NotSignedBlock, Substrate},
 };
-use crate::actors::{self, scheduler::{Algorithm, Scheduler}, workers};
 use async_std::prelude::*;
 use async_std::stream;
 use bastion::prelude::*;
@@ -33,8 +37,8 @@ use bigdecimal::ToPrimitive;
 use sc_client_api::client::BlockBackend as _;
 use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
-use subxt::system::System;
 use std::{sync::Arc, time::Duration};
+use subxt::system::System;
 
 const DURATION: u64 = 5;
 
@@ -62,7 +66,7 @@ where
                 loop {
                     match entry::<T, _>(&client, &pool, url.as_str(), &mut sched).await {
                         Ok(_) => (),
-                        Err(e) => log::error!("{:?}", e)
+                        Err(e) => log::error!("{:?}", e),
                     }
                 }
                 Ok(())
@@ -71,16 +75,16 @@ where
     })
 }
 
-async fn entry<T, C>(client: &Arc<C>,
-                     pool: &sqlx::Pool<PgConnection>,
-                     url: &str,
-                     sched: &mut Scheduler<'_>
+async fn entry<T, C>(
+    client: &Arc<C>,
+    pool: &sqlx::Pool<PgConnection>,
+    url: &str,
+    sched: &mut Scheduler<'_>,
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
-    <T as System>::BlockNumber: Into<u32>
-
+    <T as System>::BlockNumber: Into<u32>,
 {
     let mut block_nums = queries::missing_blocks(&pool).await?;
     log::info!("missing {} blocks", block_nums.len());

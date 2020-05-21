@@ -16,8 +16,17 @@
 
 //! Indexes storage
 
-use crate::{backend::{ChainAccess, StorageBackend}, error::Error as ArchiveError, queries, types::*};
-use crate::actors::{self, scheduler::{Algorithm, Scheduler}, workers};
+use crate::actors::{
+    self,
+    scheduler::{Algorithm, Scheduler},
+    workers,
+};
+use crate::{
+    backend::{ChainAccess, StorageBackend},
+    error::Error as ArchiveError,
+    queries,
+    types::*,
+};
 use bastion::prelude::*;
 use primitive_types::H256;
 use rayon::prelude::*;
@@ -74,7 +83,7 @@ pub async fn entry<T, C>(
     pool: &sqlx::Pool<PgConnection>,
     sched: &mut Scheduler<'_>,
     keys: &Vec<StorageKey>,
-    max_storage: &mut u32
+    max_storage: &mut u32,
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
@@ -98,7 +107,7 @@ where
     let (mut query_to_num, _) = queries::get_max_block_num(&pool).await?;
 
     if (query_to_num - query_from_num) > 1500 {
-         query_to_num = query_from_num + 500;
+        query_to_num = query_from_num + 500;
     }
 
     // we've already collected storage up to most recent block
@@ -123,8 +132,12 @@ where
     let storage_backend = StorageBackend::<T, C>::new(client.clone());
 
     let now = std::time::Instant::now();
-    let change_set = storage_backend.query_storage(T::Hash::from(query_from_hash), Some(T::Hash::from(query_to_hash)), keys.clone())?;
-    let elapsed = now.elapsed();   
+    let change_set = storage_backend.query_storage(
+        T::Hash::from(query_from_hash),
+        Some(T::Hash::from(query_to_hash)),
+        keys.clone(),
+    )?;
+    let elapsed = now.elapsed();
     log::info!(
         "Took {} seconds, {} milli-seconds to query storage from {} to {}",
         elapsed.as_secs(),
@@ -139,28 +152,43 @@ where
         .map(|b| b.generate_series as u32)
         .collect::<Vec<u32>>();
 
-    let storage = change_set.into_iter().map(|change| {
-        let num = client.number(H256::from_slice(change.block.as_ref())).expect("Couldn't get block number for hash");
-        let block_hash = change.block;
-        if let Some(num) = num {
-            change
-                .changes
-                .into_iter()
-                .map(|(key, data)| {
-                    if num == query_from_num {
-                        Storage::new(T::Hash::from(block_hash), num, true, key, data)
-                    } else {
-                        Storage::new(T::Hash::from(block_hash), num, false, key, data)
-                    }
-                }).collect::<Vec<Storage<T>>>()
-        } else {
-            log::warn!("Block doesn't exist!");
-            Vec::new()
-        }
-    }).flatten().collect::<Vec<Storage<T>>>();
+    let storage = change_set
+        .into_iter()
+        .map(|change| {
+            let num = client
+                .number(H256::from_slice(change.block.as_ref()))
+                .expect("Couldn't get block number for hash");
+            let block_hash = change.block;
+            if let Some(num) = num {
+                change
+                    .changes
+                    .into_iter()
+                    .map(|(key, data)| {
+                        if num == query_from_num {
+                            Storage::new(T::Hash::from(block_hash), num, true, key, data)
+                        } else {
+                            Storage::new(T::Hash::from(block_hash), num, false, key, data)
+                        }
+                    })
+                    .collect::<Vec<Storage<T>>>()
+            } else {
+                log::warn!("Block doesn't exist!");
+                Vec::new()
+            }
+        })
+        .flatten()
+        .collect::<Vec<Storage<T>>>();
 
-    let to_defer = storage.iter().cloned().filter(|s| missing_blocks.contains(&s.block_num())).collect::<Vec<Storage<T>>>();
-    let storage = storage.iter().cloned().filter(|s| !missing_blocks.contains(&s.block_num())).collect::<Vec<Storage<T>>>();
+    let to_defer = storage
+        .iter()
+        .cloned()
+        .filter(|s| missing_blocks.contains(&s.block_num()))
+        .collect::<Vec<Storage<T>>>();
+    let storage = storage
+        .iter()
+        .cloned()
+        .filter(|s| !missing_blocks.contains(&s.block_num()))
+        .collect::<Vec<Storage<T>>>();
     *max_storage = query_to_num;
 
     log::info!("MAX STORAGE {:?}", *max_storage);

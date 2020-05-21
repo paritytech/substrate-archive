@@ -14,12 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-
 mod db_generators;
-mod storage;
-mod network;
 mod defer_storage;
+mod network;
+mod storage;
 
 pub use self::db_generators::actor as db;
-pub use self::storage::actor as storage;
 pub use self::network::actor as network;
+pub use self::storage::actor as storage;
