@@ -7,6 +7,7 @@ Run this alongside the substrate client to sync all historical TxData. Indexes a
 Requires a substrate node running with a RocksDb Database instance
 
 Example Usage:
+
 ```rust
 use polkadot_service::kusama_runtime as real_ksm_runtime;
 use sc_service::config::DatabaseConfig;
