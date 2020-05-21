@@ -157,13 +157,25 @@ where
 }
 
 /// newType for Storage Data
-#[derive(Clone, Serialize, Deserialize, Hash, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Storage<T: Substrate + Send + Sync> {
     hash: T::Hash,
     block_num: u32,
     full_storage: bool,
     key: StorageKey,
     data: Option<StorageData>,
+}
+
+// need to manually implement hash here because Rust doesn't recognize that T::Hash implements hash
+// if we derive `Hash`
+impl<T> Hash for Storage<T> where T: Substrate + Send + Sync {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.hash.hash(state);
+        self.block_num.hash(state);
+        self.full_storage.hash(state);
+        self.key.hash(state);
+        self.data.hash(state);
+    }
 }
 
 impl<T> Storage<T>

@@ -19,10 +19,11 @@ use chrono::{DateTime, TimeZone, Utc};
 use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
 use std::convert::TryFrom;
+use std::path::{PathBuf, Path};
 
 // panics if it fails because of anything other than the directory already exists
-pub fn create_dir(path: std::path::PathBuf) {
-    match std::fs::create_dir(path) {
+pub fn create_dir(path: &Path) {
+    match std::fs::create_dir_all(path) {
         Err(e) => match e.kind() {
             std::io::ErrorKind::AlreadyExists => (),
             _ => {
@@ -34,6 +35,16 @@ pub fn create_dir(path: std::path::PathBuf) {
     }
 }
 
+pub fn substrate_dir() -> PathBuf {
+    if let Some(base_dirs) = dirs::BaseDirs::new() {
+        let mut path = base_dirs.data_local_dir().to_path_buf();
+        path.push("substrate_archive");
+        path
+    } else {
+        panic!("Couldn't establish substrate data local path");
+    }
+}
+
 pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
     let colors = ColoredLevelConfig::new()
         .info(Color::Green)
@@ -42,9 +53,11 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .debug(Color::Blue)
         .trace(Color::Magenta);
 
-    let mut log_dir = dirs::data_local_dir().expect("failed to find local data dir for logs");
-    log_dir.push("substrate_archive");
-    create_dir(log_dir.clone());
+
+    // let mut log_dir = dirs::data_local_dir().expect("failed to find local data dir for logs");
+    // log_dir.push("substrate_archive");
+    let mut log_dir = substrate_dir();
+    create_dir(log_dir.as_path());
     log_dir.push("archive.logs");
 
     fern::Dispatch::new()

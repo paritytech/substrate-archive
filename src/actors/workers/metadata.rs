@@ -69,6 +69,9 @@ where
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
                                 // send batch_items to decode actor
                             };
+                            ref broadcast: &'static str => {
+                                ()
+                            };
                             e: _ => log::warn!("Received unknown data {:?}", e);
                         }
                     }

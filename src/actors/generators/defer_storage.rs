@@ -25,10 +25,12 @@ use crate::{
     error::Error as ArchiveError,
     queries,
     types::{Storage, Substrate},
+    actors::Broadcast,
+    simple_db::SimpleDb
 };
 use bastion::prelude::*;
 use sqlx::PgConnection;
-use std::sync::Arc;
+use std::{sync::Arc, hash::{Hash, Hasher}, collections::hash_map::DefaultHasher};
 
 pub fn actor<T>(
     pool: sqlx::Pool<PgConnection>,
@@ -42,19 +44,16 @@ where
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let workers = db_workers.clone();
-            let pool = pool.clone();
-            let mut storage = storage.clone();
+            let pool = pool.clone(); let mut storage = storage.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                 loop {
+                    handle_shutdown(&storage, &ctx).await;
                     match entry::<T>(pool.clone(), &mut sched, &mut storage).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
-                    async_std::task::sleep(std::time::Duration::from_secs(5)).await;
-                    if !(storage.len() > 0) {
-                        break;
-                    }
+                    if !(storage.len() > 0) {break;}
                 }
                 Ok(())
             }
@@ -90,15 +89,53 @@ where
         }
     });
 
-    log::info!(
-        "STORAGE: inserting {} Deferred storage entries",
-        ready.len()
-    );
-    let answer = sched
-        .ask_next(ready)
-        .unwrap()
-        .await
-        .expect("Couldn't send storage to database");
-    log::debug!("{:?}", answer);
+    if ready.len() > 0 {
+        log::info!(
+            "STORAGE: inserting {} Deferred storage entries",
+            ready.len()
+        );
+        let answer = sched
+            .ask_next(ready)
+            .unwrap()
+            .await
+            .expect("Couldn't send storage to database");
+        log::debug!("{:?}", answer);
+    }
     Ok(())
+}
+
+async fn handle_shutdown<T>(storage: &Vec<Storage<T>>, ctx: &BastionContext) -> ()
+where
+    T: Substrate + Send + Sync
+{
+    if let Some(msg) = ctx.try_recv().await {
+        msg! {
+            msg,
+            ref broadcast: &'static str => {
+                log::info!("GOT SHUTDOWN EEEEEEEEEEEEE");
+                if storage.len() > 0 {
+                    log::info!("Storing deferred storage into temporary binary files");
+                    let mut hasher = DefaultHasher::new();
+                    let hash_of_storage = storage.hash(&mut hasher);
+
+                    let file_name = format!("storage_{:x}", hasher.finish());
+
+                    let mut path = crate::util::substrate_dir();
+                    path.push("temp_storage");
+                    crate::util::create_dir(path.as_path());
+                    path.push(file_name);
+                    let temp_db = SimpleDb::new(path).expect("Couldn't create temporary storage files");
+                    temp_db.save(storage.clone());
+                }
+            };
+            e: _ => log::warn!("Received unknown message: {:?}", e);
+        };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
 }

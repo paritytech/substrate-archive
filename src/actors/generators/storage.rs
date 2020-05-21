@@ -24,6 +24,7 @@ use crate::actors::{
 use crate::{
     backend::{ChainAccess, StorageBackend},
     error::Error as ArchiveError,
+    actors::Broadcast,
     queries,
     types::*,
 };
@@ -34,10 +35,7 @@ use sp_blockchain::HeaderBackend;
 use sp_runtime::generic::BlockId;
 use sp_storage::{StorageChangeSet, StorageData, StorageKey};
 use sqlx::PgConnection;
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{time::Duration, sync::Arc};
 use subxt::system::System;
 
 //TODO need to find a better way to speed up indexing
@@ -63,6 +61,7 @@ where
             let pool = pool.clone();
             let client = client.clone();
             let keys = keys.clone();
+
             async move {
                 let mut max_storage: u32 = 0;
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
@@ -78,7 +77,7 @@ where
     })
 }
 
-pub async fn entry<T, C>(
+async fn entry<T, C>(
     client: &Arc<C>,
     pool: &sqlx::Pool<PgConnection>,
     sched: &mut Scheduler<'_>,
@@ -123,6 +122,7 @@ where
 
     // we've already collected storage up to most recent block
     // inserting here would cause a Postgres Error (since storage.hash relates to blocks.hash)
+
     if query_from_num == query_to_num || query_from_num > query_to_num {
         // TODO: block time is 5 seconds so a good choice for sleep?
         async_std::task::sleep(Duration::from_secs(5)).await;
@@ -202,7 +202,8 @@ where
         .collect::<Vec<Storage<T>>>();
 
     if to_defer.len() > 0 {
-        super::defer_storage::actor::<T>(pool.clone(), sched.workers().clone(), to_defer)
+        log::info!("Storage should be deferred");
+        let child = super::defer_storage::actor::<T>(pool.clone(), sched.workers().clone(), to_defer)
             .expect("Couldn't start defer workers");
     }
 

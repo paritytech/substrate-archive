@@ -64,11 +64,15 @@ where
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                 loop {
+                    if handle_shutdown(&ctx).await {
+                        break;
+                    }
                     match entry::<T, _>(&client, &pool, url.as_str(), &mut sched).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
                 }
+                Bastion::stop();
                 Ok(())
             }
         })
@@ -117,4 +121,23 @@ where
     let answer = sched.ask_next(blocks).unwrap().await;
     log::debug!("{:?}", answer);
     Ok(())
+}
+
+// Handle a shutdown
+async fn handle_shutdown(ctx: &BastionContext) -> bool
+{
+    if let Some(msg) = ctx.try_recv().await {
+        msg! {
+            msg,
+            broadcast: super::Broadcast => {
+                match broadcast {
+                    super::Broadcast::Shutdown => {
+                        return true;
+                    }
+                }
+            };
+            e: _ => log::warn!("Received unknown message: {:?}", e);
+        };
+    }
+    false
 }

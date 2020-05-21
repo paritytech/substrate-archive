@@ -116,6 +116,4 @@ where
 #[cfg(test)]
 mod tests {
 
-    #[test]
-    fn can_query_blocks() {}
 }

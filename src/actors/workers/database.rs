@@ -17,6 +17,7 @@
 use crate::database::Database;
 use crate::queries;
 use crate::types::*;
+use super::Broadcast;
 use bastion::prelude::*;
 use subxt::system::System;
 
@@ -57,6 +58,9 @@ where
                                 log::info!("Inserting {} storage entries", storage.len());
                                 process_storage(&db, storage).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
+                            };
+                            ref broadcast: &'static str => {
+                                () // we don't need to do any cleanup
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
                         };

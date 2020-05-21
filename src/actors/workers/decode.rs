@@ -60,6 +60,9 @@ where
                                  process_extrinsics(decoder.clone(), blocks, &mut sched).await;
                                  answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                             };
+                            ref broadcast: &'static str => {
+                                () // we don't need to do any cleanup
+                            };
                             e: _ => log::warn!("Received unknown data {:?}", e);
                         }
                     }

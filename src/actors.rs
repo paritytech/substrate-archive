@@ -50,7 +50,12 @@ where
     Bastion::init();
 
     ctrlc::set_handler(move || {
-       
+        // so far, broadcast is the only thing useing a &'static str type
+        Bastion::broadcast("shutdown").expect("Couldn't send message");
+        // give two seconds for the system to shutdown
+        // FIXME: should really have a better system then "ehh...  it shouldn't take more than a second"
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        Bastion::stop();
     }).expect("Error setting Ctrl-C handler");
 
     /// TODO: could be initialized asyncronously somewhere
@@ -69,7 +74,8 @@ where
     self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())
         .expect("Couldn't add blocks child");
 
-    // IO/kvdb generator (missing blocks)
+    // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
+    // uses client to get those blocks
     self::generators::db::<T, _>(client, pool, url).expect("Couldn't start db work generators");
 
     Bastion::start();
@@ -77,10 +83,17 @@ where
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ArchiveAnswer {
     Success,
-    Fail(ArchiveError),
+}
+
+/// Messages that are sent to every actor if something happens that must be handled globally
+/// like a CTRL-C signal
+#[derive(Debug, PartialEq, Clone)]
+pub enum Broadcast {
+    /// We need to shutdown for one reason or the other
+    Shutdown
 }
 
 /// connect to the substrate RPC

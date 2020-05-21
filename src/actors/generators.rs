@@ -22,3 +22,5 @@ mod storage;
 pub use self::db_generators::actor as db;
 pub use self::network::actor as network;
 pub use self::storage::actor as storage;
+
+pub use super::Broadcast;

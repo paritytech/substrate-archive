@@ -35,6 +35,7 @@ use sp_runtime::traits::{Block as _, Header as _};
 use sqlx::PgConnection;
 use std::sync::Arc;
 use subxt::system::System;
+use jsonrpsee::client::Subscription;
 
 /// Subscribe to new blocks via RPC
 /// this is a worker that never stops
@@ -63,12 +64,15 @@ where
                     .subscribe_finalized_blocks()
                     .await
                     .expect("Subscription failed");
-                while let head = subscription.next().await {
+                loop {
+                    if handle_shutdown::<T, _>(&ctx, &mut subscription).await {
+                        break;
+                    }
+                    let head = subscription.next().await;
                     let block = client
                         .block(&BlockId::Number((*head.number()).into()))
                         .map_err(|e| log::error!("{:?}", e))
                         .unwrap();
-
                     if let Some(b) = block {
                         log::trace!("{:?}", b);
                         sched.ask_next(b).unwrap().await?;
@@ -81,4 +85,22 @@ where
             }
         })
     })
+}
+
+
+async fn handle_shutdown<T, N>(ctx: &BastionContext, subscription: &mut Subscription<N>) -> bool
+where
+    T: Substrate + Send + Sync,
+{
+    if let Some(msg) = ctx.try_recv().await {
+        msg! {
+            msg,
+            ref broadcast: &'static str => {
+                std::mem::drop(subscription);
+                return true;
+            };
+            e: _ => log::warn!("Received unknown message: {:?}", e);
+        };
+    }
+    false
 }

@@ -20,6 +20,7 @@
 use crate::actors::scheduler::{Algorithm, Scheduler};
 use crate::backend::ChainAccess;
 use crate::types::*;
+use super::Broadcast;
 use bastion::prelude::*;
 use sc_client_api::backend::StorageProvider;
 use sp_runtime::{
@@ -67,6 +68,9 @@ where
                             meta: Metadata =!> {
                                 let v = sched.ask_next(meta).unwrap().await;
                                 log::debug!("{:?}", v);
+                            };
+                            ref broadcast: &'static str => {
+                                ()
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
                         }
