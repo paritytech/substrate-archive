@@ -83,13 +83,13 @@ where
 
 {
     let mut block_nums = queries::missing_blocks(&pool).await?;
-    log::info!("BLOCK NUM LENGTH: {}", block_nums.len());
+    log::info!("missing {} blocks", block_nums.len());
     if !(block_nums.len() > 0) {
         async_std::task::sleep(Duration::from_secs(DURATION)).await;
         return Ok(());
     }
     log::info!(
-        "Starting to crawl for {} missing blocks, from {} .. {} ...",
+        "Starting to crawl for {} missing blocks, from {} to {} ...",
         block_nums.len(),
         block_nums[0].generate_series,
         block_nums[block_nums.len() - 1].generate_series

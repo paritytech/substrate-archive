@@ -41,11 +41,12 @@ where
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't Answer");
                             };
                             blocks: Vec<Block<T>> =!> {
-                                log::info!("Inserting {} blocks into the database!EEEEEEEEEEEEEEEEEEEEEEEEEE", blocks.len());
+                                log::info!("Inserting {} blocks", blocks.len());
                                 process_blocks(&db, blocks).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
                             extrinsics: Vec<Extrinsic<T>> =!> {
+                                log::info!("Inserting {} extrinsics", extrinsics.len());
                                 process_extrinsics(&db, extrinsics).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
@@ -54,6 +55,7 @@ where
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
                             storage: Vec<Storage<T>> =!> {
+                                log::info!("Inserting {} storage entries", storage.len());
                                 process_storage(&db, storage).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
