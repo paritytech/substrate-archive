@@ -30,5 +30,5 @@ CREATE TABLE IF NOT EXISTS storage (
   is_full boolean NOT NULL,
   key bytea NOT NULL,
   storage bytea,
-  UNIQUE (hash, key, storage)
+  UNIQUE (MD5(hash, key, storage))
 );
