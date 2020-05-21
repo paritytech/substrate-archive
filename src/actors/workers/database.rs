@@ -46,7 +46,6 @@ where
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
                             extrinsics: Vec<Extrinsic<T>> =!> {
-                                log::info!("Inserting {} extrinsics", extrinsics.len());
                                 process_extrinsics(&db, extrinsics).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };

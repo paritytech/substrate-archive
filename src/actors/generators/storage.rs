@@ -95,7 +95,7 @@ where
         return Ok(());
     }
 
-    let (query_from_num, query_from_hash) = queries::get_max_storage(&pool).await.unwrap_or((
+    let (mut query_from_num, query_from_hash) = queries::get_max_storage(&pool).await.unwrap_or((
         *max_storage,
         client
             .hash(*max_storage)?
@@ -104,11 +104,22 @@ where
             .to_vec(),
     ));
 
-    let (mut query_to_num, _) = queries::get_max_block_num(&pool).await?;
-
-    if (query_to_num - query_from_num) > 1500 {
-        query_to_num = query_from_num + 500;
+    if *max_storage > query_from_num {
+        query_from_num = *max_storage;
+    } else if query_from_num > *max_storage {
+        *max_storage = query_from_num;
     }
+
+    let (mut query_to_num, _) = queries::get_max_block_num(&pool).await?;
+    log::info!("Query from num: {}", query_from_num);
+    log::info!("Query to num 0: {}", query_to_num);
+    if (query_to_num - query_from_num) > 1500 {
+        query_to_num = query_from_num + 1000;
+    }
+    log::info!("Query to num 1: {}", query_to_num);
+
+    *max_storage = query_to_num;
+    log::info!("max storage {:?}", *max_storage);
 
     // we've already collected storage up to most recent block
     // inserting here would cause a Postgres Error (since storage.hash relates to blocks.hash)
@@ -189,9 +200,6 @@ where
         .cloned()
         .filter(|s| !missing_blocks.contains(&s.block_num()))
         .collect::<Vec<Storage<T>>>();
-    *max_storage = query_to_num;
-
-    log::info!("MAX STORAGE {:?}", *max_storage);
 
     if to_defer.len() > 0 {
         super::defer_storage::actor::<T>(pool.clone(), sched.workers().clone(), to_defer)
