@@ -49,6 +49,10 @@ where
 {
     Bastion::init();
 
+    ctrlc::set_handler(move || {
+       
+    }).expect("Error setting Ctrl-C handler");
+
     /// TODO: could be initialized asyncronously somewhere
     let pool = async_std::task::block_on(
         PgPool::builder()

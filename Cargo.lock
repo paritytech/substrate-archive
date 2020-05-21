@@ -403,6 +403,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bincode"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5753e2a71534719bf3f4e57006c3a4f0d2c672a4b676eec84161f763eca87dbf"
+dependencies = [
+ "byteorder",
+ "serde",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.53.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4249,6 +4259,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "237a5ed80e274dbc66f86bd59c1e25edc039660be53194b5fe0a482e0f2612ea"
 
 [[package]]
+name = "pretty_env_logger"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "926d36b9553851b8b0005f1275891b392ee4d2d833852c417ed025477350fb9d"
+dependencies = [
+ "env_logger",
+ "log 0.4.8",
+]
+
+[[package]]
 name = "primitive-types"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6637,11 +6657,13 @@ dependencies = [
  "async-trait",
  "bastion",
  "bigdecimal",
+ "bincode",
  "chrono",
  "ctrlc",
  "dirs",
  "failure",
  "fern",
+ "flate2",
  "futures 0.3.5",
  "hex",
  "itertools 0.9.0",
@@ -6652,6 +6674,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "polkadot-service",
+ "pretty_env_logger",
  "primitive-types",
  "rayon",
  "sc-chain-spec",

@@ -24,6 +24,7 @@ mod error;
 mod queries;
 mod types;
 mod util;
+mod simple_db;
 pub use error::Error;
 pub use types::{NotSignedBlock, Substrate};
 

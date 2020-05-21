@@ -16,8 +16,8 @@
 
 mod traits;
 use codec::Encode;
-use std::marker::PhantomData;
-// use sp_core::storage::{StorageChangeSet, StorageData};
+use std::{marker::PhantomData, hash::Hash};
+use serde::{Serialize, Deserialize};
 use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
     traits::{Block as _, Header as _},
@@ -157,7 +157,7 @@ where
 }
 
 /// newType for Storage Data
-#[derive(Clone, Debug)]
+#[derive(Clone, Serialize, Deserialize, Hash, Debug)]
 pub struct Storage<T: Substrate + Send + Sync> {
     hash: T::Hash,
     block_num: u32,

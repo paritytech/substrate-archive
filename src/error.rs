@@ -24,6 +24,7 @@ use std::io::Error as IoError;
 use std::num::TryFromIntError;
 use std::sync::PoisonError;
 use subxt::Error as SubxtError;
+use bincode::ErrorKind as BincodeError;
 
 pub type ArchiveResult<T> = Result<T, Error>;
 
@@ -57,9 +58,10 @@ pub enum Error {
         to: String,
         details: String,
     },
+    #[fail(display = "Bincode encoding {}", _0)]
+    Bincode(#[fail(cause)] Box<BincodeError>),
     #[fail(display = "Concurrency Error, Mutex Poisoned!")]
     Concurrency,
-
     #[fail(display = "Call type unhandled, not committing to database")]
     UnhandledCallType,
     // if trying to insert unsupported type into database
@@ -74,6 +76,12 @@ pub enum Error {
     General(String),
     // #[fail(display = "Metadata {}", _0)]
     // Metadata(MetadataError),
+}
+
+impl From<Box<BincodeError>> for Error {
+    fn from(err: Box<BincodeError>) -> Error {
+        Error::Bincode(err)
+    }
 }
 
 impl From<BlockchainError> for Error {
