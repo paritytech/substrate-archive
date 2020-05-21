@@ -34,7 +34,7 @@ pub fn actor<T>(
 where
     T: Substrate + Send + Sync,
 {
-    log::info!("Differing {} storage entries!", storage.len());
+    log::info!("Deferring {} storage entries!", storage.len());
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let workers = db_workers.clone();

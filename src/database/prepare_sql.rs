@@ -145,6 +145,11 @@ where
             r#"
 INSERT INTO storage (block_num, hash, is_full, key, storage)
 VALUES (#1, $2, $3, $4, $5)
+ON CONFLICT (hash, key, storage) DO UPDATE SET
+hash = EXCLUDED.hash,
+key = EXCLUDED.key,
+storage = EXCLUDED.storage,
+is_full = EXCLUDED.is_full
 "#,
         );
         self.bind_all_arguments(query)
@@ -161,6 +166,11 @@ where
                 r#"
     INSERT INTO storage (block_num, hash, is_full, key, storage)
     VALUES {}
+    ON CONFLICT (hash, key, storage) DO UPDATE SET
+    hash = EXCLUDED.hash,
+    key = EXCLUDED.key,
+    storage = EXCLUDED.storage,
+    is_full = EXCLUDED.is_full
     "#,
                 build_batch_insert(r as usize, 5)
             )
@@ -169,6 +179,11 @@ where
                 r#"
             INSERT INTO storage (block_num, hash, is_full, key, storage)
             VALUES {}
+            ON CONFLICT (hash, key, storage) DO UPDATE SET
+            hash = EXCLUDED.hash,
+            key = EXCLUDED.key,
+            storage = EXCLUDED.storage,
+            is_full = EXCLUDED.is_full
             "#,
                 build_batch_insert(self.len(), 5)
             )

@@ -29,5 +29,6 @@ CREATE TABLE IF NOT EXISTS storage (
   hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE,
   is_full boolean NOT NULL,
   key bytea NOT NULL,
-  storage bytea
+  storage bytea,
+  UNIQUE (hash, key, storage)
 );
