@@ -56,7 +56,7 @@ impl<D> SimpleDb<D> where D: DeserializeOwned + Serialize + Default {
         })
     }
 
-    /// Save structure to a file, serializing to JSON and then compressing with DEFLATE
+    /// Save structure to a file, serializing to Bincode and then compressing with DEFLATE
     pub(crate) fn save(&self, data: D) -> Result<(), ArchiveError> {
         self.mutate(|file| {
             let ser_data = bincode::serialize(&data)?;
@@ -68,7 +68,7 @@ impl<D> SimpleDb<D> where D: DeserializeOwned + Serialize + Default {
         Ok(())
     }
 
-    /// Get structure from file, DEFLATING and then deserializing from JSON
+    /// Get structure from file, DEFLATING and then deserializing from Bincode
     pub(crate) fn get(&self) -> Result<D, ArchiveError> {
         let meta = fs::metadata(self.path.as_path())?;
         if meta.len() == 0 {
@@ -137,6 +137,7 @@ mod tests {
         data.insert("Hello".to_string(), 45);
         data.insert("Byte".to_string(), 34);
         db.save(data.clone()).unwrap();
+        // TODO make this an assert
         log::info!("DATA: {:?}", db.get().unwrap());
     }
 }

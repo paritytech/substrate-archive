@@ -50,7 +50,7 @@ where
     Bastion::init();
 
     ctrlc::set_handler(move || {
-        // so far, broadcast is the only thing useing a &'static str type
+        // so far, broadcast is the only thing using a &'static str type
         Bastion::broadcast("shutdown").expect("Couldn't send message");
         // give two seconds for the system to shutdown
         // FIXME: should really have a better system then "ehh...  it shouldn't take more than a second"
