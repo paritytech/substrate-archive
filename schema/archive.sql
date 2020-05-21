@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS storage (
   hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE,
   is_full boolean NOT NULL,
   key bytea NOT NULL,
-  storage bytea,
-  UNIQUE (MD5(hash, key, storage))
+  storage bytea
+  -- CONSTRAINT m_hash_key_storage UNIQUE (hash, key, md5(storage))
 );
+
+CREATE UNIQUE INDEX only_unique_hash_key_storage ON storage (hash, key, md5(storage));

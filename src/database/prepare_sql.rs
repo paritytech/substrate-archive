@@ -56,6 +56,7 @@ where
             r#"
     INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, spec)
     VALUES($1, $2, $3, $4, $5, $6)
+    ON CONFLICT DO NOTHING
     "#,
         );
 
@@ -74,6 +75,7 @@ where
             r#"
 INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, spec)
 VALUES {}
+ON CONFLICT DO NOTHING
 "#,
             build_batch_insert(self.len(), 6)
         );
@@ -145,7 +147,7 @@ where
             r#"
 INSERT INTO storage (block_num, hash, is_full, key, storage)
 VALUES (#1, $2, $3, $4, $5)
-ON CONFLICT (hash, key, storage) DO UPDATE SET
+ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
 hash = EXCLUDED.hash,
 key = EXCLUDED.key,
 storage = EXCLUDED.storage,
@@ -166,7 +168,7 @@ where
                 r#"
     INSERT INTO storage (block_num, hash, is_full, key, storage)
     VALUES {}
-    ON CONFLICT (hash, key, storage) DO UPDATE SET
+    ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
     hash = EXCLUDED.hash,
     key = EXCLUDED.key,
     storage = EXCLUDED.storage,
@@ -179,7 +181,7 @@ where
                 r#"
             INSERT INTO storage (block_num, hash, is_full, key, storage)
             VALUES {}
-            ON CONFLICT (hash, key, storage) DO UPDATE SET
+            ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
             hash = EXCLUDED.hash,
             key = EXCLUDED.key,
             storage = EXCLUDED.storage,

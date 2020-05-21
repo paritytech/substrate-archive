@@ -241,6 +241,8 @@ where
         keys: Vec<StorageKey>,
     ) -> Result<Vec<StorageChangeSet<H256>>, ArchiveError> {
         let mut full_keys = Vec::new();
+        log::info!("Prefixes: {:?}", keys.iter().map(|k| hex::encode(k.0.as_slice())).collect::<Vec<String>>()
+        );
         for prefix in keys.into_iter() {
             full_keys.extend(self.storage_keys(Some(from), prefix)?.into_iter())
         }

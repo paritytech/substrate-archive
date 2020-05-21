@@ -163,6 +163,8 @@ where
     let storage = storage.iter().cloned().filter(|s| !missing_blocks.contains(&s.block_num())).collect::<Vec<Storage<T>>>();
     *max_storage = query_to_num;
 
+    log::info!("MAX STORAGE {:?}", *max_storage);
+
     if to_defer.len() > 0 {
         super::defer_storage::actor::<T>(pool.clone(), sched.workers().clone(), to_defer)
             .expect("Couldn't start defer workers");
