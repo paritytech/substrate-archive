@@ -31,8 +31,6 @@ pub use self::traits::Substrate;
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
 
 /// Just one of those low-life not-signed types
-// pub type NotSignedBlock<T> = BlockT<<T as System>::Header, <T as System>::Extrinsic>;
-// TODO: `NotSignedBlock` and `ArchiveBackend` types should be generic over BlockNumber, Hash type and Extrinsic type
 pub type NotSignedBlock = BlockT<
     sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>,
     sp_runtime::OpaqueExtrinsic,
@@ -161,11 +159,11 @@ where
 /// newType for Storage Data
 #[derive(Clone, Debug)]
 pub struct Storage<T: Substrate + Send + Sync> {
-    block_num: u32,
     hash: T::Hash,
-    spec: u32,
+    block_num: u32,
+    full_storage: bool,
     key: StorageKey,
-    data: StorageData,
+    data: Option<StorageData>,
 }
 
 impl<T> Storage<T>
@@ -173,19 +171,23 @@ where
     T: Substrate + Send + Sync,
 {
     pub fn new(
-        block_num: u32,
-        spec: u32,
         hash: T::Hash,
+        block_num: u32,
+        full_storage: bool,
         key: StorageKey,
-        data: StorageData,
+        data: Option<StorageData>,
     ) -> Self {
         Self {
             block_num,
             hash,
-            spec,
+            full_storage,
             key,
             data,
         }
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.full_storage
     }
 
     pub fn block_num(&self) -> u32 {
@@ -196,16 +198,12 @@ where
         &self.hash
     }
 
-    pub fn spec(&self) -> u32 {
-        self.spec
-    }
-
     pub fn key(&self) -> &StorageKey {
         &self.key
     }
 
-    pub fn data(&self) -> &StorageData {
-        &self.data
+    pub fn data(&self) -> Option<&StorageData> {
+        self.data.as_ref()
     }
 }
 

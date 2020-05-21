@@ -18,10 +18,15 @@
 //! IE: Missing Blocks/Storage/Inherents/Transactions
 //! Gathers Missing blocks -> passes to metadata -> passes to extractors -> passes to decode -> passes to insert
 
-use super::scheduler::{Algorithm, Scheduler};
+use crate::actors::{
+    self,
+    scheduler::{Algorithm, Scheduler},
+    workers,
+};
 use crate::{
     backend::ChainAccess,
     database::Insert,
+    error::Error as ArchiveError,
     queries,
     types::{BatchBlock, NotSignedBlock, Substrate},
 };
@@ -33,59 +38,83 @@ use sc_client_api::client::BlockBackend as _;
 use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
 use std::{sync::Arc, time::Duration};
+use subxt::system::System;
 
-const DURATION: u64 = 10;
+const DURATION: u64 = 5;
 
 pub fn actor<T, C>(
     client: Arc<C>,
-    meta_workers: ChildrenRef,
     pool: sqlx::Pool<PgConnection>,
+    url: String,
 ) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
+    <T as System>::BlockNumber: Into<u32>,
 {
+    let meta_workers = workers::metadata::<T, _>(url.clone(), pool.clone(), client.clone())
+        .expect("Couldn't start metadata workers");
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
-            let mut interval = stream::interval(Duration::from_secs(DURATION));
             let client = client.clone();
             let pool = pool.clone();
             let workers = meta_workers.clone();
+            let url = url.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
-                while let Some(_) = interval.next().await {
-                    let mut block_nums = queries::missing_blocks(&pool).await.unwrap();
-                    let mut blocks = Vec::new();
-                    if !block_nums.len() > 0 {
-                        break;
+                loop {
+                    match entry::<T, _>(&client, &pool, url.as_str(), &mut sched).await {
+                        Ok(_) => (),
+                        Err(e) => log::error!("{:?}", e),
                     }
-                    log::info!(
-                        "Starting to crawl for {} missing blocks, from {} .. {} ...",
-                        block_nums.len(),
-                        block_nums[0].generate_series,
-                        block_nums[block_nums.len() - 1].generate_series
-                    );
-                    for block_num in block_nums.iter() {
-                        let num = block_num
-                            .generate_series
-                            .to_u32()
-                            .expect("Could not convert into u32");
-                        let b = client
-                            .block(&BlockId::Number(num))
-                            .expect("Error getting block");
-                        if b.is_none() {
-                            log::warn!("Block does not exist!")
-                        } else {
-                            blocks.push(b.expect("Checked for none; qed"));
-                        }
-                    }
-                    log::info!("Got {} blocks", blocks.len());
-                    let answer = sched.ask_next(blocks).unwrap().await;
-                    log::debug!("{:?}", answer);
                 }
                 Ok(())
             }
         })
     })
+}
+
+async fn entry<T, C>(
+    client: &Arc<C>,
+    pool: &sqlx::Pool<PgConnection>,
+    url: &str,
+    sched: &mut Scheduler<'_>,
+) -> Result<(), ArchiveError>
+where
+    T: Substrate + Send + Sync,
+    C: ChainAccess<NotSignedBlock> + 'static,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    let mut block_nums = queries::missing_blocks(&pool).await?;
+    log::info!("missing {} blocks", block_nums.len());
+    if !(block_nums.len() > 0) {
+        async_std::task::sleep(Duration::from_secs(DURATION)).await;
+        return Ok(());
+    }
+    log::info!(
+        "Starting to crawl for {} missing blocks, from {} to {} ...",
+        block_nums.len(),
+        block_nums[0].generate_series,
+        block_nums[block_nums.len() - 1].generate_series
+    );
+    let mut blocks = Vec::new();
+    for block_num in block_nums.iter() {
+        let num = block_num
+            .generate_series
+            .to_u32()
+            .expect("Could not convert into u32");
+        let b = client
+            .block(&BlockId::Number(num))
+            .expect("Error getting block");
+        if b.is_none() {
+            log::warn!("Block does not exist!")
+        } else {
+            blocks.push(b.expect("Checked for none; qed"));
+        }
+    }
+    log::info!("Got {} blocks", blocks.len());
+    let answer = sched.ask_next(blocks).unwrap().await;
+    log::debug!("{:?}", answer);
+    Ok(())
 }

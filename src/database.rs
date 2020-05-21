@@ -40,7 +40,7 @@ pub type DbConnection = sqlx::Pool<PgConnection>;
 
 #[async_trait]
 pub trait Insert: Sync {
-    async fn insert(self, db: DbConnection) -> DbReturn
+    async fn insert(mut self, db: DbConnection) -> DbReturn
     where
         Self: Sized;
 }
@@ -79,9 +79,12 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    async fn insert(self, db: DbConnection) -> DbReturn {
-        log::info!("hash = {:X?}", self.inner.block.header.hash().as_ref());
-        log::info!("block_num = {:?}", self.inner.block.header.number());
+    async fn insert(mut self, db: DbConnection) -> DbReturn {
+        log::info!(
+            "block_num = {:?}, hash = {:X?}",
+            self.inner.block.header.number(),
+            hex::encode(self.inner.block.header.hash().as_ref())
+        );
         self.single_insert()?.execute(&db).await.map_err(Into::into)
     }
 }
@@ -116,7 +119,7 @@ impl<T> Insert for Storage<T>
 where
     T: Substrate + Send + Sync,
 {
-    async fn insert(self, db: DbConnection) -> DbReturn {
+    async fn insert(mut self, db: DbConnection) -> DbReturn {
         self.single_insert()?.execute(&db).await.map_err(Into::into)
     }
 }
@@ -126,8 +129,9 @@ impl<T> Insert for Vec<Storage<T>>
 where
     T: Substrate + Send + Sync,
 {
-    async fn insert(self, db: DbConnection) -> DbReturn {
-        // let sql = storg.build_sql(Some(storg.len() as u32));
+    async fn insert(mut self, db: DbConnection) -> DbReturn {
+        log::info!("Inserting {} storage entries", self.len());
+
         let mut sizes = Vec::new();
         let chunks = self.chunks(12_000);
 
@@ -170,15 +174,15 @@ where
         Ok(query
             .bind(self.block_num())
             .bind(self.hash().as_ref())
-            .bind(self.spec())
+            .bind(self.is_full())
             .bind(self.key().0.as_slice())
-            .bind(self.data().0.as_slice()))
+            .bind(self.data().map(|d| d.0.as_slice())))
     }
 }
 
 #[async_trait]
 impl Insert for Metadata {
-    async fn insert(self, db: DbConnection) -> DbReturn {
+    async fn insert(mut self, db: DbConnection) -> DbReturn {
         self.single_insert()?.execute(&db).await.map_err(Into::into)
     }
 }
@@ -197,7 +201,7 @@ impl<T> Insert for Vec<Extrinsic<T>>
 where
     T: Substrate + Send + Sync,
 {
-    async fn insert(self, db: DbConnection) -> DbReturn {
+    async fn insert(mut self, db: DbConnection) -> DbReturn {
         let mut rows_changed = 0;
         for ext in self.chunks(15_000) {
             let ext = ext.to_vec();
@@ -230,7 +234,7 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    async fn insert(self, db: DbConnection) -> DbReturn {
+    async fn insert(mut self, db: DbConnection) -> DbReturn {
         log::info!("Batch inserting {} blocks into DB", self.inner().len());
         let sql = self.inner().build_sql(None);
         self.inner()

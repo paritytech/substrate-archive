@@ -16,12 +16,9 @@
 
 //! where the main actor framework is defined
 
-mod database;
-mod db_generators;
-mod metadata;
-mod network;
+mod generators;
 mod scheduler;
-mod transformers;
+mod workers;
 
 use super::{
     backend::ChainAccess,
@@ -30,6 +27,8 @@ use super::{
     types::{NotSignedBlock, Substrate},
 };
 use bastion::prelude::*;
+use sp_blockchain::HeaderMetadata;
+use sp_storage::StorageKey;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
 use subxt::system::System;
@@ -37,39 +36,37 @@ use subxt::system::System;
 // TODO: 'cut!' macro to handle errors from within actors
 
 /// initialize substrate archive
-/// if a child actor panics or errors, it is up to the supervisor to handle it
-pub fn init<T, C>(client: Arc<C>, url: String) -> Result<(), ArchiveError>
+/// Requires a substrate client, url to running RPC node, and a list of keys to index from storage
+/// EX: If you want to query all keys for 'System Account'
+/// twox('System') + twox('Account')
+/// Prefixes are preferred, they will be more performant
+pub fn init<T, C>(client: Arc<C>, url: String, keys: Vec<StorageKey>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
+    <T as System>::Hash: From<primitive_types::H256>,
 {
     Bastion::init();
 
     /// TODO: could be initialized asyncronously somewhere
     let pool = async_std::task::block_on(
         PgPool::builder()
-            .max_size(10)
+            .max_size(15)
             .build(&env::var("DATABASE_URL")?),
     )?;
 
     let db = Database::new(&pool)?;
 
-    // TODO use answers to handle errors in the supervisor
-    // maybe add a custom configured supervisor later
-    // but the defaults seem to be working fine so far...
-    let db_workers = self::database::actor::<T>(db).expect("Couldn't start database workers");
-    let transformers = self::transformers::actor::<T, _>(db_workers, client.clone())
-        .expect("Couldn't start transform workers");
-    let meta_workers = self::metadata::actor::<T>(transformers.clone(), url.clone(), pool.clone())
-        .expect("Couldnt start metadata");
+    self::generators::storage::<T, _>(client.clone(), pool.clone(), keys)
+        .expect("Couldn't add storage indexer");
 
     // network generator. Gets headers from network but uses client to fetch block bodies
-    self::network::actor::<T, _>(meta_workers.clone(), client.clone(), url)
+    self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())
         .expect("Couldn't add blocks child");
-    // IO/kvdb generator (missing blocks/storage/etc)
-    self::db_generators::actor::<T, _>(client, meta_workers.clone(), pool)
-        .expect("Couldn't start db work generators");
+
+    // IO/kvdb generator (missing blocks)
+    self::generators::db::<T, _>(client, pool, url).expect("Couldn't start db work generators");
 
     Bastion::start();
     Bastion::block_until_stopped();

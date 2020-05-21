@@ -17,8 +17,7 @@
 //! Actors which do work by decoding data before it's inserted into the database
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
-
-use super::scheduler::{Algorithm, Scheduler};
+use crate::actors::scheduler::{Algorithm, Scheduler};
 use crate::backend::ChainAccess;
 use crate::types::*;
 use bastion::prelude::*;
@@ -28,18 +27,21 @@ use sp_runtime::{
     traits::{Block as _, Header as _},
 };
 use sp_storage::{StorageData, StorageKey};
+use sqlx::PgConnection;
 use std::sync::Arc;
 use subxt::system::System;
 
-const REDUNDANCY: usize = 5;
+const REDUNDANCY: usize = 3;
 
 // actor that takes blocks and transforms them into different types
-pub fn actor<T, C>(db_workers: ChildrenRef, client: Arc<C>) -> Result<ChildrenRef, ()>
+pub fn actor<T, C>(client: Arc<C>, pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
 {
+    let db = crate::database::Database::new(&pool).expect("Database intialization error");
+    let db_workers = super::database::actor::<T>(db).expect("Couldn't start db workers");
     Bastion::children(|children: Children| {
         children
             .with_redundancy(REDUNDANCY)
@@ -54,12 +56,12 @@ where
                             ctx.recv().await?,
                             block: Block<T> =!> {
                                 process_block(block.clone(), &mut sched).await;
-                                extract_storage(vec![block].as_slice(), &client, &mut sched).await;
+                                // extract_storage(vec![block].as_slice(), &client, &mut sched).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                              };
                              blocks: Vec<Block<T>> =!> {
                                  process_blocks(blocks.clone(), &mut sched).await;
-                                 extract_storage(blocks.as_slice(), &client, &mut sched).await;
+                                 // extract_storage(blocks.as_slice(), &client, &mut sched).await;
                                  answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                              };
                             meta: Metadata =!> {
@@ -100,44 +102,5 @@ where
     let v = sched.ask_next(blocks).unwrap().await;
     log::debug!("{:?}", v);
     let v = sched.ask_next(ext).unwrap().await;
-    log::debug!("{:?}", v);
-}
-
-pub async fn extract_storage<T, C>(blocks: &[Block<T>], client: &Arc<C>, sched: &mut Scheduler<'_>)
-where
-    T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock> + 'static,
-    <T as System>::BlockNumber: Into<u32>,
-{
-    let mut storg: Vec<Vec<Storage<T>>> = Vec::new();
-    let now = std::time::Instant::now();
-    for block in blocks.iter() {
-        let block_num: u32 = (*block.inner().block.header.number()).into();
-        // get all storage for a block
-        let storage: Vec<(StorageKey, StorageData)> =
-            match client.storage_pairs(&BlockId::Number(block_num), &StorageKey(Vec::new())) {
-                Ok(v) => v,
-                Err(e) => {
-                    log::error!("{:?}", e);
-                    panic!("Could not get storage from client")
-                }
-            };
-
-        let hash = block.inner().block.header.hash();
-        let spec = block.spec;
-        storg.push(
-            storage
-                .into_iter()
-                .map(|(k, v)| Storage::new(block_num, spec, hash, k, v))
-                .collect::<Vec<Storage<T>>>(),
-        );
-    }
-    let storg = storg.into_iter().flatten().collect::<Vec<Storage<T>>>();
-    let elapsed = now.elapsed();
-    log::info!(
-        "Took {} milli-seconds to transform storage",
-        elapsed.as_millis()
-    );
-    let v = sched.ask_next(storg).unwrap().await;
     log::debug!("{:?}", v);
 }

@@ -27,7 +27,10 @@ CREATE TABLE IF NOT EXISTS storage (
   id SERIAL PRIMARY KEY,
   block_num bigint check (block_num >= 0 and block_num < '9223372036854775807'::bigint) NOT NULL,
   hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE,
-  spec integer NOT NULL REFERENCES metadata(version) ON DELETE CASCADE ON UPDATE CASCADE,
+  is_full boolean NOT NULL,
   key bytea NOT NULL,
-  storage bytea NOT NULL
+  storage bytea
+  -- CONSTRAINT m_hash_key_storage UNIQUE (hash, key, md5(storage))
 );
+
+CREATE UNIQUE INDEX only_unique_hash_key_storage ON storage (hash, key, md5(storage));

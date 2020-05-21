@@ -17,6 +17,7 @@
 //! Common Sql queries on Archive Database abstracted into rust functions
 
 use crate::error::Error as ArchiveError;
+use crate::types::Substrate;
 use futures::{
     stream::{StreamExt, TryStreamExt},
     Future, Stream,
@@ -48,6 +49,24 @@ pub(crate) async fn missing_blocks(
     .map_err(Into::into)
 }
 
+pub(crate) async fn missing_blocks_min_max(
+    pool: &sqlx::Pool<PgConnection>,
+    min: u32,
+    max: u32,
+) -> Result<Vec<Block>, ArchiveError> {
+    sqlx::query_as(
+        "SELECT generate_series
+         FROM (SELECT $1 as a, $2 as z FROM blocks) x, generate_series(a, z)
+         WHERE
+         NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)",
+    )
+    .bind(min as i64)
+    .bind(max as i64)
+    .fetch_all(pool)
+    .await
+    .map_err(Into::into)
+}
+
 /// check if a runtime versioned metadata exists in the database
 pub(crate) async fn check_if_meta_exists(
     spec: u32,
@@ -71,6 +90,54 @@ pub(crate) async fn get_versions(
         .fetch_all(pool)
         .await
         .map_err(Into::into)
+}
+
+pub(crate) async fn get_max_storage(
+    pool: &sqlx::Pool<PgConnection>,
+) -> Result<(u32, Vec<u8>), ArchiveError> {
+    let row: (i64, Vec<u8>) =
+        sqlx::query_as(r#"SELECT block_num, hash FROM storage WHERE block_num = (SELECT MAX(block_num) FROM storage)"#)
+        .fetch_one(pool)
+        .await?;
+    Ok((row.0 as u32, row.1))
+}
+
+pub(crate) async fn get_max_block_num(
+    pool: &sqlx::Pool<PgConnection>,
+) -> Result<(u32, Vec<u8>), ArchiveError> {
+    let row: (i64, Vec<u8>) =
+        sqlx::query_as(r#"SELECT block_num, hash FROM blocks WHERE block_num = (SELECT MAX(block_num) FROM blocks)"#)
+        .fetch_one(pool)
+        .await?;
+    Ok((row.0 as u32, row.1))
+}
+
+pub(crate) async fn is_blocks_empty(pool: &sqlx::Pool<PgConnection>) -> Result<bool, ArchiveError> {
+    let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) from blocks"#)
+        .fetch_one(pool)
+        .await?;
+    Ok(!(row.0 > 0))
+}
+
+pub(crate) async fn is_storage_empty(
+    pool: &sqlx::Pool<PgConnection>,
+) -> Result<bool, ArchiveError> {
+    let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) from storage"#)
+        .fetch_one(pool)
+        .await?;
+    Ok(!(row.0 > 0))
+}
+
+pub(crate) async fn check_if_storage_exists(
+    pool: &sqlx::Pool<PgConnection>,
+    num: u32,
+) -> Result<bool, ArchiveError> {
+    let row: (bool,) =
+        sqlx::query_as(r#"SELECT EXISTS (SELECT TRUE from storage WHERE block_num=$1)"#)
+            .bind(num)
+            .fetch_one(pool)
+            .await?;
+    Ok(row.0)
 }
 
 #[cfg(test)]

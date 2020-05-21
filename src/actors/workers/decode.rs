@@ -19,11 +19,10 @@
 //! These actors do not make any external connections to a Database or Network
 
 use crate::types::{Block, SignedExtrinsic, Inherent, RawExtrinsic, Substrate};
+use crate::actors::{scheduler::{Algorithm, Scheduler}};
 use bastion::prelude::*;
 use desub::{decoder::Decoder, TypeDetective};
 use subxt::system::System;
-
-use super::scheduler::{Algorithm, Scheduler};
 
 const REDUNDANCY: usize = 64;
 

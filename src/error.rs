@@ -16,8 +16,8 @@
 use codec::Error as CodecError;
 use failure::Fail;
 use futures::channel::mpsc::TrySendError;
-// use jsonrpc_client_transports::RpcError as JsonRpcTransportError;
 use serde_json::Error as SerdeError;
+use sp_blockchain::Error as BlockchainError;
 use sqlx::Error as SqlError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
@@ -49,7 +49,14 @@ pub enum Error {
     Subxt(#[fail(cause)] SubxtError),
     #[fail(display = "Sql {}", _0)]
     Sql(#[fail(cause)] SqlError),
-
+    #[fail(display = "Blockchain {}", _0)]
+    Blockchain(String),
+    #[fail(display = "Invalid Block Range from {} to {}. {}", _0, _1, _2)]
+    InvalidBlockRange {
+        from: String,
+        to: String,
+        details: String,
+    },
     #[fail(display = "Concurrency Error, Mutex Poisoned!")]
     Concurrency,
 
@@ -67,6 +74,12 @@ pub enum Error {
     General(String),
     // #[fail(display = "Metadata {}", _0)]
     // Metadata(MetadataError),
+}
+
+impl From<BlockchainError> for Error {
+    fn from(err: BlockchainError) -> Error {
+        Error::Blockchain(format!("{:?}", err))
+    }
 }
 
 impl From<SqlError> for Error {

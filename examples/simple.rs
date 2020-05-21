@@ -3,17 +3,16 @@
 use polkadot_service::kusama_runtime as real_ksm_runtime;
 use sc_service::config::DatabaseConfig; // integrate this into Archive Proper
 use sp_blockchain::HeaderBackend as _;
-use substrate_archive::{backend, init, NotSignedBlock};
-use sc_client_api::backend::StorageProvider;
 use sp_storage::StorageKey;
-use sp_runtime::generic::BlockId;
+use substrate_archive::{backend, init, NotSignedBlock};
+use sp_core::twox_128;
 use subxt::KusamaRuntime;
 
 // type Block = NotSignedBlock<KusamaRuntime>;
 type Block = NotSignedBlock;
 
 pub fn main() {
-    substrate_archive::init_logger(log::LevelFilter::Info);
+    substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
 
     // FIXME Database and spec initialization can be done in the lib with a convenience func
     let db = backend::open_database::<Block>(
@@ -35,6 +34,32 @@ pub fn main() {
     let info = client.info();
     println!("{:?}", info);
 
-    init::<KusamaRuntime, _>(client, "ws://127.0.0.1:9944".to_string())
-        .unwrap();
+    // TODO: create a 'key builder' for key prefixes
+    // this may already exist in substrate (haven't checked)
+    let system_key = twox_128(b"System").to_vec();
+    let events_key = twox_128(b"Events").to_vec();
+    let accounts_key = twox_128(b"Account").to_vec();
+
+    let democracy_key = twox_128(b"Democracy").to_vec();
+    let public_proposal_count = twox_128(b"PublicPropCount").to_vec();
+    let public_proposals = twox_128(b"PublicProps").to_vec();
+
+
+    let mut keys = Vec::new();
+
+    let mut system_accounts = system_key.clone();
+    system_accounts.extend(accounts_key);
+    let mut system_events = system_key.clone();
+    system_events.extend(events_key);
+    let mut democracy_public_proposal_count = democracy_key.clone();
+    democracy_public_proposal_count.extend(public_proposal_count);
+    let mut democracy_proposals = democracy_key.clone();
+    democracy_proposals.extend(public_proposals);
+
+    keys.push(StorageKey(system_accounts));
+    keys.push(StorageKey(system_events));
+    keys.push(StorageKey(democracy_public_proposal_count));
+    keys.push(StorageKey(democracy_proposals));
+
+    init::<KusamaRuntime, _>(client, "ws://127.0.0.1:9944".to_string(), keys).unwrap();
 }

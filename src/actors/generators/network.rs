@@ -18,6 +18,11 @@
 //! These aggregate data for child actors to work with
 //! they mostly wait on network IO
 
+use crate::actors::{
+    self,
+    scheduler::{Algorithm, Scheduler},
+    workers,
+};
 use crate::{
     backend::ChainAccess,
     rpc::Rpc,
@@ -27,18 +32,15 @@ use bastion::prelude::*;
 use sc_client_api::BlockBackend;
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::{Block as _, Header as _};
+use sqlx::PgConnection;
 use std::sync::Arc;
 use subxt::system::System;
-
-use super::scheduler::{Algorithm, Scheduler};
-
-const REDUNDANCY: usize = 5;
 
 /// Subscribe to new blocks via RPC
 /// this is a worker that never stops
 pub fn actor<T, C>(
-    meta_workers: ChildrenRef,
     client: Arc<C>,
+    pool: sqlx::Pool<PgConnection>,
     url: String,
 ) -> Result<ChildrenRef, ()>
 where
@@ -46,6 +48,8 @@ where
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
 {
+    let meta_workers = workers::metadata::<T, _>(url.clone(), pool, client.clone())
+        .expect("Couldn't start metadata workers");
     // actor which produces work in the form of collecting blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
@@ -54,13 +58,12 @@ where
             let client = client.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &meta_workers);
-                let rpc = super::connect::<T>(url.as_str()).await;
+                let rpc = actors::connect::<T>(url.as_str()).await;
                 let mut subscription = rpc
                     .subscribe_finalized_blocks()
                     .await
                     .expect("Subscription failed");
                 while let head = subscription.next().await {
-                    log::info!("Converting {:?} to block...", head.number());
                     let block = client
                         .block(&BlockId::Number((*head.number()).into()))
                         .map_err(|e| log::error!("{:?}", e))
