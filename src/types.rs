@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-mod traits;
 use codec::Encode;
 use std::{marker::PhantomData, hash::Hash};
 use serde::{Serialize, Deserialize};
@@ -23,9 +22,14 @@ use sp_runtime::{
     traits::{Block as _, Header as _},
 };
 use sp_storage::{StorageData, StorageKey};
-use subxt::system::System;
+use subxt::{system::System, balances::Balances};
 
-pub use self::traits::Substrate;
+/// Consolidation of substrate traits representing fundamental types
+pub trait Substrate: System + Balances + Send + Sync {}
+
+impl<T> Substrate for T where T: System + Balances + Send + Sync {}
+
+
 
 /// A generic substrate block
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
