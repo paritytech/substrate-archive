@@ -18,21 +18,20 @@ use codec::Encode;
 use std::{marker::PhantomData, hash::Hash};
 use serde::{Serialize, Deserialize};
 use sp_runtime::{
+    OpaqueExtrinsic,
     generic::{Block as BlockT, SignedBlock},
     traits::{Block as _, Header as _},
 };
 use sp_storage::{StorageData, StorageKey};
-use subxt::{system::System, balances::Balances};
+pub use frame_system::Trait as System;
 
 /// Consolidation of substrate traits representing fundamental types
-pub trait Substrate: System + Balances + Send + Sync {}
+pub trait Substrate: System + Send + Sync + std::fmt::Debug {}
 
-impl<T> Substrate for T where T: System + Balances + Send + Sync {}
-
-
+impl<T> Substrate for T where T: System + Send + Sync + std::fmt::Debug {}
 
 /// A generic substrate block
-pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, <T as System>::Extrinsic>>;
+pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
 
 /// Just one of those low-life not-signed types
 pub type NotSignedBlock = BlockT<
@@ -78,7 +77,7 @@ impl<T> Extrinsic<T>
 where
     T: Substrate + Send + Sync,
 {
-    pub fn new(ext: &T::Extrinsic, hash: T::Hash, index: u32, spec: u32) -> Self {
+    pub fn new(ext: &OpaqueExtrinsic, hash: T::Hash, index: u32, spec: u32) -> Self {
         Self {
             hash: hash.as_ref().to_vec(),
             inner: ext.encode(),

@@ -26,7 +26,7 @@ use crate::actors::{
 use crate::{
     backend::ChainAccess,
     rpc::Rpc,
-    types::{Block, NotSignedBlock, Substrate, SubstrateBlock},
+    types::{Block, NotSignedBlock, Substrate, SubstrateBlock, System},
 };
 use bastion::prelude::*;
 use sc_client_api::BlockBackend;
@@ -34,7 +34,6 @@ use sp_runtime::generic::BlockId;
 use sp_runtime::traits::{Block as _, Header as _};
 use sqlx::PgConnection;
 use std::sync::Arc;
-use subxt::system::System;
 use jsonrpsee::client::Subscription;
 
 /// Subscribe to new blocks via RPC
@@ -48,6 +47,7 @@ where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
+    <T as System>::Header: serde::de::DeserializeOwned,
 {
     let meta_workers = workers::metadata::<T, _>(url.clone(), pool, client.clone())
         .expect("Couldn't start metadata workers");
@@ -61,7 +61,7 @@ where
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &meta_workers);
                 let rpc = actors::connect::<T>(url.as_str()).await;
                 let mut subscription = rpc
-                    .subscribe_finalized_blocks()
+                    .subscribe_finalized_heads()
                     .await
                     .expect("Subscription failed");
                 loop {
@@ -86,7 +86,6 @@ where
         })
     })
 }
-
 
 async fn handle_shutdown<T, N>(ctx: &BastionContext, subscription: &mut Subscription<N>) -> bool
 where

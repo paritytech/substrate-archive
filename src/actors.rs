@@ -24,14 +24,13 @@ use super::{
     backend::ChainAccess,
     database::Database,
     error::Error as ArchiveError,
-    types::{NotSignedBlock, Substrate},
+    types::{NotSignedBlock, Substrate, System},
 };
 use bastion::prelude::*;
 use sp_blockchain::HeaderMetadata;
 use sp_storage::StorageKey;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
-use subxt::system::System;
 
 // TODO: 'cut!' macro to handle errors from within actors
 
@@ -46,6 +45,7 @@ where
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Hash: From<primitive_types::H256>,
+    <T as System>::Header: serde::de::DeserializeOwned,
 {
     Bastion::init();
 
@@ -98,11 +98,9 @@ pub enum Broadcast {
 
 /// connect to the substrate RPC
 /// each actor may potentially have their own RPC connections
-async fn connect<T: Substrate + Send + Sync>(url: &str) -> subxt::Client<T> {
-    subxt::ClientBuilder::<T>::new()
-        .set_url(url)
-        .build()
+async fn connect<T: Substrate + Send + Sync>(url: &str) -> crate::rpc::Rpc<T> {
+    crate::rpc::Rpc::connect(url)
         .await
-        .map_err(|e| log::error!("{:?}", e))
-        .unwrap()
+        .expect("Couldn't connect to rpc")
+
 }

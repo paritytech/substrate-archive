@@ -30,13 +30,12 @@ use crate::{
 };
 use bastion::prelude::*;
 use primitive_types::H256;
-use rayon::prelude::*;
+// use rayon::prelude::*;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::generic::BlockId;
 use sp_storage::{StorageChangeSet, StorageData, StorageKey};
 use sqlx::PgConnection;
 use std::{time::Duration, sync::Arc};
-use subxt::system::System;
 
 //TODO need to find a better way to speed up indexing
 /// Actor to index storage for PostgreSQL database

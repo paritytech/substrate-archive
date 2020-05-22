@@ -22,7 +22,6 @@ use sp_runtime::traits::Header as _;
 use sqlx::postgres::PgArguments;
 use sqlx::PgConnection;
 use sqlx::Postgres;
-use subxt::system::System;
 
 pub trait SuperTrait<'a>: PrepareSql<'a> + PrepareBatchSql<'a> {}
 

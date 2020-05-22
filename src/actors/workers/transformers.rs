@@ -30,7 +30,6 @@ use sp_runtime::{
 use sp_storage::{StorageData, StorageKey};
 use sqlx::PgConnection;
 use std::sync::Arc;
-use subxt::system::System;
 
 const REDUNDANCY: usize = 3;
 

@@ -20,7 +20,16 @@ use futures::{future::join, TryFutureExt};
 use runtime_version::RuntimeVersion;
 use sp_storage::{StorageChangeSet, StorageKey};
 use substrate_rpc_primitives::number::NumberOrHex;
-use subxt::{system::System, Client};
+use std::marker::PhantomData;
+use jsonrpsee::{
+    client::Subscription,
+    common::{
+        to_value as to_json_value,
+        Params
+    },
+    Client
+};
+use sp_core::Bytes;
 
 use crate::{
     error::Error as ArchiveError,
@@ -30,90 +39,53 @@ use crate::{
 /// Communicate with Substrate node via RPC
 #[derive(Clone)]
 pub struct Rpc<T: Substrate + Send + Sync> {
-    client: Client<T>,
+    client: Client,
+    _marker: PhantomData<T>
 }
-
+// version/metadata subscribe blocks
 /// Methods that return fetched value directly
 impl<T> Rpc<T>
 where
     T: Substrate + Send + Sync,
 {
-    pub fn new(client: subxt::Client<T>) -> Self {
-        Self { client }
-    }
-
-    pub(crate) async fn meta_and_version(
-        &self,
-        hash: Option<T::Hash>,
-    ) -> Result<(RuntimeVersion, Vec<u8>), ArchiveError> {
-        let meta = self
-            .client
-            .raw_metadata(hash.as_ref())
-            .map_err(ArchiveError::from);
-        let version = self
-            .client
-            .runtime_version(hash.as_ref())
-            .map_err(ArchiveError::from);
-        let (meta, version) = join(meta, version).await;
-        let meta = meta?;
-        let version = version?;
-        Ok((version, meta))
-        // Ok((version, Metadata::new(meta.as_slice())))
+    pub(crate) async fn connect(url: &str) -> Result<Self, ArchiveError> {
+        let client = jsonrpsee::ws_client(&url).await?;
+        Ok(Rpc {
+            client,
+            _marker: PhantomData
+        })
     }
 
     pub(crate) async fn version(
         &self,
-        hash: Option<T::Hash>,
+        hash: Option<&T::Hash>,
     ) -> Result<RuntimeVersion, ArchiveError> {
-        self.client
-            .runtime_version(hash.as_ref())
-            .map_err(Into::into)
-            .await
+        let params = Params::Array(vec![to_json_value(hash)?]);
+        let version = self
+            .client
+            .request("state_getRuntimeVersion", params)
+            .await?;
+        Ok(version)
     }
 
     pub(crate) async fn metadata(&self, hash: Option<T::Hash>) -> Result<Vec<u8>, ArchiveError> {
-        self.client
-            .raw_metadata(hash.as_ref())
-            .map_err(ArchiveError::from)
-            .await
+        let params = Params::Array(vec![to_json_value(hash)?]);
+        let bytes: Bytes = self
+            .client
+            .request("state_getMetadata", params)
+            .await?;
+        Ok(bytes.0)
     }
 
-    pub async fn block_from_number(
-        &self,
-        number: NumberOrHex<T::BlockNumber>,
-    ) -> Result<Option<SubstrateBlock<T>>, ArchiveError> {
-        let hash = self.client.block_hash(Some(number.into())).await?;
-        self.client.block(hash).await.map_err(Into::into)
+    pub(crate) async fn subscribe_finalized_heads(&self) -> Result<Subscription<T::Header>, ArchiveError> {
+        let subscription = self
+            .client
+            .subscribe(
+                "chain_subscribeFinalizedHeads",
+                Params::None,
+                "chain_subscribeFinalizedHeads"
+            )
+            .await?;
+        Ok(subscription)
     }
-
-    pub async fn query_storage(
-        &self,
-        from: T::Hash,
-        to: Option<T::Hash>,
-        keys: Vec<StorageKey>,
-    ) -> Result<Vec<StorageChangeSet<<T as System>::Hash>>, ArchiveError> {
-        self.client
-            .query_storage(keys, from, to)
-            .map_err(ArchiveError::from)
-            .await
-    }
-
-    // pub async fn storage()
-
-    /// unsubscribe from finalized heads
-    #[allow(dead_code)]
-    fn unsubscribe_finalized_heads() {
-        unimplemented!();
-    }
-
-    /// unsubscribe from new heads
-    #[allow(dead_code)]
-    fn unsubscribe_new_heads() {
-        unimplemented!();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
 }

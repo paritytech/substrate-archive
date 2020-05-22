@@ -22,14 +22,14 @@ use crate::{
     backend::ChainAccess,
     queries,
     rpc::Rpc,
-    types::{Block, Metadata, NotSignedBlock, Substrate, SubstrateBlock},
+    types::{Block, Metadata, NotSignedBlock, Substrate, SubstrateBlock, System},
 };
 use bastion::prelude::*;
+use serde::de::DeserializeOwned;
 use futures::future::join_all;
 use sp_runtime::traits::{Block as _, Header as _};
 use sqlx::PgConnection;
 use std::sync::Arc;
-use subxt::system::System;
 
 const REDUNDANCY: usize = 5;
 
@@ -44,6 +44,7 @@ where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
+    <T as System>::Header: DeserializeOwned
 {
     let transform_workers = super::transformers::actor::<T, _>(client, pool.clone())
         .expect("Couldn't start transformers");
@@ -56,7 +57,7 @@ where
                 let pool = pool.clone();
                 async move {
                     let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
-                    let rpc = Rpc::new(super::connect::<T>(url.as_str()).await);
+                    let rpc = super::connect::<T>(url.as_str()).await;
                     loop {
                         msg! {
                             ctx.recv().await?,
@@ -89,7 +90,7 @@ async fn meta_process_block<T>(
     T: Substrate + Send + Sync,
 {
     let hash = block.block.header().hash();
-    let ver = rpc.version(Some(hash).clone()).await.unwrap();
+    let ver = rpc.version(Some(hash).as_ref()).await.unwrap();
     meta_checker(ver.spec_version, Some(hash), &rpc, pool, sched).await;
     let block = Block::<T>::new(block, ver.spec_version);
     let v = sched.ask_next(block).unwrap().await;
@@ -109,7 +110,7 @@ async fn meta_process_blocks<T>(
 
     let now = std::time::Instant::now();
     let first = rpc
-        .version(Some(blocks[0].block.header().hash()))
+        .version(Some(&blocks[0].block.header().hash()))
         .await
         .unwrap();
     let elapsed = now.elapsed();
@@ -118,7 +119,7 @@ async fn meta_process_blocks<T>(
         elapsed.as_millis()
     );
     let last = rpc
-        .version(Some(blocks[blocks.len() - 1].block.header().hash()))
+        .version(Some(blocks[blocks.len() - 1].block.header().hash()).as_ref())
         .await
         .unwrap();
     log::info!(
@@ -141,7 +142,7 @@ async fn meta_process_blocks<T>(
     } else {
         for b in blocks.into_iter() {
             let hash = b.block.header().hash();
-            let ver = rpc.version(Some(hash).clone()).await.unwrap();
+            let ver = rpc.version(Some(hash).as_ref()).await.unwrap();
             meta_checker(ver.spec_version, Some(hash), &rpc, pool, sched).await;
             batch_items.push(Block::<T>::new(b, ver.spec_version))
         }

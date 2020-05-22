@@ -19,7 +19,6 @@ use crate::queries;
 use crate::types::*;
 use super::Broadcast;
 use bastion::prelude::*;
-use subxt::system::System;
 
 pub const REDUNDANCY: usize = 5;
 

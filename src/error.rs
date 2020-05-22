@@ -23,7 +23,8 @@ use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
 use std::sync::PoisonError;
-use subxt::Error as SubxtError;
+use jsonrpsee::client::RequestError as JsonrpseeRequest;
+use jsonrpsee::transport::ws::WsNewDnsError;
 use bincode::ErrorKind as BincodeError;
 
 pub type ArchiveResult<T> = Result<T, Error>;
@@ -46,8 +47,6 @@ pub enum Error {
     IntConversion(#[fail(cause)] TryFromIntError),
     #[fail(display = "Serialization: {}", _0)]
     Serialize(#[fail(cause)] SerdeError),
-    #[fail(display = "Rpc Comms {}", _0)]
-    Subxt(#[fail(cause)] SubxtError),
     #[fail(display = "Sql {}", _0)]
     Sql(#[fail(cause)] SqlError),
     #[fail(display = "Blockchain {}", _0)]
@@ -60,6 +59,10 @@ pub enum Error {
     },
     #[fail(display = "Bincode encoding {}", _0)]
     Bincode(#[fail(cause)] Box<BincodeError>),
+    #[fail(display = "Rpc Request {}", _0)]
+    JsonrpseeRequest(#[fail(cause)] JsonrpseeRequest),
+    #[fail(display = "Ws DNS Failure {}", _0)]
+    WsDns(#[fail(cause)] WsNewDnsError),
     #[fail(display = "Concurrency Error, Mutex Poisoned!")]
     Concurrency,
     #[fail(display = "Call type unhandled, not committing to database")]
@@ -76,6 +79,18 @@ pub enum Error {
     General(String),
     // #[fail(display = "Metadata {}", _0)]
     // Metadata(MetadataError),
+}
+
+impl From<WsNewDnsError> for Error {
+    fn from(err: WsNewDnsError) -> Error {
+        Error::WsDns(err)
+    }
+}
+
+impl From<JsonrpseeRequest> for Error {
+    fn from(err: JsonrpseeRequest) -> Error {
+        Error::JsonrpseeRequest((err))
+    }
 }
 
 impl From<Box<BincodeError>> for Error {
@@ -99,12 +114,6 @@ impl From<SqlError> for Error {
 impl From<&str> for Error {
     fn from(err: &str) -> Error {
         Error::General(err.to_string())
-    }
-}
-
-impl From<SubxtError> for Error {
-    fn from(err: SubxtError) -> Error {
-        Error::Subxt(err)
     }
 }
 

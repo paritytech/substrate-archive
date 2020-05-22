@@ -28,7 +28,7 @@ use crate::{
     database::Insert,
     error::Error as ArchiveError,
     queries,
-    types::{BatchBlock, NotSignedBlock, Substrate},
+    types::{BatchBlock, NotSignedBlock, Substrate, System},
 };
 use async_std::prelude::*;
 use async_std::stream;
@@ -38,7 +38,6 @@ use sc_client_api::client::BlockBackend as _;
 use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
 use std::{sync::Arc, time::Duration};
-use subxt::system::System;
 
 const DURATION: u64 = 5;
 
@@ -51,6 +50,7 @@ where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock> + 'static,
     <T as System>::BlockNumber: Into<u32>,
+    <T as System>::Header: serde::de::DeserializeOwned,
 {
     let meta_workers = workers::metadata::<T, _>(url.clone(), pool.clone(), client.clone())
         .expect("Couldn't start metadata workers");
