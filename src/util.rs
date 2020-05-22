@@ -13,13 +13,12 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
+
 //! logging and general utilities
 
-use chrono::{DateTime, TimeZone, Utc};
 use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
-use std::convert::TryFrom;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 // panics if it fails because of anything other than the directory already exists
 pub fn create_dir(path: &Path) {
@@ -52,7 +51,6 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .error(Color::Red)
         .debug(Color::Blue)
         .trace(Color::Magenta);
-
 
     // let mut log_dir = dirs::data_local_dir().expect("failed to find local data dir for logs");
     // log_dir.push("substrate_archive");

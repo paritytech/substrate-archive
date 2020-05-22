@@ -20,16 +20,13 @@
 mod prepare_sql;
 
 use async_trait::async_trait;
-use codec::{Decode, Encode};
-use futures::future::{self, TryFutureExt};
+use futures::future;
 use sp_runtime::traits::Header as _;
-use sqlx::{arguments::Arguments as _, postgres::PgArguments, PgConnection, Postgres};
-use std::{convert::TryFrom, env, sync::RwLock};
+use sqlx::{PgConnection, Postgres};
 
 use self::prepare_sql::{BindAll, PrepareBatchSql as _, PrepareSql as _};
 use crate::{
     error::{ArchiveResult, Error as ArchiveError},
-    queries,
     types::*,
 };
 

@@ -17,25 +17,20 @@
 //! Indexes storage
 
 use crate::actors::{
-    self,
     scheduler::{Algorithm, Scheduler},
     workers,
 };
 use crate::{
     backend::{ChainAccess, StorageBackend},
     error::Error as ArchiveError,
-    actors::Broadcast,
     queries,
     types::*,
 };
 use bastion::prelude::*;
 use primitive_types::H256;
-// use rayon::prelude::*;
-use sp_blockchain::HeaderBackend;
-use sp_runtime::generic::BlockId;
-use sp_storage::{StorageChangeSet, StorageData, StorageKey};
+use sp_storage::StorageKey;
 use sqlx::PgConnection;
-use std::{time::Duration, sync::Arc};
+use std::{sync::Arc, time::Duration};
 
 //TODO need to find a better way to speed up indexing
 /// Actor to index storage for PostgreSQL database
@@ -65,6 +60,9 @@ where
                 let mut max_storage: u32 = 0;
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                 loop {
+                    if handle_shutdown::<T>(&ctx).await {
+                        break;
+                    }
                     match entry::<T, C>(&client, &pool, &mut sched, &keys, &mut max_storage).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
@@ -130,7 +128,9 @@ where
     }
 
     let query_from_hash = H256::from_slice(query_from_hash.as_slice());
-    let query_to_hash = client.hash(T::BlockNumber::from(query_to_num))?.expect("Block not found");
+    let query_to_hash = client
+        .hash(T::BlockNumber::from(query_to_num))?
+        .expect("Block not found");
 
     log::info!(
         "\nquery_from_num={:?}, query_from_hash={:?} \n query_to_num = {:?}, query_to_hash={:?}\n",
@@ -203,7 +203,7 @@ where
 
     if to_defer.len() > 0 {
         log::info!("Storage should be deferred");
-        let child = super::defer_storage::actor::<T>(pool.clone(), sched.workers().clone(), to_defer)
+        super::defer_storage::actor::<T>(pool.clone(), sched.workers().clone(), to_defer)
             .expect("Couldn't start defer workers");
     }
 
@@ -220,4 +220,20 @@ where
         .expect("Couldn't send storage to database");
     log::debug!("{:?}", answer);
     Ok(())
+}
+
+async fn handle_shutdown<T>(ctx: &BastionContext) -> bool
+where
+    T: Substrate + Send + Sync,
+{
+    if let Some(msg) = ctx.try_recv().await {
+        msg! {
+            msg,
+            ref broadcast: super::Broadcast => {
+                return true
+            };
+            e: _ => log::warn!("Received unknown message: {:?}", e);
+        };
+    }
+    false
 }

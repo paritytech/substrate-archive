@@ -14,33 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Wrapper RPC convenience functions
+//! substrate RPC
 
-use futures::{future::join, TryFutureExt};
-use runtime_version::RuntimeVersion;
-use sp_storage::{StorageChangeSet, StorageKey};
-use substrate_rpc_primitives::number::NumberOrHex;
-use std::marker::PhantomData;
 use jsonrpsee::{
     client::Subscription,
-    common::{
-        to_value as to_json_value,
-        Params
-    },
-    Client
+    common::{to_value as to_json_value, Params},
+    Client,
 };
+use runtime_version::RuntimeVersion;
 use sp_core::Bytes;
+use std::marker::PhantomData;
 
-use crate::{
-    error::Error as ArchiveError,
-    types::{Substrate, SubstrateBlock},
-};
+use crate::{error::Error as ArchiveError, types::Substrate};
 
 /// Communicate with Substrate node via RPC
 #[derive(Clone)]
 pub struct Rpc<T: Substrate + Send + Sync> {
     client: Client,
-    _marker: PhantomData<T>
+    _marker: PhantomData<T>,
 }
 // version/metadata subscribe blocks
 /// Methods that return fetched value directly
@@ -52,7 +43,7 @@ where
         let client = jsonrpsee::ws_client(&url).await?;
         Ok(Rpc {
             client,
-            _marker: PhantomData
+            _marker: PhantomData,
         })
     }
 
@@ -70,20 +61,19 @@ where
 
     pub(crate) async fn metadata(&self, hash: Option<T::Hash>) -> Result<Vec<u8>, ArchiveError> {
         let params = Params::Array(vec![to_json_value(hash)?]);
-        let bytes: Bytes = self
-            .client
-            .request("state_getMetadata", params)
-            .await?;
+        let bytes: Bytes = self.client.request("state_getMetadata", params).await?;
         Ok(bytes.0)
     }
 
-    pub(crate) async fn subscribe_finalized_heads(&self) -> Result<Subscription<T::Header>, ArchiveError> {
+    pub(crate) async fn subscribe_finalized_heads(
+        &self,
+    ) -> Result<Subscription<T::Header>, ArchiveError> {
         let subscription = self
             .client
             .subscribe(
                 "chain_subscribeFinalizedHeads",
                 Params::None,
-                "chain_subscribeFinalizedHeads"
+                "chain_subscribeFinalizedHeads",
             )
             .await?;
         Ok(subscription)

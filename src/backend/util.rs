@@ -17,7 +17,6 @@
 //! various utilities that make interfacing with substrate easier
 
 use kvdb_rocksdb::DatabaseConfig;
-use sc_service::config::NetworkConfiguration;
 use sp_database::Database as DatabaseTrait;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
@@ -66,17 +65,4 @@ pub fn open_database<Block: BlockT>(
     let db = super::database::ReadOnlyDatabase::open(&db_config, &path)
         .map_err(|err| sp_blockchain::Error::Backend(format!("{}", err)))?;
     Ok(sp_database::as_database(db))
-}
-
-/// A constrained network configurationg that doesn't allow for storing configs, and keeps connections to a minimum
-pub fn constrained_network_config() -> NetworkConfiguration {
-    NetworkConfiguration {
-        net_config_path: None,
-        listen_addresses: Vec::new(),
-        in_peers: 1,
-        out_peers: 10,
-        client_version: env!("CARGO_PKG_VERSION").to_string(),
-        node_name: "substrate-archive".to_string(),
-        ..NetworkConfiguration::new_local()
-    }
 }

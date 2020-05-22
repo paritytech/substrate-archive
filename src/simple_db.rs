@@ -14,30 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-
 //! a simple "database" that serializes to/from bincode
 //! used for saving entries which aren't ready to insert into the database (because of E.G missing blocks)
 //! and saves these entries to disk to be reloaded the next time a program starts
 //! avoids having to search for missing entries in PostgreSQL and re-fetching from running node
 
+use crate::error::Error as ArchiveError;
+use flate2::{read::DeflateDecoder, write::DeflateEncoder, Compression};
+use serde::{de::DeserializeOwned, Serialize};
 use std::{
+    default::Default,
+    fs::{self, File, OpenOptions},
     io::prelude::*,
     io::SeekFrom,
-    fs::{self, File, OpenOptions},
     marker::PhantomData,
     path::PathBuf,
-    default::Default,
 };
-use flate2::{
-    Compression,
-    write::DeflateEncoder,
-    read::DeflateDecoder,
-};
-use serde::{
-    Serialize,
-    de::DeserializeOwned
-};
-use crate::error::Error as ArchiveError;
 
 #[derive(Debug)]
 pub(crate) struct SimpleDb<D: DeserializeOwned + Serialize + Default> {
@@ -45,14 +37,17 @@ pub(crate) struct SimpleDb<D: DeserializeOwned + Serialize + Default> {
     _marker: PhantomData<D>,
 }
 /// A simple DB that allows saving/retrieving rust data structures to/from a (compressed) file.
-impl<D> SimpleDb<D> where D: DeserializeOwned + Serialize + Default {
+impl<D> SimpleDb<D>
+where
+    D: DeserializeOwned + Serialize + Default,
+{
     pub(crate) fn new(path: PathBuf) -> Result<Self, ArchiveError> {
         if !path.as_path().exists() {
             File::create(path.as_path()).map_err(ArchiveError::from)?;
         }
         Ok(SimpleDb {
             path,
-            _marker: PhantomData
+            _marker: PhantomData,
         })
     }
 
@@ -68,6 +63,7 @@ impl<D> SimpleDb<D> where D: DeserializeOwned + Serialize + Default {
         Ok(())
     }
 
+    #[allow(unused)]
     /// Get structure from file, DEFLATING and then deserializing from Bincode
     pub(crate) fn get(&self) -> Result<D, ArchiveError> {
         let meta = fs::metadata(self.path.as_path())?;
@@ -90,13 +86,14 @@ impl<D> SimpleDb<D> where D: DeserializeOwned + Serialize + Default {
             .create(true)
             .read(true)
             .write(true)
-            .open(self.path.as_path()).map_err(Into::into)
+            .open(self.path.as_path())
+            .map_err(Into::into)
     }
 
     /// mutate the file, always setting seek back to beginning
     fn mutate<F>(&self, mut fun: F) -> Result<(), ArchiveError>
     where
-        F: FnMut(&mut File) -> Result<(), ArchiveError>
+        F: FnMut(&mut File) -> Result<(), ArchiveError>,
     {
         let mut file = self.open()?;
         fun(&mut file)?;
@@ -104,9 +101,11 @@ impl<D> SimpleDb<D> where D: DeserializeOwned + Serialize + Default {
         Ok(())
     }
 
+    #[allow(unused)]
     /// read file, setting seek back to the start
     fn read<F>(&self, fun: F) -> Result<D, ArchiveError>
-    where F: Fn(&File) -> Result<D, ArchiveError>
+    where
+        F: Fn(&File) -> Result<D, ArchiveError>,
     {
         let mut file = self.open()?;
         let ret = fun(&file)?;

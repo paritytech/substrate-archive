@@ -18,26 +18,16 @@
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 use crate::actors::scheduler::{Algorithm, Scheduler};
-use crate::backend::ChainAccess;
 use crate::types::*;
-use super::Broadcast;
 use bastion::prelude::*;
-use sc_client_api::backend::StorageProvider;
-use sp_runtime::{
-    generic::BlockId,
-    traits::{Block as _, Header as _},
-};
-use sp_storage::{StorageData, StorageKey};
 use sqlx::PgConnection;
-use std::sync::Arc;
 
 const REDUNDANCY: usize = 3;
 
 // actor that takes blocks and transforms them into different types
-pub fn actor<T, C>(client: Arc<C>, pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
+pub fn actor<T>(pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
 {
     let db = crate::database::Database::new(&pool).expect("Database intialization error");
@@ -47,7 +37,6 @@ where
             .with_redundancy(REDUNDANCY)
             .with_exec(move |ctx: BastionContext| {
                 let workers = db_workers.clone();
-                let client = client.clone();
                 async move {
                     log::info!("Transformer started");
                     let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
@@ -56,19 +45,17 @@ where
                             ctx.recv().await?,
                             block: Block<T> =!> {
                                 process_block(block.clone(), &mut sched).await;
-                                // extract_storage(vec![block].as_slice(), &client, &mut sched).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                              };
                              blocks: Vec<Block<T>> =!> {
                                  process_blocks(blocks.clone(), &mut sched).await;
-                                 // extract_storage(blocks.as_slice(), &client, &mut sched).await;
                                  answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                              };
                             meta: Metadata =!> {
                                 let v = sched.ask_next(meta).unwrap().await;
                                 log::debug!("{:?}", v);
                             };
-                            ref broadcast: &'static str => {
+                            ref broadcast: super::Broadcast => {
                                 ()
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);

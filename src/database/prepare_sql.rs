@@ -16,11 +16,8 @@
 
 //! prepared statements for sqlx
 
-use crate::error::{ArchiveResult, Error as ArchiveError};
+use crate::error::ArchiveResult;
 use crate::types::*;
-use sp_runtime::traits::Header as _;
-use sqlx::postgres::PgArguments;
-use sqlx::PgConnection;
 use sqlx::Postgres;
 
 pub trait SuperTrait<'a>: PrepareSql<'a> + PrepareBatchSql<'a> {}

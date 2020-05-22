@@ -56,6 +56,7 @@ impl<'a> Scheduler<'a> {
         }
     }
 
+    #[allow(unused)]
     pub fn tell_next<T>(&mut self, data: T) -> Result<(), T>
     where
         T: Send + Sync + std::fmt::Debug + 'static,
@@ -72,9 +73,5 @@ impl<'a> Scheduler<'a> {
 
     pub fn workers(&'a self) -> &'a ChildrenRef {
         self.workers
-    }
-
-    pub fn context(&'a self) -> &'a BastionContext {
-        self.ctx
     }
 }

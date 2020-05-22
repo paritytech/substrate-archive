@@ -14,40 +14,29 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::actors::{
-    self,
-    scheduler::{Algorithm, Scheduler},
-};
+use crate::actors::scheduler::{Algorithm, Scheduler};
 use crate::{
-    backend::ChainAccess,
     queries,
     rpc::Rpc,
-    types::{Block, Metadata, NotSignedBlock, Substrate, SubstrateBlock, System},
+    types::{Block, Metadata, Substrate, SubstrateBlock, System},
 };
 use bastion::prelude::*;
 use serde::de::DeserializeOwned;
-use futures::future::join_all;
 use sp_runtime::traits::{Block as _, Header as _};
 use sqlx::PgConnection;
-use std::sync::Arc;
 
 const REDUNDANCY: usize = 5;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub fn actor<T, C>(
-    url: String,
-    pool: sqlx::Pool<PgConnection>,
-    client: Arc<C>,
-) -> Result<ChildrenRef, ()>
+pub fn actor<T>(url: String, pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
-    <T as System>::Header: DeserializeOwned
+    <T as System>::Header: DeserializeOwned,
 {
-    let transform_workers = super::transformers::actor::<T, _>(client, pool.clone())
-        .expect("Couldn't start transformers");
+    let transform_workers =
+        super::transformers::actor::<T>(pool.clone()).expect("Couldn't start transformers");
     Bastion::children(|children| {
         children
             .with_redundancy(REDUNDANCY)
@@ -70,7 +59,7 @@ where
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
                                 // send batch_items to decode actor
                             };
-                            ref broadcast: &'static str => {
+                            ref broadcast: super::Broadcast => {
                                 ()
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
@@ -151,10 +140,6 @@ async fn meta_process_blocks<T>(
     let v = sched.ask_next(batch_items).unwrap().await;
     log::debug!("{:?}", v);
 }
-struct SplitBlocks {
-    block: u32,
-    spec: u32,
-}
 
 async fn meta_checker<T>(
     ver: u32,
@@ -172,5 +157,6 @@ async fn meta_checker<T>(
         let meta = rpc.metadata(hash).await.expect("Couldn't get metadata");
         let meta = Metadata::new(ver, meta);
         let v = sched.ask_next(meta).unwrap().await;
+        log::debug!("{:?}", v);
     }
 }

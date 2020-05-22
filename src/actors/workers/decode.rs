@@ -19,7 +19,7 @@
 //! These actors do not make any external connections to a Database or Network
 
 use crate::types::{Block, SignedExtrinsic, Inherent, RawExtrinsic, Substrate, System};
-use crate::actors::{scheduler::{Algorithm, Scheduler}};
+use crate::actors::scheduler::{Algorithm, Scheduler};
 use bastion::prelude::*;
 use desub::{decoder::Decoder, TypeDetective};
 
@@ -59,7 +59,7 @@ where
                                  process_extrinsics(decoder.clone(), blocks, &mut sched).await;
                                  answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                             };
-                            ref broadcast: &'static str => {
+                            ref broadcast: super::Broadcast => {
                                 () // we don't need to do any cleanup
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);

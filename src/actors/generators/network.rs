@@ -25,16 +25,14 @@ use crate::actors::{
 };
 use crate::{
     backend::ChainAccess,
-    rpc::Rpc,
-    types::{Block, NotSignedBlock, Substrate, SubstrateBlock, System},
+    types::{NotSignedBlock, Substrate, System},
 };
 use bastion::prelude::*;
-use sc_client_api::BlockBackend;
+use jsonrpsee::client::Subscription;
 use sp_runtime::generic::BlockId;
-use sp_runtime::traits::{Block as _, Header as _};
+use sp_runtime::traits::Header as _;
 use sqlx::PgConnection;
 use std::sync::Arc;
-use jsonrpsee::client::Subscription;
 
 /// Subscribe to new blocks via RPC
 /// this is a worker that never stops
@@ -49,8 +47,8 @@ where
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
-    let meta_workers = workers::metadata::<T, _>(url.clone(), pool, client.clone())
-        .expect("Couldn't start metadata workers");
+    let meta_workers =
+        workers::metadata::<T>(url.clone(), pool).expect("Couldn't start metadata workers");
     // actor which produces work in the form of collecting blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
@@ -94,7 +92,8 @@ where
     if let Some(msg) = ctx.try_recv().await {
         msg! {
             msg,
-            ref broadcast: &'static str => {
+            ref broadcast: super::Broadcast => {
+                // dropping a jsonrpsee::Subscription unsubscribes
                 std::mem::drop(subscription);
                 return true;
             };

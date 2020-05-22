@@ -23,8 +23,7 @@ use crate::{
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate},
 };
-use sc_client_api::StorageProvider;
-use sp_blockchain::{CachedHeaderMetadata, Error as ClientError, HeaderBackend, HeaderMetadata};
+use sp_blockchain::CachedHeaderMetadata;
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, CheckedSub, NumberFor, SaturatedConversion},
@@ -171,9 +170,7 @@ where
     ) -> Result<QueryStorageRange<NotSignedBlock<T>>, ArchiveError> {
         let to = self.block_or_best(to)?;
 
-        let from_meta = self
-            .client
-            .header_metadata(from)?;
+        let from_meta = self.client.header_metadata(from)?;
         let to_meta = self.client.header_metadata(to)?;
 
         if from_meta.number > to_meta.number {
@@ -302,14 +299,6 @@ fn invalid_block_range<B: BlockT>(
     ArchiveError::InvalidBlockRange {
         from: to_string(from),
         to: to_string(to),
-        details,
-    }
-}
-
-fn invalid_block<B: BlockT>(from: B::Hash, to: Option<B::Hash>, details: String) -> ArchiveError {
-    ArchiveError::InvalidBlockRange {
-        from: format!("{:?}", from),
-        to: format!("{:?}", to),
         details,
     }
 }

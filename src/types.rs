@@ -15,19 +15,18 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use std::{marker::PhantomData, hash::Hash};
-use serde::{Serialize, Deserialize};
+pub use frame_system::Trait as System;
+use serde::{Deserialize, Serialize};
 use sp_runtime::{
-    OpaqueExtrinsic,
     generic::{Block as BlockT, SignedBlock},
     traits::Header as _,
+    OpaqueExtrinsic,
 };
 use sp_storage::{StorageData, StorageKey};
-pub use frame_system::Trait as System;
+use std::{hash::Hash, marker::PhantomData};
 
 /// Consolidation of substrate traits representing fundamental types
-pub trait Substrate: System + Send + Sync + std::fmt::Debug
-{}
+pub trait Substrate: System + Send + Sync + std::fmt::Debug {}
 
 impl<T> Substrate for T where T: System + Send + Sync + std::fmt::Debug {}
 
@@ -36,9 +35,6 @@ pub type SubstrateBlock<T> = SignedBlock<NotSignedBlock<T>>;
 
 /// Just one of those low-life not-signed types
 pub type NotSignedBlock<T> = BlockT<<T as System>::Header, OpaqueExtrinsic>;
-
-/// Read-Only RocksDb backed Backend Type
-pub type ArchiveBackend<T> = sc_client_db::Backend<NotSignedBlock<T>>;
 
 #[derive(Debug)]
 pub struct Metadata {
@@ -148,7 +144,10 @@ pub struct Storage<T: Substrate + Send + Sync> {
 
 // need to manually implement hash here because Rust doesn't recognize that T::Hash implements hash
 // if we derive `Hash`
-impl<T> Hash for Storage<T> where T: Substrate + Send + Sync {
+impl<T> Hash for Storage<T>
+where
+    T: Substrate + Send + Sync,
+{
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.hash.hash(state);
         self.block_num.hash(state);

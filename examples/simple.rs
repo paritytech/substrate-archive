@@ -1,11 +1,27 @@
+// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// This file is part of substrate-archive.
+
+// substrate-archive is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// substrate-archive is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
+
 //! A simple example
 
-use polkadot_service::{Block, kusama_runtime as ksm_runtime};
+use polkadot_service::{kusama_runtime as ksm_runtime, Block};
 use sc_service::config::DatabaseConfig; // integrate this into Archive Proper
 use sp_blockchain::HeaderBackend as _;
+use sp_core::twox_128;
 use sp_storage::StorageKey;
 use substrate_archive::{backend, init};
-use sp_core::twox_128;
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
@@ -19,13 +35,11 @@ pub fn main() {
     let conf = DatabaseConfig::Custom(db);
 
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-    let client = backend::client::<
-        Block,
-        ksm_runtime::RuntimeApi,
-        polkadot_service::KusamaExecutor,
-        _,
-    >(conf, spec)
-    .unwrap();
+    let client =
+        backend::client::<Block, ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor, _>(
+            conf, spec,
+        )
+        .unwrap();
 
     let info = client.info();
     println!("{:?}", info);
@@ -39,7 +53,6 @@ pub fn main() {
     let democracy_key = twox_128(b"Democracy").to_vec();
     let public_proposal_count = twox_128(b"PublicPropCount").to_vec();
     let public_proposals = twox_128(b"PublicProps").to_vec();
-
 
     let mut keys = Vec::new();
 

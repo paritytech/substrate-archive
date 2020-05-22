@@ -17,7 +17,6 @@
 use crate::database::Database;
 use crate::queries;
 use crate::types::*;
-use super::Broadcast;
 use bastion::prelude::*;
 
 pub const REDUNDANCY: usize = 5;
@@ -58,7 +57,7 @@ where
                                 process_storage(&db, storage).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
-                            ref broadcast: &'static str => {
+                            ref broadcast: super::Broadcast => {
                                 () // we don't need to do any cleanup
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);

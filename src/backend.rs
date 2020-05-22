@@ -25,7 +25,7 @@ pub use self::storage_backend::StorageBackend;
 pub use self::{client::client, util::open_database};
 use sc_client_api::{backend::StorageProvider, client::BlockBackend};
 use sp_blockchain::{Error as BlockchainError, HeaderBackend, HeaderMetadata};
-use sp_runtime::traits::{Block as BlockT, BlakeTwo256};
+use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
 // Could make this supertrait accept a Executor and a RuntimeAPI generic arguments
 // however, that would clutter the API when using ChainAccess everywhere within substrate-archive
@@ -45,26 +45,26 @@ where
     T: StorageProvider<Block, sc_client_db::Backend<Block>>
         + BlockBackend<Block>
         + HeaderBackend<Block>
-        + HeaderMetadata<Block, Error = BlockchainError>
+        + HeaderMetadata<Block, Error = BlockchainError>,
 {
 }
 
 /// A set of APIs that runtimes must implement in order to be compatible with substrate-archive.
 pub trait RuntimeApiCollection<Block>:
-	sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-	+ sp_api::Metadata<Block>
+    sp_api::ApiExt<Block, Error = sp_blockchain::Error> + sp_api::Metadata<Block>
 where
     Block: BlockT,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{}
+    <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+{
+}
 
 impl<Api, Block> RuntimeApiCollection<Block> for Api
 where
     Block: BlockT,
-	Api: sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-	    + sp_api::Metadata<Block>,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{}
+    Api: sp_api::ApiExt<Block, Error = sp_blockchain::Error> + sp_api::Metadata<Block>,
+    <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+{
+}
 
 pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
 

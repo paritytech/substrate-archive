@@ -19,22 +19,17 @@
 //! Gathers Missing blocks -> passes to metadata -> passes to extractors -> passes to decode -> passes to insert
 
 use crate::actors::{
-    self,
     scheduler::{Algorithm, Scheduler},
     workers,
 };
 use crate::{
     backend::ChainAccess,
-    database::Insert,
     error::Error as ArchiveError,
     queries,
-    types::{BatchBlock, NotSignedBlock, Substrate, System},
+    types::{NotSignedBlock, Substrate, System},
 };
-use async_std::prelude::*;
-use async_std::stream;
 use bastion::prelude::*;
 use bigdecimal::ToPrimitive;
-use sc_client_api::client::BlockBackend as _;
 use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
 use std::{sync::Arc, time::Duration};
@@ -52,22 +47,21 @@ where
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
-    let meta_workers = workers::metadata::<T, _>(url.clone(), pool.clone(), client.clone())
-        .expect("Couldn't start metadata workers");
+    let meta_workers =
+        workers::metadata::<T>(url, pool.clone()).expect("Couldn't start metadata workers");
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let client = client.clone();
             let pool = pool.clone();
             let workers = meta_workers.clone();
-            let url = url.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                 loop {
                     if handle_shutdown(&ctx).await {
                         break;
                     }
-                    match entry::<T, _>(&client, &pool, url.as_str(), &mut sched).await {
+                    match entry::<T, _>(&client, &pool, &mut sched).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
@@ -82,14 +76,13 @@ where
 async fn entry<T, C>(
     client: &Arc<C>,
     pool: &sqlx::Pool<PgConnection>,
-    url: &str,
     sched: &mut Scheduler<'_>,
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock<T>> + 'static,
 {
-    let mut block_nums = queries::missing_blocks(&pool).await?;
+    let block_nums = queries::missing_blocks(&pool).await?;
     log::info!("missing {} blocks", block_nums.len());
     if !(block_nums.len() > 0) {
         async_std::task::sleep(Duration::from_secs(DURATION)).await;
@@ -123,8 +116,7 @@ where
 }
 
 // Handle a shutdown
-async fn handle_shutdown(ctx: &BastionContext) -> bool
-{
+async fn handle_shutdown(ctx: &BastionContext) -> bool {
     if let Some(msg) = ctx.try_recv().await {
         msg! {
             msg,

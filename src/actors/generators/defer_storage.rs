@@ -24,18 +24,20 @@ use crate::actors::scheduler::{Algorithm, Scheduler};
 use crate::{
     error::Error as ArchiveError,
     queries,
+    simple_db::SimpleDb,
     types::{Storage, Substrate, System},
-    actors::Broadcast,
-    simple_db::SimpleDb
 };
 use bastion::prelude::*;
 use sqlx::PgConnection;
-use std::{sync::Arc, hash::{Hash, Hasher}, collections::hash_map::DefaultHasher};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
 
 pub fn actor<T>(
     pool: sqlx::Pool<PgConnection>,
     db_workers: ChildrenRef,
-    mut storage: Vec<Storage<T>>,
+    storage: Vec<Storage<T>>,
 ) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
@@ -45,7 +47,8 @@ where
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let workers = db_workers.clone();
-            let pool = pool.clone(); let mut storage = storage.clone();
+            let pool = pool.clone();
+            let mut storage = storage.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
                 loop {
@@ -54,7 +57,9 @@ where
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
-                    if !(storage.len() > 0) {break;}
+                    if !(storage.len() > 0) {
+                        break;
+                    }
                 }
                 Ok(())
             }
@@ -69,16 +74,20 @@ async fn entry<T>(
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>
+    <T as System>::BlockNumber: Into<u32>,
 {
     let mut missing = storage.iter().map(|s| s.block_num()).collect::<Vec<u32>>();
     missing.as_mut_slice().sort();
 
-    let missing = queries::missing_blocks_min_max(&pool, missing[0].into(), missing[missing.len() - 1].into())
-        .await?
-        .into_iter()
-        .map(|b| b.generate_series as u32)
-        .collect::<Vec<u32>>();
+    let missing = queries::missing_blocks_min_max(
+        &pool,
+        missing[0].into(),
+        missing[missing.len() - 1].into(),
+    )
+    .await?
+    .into_iter()
+    .map(|b| b.generate_series as u32)
+    .collect::<Vec<u32>>();
 
     let mut ready: Vec<Storage<T>> = Vec::new();
 
@@ -108,12 +117,12 @@ where
 
 async fn handle_shutdown<T>(storage: &Vec<Storage<T>>, ctx: &BastionContext) -> ()
 where
-    T: Substrate + Send + Sync
+    T: Substrate + Send + Sync,
 {
     if let Some(msg) = ctx.try_recv().await {
         msg! {
             msg,
-            ref broadcast: &'static str => {
+            ref broadcast: super::Broadcast => {
                 log::info!("GOT SHUTDOWN");
                 if storage.len() > 0 {
                     log::info!("Storing deferred storage into temporary binary files");
@@ -138,6 +147,4 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-
 }

@@ -17,16 +17,7 @@
 //! Common Sql queries on Archive Database abstracted into rust functions
 
 use crate::error::Error as ArchiveError;
-use crate::types::Substrate;
-use futures::{
-    stream::{StreamExt, TryStreamExt},
-    Future, Stream,
-};
-use sqlx::{
-    postgres::{PgQueryAs as _, PgRow},
-    prelude::Cursor,
-    PgConnection, QueryAs as _,
-};
+use sqlx::{postgres::PgQueryAs as _, PgConnection};
 
 #[derive(sqlx::FromRow, Debug)]
 pub struct Block {
@@ -117,27 +108,6 @@ pub(crate) async fn is_blocks_empty(pool: &sqlx::Pool<PgConnection>) -> Result<b
         .fetch_one(pool)
         .await?;
     Ok(!(row.0 > 0))
-}
-
-pub(crate) async fn is_storage_empty(
-    pool: &sqlx::Pool<PgConnection>,
-) -> Result<bool, ArchiveError> {
-    let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) from storage"#)
-        .fetch_one(pool)
-        .await?;
-    Ok(!(row.0 > 0))
-}
-
-pub(crate) async fn check_if_storage_exists(
-    pool: &sqlx::Pool<PgConnection>,
-    num: u32,
-) -> Result<bool, ArchiveError> {
-    let row: (bool,) =
-        sqlx::query_as(r#"SELECT EXISTS (SELECT TRUE from storage WHERE block_num=$1)"#)
-            .bind(num)
-            .fetch_one(pool)
-            .await?;
-    Ok(row.0)
 }
 
 #[cfg(test)]

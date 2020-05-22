@@ -22,12 +22,10 @@ mod workers;
 
 use super::{
     backend::ChainAccess,
-    database::Database,
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
 use bastion::prelude::*;
-use sp_blockchain::HeaderMetadata;
 use sp_storage::StorageKey;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
@@ -51,21 +49,20 @@ where
 
     ctrlc::set_handler(move || {
         // so far, broadcast is the only thing using a &'static str type
-        Bastion::broadcast("shutdown").expect("Couldn't send message");
+        Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send message");
         // give two seconds for the system to shutdown
         // FIXME: should really have a better system then "ehh...  it shouldn't take more than a second"
         std::thread::sleep(std::time::Duration::from_secs(1));
         Bastion::stop();
-    }).expect("Error setting Ctrl-C handler");
+    })
+    .expect("Error setting Ctrl-C handler");
 
-    /// TODO: could be initialized asyncronously somewhere
+    // TODO: could be initialized asyncronously somewhere
     let pool = async_std::task::block_on(
         PgPool::builder()
             .max_size(15)
             .build(&env::var("DATABASE_URL")?),
     )?;
-
-    let db = Database::new(&pool)?;
 
     self::generators::storage::<T, _>(client.clone(), pool.clone(), keys)
         .expect("Couldn't add storage indexer");
@@ -93,7 +90,7 @@ pub enum ArchiveAnswer {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Broadcast {
     /// We need to shutdown for one reason or the other
-    Shutdown
+    Shutdown,
 }
 
 /// connect to the substrate RPC
@@ -102,5 +99,4 @@ async fn connect<T: Substrate + Send + Sync>(url: &str) -> crate::rpc::Rpc<T> {
     crate::rpc::Rpc::connect(url)
         .await
         .expect("Couldn't connect to rpc")
-
 }

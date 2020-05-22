@@ -13,9 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use bincode::ErrorKind as BincodeError;
 use codec::Error as CodecError;
 use failure::Fail;
 use futures::channel::mpsc::TrySendError;
+use jsonrpsee::client::RequestError as JsonrpseeRequest;
+use jsonrpsee::transport::ws::WsNewDnsError;
 use serde_json::Error as SerdeError;
 use sp_blockchain::Error as BlockchainError;
 use sqlx::Error as SqlError;
@@ -23,9 +26,6 @@ use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
 use std::sync::PoisonError;
-use jsonrpsee::client::RequestError as JsonrpseeRequest;
-use jsonrpsee::transport::ws::WsNewDnsError;
-use bincode::ErrorKind as BincodeError;
 
 pub type ArchiveResult<T> = Result<T, Error>;
 
@@ -89,7 +89,7 @@ impl From<WsNewDnsError> for Error {
 
 impl From<JsonrpseeRequest> for Error {
     fn from(err: JsonrpseeRequest) -> Error {
-        Error::JsonrpseeRequest((err))
+        Error::JsonrpseeRequest(err)
     }
 }
 
@@ -154,7 +154,7 @@ impl<T> From<TrySendError<T>> for Error {
 }
 
 impl<T> From<PoisonError<T>> for Error {
-    fn from(err: PoisonError<T>) -> Error {
+    fn from(_err: PoisonError<T>) -> Error {
         Error::Concurrency
     }
 }
