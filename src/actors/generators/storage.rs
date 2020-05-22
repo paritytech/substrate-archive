@@ -49,6 +49,8 @@ where
 {
     let db = crate::database::Database::new(&pool).expect("Database intialization error");
     let db_workers = workers::db::<T>(db).expect("Could not start storage db workers");
+    super::collect_storage::actor::<T>(pool.clone(), db_workers.clone())
+        .expect("Couldn't restart deferred storage workers");
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let workers = db_workers.clone();
