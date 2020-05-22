@@ -14,8 +14,9 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::types::{ArchiveBackend, NotSignedBlock, Substrate};
-use sc_client_api::{backend::Backend as BackendT, execution_extensions::ExecutionStrategies};
-use sc_executor::{NativeExecutionDispatch, WasmExecutionMethod};
+use sp_core::traits::CloneableSpawn;
+use sc_client_api::{backend::Backend as BackendT, ExecutionStrategy, execution_extensions::{ExecutionStrategies, ExecutionExtensions}};
+use sc_executor::{NativeExecutionDispatch, WasmExecutionMethod, NativeExecutor};
 use sc_service::{
     config::{
         Configuration, DatabaseConfig, KeystoreConfig, OffchainWorkerConfig, PruningMode, Role,
@@ -31,9 +32,6 @@ use std::{future::Future, pin::Pin, sync::Arc};
 
 use super::ChainAccess;
 
-// functions 'client' and 'internal client' are split purely to make it easier conceptualizing type
-// defs
-
 // create a macro `new_archive!` to simplify all these type constraints in the archive node library
 pub fn client<T, RA, EX, S>(
     db_config: DatabaseConfig,
@@ -45,90 +43,77 @@ where
     EX: NativeExecutionDispatch + 'static,
     S: ChainSpec + 'static,
 {
-    let config = Configuration {
-        impl_name: env!("CARGO_PKG_NAME"),
-        impl_version: env!("CARGO_PKG_VERSION"),
-        role: Role::Light,
-        task_executor: task_executor(),
-        transaction_pool: TransactionPoolOptions {
-            ready: Limit {
-                count: 10,
-                total_bytes: 32,
-            },
-            future: Limit {
-                count: 10,
-                total_bytes: 32,
-            },
-            reject_future_transactions: true,
-        },
-        network: super::util::constrained_network_config(),
-        keystore: KeystoreConfig::InMemory,
-        database: db_config,
-        state_cache_size: 1_048_576, // 1 MB of cache
-        state_cache_child_ratio: Some(20),
+    let db_settings = sc_client_db::DatabaseSettings {
+        state_cache_size: 4096,
+        state_cache_child_ratio: None,
         pruning: PruningMode::ArchiveAll,
-        wasm_method: WasmExecutionMethod::Interpreted,
-        execution_strategies: ExecutionStrategies::default(),
-        rpc_methods: RpcMethods::Auto,
-        rpc_http: None,
-        rpc_ws: None,
-        rpc_ws_max_connections: None,
-        rpc_cors: None,
-        prometheus_config: None,
-        telemetry_endpoints: None,
-        telemetry_external_transport: None,
-        default_heap_pages: None,
-        offchain_worker: OffchainWorkerConfig {
-            enabled: false,
-            indexing_enabled: false,
-        },
-        force_authoring: false,
-        disable_grandpa: false,
-        dev_key_seed: None,
-        tracing_targets: None,
-        tracing_receiver: TracingReceiver::Log,
-        max_runtime_instances: 8,
-        announce_block: false,
-        chain_spec: Box::new(spec),
+        source: db_config
     };
-
-    Ok(internal_client::<NotSignedBlock<T>, ArchiveBackend<T>, RA, EX>(
-        &config,
-    )?)
+    let profile = Profile::Native;
+    let(client, _) = sc_service::new_client::<_, NotSignedBlock<T>, RA>(
+        db_settings,
+        NativeExecutor::<EX>::new(WasmExecutionMethod::Interpreted, None, 8),
+        &spec,
+        None,
+        None,
+        ExecutionExtensions::new(profile.into_execution_strategies(), None),
+        Box::new(TaskExecutor::new()),
+        None,
+        Default::default()
+    ).expect("should not fail");
+    Ok(Arc::new(client))
 }
 
-// FIXME: This currently pulls many substrate dependencies that we don't need IE Transaction pooling etc
-// sc-client is in the process of being refactored and transitioned into sc-service
-// where a method 'new_client' will create a much 'slimmer' database-backed client
-// that won't require defining G and E, a chainspec, or pulling in a async-runtime (async-std in this case)
-// We could get away with not needing a RuntimeApi or Execution Dispatch, so these become
-// unnecessary things the user is forced to pass into the Archive Node
-// RuntimeApi could be useful, however, but only for getting the metadata for a block
-fn internal_client<B, Backend, RA, EX>(
-    config: &Configuration,
-) -> Result<Arc<impl ChainAccess<B>>, ServiceError>
-where
-    B: BlockT,
-    // B::Hash: FromStr,
-    RA: Send + Sync + 'static,
-    EX: NativeExecutionDispatch + 'static,
-    Backend: BackendT<B>,
-{
-    Ok(Arc::new(sc_service::new_full_client::<B, RA, EX>(&config)?))
+#[derive(Debug, Clone)]
+pub struct TaskExecutor {
+    pool: futures::executor::ThreadPool
 }
 
-/// Really simple task executor using async-std
-pub fn task_executor(
-) -> Arc<dyn Fn(Pin<Box<dyn Future<Output = ()> + Send>>, TaskType) + Send + Sync> {
-    Arc::new(move |fut, task_type| {
-        match task_type {
-            TaskType::Async => {
-                async_std::task::spawn(fut);
-            }
-            TaskType::Blocking => {
-                // FIXME: use `spawn_blocking`
-                async_std::task::block_on(fut)
+impl TaskExecutor {
+    fn new() -> Self {
+        Self {
+            pool: futures::executor::ThreadPool::new()
+                .expect("Failed to create executor")
+        }
+    }
+}
+
+impl futures::task::Spawn for TaskExecutor {
+    fn spawn_obj(&self, future: futures::task::FutureObj<'static, ()>)
+                 -> Result<(), futures::task::SpawnError> {
+        self.pool.spawn_obj(future)
+    }
+}
+
+impl CloneableSpawn for TaskExecutor {
+    fn clone(&self) -> Box<dyn CloneableSpawn> {
+        Box::new(Clone::clone(self))
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Profile {
+    Native,
+    Wasm,
+}
+
+impl Profile {
+    fn into_execution_strategies(self) -> ExecutionStrategies {
+        match self {
+            Profile::Wasm => ExecutionStrategies {
+                syncing: ExecutionStrategy::AlwaysWasm,
+                importing: ExecutionStrategy::AlwaysWasm,
+                block_construction: ExecutionStrategy::AlwaysWasm,
+                offchain_worker: ExecutionStrategy::AlwaysWasm,
+                other: ExecutionStrategy::AlwaysWasm,
+            },
+            Profile::Native => ExecutionStrategies {
+                syncing: ExecutionStrategy::NativeElseWasm,
+                importing: ExecutionStrategy::NativeElseWasm,
+                block_construction: ExecutionStrategy::NativeElseWasm,
+                offchain_worker: ExecutionStrategy::NativeElseWasm,
+                other: ExecutionStrategy::NativeElseWasm,
             }
         }
-    })
+    }
 }
