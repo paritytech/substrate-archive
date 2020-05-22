@@ -28,16 +28,15 @@ use sp_blockchain::{Error as BlockchainError, HeaderBackend, HeaderMetadata};
 use sp_runtime::traits::Block as BlockT;
 
 /// Super trait defining what access the archive node needs to siphon data from running chains
-pub trait ChainAccess<Block>:
-    StorageProvider<Block, sc_client_db::Backend<Block>>
-    + BlockBackend<Block>
-    + HeaderBackend<Block>
-    + HeaderMetadata<Block, Error = BlockchainError>
-where
-    Block: BlockT,
+pub trait ChainAccess:
+    StorageProvider<<Self as ChainAccess>::Block, sc_client_db::Backend<<Self as ChainAccess>::Block>>
+    + BlockBackend<<Self as ChainAccess>::Block>
+    + HeaderBackend<<Self as ChainAccess>::Block>
+    + HeaderMetadata<<Self as ChainAccess>::Block, Error = BlockchainError>
 {
+    type Block: BlockT;
 }
-
+/*
 impl<T, Block> ChainAccess<Block> for T
 where
     Block: BlockT,
@@ -47,3 +46,4 @@ where
         + HeaderMetadata<Block, Error = BlockchainError>,
 {
 }
+*/
