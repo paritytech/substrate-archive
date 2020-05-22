@@ -31,7 +31,7 @@ pub trait Substrate: System + Send + Sync + std::fmt::Debug {}
 impl<T> Substrate for T where T: System + Send + Sync + std::fmt::Debug {}
 
 /// A generic substrate block
-pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
+pub type SubstrateBlock<T> = SignedBlock<NotSignedBlock<T>>;
 
 /// Just one of those low-life not-signed types
 pub type NotSignedBlock<T> = BlockT<<T as System>::Header, OpaqueExtrinsic>;

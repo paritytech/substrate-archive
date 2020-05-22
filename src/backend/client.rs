@@ -41,9 +41,9 @@ pub fn client<T, RA, EX, S>(
 ) -> Result<Arc<impl ChainAccess<NotSignedBlock<T>>>, ServiceError>
 where
     T: Substrate,
-    S: ChainSpec + 'static,
     RA: Send + Sync + 'static,
     EX: NativeExecutionDispatch + 'static,
+    S: ChainSpec + 'static,
 {
     let config = Configuration {
         impl_name: env!("CARGO_PKG_NAME"),

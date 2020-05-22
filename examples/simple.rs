@@ -7,8 +7,7 @@ use sp_storage::StorageKey;
 use substrate_archive::{backend, init, NotSignedBlock};
 use sp_core::twox_128;
 
-// type Block = NotSignedBlock<KusamaRuntime>;
-type Block = NotSignedBlock;
+type Block = NotSignedBlock<ksm_runtime::Runtime>;
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);

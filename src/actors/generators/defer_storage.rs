@@ -114,7 +114,7 @@ where
         msg! {
             msg,
             ref broadcast: &'static str => {
-                log::info!("GOT SHUTDOWN EEEEEEEEEEEEE");
+                log::info!("GOT SHUTDOWN");
                 if storage.len() > 0 {
                     log::info!("Storing deferred storage into temporary binary files");
                     let mut hasher = DefaultHasher::new();
