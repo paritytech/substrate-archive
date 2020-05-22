@@ -118,7 +118,7 @@ where
                 if storage.len() > 0 {
                     log::info!("Storing deferred storage into temporary binary files");
                     let mut hasher = DefaultHasher::new();
-                    let hash_of_storage = storage.hash(&mut hasher);
+                    storage.hash(&mut hasher);
 
                     let file_name = format!("storage_{:x}", hasher.finish());
 
@@ -127,7 +127,7 @@ where
                     crate::util::create_dir(path.as_path());
                     path.push(file_name);
                     let temp_db = SimpleDb::new(path).expect("Couldn't create temporary storage files");
-                    temp_db.save(storage.clone());
+                    temp_db.save(storage.clone()).expect("Could not save temp storage");
                 }
             };
             e: _ => log::warn!("Received unknown message: {:?}", e);

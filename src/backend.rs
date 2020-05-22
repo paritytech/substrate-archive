@@ -25,25 +25,47 @@ pub use self::storage_backend::StorageBackend;
 pub use self::{client::client, util::open_database};
 use sc_client_api::{backend::StorageProvider, client::BlockBackend};
 use sp_blockchain::{Error as BlockchainError, HeaderBackend, HeaderMetadata};
-use sp_runtime::traits::Block as BlockT;
+use sp_runtime::traits::{Block as BlockT, BlakeTwo256};
 
+// Could make this supertrait accept a Executor and a RuntimeAPI generic arguments
+// however, that would clutter the API when using ChainAccess everywhere within substrate-archive
+// relying on the RPC for this is OK (for now)
 /// Super trait defining what access the archive node needs to siphon data from running chains
-pub trait ChainAccess:
-    StorageProvider<<Self as ChainAccess>::Block, sc_client_db::Backend<<Self as ChainAccess>::Block>>
-    + BlockBackend<<Self as ChainAccess>::Block>
-    + HeaderBackend<<Self as ChainAccess>::Block>
-    + HeaderMetadata<<Self as ChainAccess>::Block, Error = BlockchainError>
+pub trait ChainAccess<Block: BlockT>:
+    StorageProvider<Block, sc_client_db::Backend<Block>>
+    + BlockBackend<Block>
+    + HeaderBackend<Block>
+    + HeaderMetadata<Block, Error = BlockchainError>
 {
-    type Block: BlockT;
 }
-/*
+
 impl<T, Block> ChainAccess<Block> for T
 where
     Block: BlockT,
     T: StorageProvider<Block, sc_client_db::Backend<Block>>
         + BlockBackend<Block>
         + HeaderBackend<Block>
-        + HeaderMetadata<Block, Error = BlockchainError>,
+        + HeaderMetadata<Block, Error = BlockchainError>
 {
 }
-*/
+
+/// A set of APIs that runtimes must implement in order to be compatible with substrate-archive.
+pub trait RuntimeApiCollection<Block>:
+	sp_api::ApiExt<Block, Error = sp_blockchain::Error>
+	+ sp_api::Metadata<Block>
+where
+    Block: BlockT,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+{}
+
+impl<Api, Block> RuntimeApiCollection<Block> for Api
+where
+    Block: BlockT,
+	Api: sp_api::ApiExt<Block, Error = sp_blockchain::Error>
+	    + sp_api::Metadata<Block>,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+{}
+
+pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
+
+impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}

@@ -43,7 +43,8 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-client-api" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-blockchain" }
 substrate-rpc-primitives = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-rpc" }
-sp-core = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-api" }
 runtime-version = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-version" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-executor" }
 sc-transaction-graph = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-transaction-graph" }
@@ -62,5 +63,4 @@ jsonrpsee = "0.1.0"
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
 polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
-kusama-runtime = { package = "kusama-runtime", git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
 pretty_env_logger = "0.4.0"

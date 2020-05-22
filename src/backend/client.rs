@@ -13,8 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::types::{ArchiveBackend, NotSignedBlock, Substrate};
+use crate::types::{ArchiveBackend, Substrate};
 use sp_core::traits::CloneableSpawn;
+use sp_api::{CallApiAt, ConstructRuntimeApi};
 use sc_client_api::{backend::Backend as BackendT, ExecutionStrategy, execution_extensions::{ExecutionStrategies, ExecutionExtensions}};
 use sc_executor::{NativeExecutionDispatch, WasmExecutionMethod, NativeExecutor};
 use sc_service::{
@@ -23,25 +24,27 @@ use sc_service::{
         RpcMethods, TaskType, TransactionPoolOptions,
     },
     error::Error as ServiceError,
-    ChainSpec, TracingReceiver,
+    ChainSpec, TracingReceiver, TFullBackend
 };
 use sc_transaction_graph::base_pool::Limit;
-
-use sp_runtime::traits::Block as BlockT;
+use crate::types::System;
+use sp_runtime::{OpaqueExtrinsic, traits::{Block as BlockT, BlakeTwo256}};
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use super::ChainAccess;
+use super::{ChainAccess, RuntimeApiCollection};
 
 // create a macro `new_archive!` to simplify all these type constraints in the archive node library
-pub fn client<T, RA, EX, S>(
+pub fn client<Block, T, EX, S>(
     db_config: DatabaseConfig,
     spec: S,
-) -> Result<Arc<impl ChainAccess<NotSignedBlock<T>>>, ServiceError>
+) -> Result<Arc<impl ChainAccess<Block>>, ServiceError>
 where
-    T: Substrate,
-    RA: Send + Sync + 'static,
+    Block: BlockT,
+    T: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, T, EX>>,
+    T::RuntimeApi: RuntimeApiCollection<Block, StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>> + Send + Sync + 'static,
     EX: NativeExecutionDispatch + 'static,
     S: ChainSpec + 'static,
+    <T::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
     let db_settings = sc_client_db::DatabaseSettings {
         state_cache_size: 4096,
@@ -50,7 +53,7 @@ where
         source: db_config
     };
     let profile = Profile::Native;
-    let(client, _) = sc_service::new_client::<_, NotSignedBlock<T>, RA>(
+    let(client, _) = sc_service::new_client::<_, Block, T::RuntimeApi>(
         db_settings,
         NativeExecutor::<EX>::new(WasmExecutionMethod::Interpreted, None, 8),
         &spec,

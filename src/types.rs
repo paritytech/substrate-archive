@@ -20,13 +20,14 @@ use serde::{Serialize, Deserialize};
 use sp_runtime::{
     OpaqueExtrinsic,
     generic::{Block as BlockT, SignedBlock},
-    traits::{Block as _, Header as _, NumberFor},
+    traits::Header as _,
 };
 use sp_storage::{StorageData, StorageKey};
 pub use frame_system::Trait as System;
 
 /// Consolidation of substrate traits representing fundamental types
-pub trait Substrate: System + Send + Sync + std::fmt::Debug {}
+pub trait Substrate: System + Send + Sync + std::fmt::Debug
+{}
 
 impl<T> Substrate for T where T: System + Send + Sync + std::fmt::Debug {}
 
@@ -82,27 +83,6 @@ where
             index,
             spec,
         }
-    }
-}
-
-// new types to allow implementing of traits
-// NewType for Header
-#[derive(Debug)]
-pub struct Header<T: Substrate + Send + Sync> {
-    inner: T::Header,
-}
-
-impl<T: Substrate + Send + Sync> Header<T> {
-    pub fn new(header: T::Header) -> Self {
-        Self { inner: header }
-    }
-
-    pub fn inner(&self) -> &T::Header {
-        &self.inner
-    }
-
-    pub fn hash(&self) -> T::Hash {
-        self.inner.hash()
     }
 }
 

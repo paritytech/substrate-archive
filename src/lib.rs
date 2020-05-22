@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-#![allow(warnings)]
+// #![allow(warnings)]
 #![forbid(unsafe_code)]
 
 mod actors;
@@ -22,9 +22,9 @@ pub mod backend;
 mod database;
 mod error;
 mod queries;
+mod simple_db;
 mod types;
 mod util;
-mod simple_db;
 pub use error::Error;
 pub use types::{NotSignedBlock, Substrate};
 
