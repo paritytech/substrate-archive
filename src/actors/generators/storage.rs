@@ -48,7 +48,7 @@ pub fn actor<T, C>(
 ) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock> + 'static,
+    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::Hash: From<H256>,
     <T as System>::BlockNumber: Into<u32>,
 {
@@ -85,8 +85,9 @@ async fn entry<T, C>(
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock> + 'static,
+    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::Hash: From<H256>,
+    <T as System>::BlockNumber: Into<u32>,
 {
     if queries::is_blocks_empty(pool).await? {
         async_std::task::sleep(Duration::from_secs(5)).await;
@@ -96,7 +97,7 @@ where
     let (mut query_from_num, query_from_hash) = queries::get_max_storage(&pool).await.unwrap_or((
         *max_storage,
         client
-            .hash(*max_storage)?
+            .hash(T::BlockNumber::from(*max_storage))?
             .expect("Block doesn't exist!")
             .as_ref()
             .to_vec(),
@@ -129,14 +130,14 @@ where
     }
 
     let query_from_hash = H256::from_slice(query_from_hash.as_slice());
-    let query_to_hash = client.hash(query_to_num)?.expect("Block not found");
+    let query_to_hash = client.hash(T::BlockNumber::from(query_to_num))?.expect("Block not found");
 
     log::info!(
         "\nquery_from_num={:?}, query_from_hash={:?} \n query_to_num = {:?}, query_to_hash={:?}\n",
         query_from_num,
         hex::encode(query_from_hash.as_bytes()),
         query_to_num,
-        hex::encode(query_to_hash.as_bytes())
+        hex::encode(query_to_hash.as_ref())
     );
 
     let storage_backend = StorageBackend::<T, C>::new(client.clone());
@@ -144,7 +145,7 @@ where
     let now = std::time::Instant::now();
     let change_set = storage_backend.query_storage(
         T::Hash::from(query_from_hash),
-        Some(T::Hash::from(query_to_hash)),
+        Some(query_to_hash),
         keys.clone(),
     )?;
     let elapsed = now.elapsed();
@@ -166,7 +167,7 @@ where
         .into_iter()
         .map(|change| {
             let num = client
-                .number(H256::from_slice(change.block.as_ref()))
+                .number(change.block)
                 .expect("Couldn't get block number for hash");
             let block_hash = change.block;
             if let Some(num) = num {
@@ -174,10 +175,10 @@ where
                     .changes
                     .into_iter()
                     .map(|(key, data)| {
-                        if num == query_from_num {
-                            Storage::new(T::Hash::from(block_hash), num, true, key, data)
+                        if num == T::BlockNumber::from(query_from_num) {
+                            Storage::new(block_hash, num.into(), true, key, data)
                         } else {
-                            Storage::new(T::Hash::from(block_hash), num, false, key, data)
+                            Storage::new(block_hash, num.into(), false, key, data)
                         }
                     })
                     .collect::<Vec<Storage<T>>>()
@@ -192,12 +193,12 @@ where
     let to_defer = storage
         .iter()
         .cloned()
-        .filter(|s| missing_blocks.contains(&s.block_num()))
+        .filter(|s| missing_blocks.contains(&s.block_num().into()))
         .collect::<Vec<Storage<T>>>();
     let storage = storage
         .iter()
         .cloned()
-        .filter(|s| !missing_blocks.contains(&s.block_num()))
+        .filter(|s| !missing_blocks.contains(&s.block_num().into()))
         .collect::<Vec<Storage<T>>>();
 
     if to_defer.len() > 0 {

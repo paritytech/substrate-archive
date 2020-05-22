@@ -42,7 +42,7 @@ pub fn actor<T, C>(
 ) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock> + 'static,
+    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: DeserializeOwned
 {

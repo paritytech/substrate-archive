@@ -45,7 +45,7 @@ pub fn actor<T, C>(
 ) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock> + 'static,
+    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
@@ -70,7 +70,7 @@ where
                     }
                     let head = subscription.next().await;
                     let block = client
-                        .block(&BlockId::Number((*head.number()).into()))
+                        .block(&BlockId::Number(*head.number()))
                         .map_err(|e| log::error!("{:?}", e))
                         .unwrap();
                     if let Some(b) = block {

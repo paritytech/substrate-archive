@@ -23,7 +23,6 @@ use crate::{
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate},
 };
-use primitive_types::H256;
 use sc_client_api::StorageProvider;
 use sp_blockchain::{CachedHeaderMetadata, Error as ClientError, HeaderBackend, HeaderMetadata};
 use sp_runtime::{
@@ -36,7 +35,7 @@ use std::marker::PhantomData;
 use std::ops::Range;
 use std::sync::Arc;
 
-pub struct StorageBackend<T: Substrate, C: ChainAccess<NotSignedBlock>> {
+pub struct StorageBackend<T: Substrate, C: ChainAccess<NotSignedBlock<T>>> {
     client: Arc<C>,
     _marker: PhantomData<T>,
 }
@@ -58,7 +57,7 @@ struct QueryStorageRange<Block: BlockT> {
 impl<T, C> StorageBackend<T, C>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock>,
+    C: ChainAccess<NotSignedBlock<T>>,
 {
     pub fn new(client: Arc<C>) -> Self {
         Self {
@@ -68,16 +67,16 @@ where
     }
 
     /// Returns given block hash or best block hash if None is passed.
-    fn block_or_best(&self, hash: Option<H256>) -> Result<H256, ArchiveError> {
+    fn block_or_best(&self, hash: Option<T::Hash>) -> Result<T::Hash, ArchiveError> {
         Ok(hash.unwrap_or_else(|| self.client.info().best_hash))
     }
 
     fn query_storage_unfiltered(
         &self,
-        range: &QueryStorageRange<NotSignedBlock>,
+        range: &QueryStorageRange<NotSignedBlock<T>>,
         keys: &[StorageKey],
         last_values: &mut HashMap<StorageKey, Option<StorageData>>,
-        changes: &mut Vec<StorageChangeSet<H256>>,
+        changes: &mut Vec<StorageChangeSet<T::Hash>>,
     ) -> Result<(), ArchiveError> {
         for block in range.unfiltered_range.start..range.unfiltered_range.end {
             let block_hash = range.hashes[block].clone();
@@ -109,19 +108,19 @@ where
     /// Iterates through all blocks that are changing keys within range.filtered_range and collects these changes.
     fn query_storage_filtered(
         &self,
-        range: &QueryStorageRange<NotSignedBlock>,
+        range: &QueryStorageRange<NotSignedBlock<T>>,
         keys: &[StorageKey],
         last_values: &HashMap<StorageKey, Option<StorageData>>,
-        changes: &mut Vec<StorageChangeSet<H256>>,
+        changes: &mut Vec<StorageChangeSet<T::Hash>>,
     ) -> Result<(), ArchiveError> {
         let (begin, end) = match range.filtered_range {
             Some(ref filtered_range) => (
-                range.first_number + filtered_range.start.saturated_into::<u32>(),
+                range.first_number + filtered_range.start.saturated_into(),
                 BlockId::Hash(range.hashes[filtered_range.end - 1].clone()),
             ),
             None => return Ok(()),
         };
-        let mut changes_map: BTreeMap<NumberFor<NotSignedBlock>, StorageChangeSet<H256>> =
+        let mut changes_map: BTreeMap<NumberFor<NotSignedBlock<T>>, StorageChangeSet<T::Hash>> =
             BTreeMap::new();
         for key in keys {
             let mut last_block = None;
@@ -167,15 +166,15 @@ where
     /// Blocks that contain changes within unfiltered subrange must be filtered manually.
     fn split_query_storage_range(
         &self,
-        from: H256,
-        to: Option<H256>,
-    ) -> Result<QueryStorageRange<NotSignedBlock>, ArchiveError> {
+        from: T::Hash,
+        to: Option<T::Hash>,
+    ) -> Result<QueryStorageRange<NotSignedBlock<T>>, ArchiveError> {
         let to = self.block_or_best(to)?;
 
         let from_meta = self
             .client
-            .header_metadata(H256::from_slice(from.as_ref()))?;
-        let to_meta = self.client.header_metadata(H256::from_slice(to.as_ref()))?;
+            .header_metadata(from)?;
+        let to_meta = self.client.header_metadata(to)?;
 
         if from_meta.number > to_meta.number {
             return Err(invalid_block_range(
@@ -192,7 +191,7 @@ where
             let mut last = to_meta.clone();
             while last.number > from_number {
                 let header_metadata = self.client.header_metadata(last.parent).map_err(|e| {
-                    invalid_block_range::<NotSignedBlock>(&last, &to_meta, e.to_string())
+                    invalid_block_range::<NotSignedBlock<T>>(&last, &to_meta, e.to_string())
                 })?;
                 hashes.push(header_metadata.hash);
                 last = header_metadata;
@@ -215,7 +214,7 @@ where
         let filtered_range_begin = changes_trie_range.and_then(|(begin, _)| {
             // avoids a corner case where begin < from_number (happens when querying genesis)
             begin
-                .checked_sub(from_number)
+                .checked_sub(&from_number)
                 .map(|x| x.saturated_into::<usize>())
         });
         let (unfiltered_range, filtered_range) = split_range(hashes.len(), filtered_range_begin);
@@ -233,7 +232,7 @@ where
         block: Option<T::Hash>,
         prefix: StorageKey,
     ) -> Result<Vec<StorageKey>, ArchiveError> {
-        let block = self.block_or_best(block.map(|h| H256::from_slice(h.as_ref())))?;
+        let block = self.block_or_best(block)?;
         self.client
             .storage_keys(&BlockId::Hash(block), &prefix)
             .map_err(Into::into)
@@ -244,7 +243,7 @@ where
         from: T::Hash,
         to: Option<T::Hash>,
         keys: Vec<StorageKey>,
-    ) -> Result<Vec<StorageChangeSet<H256>>, ArchiveError> {
+    ) -> Result<Vec<StorageChangeSet<T::Hash>>, ArchiveError> {
         let mut full_keys = Vec::new();
         log::info!(
             "Prefixes: {:?}",
@@ -263,10 +262,7 @@ where
                 .collect::<Vec<String>>()
         );
         let keys = full_keys;
-        let range = self.split_query_storage_range(
-            H256::from_slice(from.as_ref()),
-            to.map(|h| H256::from_slice(h.as_ref())),
-        )?;
+        let range = self.split_query_storage_range(from, to)?;
         let mut changes = Vec::new();
         let mut last_values = std::collections::HashMap::new();
         self.query_storage_unfiltered(&range, &keys, &mut last_values, &mut changes)?;
@@ -310,7 +306,7 @@ fn invalid_block_range<B: BlockT>(
     }
 }
 
-fn invalid_block<B: BlockT>(from: H256, to: Option<H256>, details: String) -> ArchiveError {
+fn invalid_block<B: BlockT>(from: B::Hash, to: Option<B::Hash>, details: String) -> ArchiveError {
     ArchiveError::InvalidBlockRange {
         from: format!("{:?}", from),
         to: format!("{:?}", to),

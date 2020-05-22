@@ -42,7 +42,7 @@ use std::{env, sync::Arc};
 pub fn init<T, C>(client: Arc<C>, url: String, keys: Vec<StorageKey>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock> + 'static,
+    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Hash: From<primitive_types::H256>,
     <T as System>::Header: serde::de::DeserializeOwned,

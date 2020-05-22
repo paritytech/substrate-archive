@@ -20,7 +20,7 @@ use serde::{Serialize, Deserialize};
 use sp_runtime::{
     OpaqueExtrinsic,
     generic::{Block as BlockT, SignedBlock},
-    traits::{Block as _, Header as _},
+    traits::{Block as _, Header as _, NumberFor},
 };
 use sp_storage::{StorageData, StorageKey};
 pub use frame_system::Trait as System;
@@ -34,13 +34,10 @@ impl<T> Substrate for T where T: System + Send + Sync + std::fmt::Debug {}
 pub type SubstrateBlock<T> = SignedBlock<BlockT<<T as System>::Header, OpaqueExtrinsic>>;
 
 /// Just one of those low-life not-signed types
-pub type NotSignedBlock = BlockT<
-    sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>,
-    sp_runtime::OpaqueExtrinsic,
->;
+pub type NotSignedBlock<T> = BlockT<<T as System>::Header, OpaqueExtrinsic>;
 
 /// Read-Only RocksDb backed Backend Type
-pub type ArchiveBackend = sc_client_db::Backend<NotSignedBlock>;
+pub type ArchiveBackend<T> = sc_client_db::Backend<NotSignedBlock<T>>;
 
 #[derive(Debug)]
 pub struct Metadata {

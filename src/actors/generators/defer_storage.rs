@@ -24,7 +24,7 @@ use crate::actors::scheduler::{Algorithm, Scheduler};
 use crate::{
     error::Error as ArchiveError,
     queries,
-    types::{Storage, Substrate},
+    types::{Storage, Substrate, System},
     actors::Broadcast,
     simple_db::SimpleDb
 };
@@ -39,6 +39,7 @@ pub fn actor<T>(
 ) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
 {
     log::info!("Deferring {} storage entries!", storage.len());
     Bastion::children(|children| {
@@ -68,11 +69,12 @@ async fn entry<T>(
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>
 {
     let mut missing = storage.iter().map(|s| s.block_num()).collect::<Vec<u32>>();
     missing.as_mut_slice().sort();
 
-    let missing = queries::missing_blocks_min_max(&pool, missing[0], missing[missing.len() - 1])
+    let missing = queries::missing_blocks_min_max(&pool, missing[0].into(), missing[missing.len() - 1].into())
         .await?
         .into_iter()
         .map(|b| b.generate_series as u32)
@@ -81,7 +83,7 @@ where
     let mut ready: Vec<Storage<T>> = Vec::new();
 
     storage.retain(|s| {
-        if !missing.contains(&s.block_num()) {
+        if !missing.contains(&s.block_num().into()) {
             ready.push(s.clone());
             false
         } else {

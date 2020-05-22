@@ -37,7 +37,7 @@ const REDUNDANCY: usize = 3;
 pub fn actor<T, C>(client: Arc<C>, pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock> + 'static,
+    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
 {
     let db = crate::database::Database::new(&pool).expect("Database intialization error");

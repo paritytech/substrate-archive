@@ -38,7 +38,7 @@ use super::ChainAccess;
 pub fn client<T, RA, EX, S>(
     db_config: DatabaseConfig,
     spec: S,
-) -> Result<Arc<impl ChainAccess<NotSignedBlock>>, ServiceError>
+) -> Result<Arc<impl ChainAccess<NotSignedBlock<T>>>, ServiceError>
 where
     T: Substrate,
     S: ChainSpec + 'static,
@@ -46,7 +46,7 @@ where
     EX: NativeExecutionDispatch + 'static,
 {
     let config = Configuration {
-        impl_name: "substrate-archive",
+        impl_name: env!("CARGO_PKG_NAME"),
         impl_version: env!("CARGO_PKG_VERSION"),
         role: Role::Light,
         task_executor: task_executor(),
@@ -92,7 +92,7 @@ where
         chain_spec: Box::new(spec),
     };
 
-    Ok(internal_client::<NotSignedBlock, ArchiveBackend, RA, EX>(
+    Ok(internal_client::<NotSignedBlock<T>, ArchiveBackend<T>, RA, EX>(
         &config,
     )?)
 }

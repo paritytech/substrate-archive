@@ -1,12 +1,11 @@
 //! A simple example
 
-use polkadot_service::kusama_runtime as real_ksm_runtime;
+use polkadot_service::kusama_runtime as ksm_runtime;
 use sc_service::config::DatabaseConfig; // integrate this into Archive Proper
 use sp_blockchain::HeaderBackend as _;
 use sp_storage::StorageKey;
 use substrate_archive::{backend, init, NotSignedBlock};
 use sp_core::twox_128;
-use subxt::KusamaRuntime;
 
 // type Block = NotSignedBlock<KusamaRuntime>;
 type Block = NotSignedBlock;
@@ -24,8 +23,8 @@ pub fn main() {
 
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
     let client = backend::client::<
-        KusamaRuntime,
-        real_ksm_runtime::RuntimeApi,
+        ksm_runtime::Runtime,
+        ksm_runtime::RuntimeApi,
         polkadot_service::KusamaExecutor,
         _,
     >(conf, spec)
@@ -61,5 +60,5 @@ pub fn main() {
     keys.push(StorageKey(democracy_public_proposal_count));
     keys.push(StorageKey(democracy_proposals));
 
-    init::<KusamaRuntime, _>(client, "ws://127.0.0.1:9944".to_string(), keys).unwrap();
+    init::<ksm_runtime::Runtime, _>(client, "ws://127.0.0.1:9944".to_string(), keys).unwrap();
 }

@@ -6698,7 +6698,6 @@ dependencies = [
  "sp-storage",
  "sp-version",
  "sqlx",
- "substrate-subxt",
  "tempdir",
 ]
 
@@ -6747,30 +6746,6 @@ dependencies = [
  "log 0.4.8",
  "prometheus",
  "tokio 0.2.21",
-]
-
-[[package]]
-name = "substrate-subxt"
-version = "0.6.0"
-dependencies = [
- "frame-metadata",
- "frame-support",
- "futures 0.3.5",
- "hex",
- "jsonrpsee",
- "log 0.4.8",
- "num-traits 0.2.11",
- "pallet-indices",
- "parity-scale-codec",
- "serde",
- "serde_json",
- "sp-core",
- "sp-rpc",
- "sp-runtime",
- "sp-transaction-pool",
- "sp-version",
- "thiserror",
- "url 2.1.1",
 ]
 
 [[package]]

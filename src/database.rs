@@ -25,6 +25,7 @@ use futures::future::{self, TryFutureExt};
 use sp_runtime::traits::Header as _;
 use sqlx::{arguments::Arguments as _, postgres::PgArguments, PgConnection, Postgres};
 use std::{convert::TryFrom, env, sync::RwLock};
+
 use self::prepare_sql::{BindAll, PrepareBatchSql as _, PrepareSql as _};
 use crate::{
     error::{ArchiveResult, Error as ArchiveError},

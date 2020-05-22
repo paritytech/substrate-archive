@@ -48,7 +48,7 @@ pub fn actor<T, C>(
 ) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock> + 'static,
+    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
@@ -87,8 +87,7 @@ async fn entry<T, C>(
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock> + 'static,
-    <T as System>::BlockNumber: Into<u32>,
+    C: ChainAccess<NotSignedBlock<T>> + 'static,
 {
     let mut block_nums = queries::missing_blocks(&pool).await?;
     log::info!("missing {} blocks", block_nums.len());
@@ -109,7 +108,7 @@ where
             .to_u32()
             .expect("Could not convert into u32");
         let b = client
-            .block(&BlockId::Number(num))
+            .block(&BlockId::Number(T::BlockNumber::from(num)))
             .expect("Error getting block");
         if b.is_none() {
             log::warn!("Block does not exist!")
