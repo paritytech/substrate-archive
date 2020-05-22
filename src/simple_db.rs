@@ -51,16 +51,6 @@ where
         })
     }
 
-    /// open backend
-    fn open(&self) -> Result<File, ArchiveError> {
-        OpenOptions::new()
-            .create(true)
-            .read(true)
-            .write(true)
-            .open(self.path.as_path())
-            .map_err(Into::into)
-    }
-
     /// Save structure to a file, serializing to Bincode and then compressing with DEFLATE
     pub(crate) fn save(&self, data: D) -> Result<(), ArchiveError> {
         self.mutate(|file| {
@@ -73,7 +63,6 @@ where
         Ok(())
     }
 
-    #[allow(unused)]
     /// Get structure from file, DEFLATING and then deserializing from Bincode
     pub(crate) fn get(&self) -> Result<D, ArchiveError> {
         let meta = fs::metadata(self.path.as_path())?;
@@ -88,6 +77,16 @@ where
             log::info!("Read {} bytes from database file", bytes_read);
             bincode::deserialize(&buf[..]).map_err(ArchiveError::from)
         })
+    }
+
+    /// open backend
+    fn open(&self) -> Result<File, ArchiveError> {
+        OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(self.path.as_path())
+            .map_err(Into::into)
     }
 
     /// mutate the file, always setting seek back to beginning

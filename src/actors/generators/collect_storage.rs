@@ -52,13 +52,14 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let mut substrate_archive_path = crate::util::substrate_dir();
-    substrate_archive_path.push("temp_storage");
+    let mut sub_archive_path = crate::util::substrate_dir();
+    sub_archive_path.push("temp_storage");
 
     let mut storage: Vec<Storage<T>> = Vec::new();
-
-    if substrate_archive_path.is_dir() {
-        for file in fs::read_dir(substrate_archive_path)? {
+    let archive_path = sub_archive_path.as_path();
+    if sub_archive_path.exists() && sub_archive_path.is_dir() {
+        for file in fs::read_dir(archive_path)? {
+            log::info!("{:?}", file);
             let file = file?;
             let temp_db = SimpleDb::<Vec<Storage<T>>>::new(file.path())?;
             let s = temp_db.get()?;
@@ -66,10 +67,11 @@ where
         }
     } else {
         log::info!("No storage needs collecting!");
+        return Ok(())
     }
 
-    fs::remove_dir_all(substrate_archive_path.as_path())?;
-
+    fs::remove_dir_all(sub_archive_path.as_path())?;
+   
     log::info!("Restarting deferred storage workers with {} entries", storage.len());
     super::defer_storage::actor::<T>(pool.clone(), workers.clone(), storage)
         .expect("Couldn't restart deferred storage workers");

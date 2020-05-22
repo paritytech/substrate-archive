@@ -125,11 +125,13 @@ where
             ref broadcast: super::Broadcast => {
                 log::info!("GOT SHUTDOWN");
                 if storage.len() > 0 {
+                    let now = std::time::Instant::now();
                     log::info!("Storing deferred storage into temporary binary files");
                     let mut hasher = DefaultHasher::new();
                     storage.hash(&mut hasher);
-
-                    let file_name = format!("storage_{:x}", hasher.finish());
+                    let hash = hasher.finish();
+                    log::info!("hash of storage {:?}", hash);
+                    let file_name = format!("storage_{:x}", hash);
 
                     let mut path = crate::util::substrate_dir();
                     path.push("temp_storage");
@@ -137,6 +139,13 @@ where
                     path.push(file_name);
                     let temp_db = SimpleDb::new(path).expect("Couldn't create temporary storage files");
                     temp_db.save(storage.clone()).expect("Could not save temp storage");
+                    let elapsed = now.elapsed();
+                    log::info!(
+                        "took {} seconds, {} milli-seconds, {} micro-seconds to save storage",
+                        elapsed.as_secs(),
+                        elapsed.as_millis(),
+                        elapsed.as_micros()
+                    );
                 }
             };
             e: _ => log::warn!("Received unknown message: {:?}", e);

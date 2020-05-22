@@ -52,7 +52,7 @@ where
         Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send message");
         // give two seconds for the system to shutdown
         // FIXME: should really have a better system then "ehh...  it shouldn't take more than a second"
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        std::thread::sleep(std::time::Duration::from_secs(5));
         Bastion::stop();
     })
     .expect("Error setting Ctrl-C handler");
@@ -73,7 +73,7 @@ where
 
     // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
     // uses client to get those blocks
-    self::generators::db::<T, _>(client, pool, url).expect("Couldn't start db work generators");
+    // self::generators::db::<T, _>(client, pool, url).expect("Couldn't start db work generators");
 
     Bastion::start();
     Bastion::block_until_stopped();
