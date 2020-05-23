@@ -17,15 +17,14 @@
 //! Collects storage left over from the last run in substrate_dir() (~/.local/share/substrate_archive/temp_storage)
 //! and re-starts the deferred-storage actor
 
+use crate::types::*;
 use crate::{
+    actors::scheduler::{Algorithm, Scheduler},
     error::Error as ArchiveError,
     simple_db::SimpleDb,
-    actors::scheduler::{Algorithm, Scheduler}
 };
 use bastion::prelude::*;
-use crate::types::*;
 use std::fs;
-
 
 pub fn actor<T>(defer_workers: ChildrenRef) -> Result<ChildrenRef, ()>
 where
@@ -40,7 +39,7 @@ where
                 sched.add_worker("defer", &workers);
                 match entry::<T>(&mut sched) {
                     Ok(_) => (),
-                    Err(e) => log::error!("{:?}", e)
+                    Err(e) => log::error!("{:?}", e),
                 }
                 Ok(())
             }
@@ -68,13 +67,17 @@ where
         }
     } else {
         log::info!("No storage needs collecting!");
-        return Ok(())
+        return Ok(());
     }
 
     fs::remove_dir_all(sub_archive_path.as_path())?;
-   
-    log::info!("sending {} collected entries to deferred storage workers", storage.len());
-    sched.tell_next("defer", storage)
+
+    log::info!(
+        "sending {} collected entries to deferred storage workers",
+        storage.len()
+    );
+    sched
+        .tell_next("defer", storage)
         .expect("Couldn't send message to storage workers");
 
     Ok(())

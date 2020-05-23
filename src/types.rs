@@ -16,6 +16,8 @@
 
 use codec::Encode;
 pub use frame_system::Trait as System;
+use futures::channel::mpsc::UnboundedReceiver;
+use sc_client_api::client::FinalityNotification;
 use serde::{Deserialize, Serialize};
 use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
@@ -24,8 +26,6 @@ use sp_runtime::{
 };
 use sp_storage::{StorageData, StorageKey};
 use std::{hash::Hash, marker::PhantomData};
-use futures::channel::mpsc::UnboundedReceiver;
-use sc_client_api::client::FinalityNotification;
 
 pub type FinalityStream<T> = UnboundedReceiver<FinalityNotification<NotSignedBlock<T>>>;
 

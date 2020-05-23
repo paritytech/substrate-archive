@@ -104,7 +104,9 @@ pub(crate) async fn get_max_block_num(
 }
 
 /// checks if blocks table has anything in it
-pub(crate) async fn are_blocks_empty(pool: &sqlx::Pool<PgConnection>) -> Result<bool, ArchiveError> {
+pub(crate) async fn are_blocks_empty(
+    pool: &sqlx::Pool<PgConnection>,
+) -> Result<bool, ArchiveError> {
     let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) from blocks"#)
         .fetch_one(pool)
         .await?;

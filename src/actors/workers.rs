@@ -15,12 +15,12 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod database;
+mod defer_storage;
 mod metadata;
 mod transformers;
-mod defer_storage;
 
 pub use self::database::actor as db;
+pub use self::defer_storage::actor as defer_storage;
 pub use self::metadata::actor as metadata;
 pub use self::transformers::actor as transformer;
-pub use self::defer_storage::actor as defer_storage;
-use super::{connect, ArchiveAnswer, Broadcast, ArchiveQuestion};
+use super::{connect, ArchiveAnswer, ArchiveQuestion, Broadcast};

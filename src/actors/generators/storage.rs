@@ -151,14 +151,17 @@ where
 
     let now = std::time::Instant::now();
     let spawn_keys = keys.clone();
-    let change_set = blocking!{
+    let change_set = blocking! {
         storage_backend.query_storage(
             T::Hash::from(query_from_hash),
             Some(query_to_hash),
             spawn_keys
         )
     };
-    let change_set = spawn!(change_set).await.ok_or(ArchiveError::from("Could not spawn blocking"))?.unwrap()?;
+    let change_set = spawn!(change_set)
+        .await
+        .ok_or(ArchiveError::from("Could not spawn blocking"))?
+        .unwrap()?;
     let elapsed = now.elapsed();
     log::info!(
         "Took {} seconds, {} milli-seconds to query storage from {} to {}",
@@ -223,7 +226,9 @@ where
 
     if to_defer.len() > 0 {
         log::info!("Storage should be deferred");
-        sched.tell_next("defer", to_defer).expect("Could not send workers to be deferred");
+        sched
+            .tell_next("defer", to_defer)
+            .expect("Could not send workers to be deferred");
     }
 
     if !(storage.len() > 0) {
@@ -232,7 +237,8 @@ where
 
     log::info!("{:?}", storage);
     log::info!("Indexing {} storage entries", storage.len());
-    sched.tell_next("db", storage)
+    sched
+        .tell_next("db", storage)
         .expect("Couldn't send storage to database");
     Ok(())
 }

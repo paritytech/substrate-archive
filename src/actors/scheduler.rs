@@ -56,9 +56,7 @@ impl<'a> Scheduler<'a> {
                 if let Some(w) = self.worker(name) {
                     self.last_executed += 1;
                     let next_executed = self.last_executed % w.elems().len();
-                    self.ctx
-                        .ask(&w.elems()[next_executed].addr(), data)
-
+                    self.ctx.ask(&w.elems()[next_executed].addr(), data)
                 } else {
                     log::warn!("Could not find worker by the name of {}", name);
                     Err(data)
@@ -76,8 +74,7 @@ impl<'a> Scheduler<'a> {
                 if let Some(w) = self.worker(name) {
                     self.last_executed += 1;
                     let next_executed = self.last_executed % w.elems().len();
-                    self.ctx
-                        .tell(&w.elems()[next_executed].addr(), data)
+                    self.ctx.tell(&w.elems()[next_executed].addr(), data)
                 } else {
                     log::warn!("Could not find worker by the name of {}", name);
                     Err(data)

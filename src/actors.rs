@@ -25,11 +25,11 @@ use super::{
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
+use async_ctrlc::CtrlC;
 use bastion::prelude::*;
+use futures::future::FutureExt;
 use sp_storage::StorageKey;
 use sqlx::postgres::PgPool;
-use async_ctrlc::CtrlC;
-use futures::future::FutureExt;
 use std::{env, sync::Arc};
 
 // TODO: 'cut!' macro to handle errors from within actors
@@ -39,7 +39,11 @@ use std::{env, sync::Arc};
 /// EX: If you want to query all keys for 'System Account'
 /// twox('System') + twox('Account')
 /// Prefixes are preferred, they will be more performant
-pub async fn init<T, C>(client: Arc<C>, url: String, keys: Vec<StorageKey>) -> Result<(), ArchiveError>
+pub async fn init<T, C>(
+    client: Arc<C>,
+    url: String,
+    keys: Vec<StorageKey>,
+) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock<T>> + 'static,
@@ -50,18 +54,21 @@ where
     Bastion::init();
 
     // TODO: could be initialized asyncronously somewhere
-    let pool = run!(
-        PgPool::builder()
-            .max_size(10)
-            .build(&env::var("DATABASE_URL")?)
-    )?;
+    let pool = run!(PgPool::builder()
+        .max_size(10)
+        .build(&env::var("DATABASE_URL")?))?;
 
     // Normally workers aren't started on the top-level
     // however we want access to this in order to send messages on program shutdown
-    let defer_workers = workers::defer_storage::<T>(pool.clone())
-        .expect("Couldn't start defer workers");
-    let storage = self::generators::storage::<T, _>(client.clone(), pool.clone(), keys, defer_workers.clone())
-        .expect("Couldn't add storage indexer");
+    let defer_workers =
+        workers::defer_storage::<T>(pool.clone()).expect("Couldn't start defer workers");
+    let storage = self::generators::storage::<T, _>(
+        client.clone(),
+        pool.clone(),
+        keys,
+        defer_workers.clone(),
+    )
+    .expect("Couldn't add storage indexer");
 
     // network generator. Gets headers from network but uses client to fetch block bodies
     let network = self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())
@@ -69,19 +76,26 @@ where
 
     // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
     // uses client to get those blocks
-    let missing = self::generators::db::<T, _>(client, pool, url).expect("Couldn't start db work generators");
+    let missing =
+        self::generators::db::<T, _>(client, pool, url).expect("Couldn't start db work generators");
 
     Bastion::start();
 
     let ctrlc = CtrlC::new().expect("Couldn't create ctrl-c handler");
-    ctrlc.then(|_| async {
-        Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send message");
-        network.stop().expect("Network Generator could not be stopped");
-        storage.stop().expect("Storage could not be stopped");
-        missing.stop().expect("Missing Blocks Worker could not be stopped");
-        finish_work(&defer_workers).await;
-        Bastion::kill();
-    }).await;
+    ctrlc
+        .then(|_| async {
+            Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send message");
+            network
+                .stop()
+                .expect("Network Generator could not be stopped");
+            storage.stop().expect("Storage could not be stopped");
+            missing
+                .stop()
+                .expect("Missing Blocks Worker could not be stopped");
+            finish_work(&defer_workers).await;
+            Bastion::kill();
+        })
+        .await;
 
     Bastion::block_until_stopped();
     Ok(())
@@ -92,8 +106,9 @@ async fn finish_work(defer_workers: &ChildrenRef) {
         let mut answers_needed = defer_workers.elems().len();
         let mut answers = Vec::new();
         for worker in defer_workers.elems() {
-            let ans = worker.ask_anonymously(ArchiveQuestion::IsStorageDone)
-                            .expect("Couldn't send shutdown message to defer storage");
+            let ans = worker
+                .ask_anonymously(ArchiveQuestion::IsStorageDone)
+                .expect("Couldn't send shutdown message to defer storage");
             answers.push(ans);
         }
         let answers = futures::future::join_all(answers).await;
@@ -126,7 +141,7 @@ async fn finish_work(defer_workers: &ChildrenRef) {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ArchiveQuestion {
     /// as storage actors if the storage is finished being deferred
-    IsStorageDone
+    IsStorageDone,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -136,7 +151,6 @@ pub enum ArchiveAnswer {
     StorageIsDone,
     /// Storage actor response that storage is not finished saving progress
     StorageNotDone,
-
 }
 
 /// Messages that are sent to every actor if something happens that must be handled globally

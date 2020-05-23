@@ -66,8 +66,6 @@ pub enum Error {
     WsDns(#[fail(cause)] WsNewDnsError),
     // #[fail(display = "CtrlC {}", _0)]
     // CtrlC(#[fail(cause)] CtrlCError),
-
-   
     #[fail(display = "Concurrency Error, Mutex Poisoned!")]
     Concurrency,
     #[fail(display = "Call type unhandled, not committing to database")]

@@ -34,9 +34,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-pub fn actor<T>(
-    pool: sqlx::Pool<PgConnection>,
-) -> Result<ChildrenRef, ()>
+pub fn actor<T>(pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -57,8 +55,8 @@ where
                             if should_stop {
                                 break;
                             }
-                        },
-                        Err(e) => log::error!("{:?}", e)
+                        }
+                        Err(e) => log::error!("{:?}", e),
                     };
                     if storage.len() > 0 {
                         match handle_entries::<T>(pool.clone(), &mut sched, &mut storage).await {
@@ -75,12 +73,10 @@ where
 
 /// Handle a message sent to this actor
 /// returns true if it should stop
-async fn msg<T>(ctx: &BastionContext,
-                storage: &mut Vec<Storage<T>>
-) -> Result<bool, ArchiveError>
+async fn msg<T>(ctx: &BastionContext, storage: &mut Vec<Storage<T>>) -> Result<bool, ArchiveError>
 where
     T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>
+    <T as System>::BlockNumber: Into<u32>,
 {
     let msg: Option<SignedMessage>;
     // wait for work if we don't have any (letting actor sleep)
@@ -92,15 +88,19 @@ where
 
     if let Some(m) = msg {
         log::info!("Received a message");
-        return handle_message(m, ctx, storage).await
+        return handle_message(m, ctx, storage).await;
     }
     Ok(false)
 }
 
-async fn handle_message<T>(msg: SignedMessage, ctx: &BastionContext, storage: &mut Vec<Storage<T>>) -> Result<bool, ArchiveError>
+async fn handle_message<T>(
+    msg: SignedMessage,
+    ctx: &BastionContext,
+    storage: &mut Vec<Storage<T>>,
+) -> Result<bool, ArchiveError>
 where
     T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>
+    <T as System>::BlockNumber: Into<u32>,
 {
     msg! {
         msg,
@@ -131,7 +131,6 @@ where
     }
     Ok(false)
 }
-
 
 async fn handle_entries<T>(
     pool: sqlx::Pool<PgConnection>,
@@ -171,7 +170,8 @@ where
             "STORAGE: inserting {} Deferred storage entries",
             ready.len()
         );
-        let answer = sched.tell_next("db", ready)
+        let answer = sched
+            .tell_next("db", ready)
             .expect("Couldn't send storage to database");
         log::debug!("{:?}", answer);
     } else {
@@ -189,7 +189,10 @@ where
             log::info!("GOT SHUTDOWN");
             if storage.len() > 0 {
                 let now = std::time::Instant::now();
-                log::info!("Storing {} deferred storage entries into temporary binary files", storage.len());
+                log::info!(
+                    "Storing {} deferred storage entries into temporary binary files",
+                    storage.len()
+                );
                 let mut hasher = DefaultHasher::new();
                 storage.hash(&mut hasher);
                 let hash = hasher.finish();
@@ -201,7 +204,9 @@ where
                 crate::util::create_dir(path.as_path());
                 path.push(file_name);
                 let temp_db = SimpleDb::new(path).expect("Couldn't create temporary storage files");
-                temp_db.save(storage.clone()).expect("Could not save temp storage");
+                temp_db
+                    .save(storage.clone())
+                    .expect("Could not save temp storage");
                 let elapsed = now.elapsed();
                 log::info!(
                     "took {} seconds, {} milli-seconds, {} micro-seconds to save storage",
@@ -211,6 +216,6 @@ where
                 );
                 storage.drain(..);
             }
-        },
+        }
     }
 }
