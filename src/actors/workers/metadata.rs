@@ -45,7 +45,8 @@ where
                 let url = url.clone();
                 let pool = pool.clone();
                 async move {
-                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
+                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
+                    sched.add_worker("transform", &workers);
                     let rpc = super::connect::<T>(url.as_str()).await;
                     loop {
                         msg! {
@@ -59,7 +60,7 @@ where
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
                                 // send batch_items to decode actor
                             };
-                            ref broadcast: super::Broadcast => {
+                            ref _broadcast: super::Broadcast => {
                                 ()
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
@@ -82,7 +83,7 @@ async fn meta_process_block<T>(
     let ver = rpc.version(Some(hash).as_ref()).await.unwrap();
     meta_checker(ver.spec_version, Some(hash), &rpc, pool, sched).await;
     let block = Block::<T>::new(block, ver.spec_version);
-    let v = sched.ask_next(block).unwrap().await;
+    let v = sched.ask_next("transform", block).unwrap().await;
     log::debug!("{:?}", v);
 }
 
@@ -137,7 +138,7 @@ async fn meta_process_blocks<T>(
         }
     }
 
-    let v = sched.ask_next(batch_items).unwrap().await;
+    let v = sched.ask_next("transform", batch_items).unwrap().await;
     log::debug!("{:?}", v);
 }
 
@@ -156,7 +157,7 @@ async fn meta_checker<T>(
     {
         let meta = rpc.metadata(hash).await.expect("Couldn't get metadata");
         let meta = Metadata::new(ver, meta);
-        let v = sched.ask_next(meta).unwrap().await;
+        let v = sched.ask_next("transform", meta).unwrap().await;
         log::debug!("{:?}", v);
     }
 }

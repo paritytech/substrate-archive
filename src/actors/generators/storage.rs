@@ -30,7 +30,7 @@ use bastion::prelude::*;
 use primitive_types::H256;
 use sp_storage::StorageKey;
 use sqlx::PgConnection;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 //TODO need to find a better way to speed up indexing
 /// Actor to index storage for PostgreSQL database
@@ -40,6 +40,7 @@ pub fn actor<T, C>(
     client: Arc<C>,
     pool: sqlx::Pool<PgConnection>,
     keys: Vec<StorageKey>,
+    defer_workers: ChildrenRef,
 ) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
@@ -49,18 +50,21 @@ where
 {
     let db = crate::database::Database::new(&pool).expect("Database intialization error");
     let db_workers = workers::db::<T>(db).expect("Could not start storage db workers");
-    super::collect_storage::actor::<T>(pool.clone(), db_workers.clone())
+    super::collect_storage::actor::<T>(defer_workers.clone())
         .expect("Couldn't restart deferred storage workers");
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
-            let workers = db_workers.clone();
+            let db_workers = db_workers.clone();
+            let defer_workers = defer_workers.clone();
             let pool = pool.clone();
             let client = client.clone();
             let keys = keys.clone();
 
             async move {
                 let mut max_storage: u32 = 0;
-                let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
+                let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
+                sched.add_worker("db", &db_workers);
+                sched.add_worker("defer", &defer_workers);
                 loop {
                     if handle_shutdown::<T>(&ctx).await {
                         break;
@@ -89,8 +93,8 @@ where
     <T as System>::Hash: From<H256>,
     <T as System>::BlockNumber: Into<u32>,
 {
-    if queries::is_blocks_empty(pool).await? {
-        async_std::task::sleep(Duration::from_secs(5)).await;
+    if queries::are_blocks_empty(pool).await? {
+        timer::Delay::new(std::time::Duration::from_secs(5)).await;
         return Ok(());
     }
 
@@ -125,7 +129,8 @@ where
 
     if query_from_num == query_to_num || query_from_num > query_to_num {
         // TODO: block time is 5 seconds so a good choice for sleep?
-        async_std::task::sleep(Duration::from_secs(5)).await;
+        // Should we sleep at all?
+        timer::Delay::new(std::time::Duration::from_secs(5)).await;
         return Ok(());
     }
 
@@ -145,11 +150,15 @@ where
     let storage_backend = StorageBackend::<T, C>::new(client.clone());
 
     let now = std::time::Instant::now();
-    let change_set = storage_backend.query_storage(
-        T::Hash::from(query_from_hash),
-        Some(query_to_hash),
-        keys.clone(),
-    )?;
+    let spawn_keys = keys.clone();
+    let change_set = blocking!{
+        storage_backend.query_storage(
+            T::Hash::from(query_from_hash),
+            Some(query_to_hash),
+            spawn_keys
+        )
+    };
+    let change_set = spawn!(change_set).await.ok_or(ArchiveError::from("Could not spawn blocking"))?.unwrap()?;
     let elapsed = now.elapsed();
     log::info!(
         "Took {} seconds, {} milli-seconds to query storage from {} to {}",
@@ -165,6 +174,7 @@ where
         .map(|b| b.generate_series as u32)
         .collect::<Vec<u32>>();
 
+    let now = std::time::Instant::now();
     let storage = change_set
         .into_iter()
         .map(|change| {
@@ -202,11 +212,18 @@ where
         .cloned()
         .filter(|s| !missing_blocks.contains(&s.block_num().into()))
         .collect::<Vec<Storage<T>>>();
+    let elapsed = now.elapsed();
+    log::info!(
+        "Took {} seconds, {} milli-seconds to process storage from {} to {}",
+        elapsed.as_secs(),
+        elapsed.as_millis(),
+        query_from_num,
+        query_to_num
+    );
 
     if to_defer.len() > 0 {
         log::info!("Storage should be deferred");
-        super::defer_storage::actor::<T>(pool.clone(), sched.workers().clone(), to_defer)
-            .expect("Couldn't start defer workers");
+        sched.tell_next("defer", to_defer).expect("Could not send workers to be deferred");
     }
 
     if !(storage.len() > 0) {
@@ -215,12 +232,8 @@ where
 
     log::info!("{:?}", storage);
     log::info!("Indexing {} storage entries", storage.len());
-    let answer = sched
-        .ask_next(storage)
-        .unwrap()
-        .await
+    sched.tell_next("db", storage)
         .expect("Couldn't send storage to database");
-    log::debug!("{:?}", answer);
     Ok(())
 }
 
@@ -232,7 +245,9 @@ where
         msg! {
             msg,
             ref broadcast: super::Broadcast => {
-                return true
+                match broadcast {
+                    _ => { return true }
+                }
             };
             e: _ => log::warn!("Received unknown message: {:?}", e);
         };

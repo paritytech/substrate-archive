@@ -20,6 +20,7 @@
 // otherwise there could be conflicts where one actor starves another because its waiting on some work to finish,
 // whereas there are other redundant workers sitting idly
 use bastion::prelude::*;
+use std::collections::HashMap;
 
 pub enum Algorithm {
     RoundRobin,
@@ -29,49 +30,67 @@ pub struct Scheduler<'a> {
     last_executed: usize,
     alg: Algorithm,
     ctx: &'a BastionContext,
-    workers: &'a ChildrenRef,
+    workers: HashMap<&'a str, &'a ChildrenRef>,
 }
 
 impl<'a> Scheduler<'a> {
-    pub fn new(alg: Algorithm, ctx: &'a BastionContext, workers: &'a ChildrenRef) -> Self {
+    pub fn new(alg: Algorithm, ctx: &'a BastionContext) -> Self {
         Self {
             last_executed: 0,
+            workers: HashMap::new(),
             alg,
             ctx,
-            workers,
         }
     }
 
-    pub fn ask_next<T>(&mut self, data: T) -> Result<Answer, T>
+    pub fn add_worker(&mut self, name: &'a str, workers: &'a ChildrenRef) {
+        self.workers.insert(name, workers);
+    }
+
+    pub fn ask_next<T>(&mut self, name: &str, data: T) -> Result<Answer, T>
     where
         T: Send + Sync + std::fmt::Debug + 'static,
     {
         match self.alg {
             Algorithm::RoundRobin => {
-                self.last_executed += 1;
-                let next_executed = self.last_executed % self.workers.elems().len();
-                self.ctx
-                    .ask(&self.workers.elems()[next_executed].addr(), data)
+                if let Some(w) = self.worker(name) {
+                    self.last_executed += 1;
+                    let next_executed = self.last_executed % w.elems().len();
+                    self.ctx
+                        .ask(&w.elems()[next_executed].addr(), data)
+
+                } else {
+                    log::warn!("Could not find worker by the name of {}", name);
+                    Err(data)
+                }
             }
         }
     }
 
-    #[allow(unused)]
-    pub fn tell_next<T>(&mut self, data: T) -> Result<(), T>
+    pub fn tell_next<T>(&mut self, name: &str, data: T) -> Result<(), T>
     where
         T: Send + Sync + std::fmt::Debug + 'static,
     {
         match self.alg {
             Algorithm::RoundRobin => {
-                self.last_executed += 1;
-                let next_executed = self.last_executed % self.workers.elems().len();
-                self.ctx
-                    .tell(&self.workers.elems()[next_executed].addr(), data)
+                if let Some(w) = self.worker(name) {
+                    self.last_executed += 1;
+                    let next_executed = self.last_executed % w.elems().len();
+                    self.ctx
+                        .tell(&w.elems()[next_executed].addr(), data)
+                } else {
+                    log::warn!("Could not find worker by the name of {}", name);
+                    Err(data)
+                }
             }
         }
     }
 
-    pub fn workers(&'a self) -> &'a ChildrenRef {
-        self.workers
+    pub fn worker<'b>(&'b self, name: &str) -> Option<&'a ChildrenRef> {
+        self.workers.get(name).map(|w| *w)
+    }
+
+    pub fn context(&'a self) -> &'a BastionContext {
+        self.ctx
     }
 }

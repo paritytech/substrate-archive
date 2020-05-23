@@ -32,9 +32,7 @@ use bastion::prelude::*;
 use bigdecimal::ToPrimitive;
 use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
-use std::{sync::Arc, time::Duration};
-
-const DURATION: u64 = 5;
+use std::sync::Arc;
 
 pub fn actor<T, C>(
     client: Arc<C>,
@@ -56,7 +54,8 @@ where
             let pool = pool.clone();
             let workers = meta_workers.clone();
             async move {
-                let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
+                let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
+                sched.add_worker("meta", &workers);
                 loop {
                     if handle_shutdown(&ctx).await {
                         break;
@@ -85,7 +84,7 @@ where
     let block_nums = queries::missing_blocks(&pool).await?;
     log::info!("missing {} blocks", block_nums.len());
     if !(block_nums.len() > 0) {
-        async_std::task::sleep(Duration::from_secs(DURATION)).await;
+        timer::Delay::new(std::time::Duration::from_secs(5)).await;
         return Ok(());
     }
     log::info!(
@@ -110,7 +109,7 @@ where
         }
     }
     log::info!("Got {} blocks", blocks.len());
-    let answer = sched.ask_next(blocks).unwrap().await;
+    let answer = sched.ask_next("meta", blocks).unwrap().await;
     log::debug!("{:?}", answer);
     Ok(())
 }

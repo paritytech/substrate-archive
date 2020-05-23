@@ -39,7 +39,8 @@ where
                 let workers = db_workers.clone();
                 async move {
                     log::info!("Transformer started");
-                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
+                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
+                    sched.add_worker("db", &workers);
                     loop {
                         msg! {
                             ctx.recv().await?,
@@ -52,10 +53,10 @@ where
                                  answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                              };
                             meta: Metadata =!> {
-                                let v = sched.ask_next(meta).unwrap().await;
+                                let v = sched.ask_next("db", meta).unwrap().await;
                                 log::debug!("{:?}", v);
                             };
-                            ref broadcast: super::Broadcast => {
+                            ref _broadcast: super::Broadcast => {
                                 ()
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
@@ -73,9 +74,9 @@ where
 {
     // TODO: join these futures
     let ext: Vec<Extrinsic<T>> = (&block).into();
-    let v = sched.ask_next(block).unwrap().await;
+    let v = sched.ask_next("db", block).unwrap().await;
     log::debug!("{:?}", v);
-    let v = sched.ask_next(ext).unwrap().await;
+    let v = sched.ask_next("db", ext).unwrap().await;
     log::debug!("{:?}", v);
 }
 
@@ -89,8 +90,8 @@ where
     let batch_blocks = BatchBlock::new(blocks.clone());
     let ext: Vec<Extrinsic<T>> = batch_blocks.into();
     log::info!("Processing blocks");
-    let v = sched.ask_next(blocks).unwrap().await;
+    let v = sched.ask_next("db", blocks).unwrap().await;
     log::debug!("{:?}", v);
-    let v = sched.ask_next(ext).unwrap().await;
+    let v = sched.ask_next("db", ext).unwrap().await;
     log::debug!("{:?}", v);
 }

@@ -20,24 +20,25 @@
 use crate::{
     error::Error as ArchiveError,
     simple_db::SimpleDb,
+    actors::scheduler::{Algorithm, Scheduler}
 };
 use bastion::prelude::*;
-use sqlx::PgConnection;
 use crate::types::*;
 use std::fs;
 
 
-pub fn actor<T>(pool: sqlx::Pool<PgConnection>, workers: ChildrenRef) -> Result<ChildrenRef, ()>
+pub fn actor<T>(defer_workers: ChildrenRef) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
     Bastion::children(|children| {
-        children.with_exec(move |_: BastionContext| {
-            let pool = pool.clone();
-            let workers = workers.clone();
+        children.with_exec(move |ctx: BastionContext| {
+            let workers = defer_workers.clone();
             async move {
-                match entry::<T>(pool, workers) {
+                let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
+                sched.add_worker("defer", &workers);
+                match entry::<T>(&mut sched) {
                     Ok(_) => (),
                     Err(e) => log::error!("{:?}", e)
                 }
@@ -47,7 +48,7 @@ where
     })
 }
 
-fn entry<T>(pool: sqlx::Pool<PgConnection>, workers: ChildrenRef) -> Result<(), ArchiveError>
+fn entry<T>(sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -72,9 +73,9 @@ where
 
     fs::remove_dir_all(sub_archive_path.as_path())?;
    
-    log::info!("Restarting deferred storage workers with {} entries", storage.len());
-    super::defer_storage::actor::<T>(pool.clone(), workers.clone(), storage)
-        .expect("Couldn't restart deferred storage workers");
+    log::info!("sending {} collected entries to deferred storage workers", storage.len());
+    sched.tell_next("defer", storage)
+        .expect("Couldn't send message to storage workers");
 
     Ok(())
 }

@@ -45,7 +45,8 @@ where
                 let mut decoder = decoder.clone();
                 async move {
                     log::info!("Decode worker started");
-                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &workers);
+                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
+                    sched.add_worker("db", &workers);
                     loop {
                         msg! {
                             ctx.recv().await?,
@@ -74,7 +75,7 @@ pub async fn process_block<T>(block: Block<T>, sched: &mut Scheduler<'_>)
 where
     T: Substrate + Send + Sync,
 {
-    let v = sched.ask_next(block).unwrap().await;
+    let v = sched.ask_next("db", block).unwrap().await;
     log::debug!("{:?}", v);
 }
 
@@ -83,7 +84,7 @@ where
     T: Substrate + Send + Sync,
 {
     log::info!("Processing blocks");
-    let v = sched.ask_next(blocks).unwrap().await;
+    let v = sched.ask_next("db", blocks).unwrap().await;
     log::debug!("{:?}", v);
 }
 
@@ -153,10 +154,10 @@ pub async fn process_extrinsics<T, P>(
     log::info!("Decoded {} extrinsics", signed.len() + not_signed.len());
 
     if signed.len() > 0 {
-        let v = sched.ask_next(signed).unwrap().await;
+        let v = sched.ask_next("db", signed).unwrap().await;
         log::debug!("{:?}", v);
     }
     if not_signed.len() > 0 {
-        let v = sched.ask_next(not_signed).unwrap().await;
+        let v = sched.ask_next("db", not_signed).unwrap().await;
     }
 }

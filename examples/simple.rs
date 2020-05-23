@@ -70,5 +70,7 @@ pub fn main() {
     keys.push(StorageKey(democracy_public_proposal_count));
     keys.push(StorageKey(democracy_proposals));
 
-    init::<ksm_runtime::Runtime, _>(client, "ws://127.0.0.1:9944".to_string(), keys).unwrap();
+    futures::executor::block_on(
+        init::<ksm_runtime::Runtime, _>(client, "ws://127.0.0.1:9944".to_string(), keys)
+    ).unwrap()
 }

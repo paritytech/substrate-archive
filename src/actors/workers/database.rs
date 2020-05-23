@@ -52,12 +52,11 @@ where
                                 process_metadata(&db, metadata).await;
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
-                            storage: Vec<Storage<T>> =!> {
+                            storage: Vec<Storage<T>> => {
                                 log::info!("Inserting {} storage entries", storage.len());
                                 process_storage(&db, storage).await;
-                                answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
                             };
-                            ref broadcast: super::Broadcast => {
+                            ref _broadcast: super::Broadcast => {
                                 () // we don't need to do any cleanup
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
@@ -77,7 +76,7 @@ where
         .await
         .unwrap()
     {
-        async_std::task::sleep(std::time::Duration::from_millis(10)).await;
+        timer::Delay::new(std::time::Duration::from_millis(20)).await;
     }
     match db.insert(block).await {
         Ok(_) => (),
@@ -106,7 +105,7 @@ where
         if db_contains_metadata(specs.as_slice(), versions) {
             break 'meta;
         }
-        async_std::task::sleep(std::time::Duration::from_millis(20)).await;
+        timer::Delay::new(std::time::Duration::from_millis(20)).await;
     }
 
     match db.insert(BatchBlock::new(blocks)).await {

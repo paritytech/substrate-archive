@@ -35,7 +35,7 @@ pub fn open_database<Block: BlockT>(
 ) -> sp_blockchain::Result<Arc<dyn DatabaseTrait<DbHash>>> {
     let mut db_config = DatabaseConfig {
         secondary: TempDir::new("")
-            .unwrap()
+            .expect("Could not instantiate secondary database directory")
             .path()
             .to_str()
             .map(|s| s.to_string()),

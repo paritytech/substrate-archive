@@ -24,6 +24,10 @@ use sp_runtime::{
 };
 use sp_storage::{StorageData, StorageKey};
 use std::{hash::Hash, marker::PhantomData};
+use futures::channel::mpsc::UnboundedReceiver;
+use sc_client_api::client::FinalityNotification;
+
+pub type FinalityStream<T> = UnboundedReceiver<FinalityNotification<NotSignedBlock<T>>>;
 
 /// Consolidation of substrate traits representing fundamental types
 pub trait Substrate: System + Send + Sync + std::fmt::Debug {}

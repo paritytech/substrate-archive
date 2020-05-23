@@ -15,7 +15,6 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod db_generators;
-mod defer_storage;
 mod collect_storage;
 mod network;
 mod storage;

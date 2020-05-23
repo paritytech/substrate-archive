@@ -56,7 +56,8 @@ where
             let url: String = url.clone();
             let client = client.clone();
             async move {
-                let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx, &meta_workers);
+                let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
+                sched.add_worker("meta", &meta_workers);
                 let rpc = actors::connect::<T>(url.as_str()).await;
                 let mut subscription = rpc
                     .subscribe_finalized_heads()
@@ -73,7 +74,7 @@ where
                         .unwrap();
                     if let Some(b) = block {
                         log::trace!("{:?}", b);
-                        sched.ask_next(b).unwrap().await?;
+                        sched.ask_next("meta", b).unwrap().await?;
                     } else {
                         log::warn!("Block does not exist!");
                     }
@@ -93,9 +94,13 @@ where
         msg! {
             msg,
             ref broadcast: super::Broadcast => {
-                // dropping a jsonrpsee::Subscription unsubscribes
-                std::mem::drop(subscription);
-                return true;
+                match broadcast {
+                    super::Broadcast::Shutdown => {
+                        // dropping a jsonrpsee::Subscription unsubscribes
+                        std::mem::drop(subscription);
+                        return true;
+                    }
+                }
             };
             e: _ => log::warn!("Received unknown message: {:?}", e);
         };

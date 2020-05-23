@@ -29,6 +29,8 @@ pub use error::Error;
 pub use types::{NotSignedBlock, Substrate};
 
 pub mod rpc;
+
+#[cfg(feature = "logging")]
 pub use util::init_logger;
 
 pub use self::actors::init;

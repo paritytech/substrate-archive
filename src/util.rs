@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! logging and general utilities
-
+#[cfg(feature = "logging")]
 use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
 use std::path::{Path, PathBuf};
@@ -44,6 +44,7 @@ pub fn substrate_dir() -> PathBuf {
     }
 }
 
+#[cfg(feature = "logging")]
 pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
     let colors = ColoredLevelConfig::new()
         .info(Color::Green)

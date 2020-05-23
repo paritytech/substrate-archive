@@ -22,6 +22,7 @@ use jsonrpsee::transport::ws::WsNewDnsError;
 use serde_json::Error as SerdeError;
 use sp_blockchain::Error as BlockchainError;
 use sqlx::Error as SqlError;
+// use async_ctrlc::Error as CtrlCError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
@@ -63,6 +64,10 @@ pub enum Error {
     JsonrpseeRequest(#[fail(cause)] JsonrpseeRequest),
     #[fail(display = "Ws DNS Failure {}", _0)]
     WsDns(#[fail(cause)] WsNewDnsError),
+    // #[fail(display = "CtrlC {}", _0)]
+    // CtrlC(#[fail(cause)] CtrlCError),
+
+   
     #[fail(display = "Concurrency Error, Mutex Poisoned!")]
     Concurrency,
     #[fail(display = "Call type unhandled, not committing to database")]
