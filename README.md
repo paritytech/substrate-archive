@@ -1,4 +1,5 @@
 <div align="center">
+
 # Substrate Archive
 
 [Install the CLI](#install) • [Documentation] • [Contributing](#contributing) 
