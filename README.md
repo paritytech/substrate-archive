@@ -2,12 +2,20 @@
 
 # Substrate Archive
 
-[Install the CLI](#install) • [Documentation] • [Contributing](#contributing) 
+[Install the CLI](#install-the-cli) • [Documentation] • [Contributing](#contributing) 
 
 </div>
-Run this alongside the substrate client to sync all historical TxData. Indexes all Blocks, State, and Extrinsic date from a running node.
 
-Example Usage:
+- [Substrate Archive](#substrate-archive)
+- [Example Usage:](#example-usage)
+- [Prerequisites](#prerequisites)
+- [Install The CLI](#install-the-cli)
+- [Contributing](#contributing)
+
+
+Run alongside a substrate-backed chain to index all Blocks, State, and Extrinsic data into PostgreSQL.
+
+# Example Usage:
 ```rust
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
 use substrate_archive::{backend, init, chain_traits::{HeaderBackend as _}, twox_128, StorageKey};
@@ -46,32 +54,22 @@ pub fn main() {
     .unwrap()
 }
 ```
-more fleshed-out example can be found in `archive/examples/simple.rs`. You can run it by entering the `archive` directory
-and running `cargo run --example simple --features logging` 
+A more fleshed-out example can be found in `archive/examples/simple.rs`. You can run it by entering the `archive` directory and running:
+
+`cargo run --example simple --features logging` 
 
 The schema for the PostgreSQL database is described in the PDF File at the root of this directory
 
-### Requirements
+# Prerequisites 
 Extended requirements list found in the [wiki](https://github.com/paritytech/substrate-archive/wiki/Requirements)
-- PostgreSQL
+- PostgreSQL with the required schema: `schema/archive.sql`
 - Substrate-based Blockchain running with Rocksdb as the backend
 
+# Install The CLI
+// Todo
 
-
-### How to use
-- need a Postgres Database with the URL exposed as an environment variable under the name `DATABASE_URL`
-- Create the tables by running `./schema/archive.sql` inside Postgres
-
-Create the database
-```
-sudo -u postgres createdb -O $(whoami) archive
-psql -d postgres://$(whoami):password@localhost/archive -f ./schema/archive.sql
-```
-
-##### Required Dependencies:
-Ubuntu: `postgresql`, `postgresql-contrib`, `libpq-dev`
-Fedora: `postgresql`, `postgresql-contrib`, `postgresql-devel`
-
+# Contributing
+// Todo
 
 
 
