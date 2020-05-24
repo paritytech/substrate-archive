@@ -1,0 +1,15 @@
+[package]
+name = "kusama-archive"
+version = "0.1.0"
+authors = ["Andrew Plaza <aplaza@liquidthink.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+substrate-archive = { version = "0.3", path = "../archive", features = ["logging"] }
+polkadot-service = { package = "polkadot-service", git ="https://github.com/paritytech/polkadot", branch = "master", default-features = false }
+clap = "2.33.1"
+
+
+
