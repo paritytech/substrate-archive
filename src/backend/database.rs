@@ -31,9 +31,9 @@ pub struct ReadOnlyDatabase {
 }
 
 impl ReadOnlyDatabase {
-    #[allow(dead_code)]
     pub fn open(config: &DatabaseConfig, path: &str) -> io::Result<Self> {
         let inner = Database::open(config, path)?;
+        log::info!("Returning inner");
         Ok(Self { inner })
     }
 }

@@ -53,31 +53,27 @@ where
 {
     Bastion::init();
 
-    // TODO: could be initialized asyncronously somewhere
     let pool = run!(PgPool::builder()
         .max_size(10)
         .build(&env::var("DATABASE_URL")?))?;
 
     // Normally workers aren't started on the top-level
     // however we want access to this in order to send messages on program shutdown
-    let defer_workers =
-        workers::defer_storage::<T>(pool.clone()).expect("Couldn't start defer workers");
+    let defer_workers = workers::defer_storage::<T>(pool.clone())?;
     let storage = self::generators::storage::<T, _>(
         client.clone(),
         pool.clone(),
         keys,
         defer_workers.clone(),
-    )
-    .expect("Couldn't add storage indexer");
+    )?;
 
     // network generator. Gets headers from network but uses client to fetch block bodies
-    let network = self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())
-        .expect("Couldn't add blocks child");
+    let network = self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())?;
+
 
     // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
     // uses client to get those blocks
-    let missing =
-        self::generators::db::<T, _>(client, pool, url).expect("Couldn't start db work generators");
+    let missing = self::generators::db::<T, _>(client, pool, url)?;
 
     Bastion::start();
 

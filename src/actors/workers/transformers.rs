@@ -83,8 +83,11 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     let ext: Vec<Extrinsic<T>> = (&block).into();
-    let (block, ext) = futures::future::join(sched.ask_next("db", block)?, sched.ask_next("db", ext)?).await;
-    log::debug!("{:?}, {:?}", block, ext);
+    // blocks need to be inserted before extrinsics, so that extrinsics may reference block hash in postgres
+    let v = sched.ask_next("db", block)?.await;
+    log::debug!("{:?}", v);
+    let v = sched.ask_next("db", ext)?.await;
+    log::debug!("{:?}", v);
     Ok(())
 }
 
@@ -98,8 +101,11 @@ where
     let batch_blocks = BatchBlock::new(blocks.clone());
     let ext: Vec<Extrinsic<T>> = batch_blocks.into();
 
+    // blocks need to be inserted before extrinsics, so that extrinsics may reference block hash in postgres
     log::info!("Processing blocks");
-    let (blocks, ext) = futures::future::join(sched.ask_next("db", blocks)?, sched.ask_next("db", ext)?).await;
-    log::debug!("{:?}, {:?}", blocks, ext);
+    let v = sched.ask_next("db", blocks)?.await;
+    log::debug!("{:?}", v);
+    let v = sched.ask_next("db", ext)?.await;
+    log::debug!("{:?}", v);
     Ok(())
 }

@@ -24,13 +24,18 @@ use sp_storage::StorageKey;
 use substrate_archive::{backend, init};
 
 pub fn main() {
-    substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
+    let stdout = match option_env!("RUST_LOG").map(|o| o.to_lowercase()).as_deref() {
+        Some("error") => log::LevelFilter::Error,
+        Some("warn") => log::LevelFilter::Warn,
+        Some("info") => log::LevelFilter::Info,
+        Some("debug") => log::LevelFilter::Debug,
+        Some("trace") => log::LevelFilter::Trace,
+        _ => log::LevelFilter::Error,
+    };
+    substrate_archive::init_logger(stdout, log::LevelFilter::Info);
 
-    let db = backend::open_database::<Block>(
-        "~/.local/share/polkadot/chains/ksmcc3/db",
-        2048,
-    )
-    .unwrap();
+    let db =
+        backend::open_database::<Block>("/home/insipx/.local/share/polkadot/chains/ksmcc3/db", 8192).unwrap();
     let conf = DatabaseConfig::Custom(db);
 
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
@@ -69,7 +74,10 @@ pub fn main() {
     keys.push(StorageKey(democracy_public_proposal_count));
     keys.push(StorageKey(democracy_proposals));
 
-    futures::executor::block_on(
-        init::<ksm_runtime::Runtime, _>(client, "ws://127.0.0.1:9944".to_string(), keys)
-    ).unwrap()
+    futures::executor::block_on(init::<ksm_runtime::Runtime, _>(
+        client,
+        "ws://127.0.0.1:9944".to_string(),
+        keys,
+    ))
+    .unwrap()
 }

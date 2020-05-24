@@ -34,14 +34,13 @@ pub fn open_database<Block: BlockT>(
     cache_size: usize,
 ) -> sp_blockchain::Result<Arc<dyn DatabaseTrait<DbHash>>> {
     let mut db_config = DatabaseConfig {
-        secondary: TempDir::new("")
+        secondary: TempDir::new("substrate-archive")
             .expect("Could not instantiate secondary database directory")
             .path()
             .to_str()
             .map(|s| s.to_string()),
         ..DatabaseConfig::with_columns(NUM_COLUMNS)
     };
-
     let state_col_budget = (cache_size as f64 * 0.9) as usize;
     let other_col_budget = (cache_size - state_col_budget) / (NUM_COLUMNS as usize - 1);
     let mut memory_budget = std::collections::HashMap::new();
@@ -54,7 +53,7 @@ pub fn open_database<Block: BlockT>(
         }
     }
     db_config.memory_budget = memory_budget;
-    log::trace!(
+    log::info!(
         target: "db",
         "Open RocksDB database at {}, state column budget: {} MiB, others({}) column cache: {} MiB",
         path,

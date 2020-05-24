@@ -66,6 +66,6 @@ where
 {
 }
 
-pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
+// pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
 
-impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}
+// impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}

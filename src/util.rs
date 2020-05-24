@@ -77,7 +77,8 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
                 .level_for("substrate_archive", file)
                 // .level_for("desub_core", log::LevelFilter::Debug)
                 // .level_for("bastion", log::LevelFilter::Trace)
-                // .level_for("crate_name", log::LevelFilter::Trace)
+                // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
+                // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
                 .chain(
                     fern::log_file(log_dir).expect("Failed to create substrate_archive.logs file"),
                 ),
