@@ -17,11 +17,7 @@
 //! A simple example
 
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use sc_service::config::DatabaseConfig; // integrate this into Archive Proper
-use sp_blockchain::HeaderBackend as _;
-use sp_core::twox_128;
-use sp_storage::StorageKey;
-use substrate_archive::{backend, init};
+use substrate_archive::{backend, init, chain_traits::{HeaderBackend as _}, twox_128, StorageKey};
 
 pub fn main() {
     let stdout = match option_env!("RUST_LOG").map(|o| o.to_lowercase()).as_deref() {
@@ -35,21 +31,19 @@ pub fn main() {
     substrate_archive::init_logger(stdout, log::LevelFilter::Info);
 
     let db =
-        backend::open_database::<Block>("/home/insipx/.local/share/polkadot/chains/ksmcc3/db", 8192).unwrap();
-    let conf = DatabaseConfig::Custom(db);
+        backend::open_database::<Block>("/home/insipx/.local/share/polkadot/chains/ksmcc4/db", 8192).unwrap();
 
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
     let client =
         backend::client::<Block, ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor, _>(
-            conf, spec,
+            db, spec,
         )
         .unwrap();
 
     let info = client.info();
     println!("{:?}", info);
 
-    // TODO: create a 'key builder' for key prefixes
-    // this may already exist in substrate (haven't checked)
+    // create the keys we want to query storage for
     let system_key = twox_128(b"System").to_vec();
     let events_key = twox_128(b"Events").to_vec();
     let accounts_key = twox_128(b"Account").to_vec();
@@ -74,6 +68,7 @@ pub fn main() {
     keys.push(StorageKey(democracy_public_proposal_count));
     keys.push(StorageKey(democracy_proposals));
 
+    // run until we want to exit (Ctrl-C)
     futures::executor::block_on(init::<ksm_runtime::Runtime, _>(
         client,
         "ws://127.0.0.1:9944".to_string(),

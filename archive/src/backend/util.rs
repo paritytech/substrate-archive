@@ -18,6 +18,7 @@
 
 use kvdb_rocksdb::DatabaseConfig;
 use sp_database::Database as DatabaseTrait;
+use sc_service::config::DatabaseConfig as DBConfig;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 use tempdir::TempDir;
@@ -28,8 +29,13 @@ pub const NUM_COLUMNS: u32 = 11;
 const DB_HASH_LEN: usize = 32;
 pub type DbHash = [u8; DB_HASH_LEN];
 
+/// Open a rocksdb Database as Read-Only
+pub fn open_database<Block: BlockT>(path: &str, cache_size: usize) -> sp_blockchain::Result<DBConfig> {
+    Ok(DBConfig::Custom(open_db::<Block>(path, cache_size)?))
+}
+
 /// Open a database as read-only
-pub fn open_database<Block: BlockT>(
+fn open_db<Block: BlockT>(
     path: &str,
     cache_size: usize,
 ) -> sp_blockchain::Result<Arc<dyn DatabaseTrait<DbHash>>> {

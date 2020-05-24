@@ -1,0 +1,66 @@
+[package]
+name = "substrate-archive"
+version = "0.3.0"
+authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
+edition = "2018"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# external
+log = "0.4"
+futures = { version = "0.3" }
+failure = "0.1"
+timer = { version = "3.0", package = "futures-timer" }
+serde = { version = "1.0.105", features = ["derive"] }
+# enabling arbitrary_precision for serde_json may cause rpc requests to fail
+fern = { version = "0.6", features = ["colored"], optional = true }
+chrono = { version = "0.4", optional = true }
+serde_json = "1.0.50"
+dirs = { version = "2", package = "directories" }
+bastion = "0.3"
+tempdir = "0.3.7"
+sqlx = { version = "0.3.5", features = ["postgres", "json"] }
+async-trait = "0.1.31"
+hex = "0.4.2"
+async-ctrlc = "1.1.0"
+flate2 = "1.0.14"
+bincode = "1.2.1"
+bastion-executor = "0.3.4"
+lightproc = "0.3.4"
+itertools = "0.9.0"
+
+# Parity
+primitive-types = "0.7"
+jsonrpsee = "0.1.0"
+kvdb = "0.6"
+kvdb-rocksdb = "0.8"
+parity-util-mem = "0.6.1"
+codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
+
+# Substrate
+sp-database = { git = "https://github.com/paritytech/substrate", branch = "master", package="sp-database" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-service" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-client-db" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-storage" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-runtime" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-client-api" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-blockchain" }
+substrate-rpc-primitives = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-rpc" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-api" }
+runtime-version = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-version" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-executor" }
+sc-transaction-graph = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-transaction-graph" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-system" }
+
+[dev-dependencies]
+# desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
+pretty_env_logger = "0.4.0"
+
+
+[features]
+logging = ["chrono", "fern"]
