@@ -51,9 +51,8 @@ where
                     loop {
                         msg! {
                             ctx.recv().await?,
-                            block: SubstrateBlock<T> =!> {
+                            block: SubstrateBlock<T> => {
                                 meta_process_block::<T>(block, rpc.clone(), &pool, &mut sched).await;
-                                answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
                             };
                             blocks: Vec<SubstrateBlock<T>> =!> {
                                 meta_process_blocks(blocks, rpc.clone(), &pool, &mut sched).await;

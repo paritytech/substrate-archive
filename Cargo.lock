@@ -401,17 +401,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "271e48689ed6b78f7275193b86537764739174d5856e20d25e63f731218af379"
 
 [[package]]
-name = "bigdecimal"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1374191e2dd25f9ae02e3aa95041ed5d747fc77b3c102b49fe2dd9a8117a6244"
-dependencies = [
- "num-bigint",
- "num-integer",
- "num-traits 0.2.11",
-]
-
-[[package]]
 name = "bincode"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6551,7 +6540,6 @@ dependencies = [
  "async-std",
  "async-stream",
  "base64 0.12.1",
- "bigdecimal",
  "bitflags",
  "byteorder",
  "crossbeam-queue",
@@ -6565,7 +6553,6 @@ dependencies = [
  "log 0.4.8",
  "md-5",
  "memchr",
- "num-bigint",
  "percent-encoding 2.1.0",
  "rand 0.7.3",
  "serde",
@@ -6669,7 +6656,6 @@ dependencies = [
  "async-trait",
  "bastion",
  "bastion-executor",
- "bigdecimal",
  "bincode",
  "chrono",
  "directories",

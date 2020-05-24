@@ -19,7 +19,7 @@ use crate::queries;
 use crate::types::*;
 use bastion::prelude::*;
 
-pub const REDUNDANCY: usize = 5;
+pub const REDUNDANCY: usize = 16;
 
 pub fn actor<T>(db: Database) -> Result<ChildrenRef, ()>
 where
@@ -56,12 +56,17 @@ where
                                 log::info!("Inserting {} storage entries", storage.len());
                                 process_storage(&db, storage).await;
                             };
-                            ref _broadcast: super::Broadcast => {
-                                () // we don't need to do any cleanup
+                            ref broadcast: super::Broadcast => {
+                                match broadcast {
+                                    super::Broadcast::Shutdown => {
+                                        break;
+                                    }
+                                }
                             };
                             e: _ => log::warn!("Received unknown data {:?}", e);
                         };
                     }
+                    Ok(())
                 }
             })
     })

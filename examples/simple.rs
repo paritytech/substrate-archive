@@ -26,10 +26,9 @@ use substrate_archive::{backend, init};
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
 
-    // FIXME Database and spec initialization can be done in the lib with a convenience func
     let db = backend::open_database::<Block>(
-        "/home/insipx/.local/share/polkadot/chains/ksmcc3/db",
-        4096,
+        "~/.local/share/polkadot/chains/ksmcc3/db",
+        2048,
     )
     .unwrap();
     let conf = DatabaseConfig::Custom(db);

@@ -76,9 +76,6 @@ where
         "sending {} collected entries to deferred storage workers",
         storage.len()
     );
-    sched
-        .tell_next("defer", storage)
-        .expect("Couldn't send message to storage workers");
-
+    sched.tell_next("defer", storage)?;
     Ok(())
 }

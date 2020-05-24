@@ -27,8 +27,6 @@ use sp_runtime::{
 use sp_storage::{StorageData, StorageKey};
 use std::{hash::Hash, marker::PhantomData};
 
-pub type FinalityStream<T> = UnboundedReceiver<FinalityNotification<NotSignedBlock<T>>>;
-
 /// Consolidation of substrate traits representing fundamental types
 pub trait Substrate: System + Send + Sync + std::fmt::Debug {}
 

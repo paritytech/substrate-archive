@@ -21,6 +21,7 @@
 // whereas there are other redundant workers sitting idly
 use bastion::prelude::*;
 use std::collections::HashMap;
+use crate::error::Error as ArchiveError;
 
 pub enum Algorithm {
     RoundRobin,
@@ -47,7 +48,7 @@ impl<'a> Scheduler<'a> {
         self.workers.insert(name, workers);
     }
 
-    pub fn ask_next<T>(&mut self, name: &str, data: T) -> Result<Answer, T>
+    pub fn ask_next<T>(&mut self, name: &str, data: T) -> Result<Answer, ArchiveError>
     where
         T: Send + Sync + std::fmt::Debug + 'static,
     {
@@ -57,15 +58,15 @@ impl<'a> Scheduler<'a> {
                     self.last_executed += 1;
                     let next_executed = self.last_executed % w.elems().len();
                     self.ctx.ask(&w.elems()[next_executed].addr(), data)
+                        .map_err(|d| data_to_err(d, "`ask` failed with"))
                 } else {
-                    log::warn!("Could not find worker by the name of {}", name);
-                    Err(data)
+                    Err(data_to_err(data, format!("could not find worker {} to tell", name).as_str()))
                 }
             }
         }
     }
 
-    pub fn tell_next<T>(&mut self, name: &str, data: T) -> Result<(), T>
+    pub fn tell_next<T>(&mut self, name: &str, data: T) -> Result<(), ArchiveError>
     where
         T: Send + Sync + std::fmt::Debug + 'static,
     {
@@ -75,9 +76,9 @@ impl<'a> Scheduler<'a> {
                     self.last_executed += 1;
                     let next_executed = self.last_executed % w.elems().len();
                     self.ctx.tell(&w.elems()[next_executed].addr(), data)
+                        .map_err(|d| data_to_err(d, "`tell` failed with "))
                 } else {
-                    log::warn!("Could not find worker by the name of {}", name);
-                    Err(data)
+                    Err(data_to_err(data, format!("could not find worker {} to tell", name).as_str()))
                 }
             }
         }
@@ -90,4 +91,11 @@ impl<'a> Scheduler<'a> {
     pub fn context(&'a self) -> &'a BastionContext {
         self.ctx
     }
+}
+
+fn data_to_err<T>(data: T, msg: &str) -> ArchiveError
+where
+    T: Send + Sync + std::fmt::Debug + 'static
+{
+    ArchiveError::from(format!("{}: {:?}", msg, data).as_str())
 }

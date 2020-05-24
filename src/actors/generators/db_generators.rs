@@ -29,7 +29,6 @@ use crate::{
     types::{NotSignedBlock, Substrate, System},
 };
 use bastion::prelude::*;
-use bigdecimal::ToPrimitive;
 use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
 use std::sync::Arc;
@@ -95,13 +94,8 @@ where
     );
     let mut blocks = Vec::new();
     for block_num in block_nums.iter() {
-        let num = block_num
-            .generate_series
-            .to_u32()
-            .expect("Could not convert into u32");
-        let b = client
-            .block(&BlockId::Number(T::BlockNumber::from(num)))
-            .expect("Error getting block");
+        let num = block_num.generate_series as u32;
+        let b = client.block(&BlockId::Number(T::BlockNumber::from(num)))?;
         if b.is_none() {
             log::warn!("Block does not exist!")
         } else {
@@ -109,7 +103,7 @@ where
         }
     }
     log::info!("Got {} blocks", blocks.len());
-    let answer = sched.ask_next("meta", blocks).unwrap().await;
+    let answer = sched.ask_next("meta", blocks)?.await;
     log::debug!("{:?}", answer);
     Ok(())
 }
