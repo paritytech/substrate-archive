@@ -67,7 +67,8 @@ where
                 Ok(())
             }
         })
-    }).map_err(|_| ArchiveError::from("Could not instantiate database generator"))
+    })
+    .map_err(|_| ArchiveError::from("Could not instantiate database generator"))
 }
 
 async fn entry<T, C>(

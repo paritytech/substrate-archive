@@ -101,7 +101,7 @@ macro_rules! print_on_err {
     ($e: expr) => {
         match $e {
             Ok(_) => (),
-            Err(e) => log::error!("{:?}", e)
+            Err(e) => log::error!("{:?}", e),
         };
     };
 }

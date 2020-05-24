@@ -76,7 +76,8 @@ where
                 Ok(())
             }
         })
-    }).map_err(|_| ArchiveError::from("Could not instantiate storage generator"))
+    })
+    .map_err(|_| ArchiveError::from("Could not instantiate storage generator"))
 }
 
 async fn entry<T, C>(
@@ -180,7 +181,9 @@ where
     let storage = change_set
         .into_iter()
         .map(|change| {
-            let num = client.number(change.block).expect("Could not fetch number for block");
+            let num = client
+                .number(change.block)
+                .expect("Could not fetch number for block");
             let block_hash = change.block;
             if let Some(num) = num {
                 change

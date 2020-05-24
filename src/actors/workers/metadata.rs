@@ -16,10 +16,10 @@
 
 use crate::actors::scheduler::{Algorithm, Scheduler};
 use crate::{
+    error::Error as ArchiveError,
     queries,
     rpc::Rpc,
-    types::{Block, Metadata, Substrate, SubstrateBlock, System, DbPool},
-    error::Error as ArchiveError
+    types::{Block, DbPool, Metadata, Substrate, SubstrateBlock, System},
 };
 use bastion::prelude::*;
 use serde::de::DeserializeOwned;
@@ -48,15 +48,20 @@ where
                     sched.add_worker("transform", &workers);
                     match handle_msg::<T>(&mut sched, &pool, url.as_str()).await {
                         Ok(_) => (),
-                        Err(e) => log::error!("{:?}", e)
+                        Err(e) => log::error!("{:?}", e),
                     }
                     Ok(())
                 }
             })
-    }).map_err(|_| ArchiveError::from("Could not instantiate metadata workers"))
+    })
+    .map_err(|_| ArchiveError::from("Could not instantiate metadata workers"))
 }
 
-async fn handle_msg<T>(sched: &mut Scheduler<'_>, pool: &DbPool, url: &str) -> Result<(), ArchiveError>
+async fn handle_msg<T>(
+    sched: &mut Scheduler<'_>,
+    pool: &DbPool,
+    url: &str,
+) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -112,9 +117,7 @@ where
     let mut batch_items = Vec::new();
 
     let now = std::time::Instant::now();
-    let first = rpc
-        .version(Some(&blocks[0].block.header().hash()))
-        .await?;
+    let first = rpc.version(Some(&blocks[0].block.header().hash())).await?;
     let elapsed = now.elapsed();
     log::info!(
         "Rpc request for version took {} milli-seconds",
@@ -164,8 +167,7 @@ async fn meta_checker<T>(
 where
     T: Substrate + Send + Sync,
 {
-    if !queries::check_if_meta_exists(ver, pool).await?
-    {
+    if !queries::check_if_meta_exists(ver, pool).await? {
         let meta = rpc.metadata(hash).await?;
         let meta = Metadata::new(ver, meta);
         let v = sched.ask_next("transform", meta)?.await;

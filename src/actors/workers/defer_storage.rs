@@ -68,7 +68,8 @@ where
                 Ok(())
             }
         })
-    }).map_err(|_| ArchiveError::from("Could not instantiate defer storage workers"))
+    })
+    .map_err(|_| ArchiveError::from("Could not instantiate defer storage workers"))
 }
 
 /// Handle a message sent to this actor
@@ -176,8 +177,10 @@ where
     Ok(())
 }
 
-async fn handle_shutdown<T>(storage: &mut Vec<Storage<T>>, broadcast: &super::Broadcast)
--> Result<(), ArchiveError>
+async fn handle_shutdown<T>(
+    storage: &mut Vec<Storage<T>>,
+    broadcast: &super::Broadcast,
+) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
 {

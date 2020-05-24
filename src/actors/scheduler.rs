@@ -19,9 +19,9 @@
 // TODO: Maybe make an actor (supervisor?) that schedules other actors
 // otherwise there could be conflicts where one actor starves another because its waiting on some work to finish,
 // whereas there are other redundant workers sitting idly
+use crate::error::Error as ArchiveError;
 use bastion::prelude::*;
 use std::collections::HashMap;
-use crate::error::Error as ArchiveError;
 
 pub enum Algorithm {
     RoundRobin,
@@ -57,10 +57,14 @@ impl<'a> Scheduler<'a> {
                 if let Some(w) = self.worker(name) {
                     self.last_executed += 1;
                     let next_executed = self.last_executed % w.elems().len();
-                    self.ctx.ask(&w.elems()[next_executed].addr(), data)
+                    self.ctx
+                        .ask(&w.elems()[next_executed].addr(), data)
                         .map_err(|d| data_to_err(d, "`ask` failed with"))
                 } else {
-                    Err(data_to_err(data, format!("could not find worker {} to tell", name).as_str()))
+                    Err(data_to_err(
+                        data,
+                        format!("could not find worker {} to tell", name).as_str(),
+                    ))
                 }
             }
         }
@@ -75,10 +79,14 @@ impl<'a> Scheduler<'a> {
                 if let Some(w) = self.worker(name) {
                     self.last_executed += 1;
                     let next_executed = self.last_executed % w.elems().len();
-                    self.ctx.tell(&w.elems()[next_executed].addr(), data)
+                    self.ctx
+                        .tell(&w.elems()[next_executed].addr(), data)
                         .map_err(|d| data_to_err(d, "`tell` failed with "))
                 } else {
-                    Err(data_to_err(data, format!("could not find worker {} to tell", name).as_str()))
+                    Err(data_to_err(
+                        data,
+                        format!("could not find worker {} to tell", name).as_str(),
+                    ))
                 }
             }
         }
@@ -95,7 +103,7 @@ impl<'a> Scheduler<'a> {
 
 fn data_to_err<T>(data: T, msg: &str) -> ArchiveError
 where
-    T: Send + Sync + std::fmt::Debug + 'static
+    T: Send + Sync + std::fmt::Debug + 'static,
 {
     ArchiveError::from(format!("{}: {:?}", msg, data).as_str())
 }

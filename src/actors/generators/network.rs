@@ -25,8 +25,8 @@ use crate::actors::{
 };
 use crate::{
     backend::ChainAccess,
+    error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
-    error::Error as ArchiveError
 };
 use bastion::prelude::*;
 use jsonrpsee::client::Subscription;
@@ -60,34 +60,38 @@ where
                 sched.add_worker("meta", &meta_workers);
                 match entry::<T, _>(&mut sched, client, url.as_str()).await {
                     Ok(_) => (),
-                    Err(e) => log::error!("{:?}", e)
+                    Err(e) => log::error!("{:?}", e),
                 };
                 Bastion::stop();
                 Ok(())
             }
         })
-    }).map_err(|_| ArchiveError::from("Could not instantiate network generator"))
+    })
+    .map_err(|_| ArchiveError::from("Could not instantiate network generator"))
 }
 
-async fn entry<T, C>(sched: &mut Scheduler<'_>, client: Arc<C>, url: &str) -> Result<(), ArchiveError>
+async fn entry<T, C>(
+    sched: &mut Scheduler<'_>,
+    client: Arc<C>,
+    url: &str,
+) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
-    let rpc = actors::connect::< T >(url).await;
+    let rpc = actors::connect::<T>(url).await;
     let mut subscription = rpc
         .subscribe_finalized_heads()
         .await
         .map_err(ArchiveError::from)?;
     loop {
-        if handle_shutdown::< T, _ > (sched.context(), &mut subscription).await {
+        if handle_shutdown::<T, _>(sched.context(), &mut subscription).await {
             break;
         }
         let head = subscription.next().await;
-        let block = client
-            .block(&BlockId::Number(*head.number()))?;
+        let block = client.block(&BlockId::Number(*head.number()))?;
         if let Some(b) = block {
             log::trace!("{:?}", b);
             sched.tell_next("meta", b)?

@@ -15,11 +15,11 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::database::Database;
+use crate::error::Error as ArchiveError;
+use crate::print_on_err;
 use crate::queries;
 use crate::types::*;
-use crate::error::Error as ArchiveError;
 use bastion::prelude::*;
-use crate::print_on_err;
 
 pub const REDUNDANCY: usize = 8;
 
@@ -38,7 +38,8 @@ where
                     Ok(())
                 }
             })
-    }).map_err(|_| ArchiveError::from("Could not instantiate database actor"))
+    })
+    .map_err(|_| ArchiveError::from("Could not instantiate database actor"))
 }
 
 async fn handle_msg<T>(ctx: &BastionContext, db: &Database) -> Result<(), ArchiveError>
@@ -83,15 +84,12 @@ where
     Ok(())
 }
 
-async fn process_block<T>(db: &Database, block: Block<T>)
-    -> Result<(), ArchiveError>
+async fn process_block<T>(db: &Database, block: Block<T>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    while !queries::check_if_meta_exists(block.spec, db.pool())
-        .await?
-    {
+    while !queries::check_if_meta_exists(block.spec, db.pool()).await? {
         timer::Delay::new(std::time::Duration::from_millis(20)).await;
     }
     db.insert(block).await.map(|_| ())
@@ -125,8 +123,8 @@ fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -
         .collect::<Vec<u32>>();
     for spec in specs.iter() {
         if !versions.contains(spec) {
-            return false
+            return false;
         }
     }
-    return true
+    return true;
 }

@@ -18,10 +18,10 @@
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 use crate::actors::scheduler::{Algorithm, Scheduler};
-use crate::{types::*, error::Error as ArchiveError};
+use crate::print_on_err;
+use crate::{error::Error as ArchiveError, types::*};
 use bastion::prelude::*;
 use sqlx::PgConnection;
-use crate::print_on_err;
 
 const REDUNDANCY: usize = 3;
 
@@ -46,13 +46,14 @@ where
                     Ok(())
                 }
             })
-    }).map_err(|_| ArchiveError::from("Could not instantiate database actor"))
+    })
+    .map_err(|_| ArchiveError::from("Could not instantiate database actor"))
 }
 
 pub async fn handle_msg<T>(sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>
+    <T as System>::BlockNumber: Into<u32>,
 {
     loop {
         msg! {
@@ -77,7 +78,10 @@ where
     }
 }
 
-pub async fn process_block<T>(block: Block<T>, sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>
+pub async fn process_block<T>(
+    block: Block<T>,
+    sched: &mut Scheduler<'_>,
+) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -91,7 +95,10 @@ where
     Ok(())
 }
 
-pub async fn process_blocks<T>(blocks: Vec<Block<T>>, sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>
+pub async fn process_blocks<T>(
+    blocks: Vec<Block<T>>,
+    sched: &mut Scheduler<'_>,
+) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,

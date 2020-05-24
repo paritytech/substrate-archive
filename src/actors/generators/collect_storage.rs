@@ -44,7 +44,8 @@ where
                 Ok(())
             }
         })
-    }).map_err(|_| ArchiveError::from("Could not instantiate storage collectors"))
+    })
+    .map_err(|_| ArchiveError::from("Could not instantiate storage collectors"))
 }
 
 fn entry<T>(sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>

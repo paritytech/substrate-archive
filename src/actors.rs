@@ -70,7 +70,6 @@ where
     // network generator. Gets headers from network but uses client to fetch block bodies
     let network = self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())?;
 
-
     // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
     // uses client to get those blocks
     let missing = self::generators::db::<T, _>(client, pool, url)?;
