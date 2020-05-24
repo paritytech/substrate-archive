@@ -41,17 +41,16 @@ pub fn actor<T, C>(
     pool: sqlx::Pool<PgConnection>,
     keys: Vec<StorageKey>,
     defer_workers: ChildrenRef,
-) -> Result<ChildrenRef, ()>
+) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::Hash: From<H256>,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let db = crate::database::Database::new(&pool).expect("Database intialization error");
-    let db_workers = workers::db::<T>(db).expect("Could not start storage db workers");
-    super::collect_storage::actor::<T>(defer_workers.clone())
-        .expect("Couldn't restart deferred storage workers");
+    let db = crate::database::Database::new(&pool)?;
+    let db_workers = workers::db::<T>(db)?;
+    super::collect_storage::actor::<T>(defer_workers.clone())?;
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let db_workers = db_workers.clone();
@@ -77,7 +76,7 @@ where
                 Ok(())
             }
         })
-    })
+    }).map_err(|_| ArchiveError::from("Could not instantiate storage generator"))
 }
 
 async fn entry<T, C>(
@@ -181,9 +180,7 @@ where
     let storage = change_set
         .into_iter()
         .map(|change| {
-            let num = client
-                .number(change.block)
-                .expect("Couldn't get block number for hash");
+            let num = client.number(change.block).expect("Could not fetch number for block");
             let block_hash = change.block;
             if let Some(num) = num {
                 change
@@ -226,9 +223,7 @@ where
 
     if to_defer.len() > 0 {
         log::info!("Storage should be deferred");
-        sched
-            .tell_next("defer", to_defer)
-            .expect("Could not send workers to be deferred");
+        sched.tell_next("defer", to_defer)?;
     }
 
     if !(storage.len() > 0) {
@@ -237,9 +232,7 @@ where
 
     log::info!("{:?}", storage);
     log::info!("Indexing {} storage entries", storage.len());
-    sched
-        .tell_next("db", storage)
-        .expect("Couldn't send storage to database");
+    sched.tell_next("db", storage)?;
     Ok(())
 }
 

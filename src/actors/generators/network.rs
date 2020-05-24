@@ -41,15 +41,14 @@ pub fn actor<T, C>(
     client: Arc<C>,
     pool: sqlx::Pool<PgConnection>,
     url: String,
-) -> Result<ChildrenRef, ()>
+) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
-    let meta_workers =
-        workers::metadata::<T>(url.clone(), pool).expect("Couldn't start metadata workers");
+    let meta_workers = workers::metadata::<T>(url.clone(), pool)?;
     // actor which produces work in the form of collecting blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
@@ -67,7 +66,7 @@ where
                 Ok(())
             }
         })
-    })
+    }).map_err(|_| ArchiveError::from("Could not instantiate network generator"))
 }
 
 async fn entry<T, C>(sched: &mut Scheduler<'_>, client: Arc<C>, url: &str) -> Result<(), ArchiveError>

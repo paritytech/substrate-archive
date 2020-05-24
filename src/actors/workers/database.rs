@@ -21,10 +21,9 @@ use crate::error::Error as ArchiveError;
 use bastion::prelude::*;
 use crate::print_on_err;
 
-pub const REDUNDANCY: usize = 16;
+pub const REDUNDANCY: usize = 8;
 
-
-pub fn actor<T>(db: Database) -> Result<ChildrenRef, ()>
+pub fn actor<T>(db: Database) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -35,44 +34,53 @@ where
             .with_exec(move |ctx: BastionContext| {
                 let db = db.clone();
                 async move {
-                    loop {
-                        msg! {
-                            ctx.recv().await?,
-                            block: Block<T> =!> {
-                                print_on_err!(process_block(&db, block).await);
-                                answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't Answer");
-                            };
-                            blocks: Vec<Block<T>> =!> {
-                                log::info!("Inserting {} blocks", blocks.len());
-                                print_on_err!(process_blocks(&db, blocks).await);
-                                answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
-                            };
-                            extrinsics: Vec<Extrinsic<T>> =!> {
-                                print_on_err!(process_extrinsics(&db, extrinsics).await);
-                                answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
-                            };
-                            metadata: Metadata =!> {
-                                print_on_err!(process_metadata(&db, metadata).await);
-                                answer!(ctx, super::ArchiveAnswer::Success).expect("Couldn't answer");
-                            };
-                            storage: Vec<Storage<T>> => {
-                                log::info!("Inserting {} storage entries", storage.len());
-                                print_on_err!(process_storage(&db, storage).await);
-                            };
-                            ref broadcast: super::Broadcast => {
-                                match broadcast {
-                                    super::Broadcast::Shutdown => {
-                                        break;
-                                    }
-                                }
-                            };
-                            e: _ => log::warn!("Received unknown data {:?}", e);
-                        };
-                    }
+                    print_on_err!(handle_msg::<T>(&ctx, &db).await);
                     Ok(())
                 }
             })
-    })
+    }).map_err(|_| ArchiveError::from("Could not instantiate database actor"))
+}
+
+async fn handle_msg<T>(ctx: &BastionContext, db: &Database) -> Result<(), ArchiveError>
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    loop {
+        msg! {
+            ctx.recv().await.expect("Could not receive"),
+            block: Block<T> =!> {
+                process_block(&db, block).await?;
+                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
+            };
+            blocks: Vec<Block<T>> =!> {
+                log::info!("Inserting {} blocks", blocks.len());
+                process_blocks(&db, blocks).await?;
+                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
+            };
+            extrinsics: Vec<Extrinsic<T>> =!> {
+                db.insert(extrinsics).await.map(|_| ())?;
+                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
+            };
+            metadata: Metadata =!> {
+                db.insert(metadata).await.map(|_| ())?;
+                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
+            };
+            storage: Vec<Storage<T>> => {
+                log::info!("Inserting {} storage entries", storage.len());
+                db.insert(storage).await.map(|_| ())?;
+            };
+            ref broadcast: super::Broadcast => {
+                match broadcast {
+                    super::Broadcast::Shutdown => {
+                        break;
+                    }
+                }
+            };
+            e: _ => log::warn!("Received unknown data {:?}", e);
+        }
+    }
+    Ok(())
 }
 
 async fn process_block<T>(db: &Database, block: Block<T>)
@@ -121,22 +129,4 @@ fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -
         }
     }
     return true
-}
-
-async fn process_extrinsics<T>(db: &Database, extrinsics: Vec<Extrinsic<T>>) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-{
-    db.insert(extrinsics).await.map(|_| ())
-}
-
-async fn process_metadata(db: &Database, meta: Metadata) -> Result<(), ArchiveError> {
-    db.insert(meta).await.map(|_| ())
-}
-
-async fn process_storage<T>(db: &Database, storage: Vec<Storage<T>>) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-{
-    db.insert(storage).await.map(|_| ())
 }

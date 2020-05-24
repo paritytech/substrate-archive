@@ -87,6 +87,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .expect("Could not init logging");
 }
 
+#[cfg(feature = "logging")]
 fn format_opt(file: Option<String>) -> String {
     match file {
         None => "".to_string(),
@@ -101,5 +102,12 @@ macro_rules! print_on_err {
             Ok(_) => (),
             Err(e) => log::error!("{:?}", e)
         };
+    };
+}
+
+#[macro_export]
+macro_rules! archive_answer {
+    ($ctx: expr, $ans: expr) => {
+        answer!($ctx, $ans).map_err(|_| crate::error::Error::from("Could not answer"))
     };
 }

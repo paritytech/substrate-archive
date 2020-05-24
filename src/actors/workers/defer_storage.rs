@@ -34,13 +34,13 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-pub fn actor<T>(pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
+pub fn actor<T>(pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let db = crate::database::Database::new(&pool).expect("Database intialization error");
-    let db_workers = super::db::<T>(db).expect("Could not start storage db workers");
+    let db = crate::database::Database::new(&pool)?;
+    let db_workers = super::db::<T>(db)?;
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let workers = db_workers.clone();
@@ -68,7 +68,7 @@ where
                 Ok(())
             }
         })
-    })
+    }).map_err(|_| ArchiveError::from("Could not instantiate defer storage workers"))
 }
 
 /// Handle a message sent to this actor
@@ -110,18 +110,16 @@ where
         };
         ref broadcast: super::Broadcast => {
             log::info!("writing storage to temporary files");
-            handle_shutdown(storage, broadcast).await;
+            handle_shutdown(storage, broadcast).await?;
         };
         question: super::ArchiveQuestion =!> {
             log::info!("Responding to supervisor");
             match question {
                 super::ArchiveQuestion::IsStorageDone => {
                     if storage.len() > 0 {
-                        answer!(ctx, super::ArchiveAnswer::StorageNotDone)
-                            .expect("Could not answer");
+                        crate::archive_answer!(ctx, super::ArchiveAnswer::StorageNotDone)?;
                     } else {
-                        answer!(ctx, super::ArchiveAnswer::StorageIsDone)
-                            .expect("Could not answer");
+                        crate::archive_answer!(ctx, super::ArchiveAnswer::StorageIsDone)?;
                         return Ok(true)
                     }
                 }
@@ -170,9 +168,7 @@ where
             "STORAGE: inserting {} Deferred storage entries",
             ready.len()
         );
-        let answer = sched
-            .tell_next("db", ready)
-            .expect("Couldn't send storage to database");
+        let answer = sched.tell_next("db", ready)?;
         log::debug!("{:?}", answer);
     } else {
         timer::Delay::new(std::time::Duration::from_millis(100)).await;
@@ -180,7 +176,8 @@ where
     Ok(())
 }
 
-async fn handle_shutdown<T>(storage: &mut Vec<Storage<T>>, broadcast: &super::Broadcast) -> ()
+async fn handle_shutdown<T>(storage: &mut Vec<Storage<T>>, broadcast: &super::Broadcast)
+-> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
 {
@@ -203,10 +200,8 @@ where
                 path.push("temp_storage");
                 crate::util::create_dir(path.as_path());
                 path.push(file_name);
-                let temp_db = SimpleDb::new(path).expect("Couldn't create temporary storage files");
-                temp_db
-                    .save(storage.clone())
-                    .expect("Could not save temp storage");
+                let temp_db = SimpleDb::new(path)?;
+                temp_db.save(storage.clone())?;
                 let elapsed = now.elapsed();
                 log::info!(
                     "took {} seconds, {} milli-seconds, {} micro-seconds to save storage",
@@ -218,4 +213,5 @@ where
             }
         }
     }
+    Ok(())
 }

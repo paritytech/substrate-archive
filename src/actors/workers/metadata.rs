@@ -29,14 +29,13 @@ const REDUNDANCY: usize = 5;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub fn actor<T>(url: String, pool: DbPool) -> Result<ChildrenRef, ()>
+pub fn actor<T>(url: String, pool: DbPool) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: DeserializeOwned,
 {
-    let transform_workers =
-        super::transformers::actor::<T>(pool.clone()).expect("Couldn't start transformers");
+    let transform_workers = super::transformers::actor::<T>(pool.clone())?;
     Bastion::children(|children| {
         children
             .with_redundancy(REDUNDANCY)
@@ -54,7 +53,7 @@ where
                     Ok(())
                 }
             })
-    })
+    }).map_err(|_| ArchiveError::from("Could not instantiate metadata workers"))
 }
 
 async fn handle_msg<T>(sched: &mut Scheduler<'_>, pool: &DbPool, url: &str) -> Result<(), ArchiveError>
@@ -72,7 +71,7 @@ where
             };
             blocks: Vec<SubstrateBlock<T>> =!> {
                 meta_process_blocks(blocks, rpc.clone(), &pool, sched).await?;
-                answer!(sched.context(), super::ArchiveAnswer::Success).expect("Could not answer");
+                crate::archive_answer!(sched.context(), super::ArchiveAnswer::Success)?;
             };
             ref _broadcast: super::Broadcast => {
                 ()

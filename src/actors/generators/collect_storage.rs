@@ -26,7 +26,7 @@ use crate::{
 use bastion::prelude::*;
 use std::fs;
 
-pub fn actor<T>(defer_workers: ChildrenRef) -> Result<ChildrenRef, ()>
+pub fn actor<T>(defer_workers: ChildrenRef) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -44,7 +44,7 @@ where
                 Ok(())
             }
         })
-    })
+    }).map_err(|_| ArchiveError::from("Could not instantiate storage collectors"))
 }
 
 fn entry<T>(sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>

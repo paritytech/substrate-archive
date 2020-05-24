@@ -26,13 +26,13 @@ use crate::print_on_err;
 const REDUNDANCY: usize = 3;
 
 // actor that takes blocks and transforms them into different types
-pub fn actor<T>(pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
+pub fn actor<T>(pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let db = crate::database::Database::new(&pool).expect("Database intialization error");
-    let db_workers = super::database::actor::<T>(db).expect("Couldn't start db workers");
+    let db = crate::database::Database::new(&pool)?;
+    let db_workers = super::database::actor::<T>(db)?;
     Bastion::children(|children: Children| {
         children
             .with_redundancy(REDUNDANCY)
@@ -42,30 +42,39 @@ where
                     log::info!("Transformer started");
                     let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                     sched.add_worker("db", &workers);
-                    loop {
-                        msg! {
-                            ctx.recv().await?,
-                            block: Block<T> =!> {
-                                print_on_err!(process_block(block.clone(), &mut sched).await);
-                                answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
-                             };
-                             blocks: Vec<Block<T>> =!> {
-                                 print_on_err!(process_blocks(blocks.clone(), &mut sched).await);
-                                 answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
-                             };
-                            meta: Metadata =!> {
-                                let v = sched.ask_next("db", meta).unwrap().await;
-                                log::debug!("{:?}", v);
-                            };
-                            ref _broadcast: super::Broadcast => {
-                                ()
-                            };
-                            e: _ => log::warn!("Received unknown data {:?}", e);
-                        }
-                    }
+                    print_on_err!(handle_msg::<T>(&mut sched).await);
+                    Ok(())
                 }
             })
-    })
+    }).map_err(|_| ArchiveError::from("Could not instantiate database actor"))
+}
+
+pub async fn handle_msg<T>(sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>
+{
+    loop {
+        msg! {
+            sched.context().recv().await.expect("Could not receive"),
+            block: Block<T> =!> {
+                process_block(block.clone(), sched).await?;
+                crate::archive_answer!(sched.context(), super::ArchiveAnswer::Success)?;
+            };
+            blocks: Vec<Block<T>> =!> {
+                process_blocks(blocks.clone(), sched).await?;
+                crate::archive_answer!(sched.context(), super::ArchiveAnswer::Success)?;
+            };
+            meta: Metadata =!> {
+                let v = sched.ask_next("db", meta)?.await;
+                log::debug!("{:?}", v);
+            };
+            ref _broadcast: super::Broadcast => {
+                ()
+            };
+            e: _ => log::warn!("Received unknown data {:?}", e);
+        }
+    }
 }
 
 pub async fn process_block<T>(block: Block<T>, sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>
