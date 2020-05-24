@@ -4,10 +4,14 @@
 
 [Install the CLI](#install-the-cli) • [Documentation] • [Contributing](#contributing) 
 
+![Rust](https://github.com/paritytech/substrate-archive/workflows/Rust/badge.svg)
+
 </div>
 
+## Contents
 - [Substrate Archive](#substrate-archive)
-- [Example Usage:](#example-usage)
+  - [Contents](#contents)
+- [Example Usage](#example-usage)
 - [Prerequisites](#prerequisites)
 - [Install The CLI](#install-the-cli)
 - [Contributing](#contributing)
@@ -15,7 +19,7 @@
 
 Run alongside a substrate-backed chain to index all Blocks, State, and Extrinsic data into PostgreSQL.
 
-# Example Usage:
+# Example Usage
 ```rust
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
 use substrate_archive::{backend, init, chain_traits::{HeaderBackend as _}, twox_128, StorageKey};
