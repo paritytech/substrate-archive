@@ -8,14 +8,6 @@
 
 </div>
 
-## Contents
-- [Substrate Archive](#substrate-archive)
-  - [Contents](#contents)
-- [Example Usage](#example-usage)
-- [Prerequisites](#prerequisites)
-- [Install The CLI](#install-the-cli)
-- [Contributing](#contributing)
-
 
 Run alongside a substrate-backed chain to index all Blocks, State, and Extrinsic data into PostgreSQL.
 
