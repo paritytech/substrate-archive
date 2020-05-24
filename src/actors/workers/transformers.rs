@@ -18,9 +18,10 @@
 //! these actors may do highly parallelized work
 //! These actors do not make any external connections to a Database or Network
 use crate::actors::scheduler::{Algorithm, Scheduler};
-use crate::types::*;
+use crate::{types::*, error::Error as ArchiveError};
 use bastion::prelude::*;
 use sqlx::PgConnection;
+use crate::print_on_err;
 
 const REDUNDANCY: usize = 3;
 
@@ -45,11 +46,11 @@ where
                         msg! {
                             ctx.recv().await?,
                             block: Block<T> =!> {
-                                process_block(block.clone(), &mut sched).await;
+                                print_on_err!(process_block(block.clone(), &mut sched).await);
                                 answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                              };
                              blocks: Vec<Block<T>> =!> {
-                                 process_blocks(blocks.clone(), &mut sched).await;
+                                 print_on_err!(process_blocks(blocks.clone(), &mut sched).await);
                                  answer!(ctx, super::ArchiveAnswer::Success).expect("couldn't answer");
                              };
                             meta: Metadata =!> {
@@ -67,20 +68,18 @@ where
     })
 }
 
-pub async fn process_block<T>(block: Block<T>, sched: &mut Scheduler<'_>)
+pub async fn process_block<T>(block: Block<T>, sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    // TODO: join these futures
     let ext: Vec<Extrinsic<T>> = (&block).into();
-    let v = sched.ask_next("db", block).unwrap().await;
-    log::debug!("{:?}", v);
-    let v = sched.ask_next("db", ext).unwrap().await;
-    log::debug!("{:?}", v);
+    let (block, ext) = futures::future::join(sched.ask_next("db", block)?, sched.ask_next("db", ext)?).await;
+    log::debug!("{:?}, {:?}", block, ext);
+    Ok(())
 }
 
-pub async fn process_blocks<T>(blocks: Vec<Block<T>>, sched: &mut Scheduler<'_>)
+pub async fn process_blocks<T>(blocks: Vec<Block<T>>, sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -89,9 +88,9 @@ where
     //TODO: Join these futures
     let batch_blocks = BatchBlock::new(blocks.clone());
     let ext: Vec<Extrinsic<T>> = batch_blocks.into();
+
     log::info!("Processing blocks");
-    let v = sched.ask_next("db", blocks).unwrap().await;
-    log::debug!("{:?}", v);
-    let v = sched.ask_next("db", ext).unwrap().await;
-    log::debug!("{:?}", v);
+    let (blocks, ext) = futures::future::join(sched.ask_next("db", blocks)?, sched.ask_next("db", ext)?).await;
+    log::debug!("{:?}, {:?}", blocks, ext);
+    Ok(())
 }

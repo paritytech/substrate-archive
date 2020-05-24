@@ -93,3 +93,13 @@ fn format_opt(file: Option<String>) -> String {
         Some(f) => f.to_string(),
     }
 }
+
+#[macro_export]
+macro_rules! print_on_err {
+    ($e: expr) => {
+        match $e {
+            Ok(_) => (),
+            Err(e) => log::error!("{:?}", e)
+        };
+    };
+}

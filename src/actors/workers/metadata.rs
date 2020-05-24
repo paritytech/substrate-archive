@@ -18,18 +18,18 @@ use crate::actors::scheduler::{Algorithm, Scheduler};
 use crate::{
     queries,
     rpc::Rpc,
-    types::{Block, Metadata, Substrate, SubstrateBlock, System},
+    types::{Block, Metadata, Substrate, SubstrateBlock, System, DbPool},
+    error::Error as ArchiveError
 };
 use bastion::prelude::*;
 use serde::de::DeserializeOwned;
 use sp_runtime::traits::{Block as _, Header as _};
-use sqlx::PgConnection;
 
 const REDUNDANCY: usize = 5;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub fn actor<T>(url: String, pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ()>
+pub fn actor<T>(url: String, pool: DbPool) -> Result<ChildrenRef, ()>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -47,51 +47,66 @@ where
                 async move {
                     let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                     sched.add_worker("transform", &workers);
-                    let rpc = super::connect::<T>(url.as_str()).await;
-                    loop {
-                        msg! {
-                            ctx.recv().await?,
-                            block: SubstrateBlock<T> => {
-                                meta_process_block::<T>(block, rpc.clone(), &pool, &mut sched).await;
-                            };
-                            blocks: Vec<SubstrateBlock<T>> =!> {
-                                meta_process_blocks(blocks, rpc.clone(), &pool, &mut sched).await;
-                                answer!(ctx, super::ArchiveAnswer::Success).expect("Could not answer");
-                                // send batch_items to decode actor
-                            };
-                            ref _broadcast: super::Broadcast => {
-                                ()
-                            };
-                            e: _ => log::warn!("Received unknown data {:?}", e);
-                        }
+                    match handle_msg::<T>(&mut sched, &pool, url.as_str()).await {
+                        Ok(_) => (),
+                        Err(e) => log::error!("{:?}", e)
                     }
+                    Ok(())
                 }
             })
     })
 }
 
+async fn handle_msg<T>(sched: &mut Scheduler<'_>, pool: &DbPool, url: &str) -> Result<(), ArchiveError>
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+    <T as System>::Header: DeserializeOwned,
+{
+    let rpc = super::connect::<T>(url).await;
+    loop {
+        msg! {
+            sched.context().recv().await.expect("Could not receive"),
+            block: SubstrateBlock<T> => {
+                meta_process_block::<T>(block, rpc.clone(), &pool, sched).await?;
+            };
+            blocks: Vec<SubstrateBlock<T>> =!> {
+                meta_process_blocks(blocks, rpc.clone(), &pool, sched).await?;
+                answer!(sched.context(), super::ArchiveAnswer::Success).expect("Could not answer");
+            };
+            ref _broadcast: super::Broadcast => {
+                ()
+            };
+            e: _ => log::warn!("Received unknown data {:?}", e);
+        }
+    }
+}
+
 async fn meta_process_block<T>(
     block: SubstrateBlock<T>,
     rpc: Rpc<T>,
-    pool: &sqlx::Pool<PgConnection>,
+    pool: &DbPool,
     sched: &mut Scheduler<'_>,
-) where
+) -> Result<(), ArchiveError>
+where
     T: Substrate + Send + Sync,
 {
     let hash = block.block.header().hash();
-    let ver = rpc.version(Some(hash).as_ref()).await.unwrap();
-    meta_checker(ver.spec_version, Some(hash), &rpc, pool, sched).await;
+    let ver = rpc.version(Some(hash).as_ref()).await?;
+    meta_checker(ver.spec_version, Some(hash), &rpc, pool, sched).await?;
     let block = Block::<T>::new(block, ver.spec_version);
-    let v = sched.ask_next("transform", block).unwrap().await;
+    let v = sched.ask_next("transform", block)?.await;
     log::debug!("{:?}", v);
+    Ok(())
 }
 
 async fn meta_process_blocks<T>(
     blocks: Vec<SubstrateBlock<T>>,
     rpc: Rpc<T>,
-    pool: &sqlx::Pool<PgConnection>,
+    pool: &DbPool,
     sched: &mut Scheduler<'_>,
-) where
+) -> Result<(), ArchiveError>
+where
     T: Substrate + Send + Sync,
 {
     log::info!("Got {} blocks", blocks.len());
@@ -100,8 +115,7 @@ async fn meta_process_blocks<T>(
     let now = std::time::Instant::now();
     let first = rpc
         .version(Some(&blocks[0].block.header().hash()))
-        .await
-        .unwrap();
+        .await?;
     let elapsed = now.elapsed();
     log::info!(
         "Rpc request for version took {} milli-seconds",
@@ -109,8 +123,7 @@ async fn meta_process_blocks<T>(
     );
     let last = rpc
         .version(Some(blocks[blocks.len() - 1].block.header().hash()).as_ref())
-        .await
-        .unwrap();
+        .await?;
     log::info!(
         "First Version: {}, Last Version: {}",
         first.spec_version,
@@ -124,39 +137,40 @@ async fn meta_process_blocks<T>(
             pool,
             sched,
         )
-        .await;
+        .await?;
         blocks
             .into_iter()
             .for_each(|b| batch_items.push(Block::<T>::new(b, first.spec_version)));
     } else {
         for b in blocks.into_iter() {
             let hash = b.block.header().hash();
-            let ver = rpc.version(Some(hash).as_ref()).await.unwrap();
-            meta_checker(ver.spec_version, Some(hash), &rpc, pool, sched).await;
+            let ver = rpc.version(Some(hash).as_ref()).await?;
+            meta_checker(ver.spec_version, Some(hash), &rpc, pool, sched).await?;
             batch_items.push(Block::<T>::new(b, ver.spec_version))
         }
     }
 
-    let v = sched.ask_next("transform", batch_items).unwrap().await;
+    let v = sched.ask_next("transform", batch_items)?.await;
     log::debug!("{:?}", v);
+    Ok(())
 }
 
 async fn meta_checker<T>(
     ver: u32,
     hash: Option<T::Hash>,
     rpc: &Rpc<T>,
-    pool: &sqlx::Pool<PgConnection>,
+    pool: &DbPool,
     sched: &mut Scheduler<'_>,
-) where
+) -> Result<(), ArchiveError>
+where
     T: Substrate + Send + Sync,
 {
-    if !queries::check_if_meta_exists(ver, pool)
-        .await
-        .expect("Couldn't check if meta version exists")
+    if !queries::check_if_meta_exists(ver, pool).await?
     {
-        let meta = rpc.metadata(hash).await.expect("Couldn't get metadata");
+        let meta = rpc.metadata(hash).await?;
         let meta = Metadata::new(ver, meta);
-        let v = sched.ask_next("transform", meta).unwrap().await;
+        let v = sched.ask_next("transform", meta)?.await;
         log::debug!("{:?}", v);
     }
+    Ok(())
 }

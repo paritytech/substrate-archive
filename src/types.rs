@@ -16,8 +16,6 @@
 
 use codec::Encode;
 pub use frame_system::Trait as System;
-use futures::channel::mpsc::UnboundedReceiver;
-use sc_client_api::client::FinalityNotification;
 use serde::{Deserialize, Serialize};
 use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
@@ -26,6 +24,8 @@ use sp_runtime::{
 };
 use sp_storage::{StorageData, StorageKey};
 use std::{hash::Hash, marker::PhantomData};
+
+pub type DbPool = sqlx::Pool<sqlx::PgConnection>;
 
 /// Consolidation of substrate traits representing fundamental types
 pub trait Substrate: System + Send + Sync + std::fmt::Debug {}
