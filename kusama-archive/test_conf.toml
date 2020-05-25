@@ -1,3 +1,4 @@
+# Must be an absolute path to db (no ~/)
 db_path = "/home/insipx/.local/share/polkadot/chains/ksmcc3/db"
 
 # Can be set by exporting environment variable "DATABASE_URL" too

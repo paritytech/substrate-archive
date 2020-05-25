@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS metadata (
   meta bytea NOT NULL
 );
 
+-- TODO create an index on blocks
+-- TODO: change block_num => integer ( We are not getting to > then 2Bil blocks anytime soon)
 CREATE TABLE IF NOT EXISTS blocks (
   id SERIAL NOT NULL,
   parent_hash bytea NOT NULL,

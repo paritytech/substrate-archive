@@ -63,10 +63,19 @@ pub fn main() -> Result<()> {
     
     async_std::task::spawn(async move {
         loop {
-            let indexed_blocks = queries::block_count(&pool).await.unwrap();
-            let indexed_storage = queries::get_max_storage(&pool).await.unwrap();
-            let max: u32 = queries::max_block(&pool).await.unwrap();
-            let msg = format!("Indexed {}/{} blocks, {}/{} storage", indexed_blocks, max, indexed_storage.0, max);
+            let indexed_blocks: Option<u32> = queries::block_count(&pool).await.ok();
+            let indexed_storage = queries::get_max_storage(&pool).await.ok();
+            let max = queries::max_block(&pool).await.ok();
+            let (in_blocks, in_storg, max) = match (indexed_blocks, indexed_storage, max) {
+                (Some(a), Some(b), Some(c)) => {
+                    (a, b, c)
+                },
+                _ => {
+                    async_std::task::sleep(Duration::from_millis(120)).await;
+                    continue;
+                }
+            };
+            let msg = format!("Indexed {}/{} blocks, {}/{} storage", in_blocks, max, in_storg.0, max);
             pb.set_message(msg.as_str());
             async_std::task::sleep(Duration::from_millis(65)).await;
         }
