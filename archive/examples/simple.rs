@@ -17,23 +17,18 @@
 //! A simple example
 
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use substrate_archive::{backend, Archive, chain_traits::{HeaderBackend as _}, twox_128, StorageKey};
+use substrate_archive::{backend, Archive, twox_128, StorageKey};
 
 pub fn main() {
-    let stdout = match option_env!("RUST_LOG").map(|o| o.to_lowercase()).as_deref() {
-        Some("error") => log::LevelFilter::Error,
-        Some("warn") => log::LevelFilter::Warn,
-        Some("info") => log::LevelFilter::Info,
-        Some("debug") => log::LevelFilter::Debug,
-        Some("trace") => log::LevelFilter::Trace,
-        _ => log::LevelFilter::Error,
-    };
-    substrate_archive::init_logger(stdout, log::LevelFilter::Info);
+    
+    substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
 
+    // Open a RocksDB Database for the node we want to index
     let path = std::path::PathBuf::from("/home/insipx/.local/share/polkadot/chains/ksmcc4/db");
     let db =
         backend::open_database::<Block>(path.as_path(), 8192).unwrap();
 
+    // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
     let client =
         backend::client::<Block, ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor, _>(
@@ -41,35 +36,17 @@ pub fn main() {
         )
         .unwrap();
 
-    let info = client.info();
-    println!("{:?}", info);
-
     // create the keys we want to query storage for
     let system_key = twox_128(b"System").to_vec();
-    let events_key = twox_128(b"Events").to_vec();
     let accounts_key = twox_128(b"Account").to_vec();
-
-    let democracy_key = twox_128(b"Democracy").to_vec();
-    let public_proposal_count = twox_128(b"PublicPropCount").to_vec();
-    let public_proposals = twox_128(b"PublicProps").to_vec();
-
     let mut keys = Vec::new();
 
     let mut system_accounts = system_key.clone();
     system_accounts.extend(accounts_key);
-    let mut system_events = system_key.clone();
-    system_events.extend(events_key);
-    let mut democracy_public_proposal_count = democracy_key.clone();
-    democracy_public_proposal_count.extend(public_proposal_count);
-    let mut democracy_proposals = democracy_key.clone();
-    democracy_proposals.extend(public_proposals);
 
     keys.push(StorageKey(system_accounts));
-    keys.push(StorageKey(system_events));
-    keys.push(StorageKey(democracy_public_proposal_count));
-    keys.push(StorageKey(democracy_proposals));
 
-    // run until we want to exit (Ctrl-C)
+    // initialize the Archive runtime
     let archive = Archive::init::<ksm_runtime::Runtime, _>(
         client,
         "ws://127.0.0.1:9944".to_string(),
@@ -77,5 +54,6 @@ pub fn main() {
         None
     ).unwrap();
 
-    Archive::block_until_stopped();
+    // run indefinitely
+    Archive::block_until_stopped().unwrap();
 }
