@@ -21,10 +21,8 @@ use jsonrpsee::transport::ws::WsNewDnsError;
 use serde_json::Error as SerdeError;
 use sp_blockchain::Error as BlockchainError;
 use sqlx::Error as SqlError;
-// use async_ctrlc::Error as CtrlCError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
-use std::num::TryFromIntError;
 
 pub type ArchiveResult<T> = Result<T, Error>;
 
@@ -55,24 +53,8 @@ pub enum Error {
     JsonrpseeRequest(#[fail(cause)] JsonrpseeRequest),
     #[fail(display = "Ws DNS Failure {}", _0)]
     WsDns(#[fail(cause)] WsNewDnsError),
-    // #[fail(display = "CtrlC {}", _0)]
-    // CtrlC(#[fail(cause)] CtrlCError),
-    #[fail(display = "Concurrency Error, Mutex Poisoned!")]
-    Concurrency,
-    #[fail(display = "Call type unhandled, not committing to database")]
-    UnhandledCallType,
-    // if trying to insert unsupported type into database
-    // (as of this writing, anything other than a block or storage type)
-    #[fail(display = "Unhandled or Unknown Data type, not committing to database")]
-    UnhandledDataType,
-    #[fail(display = "{} not found, or does not exist", _0)]
-    DataNotFound(String),
-    #[fail(display = "{}", _0)]
-    UnexpectedType(String),
     #[fail(display = "Unexpected Error Occurred: {}", _0)]
     General(String),
-    // #[fail(display = "Metadata {}", _0)]
-    // Metadata(MetadataError),
 }
 
 impl From<WsNewDnsError> for Error {

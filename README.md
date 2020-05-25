@@ -18,7 +18,8 @@ Examples for how to use substrate-archive are in the [`examples/`](https://githu
 # Prerequisites 
 Extended requirements list found in the [wiki](https://github.com/paritytech/substrate-archive/wiki/)
 - PostgreSQL with the required schema: `schema/archive.sql`
-- Substrate-based Blockchain running with Rocksdb as the backend
+- Substrate-based Blockchain running with RocksDB as the backend
+- Substrate-based Blockchain running under `--pruning=archive`
 
 # Install The CLI
 
