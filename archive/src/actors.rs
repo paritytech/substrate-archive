@@ -25,77 +25,107 @@ use super::{
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
-use async_ctrlc::CtrlC;
 use bastion::prelude::*;
-use futures::future::FutureExt;
 use sp_storage::StorageKey;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
 
-// TODO: 'cut!' macro to handle errors from within actors
-
-/// initialize substrate archive
-/// Requires a substrate client, url to running RPC node, and a list of keys to index from storage
-/// EX: If you want to query all keys for 'System Account'
-/// twox('System') + twox('Account')
-/// Prefixes are preferred, they will be more performant
-pub async fn init<T, C>(
-    client: Arc<C>,
-    url: String,
-    keys: Vec<StorageKey>,
-) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock<T>> + 'static,
-    <T as System>::BlockNumber: Into<u32>,
-    <T as System>::Hash: From<primitive_types::H256>,
-    <T as System>::Header: serde::de::DeserializeOwned,
-{
-    Bastion::init();
-
-    let pool = run!(PgPool::builder()
-        .max_size(10)
-        .build(&env::var("DATABASE_URL")?))?;
-
-    // Normally workers aren't started on the top-level
-    // however we want access to this in order to send messages on program shutdown
-    let defer_workers = workers::defer_storage::<T>(pool.clone())?;
-    let storage = self::generators::storage::<T, _>(
-        client.clone(),
-        pool.clone(),
-        keys,
-        defer_workers.clone(),
-    )?;
-
-    // network generator. Gets headers from network but uses client to fetch block bodies
-    let network = self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())?;
-
-    // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
-    // uses client to get those blocks
-    let missing = self::generators::db::<T, _>(client, pool, url)?;
-
-    Bastion::start();
-
-    let ctrlc = CtrlC::new().expect("Couldn't create ctrl-c handler");
-    ctrlc
-        .then(|_| async {
-            Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send message");
-            network
-                .stop()
-                .expect("Network Generator could not be stopped");
-            storage.stop().expect("Storage could not be stopped");
-            missing
-                .stop()
-                .expect("Missing Blocks Worker could not be stopped");
-            finish_work(&defer_workers).await;
-            Bastion::kill();
-        })
-        .await;
-
-    Bastion::block_until_stopped();
-    Ok(())
+pub struct Archive {
+    workers: std::collections::HashMap<String, ChildrenRef>,
 }
 
+impl Archive {
+
+    // TODO: Return a reference to the Db pool.
+    // just expose a 'shutdown' fn that must be called in order to avoid missing data.
+    // or just return an archive object for general telemetry/ops.
+    // TODO: Accept one `Config` Struct for which a builder is implemented on
+    // to make configuring this easier.
+    /// initialize substrate archive
+    /// Requires a substrate client, url to running RPC node, and a list of keys to index from storage
+    /// EX: If you want to query all keys for 'System Account'
+    /// twox('System') + twox('Account')
+    /// Prefixes are preferred, they will be more performant
+    pub fn init<T, C>(
+        client: Arc<C>,
+        url: String,
+        keys: &[StorageKey],
+        psql_url: Option<&str>
+    ) -> Result<Self, ArchiveError>
+    where
+        T: Substrate + Send + Sync,
+        C: ChainAccess<NotSignedBlock<T>> + 'static,
+        <T as System>::BlockNumber: Into<u32>,
+        <T as System>::Hash: From<primitive_types::H256>,
+        <T as System>::Header: serde::de::DeserializeOwned,
+    {
+        let mut workers = std::collections::HashMap::new(); 
+        
+        Bastion::init();
+        let pool = if let Some(url) = psql_url {
+            run!(PgPool::builder()
+                .max_size(10)
+                .build(url))?
+        } else {
+            log::warn!("No url passed on initialization, using environment variable");
+            run!(
+                PgPool::builder()
+                    .max_size(10)
+                    .build(&env::var("DATABASE_URL")?)
+            )?
+        };
+
+        // Normally workers aren't started on the top-level
+        // however we want access to this in order to send messages on program shutdown
+        let defer_workers = workers::defer_storage::<T>(pool.clone())?;
+        let storage = self::generators::storage::<T, _>(
+            client.clone(),
+            pool.clone(),
+            keys.to_vec(),
+            defer_workers.clone(),
+        )?;
+
+        workers.insert("defer".into(), defer_workers);
+        workers.insert("storage".into(), storage);
+
+        // network generator. Gets headers from network but uses client to fetch block bodies
+        let network = self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())?;
+        workers.insert("network".into(), network);
+        // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
+        // uses client to get those blocks
+        let missing = self::generators::db::<T, _>(client, pool, url)?;
+        workers.insert("missing".into(), missing);
+
+        Bastion::start();
+        
+        Ok (Self {
+            workers,
+        })
+    }
+
+    pub fn block_until_stopped() -> Result<(), ArchiveError> {
+        Bastion::block_until_stopped();
+        Ok(())
+    }
+
+    pub async fn shutdown(&self) -> Result<(), ArchiveError> {
+        log::info!("Shutting down");
+        Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send messsage");
+        for (name, worker) in self.workers.iter() {
+            if name != "defer" {
+                worker.stop().expect(format!("Couldn't stop worker {}", name).as_str());
+            }
+        }
+        finish_work(self.workers.get("defer").expect("Defer workers must exist")).await;
+        Bastion::kill();
+        log::info!("Shut down succesfully");
+        Ok(())
+    }
+}
+
+// we send a message to every defer_storage worker in order to 
+// ask if they are done putting away defered storage
+/// Finish working on storage that can't be inserted into db yet
 async fn finish_work(defer_workers: &ChildrenRef) {
     loop {
         let mut answers_needed = defer_workers.elems().len();

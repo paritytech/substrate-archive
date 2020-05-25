@@ -9,7 +9,17 @@ edition = "2018"
 [dependencies]
 substrate-archive = { version = "0.3", path = "../archive", features = ["logging"] }
 polkadot-service = { package = "polkadot-service", git ="https://github.com/paritytech/polkadot", branch = "master", default-features = false }
-clap = "2.33.1"
+clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }
+toml = "0.5"
+futures = "0.3.5"
+log = "0.4.8"
+pretty_env_logger = "0.4.0"
+anyhow = "1.0.31"
+serde = "1.0.110"
+sqlx = { version = "0.3.5", features = ["postgres"] }
+async-std = "1.6.0"
+async-ctrlc = "1.1.0"
+indicatif = "0.14.0"
 
 
 

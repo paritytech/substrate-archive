@@ -136,8 +136,14 @@ where
 
     let query_from_hash = H256::from_slice(query_from_hash.as_slice());
     let query_to_hash = client
-        .hash(T::BlockNumber::from(query_to_num))?
-        .expect("Block not found");
+        .hash(T::BlockNumber::from(query_to_num))?;
+    let query_to_hash = if let Some(q) = query_to_hash {
+        q
+    } else {
+        log::warn!("Block does not exist yet!");
+        timer::Delay::new(std::time::Duration::from_millis(50)).await;
+        return Ok(())
+    };
 
     log::info!(
         "\nquery_from_num={:?}, query_from_hash={:?} \n query_to_num = {:?}, query_to_hash={:?}\n",
@@ -210,12 +216,14 @@ where
         .cloned()
         .filter(|s| missing_blocks.contains(&s.block_num().into()))
         .collect::<Vec<Storage<T>>>();
+    
     let storage = storage
         .iter()
         .cloned()
         .filter(|s| !missing_blocks.contains(&s.block_num().into()))
         .collect::<Vec<Storage<T>>>();
-    let elapsed = now.elapsed();
+    
+        let elapsed = now.elapsed();
     log::info!(
         "Took {} seconds, {} milli-seconds to process storage from {} to {}",
         elapsed.as_secs(),

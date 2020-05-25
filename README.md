@@ -4,18 +4,13 @@
 
 [Install the CLI](#install-the-cli) • [Documentation] • [Contributing](#contributing) 
 
+![Rust](https://github.com/paritytech/substrate-archive/workflows/Rust/badge.svg)
+
 </div>
-
-- [Substrate Archive](#substrate-archive)
-- [Example Usage:](#example-usage)
-- [Prerequisites](#prerequisites)
-- [Install The CLI](#install-the-cli)
-- [Contributing](#contributing)
-
 
 Run alongside a substrate-backed chain to index all Blocks, State, and Extrinsic data into PostgreSQL.
 
-# Example Usage:
+# Example Usage
 ```rust
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
 use substrate_archive::{backend, init, chain_traits::{HeaderBackend as _}, twox_128, StorageKey};
@@ -53,10 +48,7 @@ pub fn main() {
     ))
     .unwrap()
 }
-```
-A more fleshed-out example can be found in `archive/examples/simple.rs`. You can run it by entering the `archive` directory and running:
-
-`cargo run --example simple --features logging` 
+``` 
 
 The schema for the PostgreSQL database is described in the PDF File at the root of this directory
 
@@ -66,12 +58,17 @@ Extended requirements list found in the [wiki](https://github.com/paritytech/sub
 - Substrate-based Blockchain running with Rocksdb as the backend
 
 # Install The CLI
-// Todo
+`git clone https://github.com/paritytech/substrate-archive.git`
+
+`cd substrate-archive/kusama-archive/`
+
+`cargo build --release`
+
+run with `./../target/release/kusama-archive`
 
 # Contributing
-// Todo
-
+Read the [Doc](https://github.com/paritytech/substrate-archive/blob/master/CONTRIBUTING.md) 
 
 
 [documentation]: https://github.com/paritytech/substrate-archive/wiki
-[contribution]: CONTRIBUTION.md
+[contribution]: CONTRIBUTING.md

@@ -21,10 +21,9 @@ serde_json = "1.0.50"
 dirs = { version = "2", package = "directories" }
 bastion = "0.3"
 tempdir = "0.3.7"
-sqlx = { version = "0.3.5", features = ["postgres", "json"] }
+sqlx = { version = "0.3.5", features = ["postgres"] }
 async-trait = "0.1.31"
 hex = "0.4.2"
-async-ctrlc = "1.1.0"
 flate2 = "1.0.14"
 bincode = "1.2.1"
 bastion-executor = "0.3.4"
