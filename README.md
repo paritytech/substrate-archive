@@ -53,7 +53,7 @@ pub fn main() {
 The schema for the PostgreSQL database is described in the PDF File at the root of this directory
 
 # Prerequisites 
-Extended requirements list found in the [wiki](https://github.com/paritytech/substrate-archive/wiki/1.)-Requirements)
+Extended requirements list found in the [wiki](https://github.com/paritytech/substrate-archive/wiki/)
 - PostgreSQL with the required schema: `schema/archive.sql`
 - Substrate-based Blockchain running with Rocksdb as the backend
 
