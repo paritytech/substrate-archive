@@ -48,10 +48,7 @@ pub fn main() {
     ))
     .unwrap()
 }
-```
-A more fleshed-out example can be found in `archive/examples/simple.rs`. You can run it by entering the `archive` directory and running:
-
-`cargo run --example simple --features logging` 
+``` 
 
 The schema for the PostgreSQL database is described in the PDF File at the root of this directory
 
