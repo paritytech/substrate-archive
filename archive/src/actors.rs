@@ -14,7 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! where the main actor framework is defined
+
+//! Main entrypoint for substrate-archive. `init` will start all actors and begin indexing the 
+//! chain defined with the passed-in Client and URL.
 
 mod generators;
 mod scheduler;
@@ -30,6 +32,21 @@ use sp_storage::StorageKey;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
 
+/// Main entrypoint for substrate-archive.
+/// Deals with starting and stopping the Archive Runtime
+/// # Examples
+/// ```
+///let archive = Archive::init::<ksm_runtime::Runtime, _>(
+///     client,
+///     "ws://127.0.0.1:9944".to_string(),
+///     keys.as_slice(),
+///     None
+/// ).unwrap();
+///
+/// Archive::block_until_stopped();
+/// 
+///
+/// ```
 pub struct Archive {
     workers: std::collections::HashMap<String, ChildrenRef>,
 }
@@ -41,11 +58,10 @@ impl Archive {
     // or just return an archive object for general telemetry/ops.
     // TODO: Accept one `Config` Struct for which a builder is implemented on
     // to make configuring this easier.
-    /// initialize substrate archive
-    /// Requires a substrate client, url to running RPC node, and a list of keys to index from storage
-    /// EX: If you want to query all keys for 'System Account'
-    /// twox('System') + twox('Account')
-    /// Prefixes are preferred, they will be more performant
+    /// Initialize substrate archive.
+    /// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
+    /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the 
+    /// environment variable `DATABASE_URL` instead.
     pub fn init<T, C>(
         client: Arc<C>,
         url: String,
@@ -103,11 +119,16 @@ impl Archive {
         })
     }
 
+    /// Run indefinitely
+    /// If the application is shut down during execution, this will leave progress unsaved.
+    /// It is recommended to wait for some other event (IE: Ctrl-C) and run `shutdown` instead.
     pub fn block_until_stopped() -> Result<(), ArchiveError> {
         Bastion::block_until_stopped();
         Ok(())
     }
 
+    /// Shutdown Gracefully.
+    /// This makes sure any data we have is saved for the next time substrate-archive is run.
     pub async fn shutdown(&self) -> Result<(), ArchiveError> {
         log::info!("Shutting down");
         Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send messsage");
@@ -123,9 +144,9 @@ impl Archive {
     }
 }
 
-// we send a message to every defer_storage worker in order to 
-// ask if they are done putting away defered storage
-/// Finish working on storage that can't be inserted into db yet
+/// Finish working on storage that can't be inserted into db yet.
+/// We send a message to every defer_storage worker in order to 
+/// ask if they are done putting away defered storage, and then return.
 async fn finish_work(defer_workers: &ChildrenRef) {
     loop {
         let mut answers_needed = defer_workers.elems().len();

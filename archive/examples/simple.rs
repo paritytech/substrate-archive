@@ -17,7 +17,7 @@
 //! A simple example
 
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use substrate_archive::{backend, init, chain_traits::{HeaderBackend as _}, twox_128, StorageKey};
+use substrate_archive::{backend, Archive, chain_traits::{HeaderBackend as _}, twox_128, StorageKey};
 
 pub fn main() {
     let stdout = match option_env!("RUST_LOG").map(|o| o.to_lowercase()).as_deref() {
@@ -30,8 +30,9 @@ pub fn main() {
     };
     substrate_archive::init_logger(stdout, log::LevelFilter::Info);
 
+    let path = std::path::PathBuf::from("/home/insipx/.local/share/polkadot/chains/ksmcc4/db");
     let db =
-        backend::open_database::<Block>("/home/insipx/.local/share/polkadot/chains/ksmcc4/db", 8192).unwrap();
+        backend::open_database::<Block>(path.as_path(), 8192).unwrap();
 
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
     let client =
@@ -69,10 +70,12 @@ pub fn main() {
     keys.push(StorageKey(democracy_proposals));
 
     // run until we want to exit (Ctrl-C)
-    futures::executor::block_on(init::<ksm_runtime::Runtime, _>(
+    let archive = Archive::init::<ksm_runtime::Runtime, _>(
         client,
         "ws://127.0.0.1:9944".to_string(),
-        keys,
-    ))
-    .unwrap()
+        keys.as_slice(),
+        None
+    ).unwrap();
+
+    Archive::block_until_stopped();
 }

@@ -28,22 +28,22 @@ use std::sync::Arc;
 use super::{ChainAccess, RuntimeApiCollection};
 
 // create a macro `new_archive!` to simplify all these type constraints in the archive node library
-pub fn client<Block, T, EX, S>(
+pub fn client<Block, Runtime, Dispatch, Spec>(
     db_config: DatabaseConfig,
-    spec: S,
+    spec: Spec
 ) -> Result<Arc<impl ChainAccess<Block>>, ServiceError>
 where
     Block: BlockT,
-    T: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, T, EX>>,
-    T::RuntimeApi: RuntimeApiCollection<
+    Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>,
+    Runtime::RuntimeApi: RuntimeApiCollection<
             Block,
             StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>,
         > + Send
         + Sync
         + 'static,
-    EX: NativeExecutionDispatch + 'static,
-    S: ChainSpec + 'static,
-    <T::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+    Dispatch: NativeExecutionDispatch + 'static,
+    Spec: ChainSpec + 'static,
+    <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
     let db_settings = sc_client_db::DatabaseSettings {
         state_cache_size: 4096,
@@ -52,9 +52,9 @@ where
         source: db_config,
     };
 
-    let (client, _) = sc_service::new_client::<_, Block, T::RuntimeApi>(
+    let (client, _) = sc_service::new_client::<_, Block, Runtime::RuntimeApi>(
         db_settings,
-        NativeExecutor::<EX>::new(WasmExecutionMethod::Interpreted, None, 8),
+        NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Interpreted, None, 8),
         &spec,
         None,
         None,

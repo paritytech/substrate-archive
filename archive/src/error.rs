@@ -16,7 +16,6 @@
 use bincode::ErrorKind as BincodeError;
 use codec::Error as CodecError;
 use failure::Fail;
-use futures::channel::mpsc::TrySendError;
 use jsonrpsee::client::RequestError as JsonrpseeRequest;
 use jsonrpsee::transport::ws::WsNewDnsError;
 use serde_json::Error as SerdeError;
@@ -26,26 +25,18 @@ use sqlx::Error as SqlError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
 use std::num::TryFromIntError;
-use std::sync::PoisonError;
 
 pub type ArchiveResult<T> = Result<T, Error>;
 
+/// Substrate Archive Error Enum
 #[derive(Debug, Fail)]
 pub enum Error {
-    #[fail(display = "Could not send to parent process {}", _0)]
-    Send(String),
-    #[fail(display = "Could not send message {}", _0)]
-    TrySend(String),
-    #[fail(display = "Task Join {}", _0)]
-    Join(String),
     #[fail(display = "Io: {}", _0)]
     Io(#[fail(cause)] IoError),
     #[fail(display = "Environment: {}", _0)]
     Environment(#[fail(cause)] EnvironmentError),
     #[fail(display = "Codec: {:?}", _0)]
     Codec(#[fail(cause)] CodecError),
-    #[fail(display = "Int Conversion Error: {}", _0)]
-    IntConversion(#[fail(cause)] TryFromIntError),
     #[fail(display = "Serialization: {}", _0)]
     Serialize(#[fail(cause)] SerdeError),
     #[fail(display = "Sql {}", _0)]
@@ -126,12 +117,6 @@ impl From<SerdeError> for Error {
     }
 }
 
-impl From<TryFromIntError> for Error {
-    fn from(err: TryFromIntError) -> Error {
-        Error::IntConversion(err)
-    }
-}
-
 impl From<CodecError> for Error {
     fn from(err: CodecError) -> Error {
         Error::Codec(err)
@@ -147,17 +132,5 @@ impl From<EnvironmentError> for Error {
 impl From<IoError> for Error {
     fn from(err: IoError) -> Error {
         Error::Io(err)
-    }
-}
-
-impl<T> From<TrySendError<T>> for Error {
-    fn from(err: TrySendError<T>) -> Error {
-        Error::Send(err.to_string())
-    }
-}
-
-impl<T> From<PoisonError<T>> for Error {
-    fn from(_err: PoisonError<T>) -> Error {
-        Error::Concurrency
     }
 }
