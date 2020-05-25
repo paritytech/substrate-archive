@@ -65,19 +65,20 @@ pub fn main() -> Result<()> {
         loop {
             let indexed_blocks: Option<u32> = queries::block_count(&pool).await.ok();
             let indexed_storage = queries::get_max_storage(&pool).await.ok();
+            let indexed_ext = queries::extrinsic_count(&pool).await.ok();
             let max = queries::max_block(&pool).await.ok();
-            let (in_blocks, in_storg, max) = match (indexed_blocks, indexed_storage, max) {
-                (Some(a), Some(b), Some(c)) => {
-                    (a, b, c)
+            let (in_blocks, in_storg, max, ext) = match (indexed_blocks, indexed_storage, max, indexed_ext) {
+                (Some(a), Some(b), Some(c), Some(d)) => {
+                    (a, b, c, d)
                 },
                 _ => {
-                    async_std::task::sleep(Duration::from_millis(120)).await;
+                    async_std::task::sleep(Duration::from_millis(160)).await;
                     continue;
                 }
             };
-            let msg = format!("Indexed {}/{} blocks, {}/{} storage", in_blocks, max, in_storg.0, max);
+            let msg = format!("Indexed {}/{} blocks, {}/{} storage and {} extrinsics", in_blocks, max + 1, in_storg.0, max + 1, ext);
             pb.set_message(msg.as_str());
-            async_std::task::sleep(Duration::from_millis(65)).await;
+            async_std::task::sleep(Duration::from_millis(80)).await;
         }
     });
         

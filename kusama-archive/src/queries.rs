@@ -38,6 +38,17 @@ pub(crate) async fn max_block(pool: &sqlx::Pool<PgConnection>,
     Ok(row.0 as u32)
 }
 
+pub(crate) async fn extrinsic_count(
+    pool: &sqlx::Pool<PgConnection>,
+) -> Result<u32> {
+    let row: (i64, ) = sqlx::query_as(
+        "SELECT COUNT(*) FROM extrinsics"
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0 as u32)
+}
+
 pub(crate) async fn storage_count(
     pool: &sqlx::Pool<PgConnection>,
 ) -> Result<u32> {
