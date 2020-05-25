@@ -58,6 +58,12 @@ Extended requirements list found in the [wiki](https://github.com/paritytech/sub
 - Substrate-based Blockchain running with Rocksdb as the backend
 
 # Install The CLI
+
+## The CLI
+The CLI is an easier way to get started with substrate-archive. It provides a batteries-included binary, so that you don't have to write any rust code. All thats required is setting up a PostgreSQL DB, and modifying a config file.
+
+## Install
+
 `git clone https://github.com/paritytech/substrate-archive.git`
 
 `cd substrate-archive/kusama-archive/`
