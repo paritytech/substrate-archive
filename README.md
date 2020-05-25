@@ -72,6 +72,8 @@ The CLI is an easier way to get started with substrate-archive. It provides a ba
 
 run with `./../target/release/kusama-archive`
 
+You can copy the binary file `kusama-archive` anywhere you want ie `~/.local/share/bin/`. Or, instead of `cargo build --release` just run `cargo install --path .`
+
 # Contributing
 Read the [Doc](https://github.com/paritytech/substrate-archive/blob/master/CONTRIBUTING.md) 
 
