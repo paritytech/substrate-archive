@@ -61,12 +61,17 @@ Extended requirements list found in the [wiki](https://github.com/paritytech/sub
 - Substrate-based Blockchain running with Rocksdb as the backend
 
 # Install The CLI
-// Todo
+`git clone https://github.com/paritytech/substrate-archive.git`
+
+`cd substrate-archive/kusama-archive/`
+
+`cargo build --release`
+
+run with `./../target/release/kusama-archive`
 
 # Contributing
-// Todo
-
+Read the [Doc](https://github.com/paritytech/substrate-archive/blob/master/CONTRIBUTING.md) 
 
 
 [documentation]: https://github.com/paritytech/substrate-archive/wiki
-[contribution]: CONTRIBUTION.md
+[contribution]: CONTRIBUTING.md
