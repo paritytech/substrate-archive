@@ -91,6 +91,7 @@ impl<'a> PrepareSql<'a> for Metadata {
             r#"
 INSERT INTO metadata (version, meta)
 VALUES($1, $2)
+ON CONFLICT DO NOTHING
 "#,
         );
         self.bind_all_arguments(query)

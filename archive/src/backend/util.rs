@@ -21,6 +21,7 @@ use sp_database::Database as DatabaseTrait;
 use sc_service::config::DatabaseConfig as DBConfig;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
+use std::path::Path;
 use tempdir::TempDir;
 
 pub const NUM_COLUMNS: u32 = 11;
@@ -30,7 +31,8 @@ const DB_HASH_LEN: usize = 32;
 pub type DbHash = [u8; DB_HASH_LEN];
 
 /// Open a rocksdb Database as Read-Only
-pub fn open_database<Block: BlockT>(path: &str, cache_size: usize) -> sp_blockchain::Result<DBConfig> {
+pub fn open_database<Block: BlockT>(path: &Path, cache_size: usize) -> sp_blockchain::Result<DBConfig> {
+    let path = path.to_str().expect("Path to rocksdb not valid UTF-8");
     Ok(DBConfig::Custom(open_db::<Block>(path, cache_size)?))
 }
 

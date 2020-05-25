@@ -33,7 +33,7 @@ pub mod rpc;
 #[cfg(feature = "logging")]
 pub use util::init_logger;
 
-pub use self::actors::init;
+pub use self::actors::Archive;
 
 // Re-Exports
 
@@ -41,7 +41,7 @@ pub use sp_storage::StorageKey;
 pub use sp_core::twox_128;
 pub use sp_blockchain::Error as BlockchainError;
 pub mod chain_traits  {
-    pub use sc_client_api::{backend::StorageProvider, client::BlockBackend};
+    pub use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
     pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
     pub use sp_runtime::traits::{BlakeTwo256, Block};
 }

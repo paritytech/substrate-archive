@@ -8,7 +8,6 @@
 
 </div>
 
-
 Run alongside a substrate-backed chain to index all Blocks, State, and Extrinsic data into PostgreSQL.
 
 # Example Usage

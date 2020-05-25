@@ -23,7 +23,7 @@ mod util;
 
 pub use self::storage_backend::StorageBackend;
 pub use self::{client::client, util::open_database};
-use sc_client_api::{backend::StorageProvider, client::BlockBackend};
+use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
 use sp_blockchain::{Error as BlockchainError, HeaderBackend, HeaderMetadata};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
@@ -36,6 +36,7 @@ pub trait ChainAccess<Block: BlockT>:
     + BlockBackend<Block>
     + HeaderBackend<Block>
     + HeaderMetadata<Block, Error = BlockchainError>
+    + UsageProvider<Block>
 {
 }
 
@@ -45,7 +46,8 @@ where
     T: StorageProvider<Block, sc_client_db::Backend<Block>>
         + BlockBackend<Block>
         + HeaderBackend<Block>
-        + HeaderMetadata<Block, Error = BlockchainError>,
+        + HeaderMetadata<Block, Error = BlockchainError>
+        + UsageProvider<Block>,
 {
 }
 
