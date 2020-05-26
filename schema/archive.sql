@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS blocks (
 CREATE TABLE IF NOT EXISTS extrinsics (
   id SERIAL PRIMARY KEY,
   hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE,
-  spec integer NOT NULL REFERENCES metadata(version) ON DELETE CASCADE ON UPDATE CASCADE,
+  spec integer NOT NULL,
   index integer NOT NULL,
   ext bytea NOT NULL -- the raw extrinsic payload
 );
