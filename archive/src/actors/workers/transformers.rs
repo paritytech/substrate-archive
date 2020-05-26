@@ -104,7 +104,7 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     log::info!("Got {} blocks", blocks.len());
-    //TODO: Join these futures
+    
     let batch_blocks = BatchBlock::new(blocks.clone());
     let ext: Vec<Extrinsic<T>> = batch_blocks.into();
 
