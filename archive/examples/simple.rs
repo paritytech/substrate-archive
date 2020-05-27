@@ -17,19 +17,17 @@
 //! A simple example
 
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use substrate_archive::{backend, Archive, twox_128, StorageKey};
+use substrate_archive::{backend, twox_128, Archive, StorageKey};
 
 pub fn main() {
-    
     substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
+    // get spec/runtime from node library
+    let spec = polkadot_service::chain_spec::kusama_config().unwrap();
 
     // Open a RocksDB Database for the node we want to index
     let path = std::path::PathBuf::from("/home/insipx/.local/share/polkadot/chains/ksmcc4/db");
-    let db =
-        backend::open_database::<Block>(path.as_path(), 8192).unwrap();
+    let db = backend::open_database::<Block>(path.as_path(), 8192, spec.name(), spec.id()).unwrap();
 
-    // get spec/runtime from node library
-    let spec = polkadot_service::chain_spec::kusama_config().unwrap();
     let client =
         backend::client::<Block, ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor, _>(
             db, spec,
@@ -51,8 +49,9 @@ pub fn main() {
         client,
         "ws://127.0.0.1:9944".to_string(),
         keys.as_slice(),
-        None
-    ).unwrap();
+        None,
+    )
+    .unwrap();
 
     // run indefinitely
     Archive::block_until_stopped().unwrap();
