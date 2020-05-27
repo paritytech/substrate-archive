@@ -30,6 +30,7 @@ bastion-executor = "0.3.4"
 lightproc = "0.3.4"
 itertools = "0.9.0"
 # Profiling Tools (Use with nightly rust)
+# Requires uncommenting the 'proc_macro_hygeine' feature in crate root
 flame = { version = "0.2.2", optional = true }
 flamer = { version = "0.4.0", optional = true }
 

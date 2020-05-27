@@ -41,7 +41,8 @@ where
     })
     .map_err(|_| ArchiveError::from("Could not instantiate database actor"))
 }
-
+ 
+#[cfg_attr(feature = "profiling", flame)]
 async fn handle_msg<T>(ctx: &BastionContext, db: &Database) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
