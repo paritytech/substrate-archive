@@ -16,12 +16,6 @@
 
 // #![allow(warnings)]
 #![forbid(unsafe_code)]
-#![cfg_attr(feature = "profiling", feature(proc_macro_hygiene))]
-
-#[cfg(feature = "profiling")]
-#[macro_use] extern crate flame;
-#[cfg(feature = "profiling")]
-#[macro_use] extern crate flamer;
 
 mod util;
 mod actors;

@@ -6,7 +6,7 @@ version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
 dependencies = [
- "lazy_static 1.4.0",
+ "lazy_static",
  "regex",
 ]
 
@@ -351,7 +351,7 @@ dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "fxhash",
- "lazy_static 1.4.0",
+ "lazy_static",
  "lightproc",
  "log 0.4.8",
  "uuid",
@@ -369,7 +369,7 @@ dependencies = [
  "crossbeam-utils",
  "fxhash",
  "kernel32-sys",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libc",
  "lightproc",
  "num_cpus",
@@ -416,7 +416,7 @@ dependencies = [
  "clang-sys",
  "clap",
  "env_logger",
- "lazy_static 1.4.0",
+ "lazy_static",
  "lazycell",
  "log 0.4.8",
  "peeking_take_while",
@@ -682,7 +682,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4ffc801dacf156c5854b9df4f425a626539c3a6ef7893cc0c5084a23f0b6c59"
 dependencies = [
  "atty",
- "lazy_static 1.4.0",
+ "lazy_static",
  "winapi 0.3.8",
 ]
 
@@ -693,7 +693,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c0994e656bba7b922d8dd1245db90672ffb701e684e45be58f20719d69abc5a"
 dependencies = [
  "encode_unicode",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libc",
  "regex",
  "terminal_size",
@@ -798,7 +798,7 @@ dependencies = [
  "autocfg 1.0.0",
  "cfg-if",
  "crossbeam-utils",
- "lazy_static 1.4.0",
+ "lazy_static",
  "maybe-uninit",
  "memoffset",
  "scopeguard",
@@ -822,7 +822,7 @@ checksum = "c3c7c73a2d1e9fc0886a08b93e98eb643461230d5f1925e4036204d5f2e261a8"
 dependencies = [
  "autocfg 1.0.0",
  "cfg-if",
- "lazy_static 1.4.0",
+ "lazy_static",
 ]
 
 [[package]]
@@ -1153,30 +1153,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
 
 [[package]]
-name = "flame"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fc2706461e1ee94f55cab2ed2e3d34ae9536cfa830358ef80acff1a3dacab30"
-dependencies = [
- "lazy_static 0.2.11",
- "serde",
- "serde_derive",
- "serde_json",
- "thread-id",
-]
-
-[[package]]
-name = "flamer"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36b732da54fd4ea34452f2431cf464ac7be94ca4b339c9cd3d3d12eb06fe7aab"
-dependencies = [
- "flame",
- "quote 1.0.6",
- "syn 1.0.23",
-]
-
-[[package]]
 name = "flate2"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1350,7 +1326,7 @@ version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "921d332c89b3b61a826de38c61ee5b6e02c56806cade1b0e5d81bd71f57a71bb"
 dependencies = [
- "lazy_static 1.4.0",
+ "lazy_static",
  "libc",
  "libloading",
  "winapi 0.3.8",
@@ -1449,7 +1425,7 @@ checksum = "fdcef58a173af8148b182684c9f2d5250875adbcaff7b5794073894f9d8634a9"
 dependencies = [
  "futures 0.1.29",
  "futures 0.3.5",
- "lazy_static 1.4.0",
+ "lazy_static",
  "log 0.4.8",
  "parking_lot 0.9.0",
  "pin-project",
@@ -2051,7 +2027,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49a68371cf417889c9d7f98235b7102ea7c54fc59bcbd22f3dea785be9d27e40"
 dependencies = [
  "console",
- "lazy_static 1.4.0",
+ "lazy_static",
  "number_prefix",
  "regex",
 ]
@@ -2221,7 +2197,7 @@ dependencies = [
  "bytes 0.4.12",
  "globset",
  "jsonrpc-core",
- "lazy_static 1.4.0",
+ "lazy_static",
  "log 0.4.8",
  "tokio 0.1.22",
  "tokio-codec",
@@ -2259,7 +2235,7 @@ dependencies = [
  "hashbrown 0.7.2",
  "hyper 0.13.5",
  "jsonrpsee-proc-macros",
- "lazy_static 1.4.0",
+ "lazy_static",
  "log 0.4.8",
  "parking_lot 0.10.2",
  "pin-project",
@@ -2436,12 +2412,6 @@ dependencies = [
 
 [[package]]
 name = "lazy_static"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76f033c7ad61445c5b347c7382dd1237847eb1bce590fe50365dcb33d546be73"
-
-[[package]]
-name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
@@ -2500,7 +2470,7 @@ checksum = "3ec214d189b57e4412f079ac5a1442578d06b12ca7282ba4696104cc92ab96c1"
 dependencies = [
  "bytes 0.5.4",
  "futures 0.3.5",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libp2p-core",
  "libp2p-core-derive",
  "libp2p-dns",
@@ -2537,7 +2507,7 @@ dependencies = [
  "fnv",
  "futures 0.3.5",
  "futures-timer 3.0.2",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libsecp256k1",
  "log 0.4.8",
  "multihash",
@@ -2633,7 +2603,7 @@ dependencies = [
  "dns-parser",
  "either",
  "futures 0.3.5",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libp2p-core",
  "libp2p-swarm",
  "log 0.4.8",
@@ -2668,7 +2638,7 @@ checksum = "84fd504e27b0eadd451e06b67694ef714bd8374044e7db339bb0cdb83755ddf4"
 dependencies = [
  "curve25519-dalek",
  "futures 0.3.5",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libp2p-core",
  "log 0.4.8",
  "prost",
@@ -2707,7 +2677,7 @@ dependencies = [
  "futures 0.3.5",
  "hmac",
  "js-sys",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libp2p-core",
  "log 0.4.8",
  "parity-send-wrapper",
@@ -3140,7 +3110,7 @@ version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b0d88c06fe90d5ee94048ba40409ef1d9315d86f6f38c2efdaad4fb50c58b2d"
 dependencies = [
- "lazy_static 1.4.0",
+ "lazy_static",
  "libc",
  "log 0.4.8",
  "openssl",
@@ -3343,7 +3313,7 @@ dependencies = [
  "bitflags",
  "cfg-if",
  "foreign-types",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libc",
  "openssl-sys",
 ]
@@ -4308,7 +4278,7 @@ dependencies = [
  "futures 0.3.5",
  "hex-literal",
  "kusama-runtime",
- "lazy_static 1.4.0",
+ "lazy_static",
  "log 0.4.8",
  "pallet-babe",
  "pallet-im-online",
@@ -4431,7 +4401,7 @@ dependencies = [
  "byteorder",
  "chrono",
  "hex",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libc",
  "libflate",
 ]
@@ -4444,7 +4414,7 @@ checksum = "b0575e258dab62268e7236d7307caa38848acbda7ec7ab87bd9093791e999d20"
 dependencies = [
  "cfg-if",
  "fnv",
- "lazy_static 1.4.0",
+ "lazy_static",
  "protobuf",
  "spin",
  "thiserror",
@@ -4773,7 +4743,7 @@ dependencies = [
  "crossbeam-deque",
  "crossbeam-queue",
  "crossbeam-utils",
- "lazy_static 1.4.0",
+ "lazy_static",
  "num_cpus",
 ]
 
@@ -5080,7 +5050,7 @@ dependencies = [
  "hash-db",
  "hex-literal",
  "kvdb",
- "lazy_static 1.4.0",
+ "lazy_static",
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
@@ -5265,7 +5235,7 @@ version = "0.8.0-dev"
 source = "git+https://github.com/paritytech/substrate#b8c493d0af30674f7d4a2ad6f179b264a295b1e9"
 dependencies = [
  "derive_more",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libsecp256k1",
  "log 0.4.8",
  "parity-scale-codec",
@@ -5576,7 +5546,7 @@ dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "hash-db",
- "lazy_static 1.4.0",
+ "lazy_static",
  "log 0.4.8",
  "netstat2",
  "parity-multiaddr 0.7.3",
@@ -5726,7 +5696,7 @@ version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f05ba609c234e60bee0d547fe94a4c7e9da733d1c962cf6e59efa4cd9c8bc75"
 dependencies = [
- "lazy_static 1.4.0",
+ "lazy_static",
  "winapi 0.3.8",
 ]
 
@@ -5965,7 +5935,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c44c89dd8b0ae4537d1ae318353eaf7840b4869c536e31c41e963d1ea523ee6"
 dependencies = [
  "arc-swap",
- "lazy_static 1.4.0",
+ "lazy_static",
  "slog",
 ]
 
@@ -6255,7 +6225,7 @@ dependencies = [
  "hash256-std-hasher",
  "hex",
  "impl-serde 0.3.1",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libsecp256k1",
  "log 0.4.8",
  "merlin",
@@ -6375,7 +6345,7 @@ name = "sp-keyring"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#b8c493d0af30674f7d4a2ad6f179b264a295b1e9"
 dependencies = [
- "lazy_static 1.4.0",
+ "lazy_static",
  "sp-core",
  "sp-runtime",
  "strum",
@@ -6606,7 +6576,7 @@ source = "git+https://github.com/paritytech/substrate#b8c493d0af30674f7d4a2ad6f1
 dependencies = [
  "futures 0.3.5",
  "futures-core",
- "lazy_static 1.4.0",
+ "lazy_static",
  "prometheus",
 ]
 
@@ -6645,7 +6615,7 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ce64a4576e1720a2e511bf3ccdb8c0f6cfed0fc265bcbaa0bd369485e02c631"
 dependencies = [
- "lazy_static 1.4.0",
+ "lazy_static",
  "maplit",
  "regex",
 ]
@@ -6787,8 +6757,6 @@ dependencies = [
  "directories",
  "failure",
  "fern",
- "flame",
- "flamer",
  "flate2",
  "frame-system",
  "futures 0.3.5",
@@ -7058,23 +7026,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "thread-id"
-version = "3.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7fbf4c9d56b320106cd64fd024dadfa0be7cb4706725fc44a7d7ce952d820c1"
-dependencies = [
- "libc",
- "redox_syscall",
- "winapi 0.3.8",
-]
-
-[[package]]
 name = "thread_local"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d40c6d1b69745a6ec6fb1ca717914848da4b44ae29d9b3080cbee91d72a69b14"
 dependencies = [
- "lazy_static 1.4.0",
+ "lazy_static",
 ]
 
 [[package]]
@@ -7155,7 +7112,7 @@ dependencies = [
  "fnv",
  "futures-core",
  "iovec",
- "lazy_static 1.4.0",
+ "lazy_static",
  "libc",
  "memchr",
  "mio",
@@ -7236,7 +7193,7 @@ checksum = "09bc590ec4ba8ba87652da2068d150dcada2cfa2e07faae270a5e0409aa51351"
 dependencies = [
  "crossbeam-utils",
  "futures 0.1.29",
- "lazy_static 1.4.0",
+ "lazy_static",
  "log 0.4.8",
  "mio",
  "num_cpus",
@@ -7293,7 +7250,7 @@ dependencies = [
  "crossbeam-queue",
  "crossbeam-utils",
  "futures 0.1.29",
- "lazy_static 1.4.0",
+ "lazy_static",
  "log 0.4.8",
  "num_cpus",
  "slab",
@@ -7402,7 +7359,7 @@ version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0aa83a9a47081cd522c09c81b31aec2c9273424976f922ad61c053b58350b715"
 dependencies = [
- "lazy_static 1.4.0",
+ "lazy_static",
 ]
 
 [[package]]
@@ -7645,7 +7602,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3972e137ebf830900db522d6c8fd74d1900dcfc733462e9a12e942b00b4ac94"
 dependencies = [
  "bumpalo",
- "lazy_static 1.4.0",
+ "lazy_static",
  "log 0.4.8",
  "proc-macro2 1.0.17",
  "quote 1.0.6",

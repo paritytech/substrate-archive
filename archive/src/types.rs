@@ -219,12 +219,12 @@ where
     }
 }
 
-impl<T> From<BatchBlock<T>> for Vec<Extrinsic<T>>
+impl<T> From<&BatchBlock<T>> for Vec<Extrinsic<T>>
 where
     T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    <T as System>::BlockNumber: Into<u32>
 {
-    fn from(batch_block: BatchBlock<T>) -> Vec<Extrinsic<T>> {
+    fn from(batch_block: &BatchBlock<T>) -> Vec<Extrinsic<T>> {
         batch_block
             .inner()
             .iter()

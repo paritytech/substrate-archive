@@ -63,7 +63,7 @@ fn open_db<Block: BlockT>(
     db_config.memory_budget = memory_budget;
     log::info!(
         target: "db",
-        "Open RocksDB database at {}, state column budget: {} MiB, others({}) column cache: {} MiB",
+        "Open RocksDB at {}, state column budget: {} MiB, others({}) column cache: {} MiB",
         path,
         state_col_budget,
         NUM_COLUMNS,

@@ -31,10 +31,6 @@ use bastion::prelude::*;
 use sp_storage::StorageKey;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
-#[cfg(feature = "profiling")]
-use flame as f;
-#[cfg(feature = "profiling")]
-use flamer::flame;
 
 /// Main entrypoint for substrate-archive.
 /// Deals with starting and stopping the Archive Runtime
@@ -144,12 +140,6 @@ impl Archive {
         finish_work(self.workers.get("defer").expect("Defer workers must exist")).await;
         Bastion::kill();
         log::info!("Shut down succesfully");
-        #[cfg(feature = "profiling")]
-        {
-            log::info!("Dumping profile data");
-            f::dump_html(std::fs::File::create("flamegraph.html").unwrap()).unwrap();
-
-        }
         Ok(())
     }
 }

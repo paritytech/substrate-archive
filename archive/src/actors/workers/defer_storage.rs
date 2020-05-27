@@ -153,16 +153,14 @@ where
     .map(|b| b.generate_series as u32)
     .collect::<Vec<u32>>();
 
-    let mut ready: Vec<Storage<T>> = Vec::new();
-
-    storage.retain(|s| {
-        if !missing.contains(&s.block_num().into()) {
-            ready.push(s.clone());
-            false
-        } else {
-            true
-        }
-    });
+    // TODO: use drain_filter when stabilized: https://github.com/rust-lang/rust/issues/43244
+    // Will remove the 'cloned()'
+    let ready = storage
+        .iter()
+        .cloned()
+        .filter(|s| !missing.contains(&s.block_num()))
+        .collect::<Vec<Storage<T>>>();
+    storage.retain(|s|missing.contains(&s.block_num()));
 
     if ready.len() > 0 {
         log::info!(
