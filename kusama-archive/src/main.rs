@@ -13,82 +13,83 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+mod archive;
 mod cli_opts;
 mod config;
-mod archive;
 mod queries;
 
 use anyhow::Result;
-use sqlx::PgPool;
-use substrate_archive::{chain_traits::UsageProvider as _};
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use futures::future::FutureExt;
-use std::{thread, time::Duration};
+use indicatif::{ProgressBar, ProgressStyle};
+use sqlx::PgPool;
+use std::time::Duration;
 
 pub fn main() -> Result<()> {
-    
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Info);
-    
+
     //let handle = async_std::task::spawn(archive::run_archive(config.clone()));
-    let (client, archive) = archive::run_archive(config.clone())?;
-    
+    let (_, archive) = archive::run_archive(config.clone())?;
+
     let pool = if let Some(url) = config.psql_url() {
-        async_std::task::block_on(PgPool::builder()
-            .max_size(2)
-            .build(url))?
+        async_std::task::block_on(PgPool::builder().max_size(2).build(url))?
     } else {
         log::warn!("No url passed on initialization, using environment variable");
         async_std::task::block_on(
             PgPool::builder()
                 .max_size(2)
-                .build(&std::env::var("DATABASE_URL")?)
+                .build(&std::env::var("DATABASE_URL")?),
         )?
     };
-    
+
     let pb = ProgressBar::new_spinner();
     pb.set_style(
         ProgressStyle::default_spinner()
-        .tick_strings(&[
-            "▹▹▹▹▹",
-            "▸▹▹▹▹",
-            "▹▸▹▹▹",
-            "▹▹▸▹▹",
-            "▹▹▹▸▹",
-            "▹▹▹▹▸",
-            "▪▪▪▪▪", 
-        ]).template("{spinner:.blue} {msg}"),
+            .tick_strings(&[
+                "▹▹▹▹▹",
+                "▸▹▹▹▹",
+                "▹▸▹▹▹",
+                "▹▹▸▹▹",
+                "▹▹▹▸▹",
+                "▹▹▹▹▸",
+                "▪▪▪▪▪",
+            ])
+            .template("{spinner:.blue} {msg}"),
     );
-    
+
     async_std::task::spawn(async move {
         loop {
             let indexed_blocks: Option<u32> = queries::block_count(&pool).await.ok();
             let indexed_storage = queries::get_max_storage(&pool).await.ok();
             let indexed_ext = queries::extrinsic_count(&pool).await.ok();
             let max = queries::max_block(&pool).await.ok();
-            let (in_blocks, in_storg, max, ext) = match (indexed_blocks, indexed_storage, max, indexed_ext) {
-                (Some(a), Some(b), Some(c), Some(d)) => {
-                    (a, b, c, d)
-                },
-                _ => {
-                    async_std::task::sleep(Duration::from_millis(160)).await;
-                    continue;
-                }
-            };
-            let msg = format!("Indexed {}/{} blocks, {}/{} storage and {} extrinsics", in_blocks, max + 1, in_storg.0, max + 1, ext);
+            let (in_blocks, in_storg, max, ext) =
+                match (indexed_blocks, indexed_storage, max, indexed_ext) {
+                    (Some(a), Some(b), Some(c), Some(d)) => (a, b, c, d),
+                    _ => {
+                        async_std::task::sleep(Duration::from_millis(160)).await;
+                        continue;
+                    }
+                };
+            let msg = format!(
+                "Indexed {}/{} blocks, {}/{} storage and {} extrinsics",
+                in_blocks,
+                max + 1,
+                in_storg.0,
+                max + 1,
+                ext
+            );
             pb.set_message(msg.as_str());
             async_std::task::sleep(Duration::from_millis(80)).await;
         }
     });
-        
+
     let ctrlc = async_ctrlc::CtrlC::new().expect("Couldn't create ctrlc handler");
     println!("Waiting on ctrlc");
-    async_std::task::block_on(    
-        ctrlc.then(|_| async {
-            println!("\nShutting down ...");
-            archive.shutdown().await.unwrap();
-        })
-    );
+    async_std::task::block_on(ctrlc.then(|_| async {
+        println!("\nShutting down ...");
+        archive.shutdown().await.unwrap();
+    }));
 
     Ok(())
 }

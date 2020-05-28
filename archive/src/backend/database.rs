@@ -36,6 +36,17 @@ impl ReadOnlyDatabase {
         log::info!("Returning inner");
         Ok(Self { inner })
     }
+
+    pub fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
+        self.inner.try_catch_up_with_primary().ok()?;
+        match self.inner.get(col, key) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("{:?}", e);
+                None
+            }
+        }
+    }
 }
 
 //TODO: Remove panics with a warning that database has not been written to / is read-only
@@ -50,6 +61,12 @@ impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
     }
 
     fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
+        /*
+        println!(
+            "In Database::get(): key: {}, column: {}",
+            hex::encode(key),
+            col
+        );*/
         self.inner.try_catch_up_with_primary().ok()?;
         match self.inner.get(col, key) {
             Ok(v) => v,
@@ -79,6 +96,12 @@ impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
 
 impl KeyValueDB for ReadOnlyDatabase {
     fn get(&self, col: u32, key: &[u8]) -> io::Result<Option<DBValue>> {
+        /*
+        println!(
+            "In KeyValueDB::get(): key: {}, column: {}",
+            hex::encode(key),
+            col
+        );*/
         match self.inner.try_catch_up_with_primary() {
             Ok(_) => (),
             Err(e) => log::error!("Could not catch up {:?}", e),
@@ -87,6 +110,12 @@ impl KeyValueDB for ReadOnlyDatabase {
     }
 
     fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Option<Box<[u8]>> {
+        /*
+        println!(
+            "In KeyValueDB::get_by_prefix(): prefix: {}, column: {}",
+            hex::encode(prefix),
+            col
+        );*/
         match self.inner.try_catch_up_with_primary() {
             Ok(_) => (),
             Err(e) => log::error!("Could not catch up {:?}", e),
@@ -99,6 +128,7 @@ impl KeyValueDB for ReadOnlyDatabase {
     }
 
     fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
+        // println!("In KeyValueDB::iter(): column: {}", col);
         let unboxed = self.inner.iter(col);
         Box::new(unboxed.into_iter())
     }
@@ -108,6 +138,12 @@ impl KeyValueDB for ReadOnlyDatabase {
         col: u32,
         prefix: &'a [u8],
     ) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
+        /*
+        println!(
+            "In KeyValueDB::iter_with_prefix() prefix: {}, column: {}",
+            hex::encode(prefix),
+            col
+        );*/
         self.inner.iter_with_prefix(col, prefix)
     }
 

@@ -92,6 +92,8 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
             fern::Dispatch::new()
                 .level(file)
                 .level_for("substrate_archive", file)
+                .level_for("sc-client-db", log::LevelFilter::Trace)
+                .level_for("sc_client_db", log::LevelFilter::Trace)
                 // .level_for("desub_core", log::LevelFilter::Debug)
                 // .level_for("bastion", log::LevelFilter::Trace)
                 // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)

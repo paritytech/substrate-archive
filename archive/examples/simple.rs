@@ -25,7 +25,7 @@ pub fn main() {
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
 
     // Open a RocksDB Database for the node we want to index
-    let path = std::path::PathBuf::from("/home/insipx/.local/share/polkadot/chains/ksmcc4/db");
+    let path = std::path::PathBuf::from("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
     let db = backend::open_database::<Block>(path.as_path(), 8192, spec.name(), spec.id()).unwrap();
 
     let client =

@@ -37,6 +37,8 @@ kvdb = "0.6"
 kvdb-rocksdb = "0.8"
 parity-util-mem = "0.6.1"
 codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
+trie-db = "0.20.1"
+sp-trie = "2.0.0-rc2"
 
 # Substrate
 sp-database = { git = "https://github.com/paritytech/substrate", branch = "master", package="sp-database" }

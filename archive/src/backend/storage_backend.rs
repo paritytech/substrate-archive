@@ -69,7 +69,7 @@ where
     fn block_or_best(&self, hash: Option<T::Hash>) -> Result<T::Hash, ArchiveError> {
         Ok(hash.unwrap_or_else(|| self.client.info().best_hash))
     }
-    
+
     #[cfg_attr(feature = "profiling", flame)]
     fn query_storage_unfiltered(
         &self,

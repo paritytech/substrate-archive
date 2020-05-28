@@ -20,6 +20,7 @@ mod client;
 mod database;
 mod storage_backend;
 mod util;
+mod trie;
 
 pub use self::storage_backend::StorageBackend;
 pub use self::{client::client, util::open_database};
