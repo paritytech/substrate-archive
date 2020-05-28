@@ -23,6 +23,7 @@ use parity_util_mem::MallocSizeOf;
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
 use std::io;
 
+
 pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
 
 #[derive(MallocSizeOf)]

@@ -16,18 +16,22 @@
 
 //! various utilities that make interfacing with substrate easier
 
+use super::database::ReadOnlyDatabase;
 use kvdb_rocksdb::DatabaseConfig;
+use codec::Decode;
+// Don't want sc_service
 use sc_service::config::DatabaseConfig as DBConfig;
 use sp_database::Database as DatabaseTrait;
-use sp_runtime::traits::Block as BlockT;
-use std::path::Path;
-use std::sync::Arc;
+use sp_runtime::{traits::{Block as BlockT, UniqueSaturatedFrom, UniqueSaturatedInto}, generic::BlockId};
+use sp_trie::DBValue;
+use std::{path::Path, sync::Arc, convert::TryInto};
 
 pub const NUM_COLUMNS: u32 = 11;
 
 // taken from substrate/client/db/src/lib.rs
 const DB_HASH_LEN: usize = 32;
 pub type DbHash = [u8; DB_HASH_LEN];
+pub type NumberIndexKey = [u8; 4];
 
 /// Open a rocksdb Database as Read-Only
 pub fn open_database<Block: BlockT>(
@@ -76,7 +80,68 @@ fn open_db<Block: BlockT>(
         NUM_COLUMNS,
         other_col_budget,
     );
-    let db = super::database::ReadOnlyDatabase::open(&db_config, &path)
+    let db = ReadOnlyDatabase::open(&db_config, &path)
         .map_err(|err| sp_blockchain::Error::Backend(format!("{}", err)))?;
     Ok(sp_database::as_database(db))
+}
+
+
+pub fn read_header<Block: BlockT>(
+    db: &ReadOnlyDatabase, 
+    col_index: u32,
+    col: u32,
+    id: BlockId<Block>
+) -> sp_blockchain::Result<Option<Block::Header>> {
+    match read_db(db, col_index, col, id)? {
+        Some(header) => match Block::Header::decode(&mut &header[..]) {
+            Ok(header) => Ok(Some(header)),
+            Err(_) => return Err(
+                sp_blockchain::Error::Backend("Error decoding header".into())
+            ),
+        }
+        None => Ok(None)
+    }
+}
+
+pub fn read_db<Block>(
+    db: &ReadOnlyDatabase,
+    col_index: u32,
+    col: u32,
+    id: BlockId<Block>
+) -> sp_blockchain::Result<Option<DBValue>>
+where 
+    Block: BlockT
+{
+    block_id_to_lookup_key(db, col_index, id).and_then(|key| match key {
+        Some(key) => Ok(db.get(col, key.as_ref())),
+        None => Ok(None)
+    })
+}
+
+pub fn block_id_to_lookup_key<Block>(
+    db: &ReadOnlyDatabase,
+    key_lookup_col: u32,
+    id: BlockId<Block>
+) -> Result<Option<Vec<u8>>, sp_blockchain::Error> 
+where
+    Block: BlockT,
+    sp_runtime::traits::NumberFor<Block>: UniqueSaturatedFrom<u64> + UniqueSaturatedInto<u64>,
+{
+    Ok(match id {
+            BlockId::Number(n) => db.get(key_lookup_col, number_index_key(n)?.as_ref()),
+            BlockId::Hash(h) => db.get(key_lookup_col, h.as_ref())
+    })
+}
+
+pub fn number_index_key<N: TryInto<u32>>(n: N) -> sp_blockchain::Result<NumberIndexKey> {
+    let n = n.try_into().map_err(|_| {
+        sp_blockchain::Error::Backend("Block num cannot be converted to u32".into())
+    })?;
+
+    Ok([
+        (n >> 24) as u8,
+        ((n >> 16) & 0xff) as u8,
+        ((n >> 8) & 0xff) as u8,
+        (n & 0xff) as u8
+    ])
 }

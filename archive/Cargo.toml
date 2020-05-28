@@ -38,6 +38,7 @@ kvdb-rocksdb = "0.8"
 parity-util-mem = "0.6.1"
 codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
 trie-db = "0.20.1"
+hash-db = "0.15.2"
 sp-trie = "2.0.0-rc2"
 
 # Substrate
