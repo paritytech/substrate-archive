@@ -58,8 +58,9 @@ Once you have Git LFS installed, run these commands to fetch the dataset:
 ```
 git lfs fetch --all
 ```
-
 this will download all the datasets needed.
+
+More docs available [here](https://help.github.com/en/github/managing-large-files)
 
 
 [contribution]: CONTRIBUTING.md
