@@ -15,29 +15,29 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::database::ReadOnlyDatabase;
-use crate::types::{Substrate, NotSignedBlock};
+use crate::types::Substrate;
 use std::marker::PhantomData;
-use sp_runtime::{generic::BlockId, traits::Header};
-use sp_trie::{read_trie_value, Layout};
-use frame_system::Trait as System;
+use sp_runtime::{generic::BlockId, traits::{Header, HashFor, Block as BlockT}};
+use sp_trie::{read_trie_value, prefixed_key, Layout};
 use kvdb::DBValue;
 use hash_db::{Hasher, Prefix};
 
-pub struct StorageBackend<T: Substrate, H: Hasher> {
+pub struct StorageBackend<Block: BlockT> {
     db: ReadOnlyDatabase,
-    _marker: PhantomData<(T, H)>
+    prefix_keys: bool,
+    _marker: PhantomData<Block>
 }
 
-impl<T, H> StorageBackend<T, H> where T: Substrate + Send + Sync, H: Hasher {
-    pub fn new(db: ReadOnlyDatabase) -> Self {
-        Self { db, _marker: PhantomData }
+impl<Block> StorageBackend<Block> where Block: BlockT {
+    pub fn new(db: ReadOnlyDatabase, prefix_keys: bool) -> Self {
+        Self { db, prefix_keys, _marker: PhantomData }
     }
 
     // TODO: Gotta handle genesis storage
-    pub fn storage(&self, state_hash: T::Hash, key: &[u8]) -> Option<Vec<u8>> {
+    pub fn storage(&self, state_hash: Block::Hash, key: &[u8]) -> Option<Vec<u8>> {
         // db / root / key
         // flesh it out
-        let header = super::util::read_header::<NotSignedBlock<T>>(
+        let header = super::util::read_header::<Block>(
             &self.db, 
             columns::KEY_LOOKUP, 
             columns::HEADER, 
@@ -45,58 +45,59 @@ impl<T, H> StorageBackend<T, H> where T: Substrate + Send + Sync, H: Hasher {
         ).expect("Header Metadata Lookup Failed").expect("Header not found!");
         let root = header.state_root();
 
-        let val = read_trie_value::<Layout<<T as System>::Hashing>, _>(self, root, key)
+        let val = read_trie_value::<Layout<HashFor<Block>>, _>(self, root, key)
             .expect("Read Trie Value Error");
         
-        // sp_trie::read_trie_value()
-        Some(Vec::new())
+        val
     }
 }
 
-impl<T: Substrate + Send + Sync, H: Hasher> hash_db::HashDB<H, DBValue> for StorageBackend<T, H> {
-    fn get(&self, key: &H::Out, prefix: Prefix) -> Option<DBValue> {
-        // TODO: Might be as proble, don't know how hashdb interacts with KVDB
-        match self.db.get(*key, prefix) {
-            Ok(x) => x,
-            Err(e) => {
-                log::warn!("Failed to read from DB: {}", e);
-                None
-            },
+type HashOut<Block> = <HashFor<Block> as Hasher>::Out;
+
+impl<Block: BlockT> hash_db::HashDB<HashFor<Block>, DBValue> for StorageBackend<Block> {
+    fn get(&self, key: &HashOut<Block>, prefix: Prefix) -> Option<DBValue> {
+        // TODO: Might be a problem, don't know how hashdb interacts with KVDB
+        if self.prefix_keys {
+            let key = prefixed_key::<HashFor<Block>>(key, prefix);
+            self.db.get(columns::STATE, &key)
+        }  else {
+            self.db.get(columns::STATE, key.as_ref())
         }
     }
 
-    fn contains(&self, key: &H::Out, prefix: Prefix) -> bool {
+    fn contains(&self, key: &HashOut<Block>, prefix: Prefix) -> bool {
         hash_db::HashDB::get(self, key, prefix).is_some()
     }
 
-    fn insert(&mut self, prefix: Prefix, value: &[u8]) -> bool {
+    fn insert(&mut self, _prefix: Prefix, _value: &[u8]) -> HashOut<Block> {
         panic!("Read Only Database; HashDB IMPL for StorageBackend; insert(..)");
     }
 
-    fn emplace(&mut self, key: H::Out, prefix: Prefix, value: DBValue) {
+    fn emplace(&mut self, _key: HashOut<Block>, _prefix: Prefix, _value: DBValue) {
         panic!("Read Only Database; HashDB IMPL for StorageBackend; emplace(..)");
     }
 
-    fn remove(&mut self, key: &H::Out, prefix: Prefix) {
+    fn remove(&mut self, _key: &HashOut<Block>, _prefix: Prefix) {
         panic!("Read Only Database; HashDB IMPL for StorageBackend; remove(..)");
     }
 }
 
-impl<T: Substrate + Send + Sync, H: Hasher> hash_db::HashDBRef<H, DBValue> for StorageBackend<T, H> {
-    fn get(&self, key: &H::Out, prefix: Prefix) -> Option<DBValue> {
+impl<Block: BlockT> hash_db::HashDBRef<HashFor<Block>, DBValue> for StorageBackend<Block> {
+    fn get(&self, key: &HashOut<Block>, prefix: Prefix) -> Option<DBValue> {
         hash_db::HashDB::get(self, key, prefix)
     }
 
-    fn contains(&self, key: &H::Out, prefix: Prefix) -> bool {
+    fn contains(&self, key: &HashOut<Block>, prefix: Prefix) -> bool {
         hash_db::HashDB::contains(self, key, prefix)
     }
 }
 
-impl<T: Substrate + Send + Sync, H: Hasher> hash_db::AsHashDB<H, DBValue> for StorageBackend<T, H> {
-    fn as_hash_db(&self) -> &(dyn hash_db::HashDB<H, DBValue>) { self }
-    fn as_hash_db_mut(&mut self) -> &mut (dyn hash_db::HashDB<H, DBValue>) { panic!("Mutable references to database not allowed") }
+impl<Block: BlockT> hash_db::AsHashDB<HashFor<Block>, DBValue> for StorageBackend<Block> {
+    fn as_hash_db(&self) -> &(dyn hash_db::HashDB<HashFor<Block>, DBValue>) { self }
+    fn as_hash_db_mut(&mut self) -> &mut (dyn hash_db::HashDB<HashFor<Block>, DBValue>) { panic!("Mutable references to database not allowed") }
 }
 
+#[allow(unused)]
 pub(crate) mod columns {
     pub const META: u32 = 0;
     pub const STATE: u32 = 1;
@@ -110,4 +111,10 @@ pub(crate) mod columns {
     pub const AUX: u32 = 8;
     pub const OFFCHAIN: u32 = 9;
     pub const CACHE: u32 = 10;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
 }
