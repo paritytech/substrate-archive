@@ -48,5 +48,18 @@ Read the [Doc](https://github.com/paritytech/substrate-archive/blob/master/CONTR
 You can build the documentation for this crate by running `cargo doc` in the `archive` directory.
 More Docs [here]( https://github.com/paritytech/substrate-archive/wiki)
 
+# Running tests with Kusama RocksDB static Dataset
+
+Tests for the storage backend are tested against a static dataset from Kusama, up to around block ~15,000. These require you have `git lfs` installed if you want to run the tests.
+Github already has great docs for this:
+[Installing Git LFS](https://help.github.com/en/github/managing-large-files/installing-git-large-file-storage)
+Without git LFS, you will not be fetching the dataset. This keeps the `substrate-archive` repository fast to pull and push to.
+Once you have Git LFS installed, run these commands to fetch the dataset:
+```
+git lfs fetch --all
+```
+
+this will download all the datasets needed.
+
 
 [contribution]: CONTRIBUTING.md
