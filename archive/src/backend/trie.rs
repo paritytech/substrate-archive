@@ -15,7 +15,6 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::database::ReadOnlyDatabase;
-use crate::types::Substrate;
 use std::marker::PhantomData;
 use sp_runtime::{generic::BlockId, traits::{Header, HashFor, Block as BlockT}};
 use sp_trie::{read_trie_value, prefixed_key, Layout};
@@ -113,8 +112,56 @@ pub(crate) mod columns {
     pub const CACHE: u32 = 10;
 }
 
-#[cfg(test)]
+#[cfg(feature = "test_rocksdb")]
 mod tests {
+    #[allow(unused)]
     use super::*;
+    use crate::backend::test_harness;
+    use polkadot_service::Block;
+    use crate::{twox_128, StorageKey};
+    use primitive_types::H256;
+    use codec::Decode;
 
+    // change this to run tests
+    const DB: &'static str = "/home/insipx/.local/share/polkadot/chains/ksmcc3/db";
+
+    fn system_accounts_key() -> StorageKey {
+        let system_key = twox_128(b"System").to_vec();
+        let accounts_key = twox_128(b"Account").to_vec();
+
+        let mut system_accounts = system_key.clone();
+        system_accounts.extend(accounts_key);
+        StorageKey(system_accounts)
+    }
+
+    #[test]
+    fn should_create_new() {
+        test_harness::harness(DB, |db| {
+            StorageBackend::<Block>::new(db, false);
+        });
+    }
+
+    /// Gets the FreeBalance of an account from block 10,000 on Kusama CC3
+    /// Must have a RocksDB database with a node that has been synced up to block 10,000
+    #[test]
+    fn should_get() {
+        let key1 = "c2261276cc9d1f8598ea4b6a74b15c2f6482b9ade7bc6657aaca787ba1add3b4004def926cde2699f236c59fa11909a2aee554f0fe56fb88b9a9604669a200a9";
+        let key1 = hex::decode(key1).unwrap();
+
+        let key2 = "c2261276cc9d1f8598ea4b6a74b15c2f6482b9ade7bc6657aaca787ba1add3b4fe8ec31f36f7c3c4a4372f738bb7809d3aa5f533f46b3637458a630746b304a8";
+        let key2 = hex::decode(key2).unwrap();
+
+        let hash = hex::decode("ae327b35880aa9d028370f063e4c4d666f6bad89800dd979ca8b9dbf064393d0").unwrap();
+        let hash = H256::from_slice(hash.as_slice());
+
+        test_harness::harness(DB, |db| {
+            let db = StorageBackend::<Block>::new(db, true);
+            let val = db.storage(hash, key1.as_slice()).unwrap();
+            let val: u128 = Decode::decode(&mut val.as_slice()).unwrap();
+            assert_eq!(10379170000000000, val);
+            let val = db.storage(hash, key2.as_slice()).unwrap();
+            let val: u128 = Decode::decode(&mut val.as_slice()).unwrap();
+            assert_eq!(226880000000000, val);
+        });
+    }
 }

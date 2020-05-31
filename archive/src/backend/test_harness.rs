@@ -15,7 +15,22 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 
-use super::util::open_database;
+use crate::backend::database::ReadOnlyDatabase;
+use crate::backend::util::NUM_COLUMNS;
+use kvdb_rocksdb::DatabaseConfig;
 
 
-
+pub fn harness<F>(db: &str, fun: F)
+where
+    F: FnOnce(ReadOnlyDatabase)
+{
+    let secondary_db = tempdir::TempDir::new("archive-test")
+        .expect("Couldn't create a temporary directory")
+        .into_path();
+    let conf = DatabaseConfig {
+        secondary: Some(secondary_db.to_str().unwrap().to_string()),
+        ..DatabaseConfig::with_columns(NUM_COLUMNS)
+    };
+    let db = ReadOnlyDatabase::open(&conf, db).expect("Couldn't open a secondary instance");
+    fun(db);
+}

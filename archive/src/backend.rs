@@ -21,7 +21,7 @@ mod database;
 mod storage_backend;
 mod util;
 mod trie;
-#[cfg(test)]
+#[cfg(feature = "test_rocksdb")]
 mod test_harness;
 
 pub use self::storage_backend::StorageBackend;

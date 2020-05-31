@@ -15,12 +15,10 @@ failure = "0.1"
 timer = { version = "3.0", package = "futures-timer" }
 serde = { version = "1.0.105", features = ["derive"] }
 # enabling arbitrary_precision for serde_json may cause rpc requests to fail
-fern = { version = "0.6", features = ["colored"], optional = true }
-chrono = { version = "0.4", optional = true }
+
 serde_json = "1.0.50"
 dirs = { version = "2", package = "directories" }
 bastion = "0.3"
-tempdir = "0.3.7"
 sqlx = { version = "0.3.5", features = ["postgres"] }
 async-trait = "0.1.31"
 hex = "0.4.2"
@@ -58,6 +56,12 @@ sc-transaction-graph = { git = "https://github.com/paritytech/substrate", branch
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-system" }
 
+# Optional
+tempdir = { version = "0.3.7", optional = true }
+chrono = { version = "0.4", optional = true }
+fern = { version = "0.6", features = ["colored"], optional = true }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false, optional = true }
+
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
 polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
@@ -67,3 +71,5 @@ pretty_env_logger = "0.4.0"
 [features]
 default = []
 logging = ["chrono", "fern"]
+# Testing for storage backend
+test_rocksdb = ["tempdir", "polkadot-service"]
