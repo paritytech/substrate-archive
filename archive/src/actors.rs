@@ -35,7 +35,7 @@ use std::{env, sync::Arc};
 /// Main entrypoint for substrate-archive.
 /// Deals with starting and stopping the Archive Runtime
 /// # Examples
-/// ```
+/// ```compile_fail
 ///let archive = Archive::init::<ksm_runtime::Runtime, _>(
 ///     client,
 ///     "ws://127.0.0.1:9944".to_string(),

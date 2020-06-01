@@ -14,6 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Storage Backend that wraps Parity Trie Implementation to retrieve
+//! values from RocksDB.
+//! Preferred over using the Substrate Client, since this is a lighter-weight implementation
+//! that gives substrate-archive more fine-grained control over implementation and optimization details.
+//! Especially with regards to reading.
+//! According to benchmarks, performance improvements are currently neglible. Mostly because the code has only
+//! been slightly modified so far.
+//! This only wraps functions that are needed for substrate archive, avoiding needing to import entire runtimes.
+
 use super::database::ReadOnlyDatabase;
 use std::marker::PhantomData;
 use sp_runtime::{generic::BlockId, traits::{Header, HashFor, Block as BlockT}};
@@ -65,7 +74,6 @@ impl<Block> StorageBackend<Block> where Block: BlockT {
                 v.push(key.to_vec());
             }
         }
-
         Some(v)
     }
 }
@@ -144,13 +152,12 @@ mod tests {
     // change this to run tests
     const DB: &'static str = "/home/insipx/.local/share/polkadot/chains/ksmcc3/db";
 
-    fn system_accounts_key() -> StorageKey {
-        let system_key = twox_128(b"System").to_vec();
-        let accounts_key = twox_128(b"Account").to_vec();
-
-        let mut system_accounts = system_key.clone();
-        system_accounts.extend(accounts_key);
-        StorageKey(system_accounts)
+    fn balances_freebalance_key() -> StorageKey {
+        let balances_key = twox_128(b"Balances").to_vec();
+        let freebalance_key = twox_128(b"FreeBalance").to_vec();
+        let mut balances_freebalance = balances_key.clone();
+        balances_freebalance.extend(freebalance_key);
+        StorageKey(balances_freebalance)
     }
 
     #[test]
@@ -176,7 +183,7 @@ mod tests {
 
         test_harness::harness(DB, |db| {
             let db = StorageBackend::<Block>::new(db, true);
-            let time = Instant::now();
+            let time = Instant::now(); // FIXME: bootleg benchmark. #[bench] not stabilized yet
             let val = db.storage(hash, key1.as_slice()).unwrap();
             let elapsed = time.elapsed();
             println!("Took {} seconds, {} milli-seconds, {} nano-seconds", elapsed.as_secs(), elapsed.as_millis(), elapsed.as_nanos());
@@ -185,6 +192,21 @@ mod tests {
             let val = db.storage(hash, key2.as_slice()).unwrap();
             let val: u128 = Decode::decode(&mut val.as_slice()).unwrap();
             assert_eq!(226880000000000, val);
+        });
+    }
+
+    #[test]
+    fn should_get_keys() {
+        let hash = hex::decode("ae327b35880aa9d028370f063e4c4d666f6bad89800dd979ca8b9dbf064393d0").unwrap();
+        let hash = H256::from_slice(hash.as_slice());
+        let key = balances_freebalance_key();
+
+        test_harness::harness(DB, |db| {
+            let db = StorageBackend::<Block>::new(db, true);
+            let time = Instant::now();
+            let keys = db.storage_keys(hash, key.0.as_slice());
+            let elapsed = time.elapsed();
+            println!("Took {} seconds, {} milli-seconds, {} nano-seconds", elapsed.as_secs(), elapsed.as_millis(), elapsed.as_nanos());
         });
     }
 }
