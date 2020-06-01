@@ -41,7 +41,7 @@ where
     })
     .map_err(|_| ArchiveError::from("Could not instantiate database actor"))
 }
-
+ 
 async fn handle_msg<T>(ctx: &BastionContext, db: &Database) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
@@ -54,8 +54,8 @@ where
                 process_block(&db, block).await?;
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
-            blocks: Vec<Block<T>> =!> {
-                log::info!("Inserting {} blocks", blocks.len());
+            blocks: BatchBlock<T> =!> {
+                log::info!("Inserting {} blocks", blocks.inner().len());
                 process_blocks(&db, blocks).await?;
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
@@ -95,13 +95,13 @@ where
     db.insert(block).await.map(|_| ())
 }
 
-async fn process_blocks<T>(db: &Database, blocks: Vec<Block<T>>) -> Result<(), ArchiveError>
+async fn process_blocks<T>(db: &Database, blocks: BatchBlock<T>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    log::info!("Got {} blocks", blocks.len());
-    let mut specs = blocks.clone();
+    log::info!("Got {} blocks", blocks.inner().len());
+    let mut specs = blocks.inner().clone();
     specs.as_mut_slice().sort_by_key(|b| b.spec);
     let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
     specs.dedup();
@@ -110,12 +110,14 @@ where
         if db_contains_metadata(specs.as_slice(), versions) {
             break;
         }
-        timer::Delay::new(std::time::Duration::from_millis(20)).await;
+        timer::Delay::new(std::time::Duration::from_millis(50)).await;
     }
 
-    db.insert(BatchBlock::new(blocks)).await.map(|_| ())
+    db.insert(blocks).await.map(|_| ())
 }
 
+// Returns true if all versions are in database
+// false if versions are missing
 fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -> bool {
     let versions = versions
         .into_iter()

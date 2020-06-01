@@ -21,7 +21,7 @@ use sqlx::{postgres::PgQueryAs as _, PgConnection};
 
 #[derive(sqlx::FromRow, Debug)]
 pub struct Block {
-    pub generate_series: i64,
+    pub generate_series: i32,
 }
 
 /// get missing blocks from relational database
@@ -51,8 +51,8 @@ pub(crate) async fn missing_blocks_min_max(
          WHERE
          NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)",
     )
-    .bind(min as i64)
-    .bind(max as i64)
+    .bind(min as i32)
+    .bind(max as i32)
     .fetch_all(pool)
     .await
     .map_err(Into::into)
@@ -86,7 +86,7 @@ pub(crate) async fn get_versions(
 pub(crate) async fn get_max_storage(
     pool: &sqlx::Pool<PgConnection>,
 ) -> Result<(u32, Vec<u8>), ArchiveError> {
-    let row: (i64, Vec<u8>) =
+    let row: (i32, Vec<u8>) =
         sqlx::query_as(r#"SELECT block_num, hash FROM storage WHERE block_num = (SELECT MAX(block_num) FROM storage)"#)
         .fetch_one(pool)
         .await?;
@@ -96,7 +96,7 @@ pub(crate) async fn get_max_storage(
 pub(crate) async fn get_max_block_num(
     pool: &sqlx::Pool<PgConnection>,
 ) -> Result<(u32, Vec<u8>), ArchiveError> {
-    let row: (i64, Vec<u8>) =
+    let row: (i32, Vec<u8>) =
         sqlx::query_as(r#"SELECT block_num, hash FROM blocks WHERE block_num = (SELECT MAX(block_num) FROM blocks)"#)
         .fetch_one(pool)
         .await?;

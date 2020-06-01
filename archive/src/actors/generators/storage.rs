@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Indexes storage
-
+//! Indexes storage 
 use crate::actors::{
     scheduler::{Algorithm, Scheduler},
     workers,
@@ -68,7 +67,7 @@ where
                     if handle_shutdown::<T>(&ctx).await {
                         break;
                     }
-                    match entry::<T, C>(&client, &pool, &mut sched, &keys, &mut max_storage).await {
+                    match entry::<T, C>(&client, &pool, &mut sched, keys.clone(), &mut max_storage).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
@@ -84,7 +83,7 @@ async fn entry<T, C>(
     client: &Arc<C>,
     pool: &sqlx::Pool<PgConnection>,
     sched: &mut Scheduler<'_>,
-    keys: &Vec<StorageKey>,
+    keys: Vec<StorageKey>,
     max_storage: &mut u32,
 ) -> Result<(), ArchiveError>
 where
@@ -116,8 +115,8 @@ where
     let (mut query_to_num, _) = queries::get_max_block_num(&pool).await?;
     log::info!("Query from num: {}", query_from_num);
     log::info!("Query to num 0: {}", query_to_num);
-    if (query_to_num - query_from_num) > 1500 {
-        query_to_num = query_from_num + 1000;
+    if (query_to_num - query_from_num) > 2000 {
+        query_to_num = query_from_num + 1500;
     }
     log::info!("Query to num 1: {}", query_to_num);
 
@@ -156,12 +155,11 @@ where
     let storage_backend = StorageBackend::<T, C>::new(client.clone());
 
     let now = std::time::Instant::now();
-    let spawn_keys = keys.clone();
     let change_set = blocking! {
         storage_backend.query_storage(
             T::Hash::from(query_from_hash),
             Some(query_to_hash),
-            spawn_keys
+            keys
         )
     };
     let change_set = spawn!(change_set)
@@ -211,6 +209,7 @@ where
         .flatten()
         .collect::<Vec<Storage<T>>>();
 
+    // TODO use drain_filter when stabilized
     let to_defer = storage
         .iter()
         .cloned()

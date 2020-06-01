@@ -30,7 +30,7 @@ pub(crate) async fn block_count(
 
 pub(crate) async fn max_block(pool: &sqlx::Pool<PgConnection>,
 ) -> Result<u32> {
-    let row: (i64, ) = sqlx::query_as(
+    let row: (i32, ) = sqlx::query_as(
         "SELECT block_num FROM blocks WHERE block_num = (SELECT MAX(block_num) FROM blocks)"
     )
     .fetch_one(pool)
@@ -52,7 +52,7 @@ pub(crate) async fn extrinsic_count(
 pub(crate) async fn storage_count(
     pool: &sqlx::Pool<PgConnection>,
 ) -> Result<u32> {
-    let row: (i64, ) = sqlx::query_as(
+    let row: (i32, ) = sqlx::query_as(
         "SELECT COUNT(*) FROM storage"
     )
     .fetch_one(pool)
@@ -63,7 +63,7 @@ pub(crate) async fn storage_count(
 pub(crate) async fn get_max_storage(
     pool: &sqlx::Pool<PgConnection>,
 ) -> Result<(u32, Vec<u8>)> {
-    let row: (i64, Vec<u8>) =
+    let row: (i32, Vec<u8>) =
         sqlx::query_as(
             "SELECT block_num, hash FROM storage WHERE block_num = (SELECT MAX(block_num) FROM storage)"
         )

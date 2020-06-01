@@ -20,6 +20,3 @@ sqlx = { version = "0.3.5", features = ["postgres"] }
 async-std = "1.6.0"
 async-ctrlc = "1.1.0"
 indicatif = "0.14.0"
-
-
-

@@ -17,12 +17,11 @@
 //! various utilities that make interfacing with substrate easier
 
 use kvdb_rocksdb::DatabaseConfig;
-use sp_database::Database as DatabaseTrait;
 use sc_service::config::DatabaseConfig as DBConfig;
+use sp_database::Database as DatabaseTrait;
 use sp_runtime::traits::Block as BlockT;
-use std::sync::Arc;
 use std::path::Path;
-use tempdir::TempDir;
+use std::sync::Arc;
 
 pub const NUM_COLUMNS: u32 = 11;
 
@@ -31,22 +30,30 @@ const DB_HASH_LEN: usize = 32;
 pub type DbHash = [u8; DB_HASH_LEN];
 
 /// Open a rocksdb Database as Read-Only
-pub fn open_database<Block: BlockT>(path: &Path, cache_size: usize) -> sp_blockchain::Result<DBConfig> {
+pub fn open_database<Block: BlockT>(
+    path: &Path,
+    cache_size: usize,
+    chain: &str,
+    id: &str,
+) -> sp_blockchain::Result<DBConfig> {
     let path = path.to_str().expect("Path to rocksdb not valid UTF-8");
-    Ok(DBConfig::Custom(open_db::<Block>(path, cache_size)?))
+    Ok(DBConfig::Custom(open_db::<Block>(
+        path, cache_size, chain, id,
+    )?))
 }
 
 /// Open a database as read-only
 fn open_db<Block: BlockT>(
     path: &str,
     cache_size: usize,
+    chain: &str,
+    id: &str,
 ) -> sp_blockchain::Result<Arc<dyn DatabaseTrait<DbHash>>> {
+    let db_path = crate::util::create_secondary_db_dir(chain, id);
+    // need to make sure this is `Some` to open secondary instance
+    let db_path = db_path.as_path().to_str().expect("Creating db path failed");
     let mut db_config = DatabaseConfig {
-        secondary: TempDir::new("substrate-archive")
-            .expect("Could not instantiate secondary database directory")
-            .path()
-            .to_str()
-            .map(|s| s.to_string()),
+        secondary: Some(db_path.to_string()),
         ..DatabaseConfig::with_columns(NUM_COLUMNS)
     };
     let state_col_budget = (cache_size as f64 * 0.9) as usize;
@@ -63,7 +70,7 @@ fn open_db<Block: BlockT>(
     db_config.memory_budget = memory_budget;
     log::info!(
         target: "db",
-        "Open RocksDB database at {}, state column budget: {} MiB, others({}) column cache: {} MiB",
+        "Open RocksDB at {}, state column budget: {} MiB, others({}) column cache: {} MiB",
         path,
         state_col_budget,
         NUM_COLUMNS,
