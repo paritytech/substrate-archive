@@ -49,4 +49,11 @@ You can build the documentation for this crate by running `cargo doc` in the `ar
 More Docs [here]( https://github.com/paritytech/substrate-archive/wiki)
 
 
+# Contact
+
+You can contact me on
+ - matrix @aplaza:matrix.parity.io
+ - email: andrew.plaza@parity.io
+ - keybase: https://keybase.io/insi
+
 [contribution]: CONTRIBUTING.md
