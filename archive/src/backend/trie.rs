@@ -17,9 +17,10 @@
 use super::database::ReadOnlyDatabase;
 use std::marker::PhantomData;
 use sp_runtime::{generic::BlockId, traits::{Header, HashFor, Block as BlockT}};
-use sp_trie::{read_trie_value, prefixed_key, Layout};
-use kvdb::DBValue;
-use hash_db::{Hasher, Prefix};
+use sp_trie::{read_trie_value, prefixed_key, Layout}; // is fine
+use trie_db::{TrieDB, Trie};
+use kvdb::DBValue; // need
+use hash_db::{Hasher, Prefix}; // need
 
 pub struct StorageBackend<Block: BlockT> {
     db: ReadOnlyDatabase,
@@ -32,22 +33,40 @@ impl<Block> StorageBackend<Block> where Block: BlockT {
         Self { db, prefix_keys, _marker: PhantomData }
     }
 
-    // TODO: Gotta handle genesis storage
-    pub fn storage(&self, state_hash: Block::Hash, key: &[u8]) -> Option<Vec<u8>> {
+    /// get the state root for a block
+    fn state_root(&self, hash: Block::Hash) -> Option<Block::Hash> {
         // db / root / key
         // flesh it out
         let header = super::util::read_header::<Block>(
-            &self.db, 
-            columns::KEY_LOOKUP, 
-            columns::HEADER, 
-            BlockId::Hash(state_hash)
-        ).expect("Header Metadata Lookup Failed").expect("Header not found!");
-        let root = header.state_root();
+            &self.db,
+            columns::KEY_LOOKUP,
+            columns::HEADER,
+            BlockId::Hash(hash)
+        ).expect("Header Metadata Lookup Failed");
+        header.map(|h| *h.state_root())
+    }
 
-        let val = read_trie_value::<Layout<HashFor<Block>>, _>(self, root, key)
+    // TODO: Gotta handle genesis storage
+    pub fn storage(&self, hash: Block::Hash, key: &[u8]) -> Option<Vec<u8>> {
+        let root = self.state_root(hash)?;
+        let val = read_trie_value::<Layout<HashFor<Block>>, _>(self, &root, key)
             .expect("Read Trie Value Error");
         
         val
+    }
+
+    pub fn storage_keys(&self, hash: Block::Hash, prefix: &[u8]) -> Option<Vec<Vec<u8>>> {
+        let root = self.state_root(hash)?;
+        let trie = TrieDB::<Layout<HashFor<Block>>>::new(self, &root).unwrap();
+        let mut v = Vec::new();
+        for x in trie.iter().unwrap() {
+            let (key, _) = x.unwrap();
+            if key.starts_with(prefix) {
+                v.push(key.to_vec());
+            }
+        }
+
+        Some(v)
     }
 }
 
@@ -121,7 +140,7 @@ mod tests {
     use crate::{twox_128, StorageKey};
     use primitive_types::H256;
     use codec::Decode;
-
+    use std::time::Instant;
     // change this to run tests
     const DB: &'static str = "/home/insipx/.local/share/polkadot/chains/ksmcc3/db";
 
@@ -143,6 +162,7 @@ mod tests {
 
     /// Gets the FreeBalance of an account from block 10,000 on Kusama CC3
     /// Must have a RocksDB database with a node that has been synced up to block 10,000
+    /// 0xae327b35880aa9d028370f063e4c4d666f6bad89800dd979ca8b9dbf064393d0 is the hash of the block in use
     #[test]
     fn should_get() {
         let key1 = "c2261276cc9d1f8598ea4b6a74b15c2f6482b9ade7bc6657aaca787ba1add3b4004def926cde2699f236c59fa11909a2aee554f0fe56fb88b9a9604669a200a9";
@@ -156,7 +176,10 @@ mod tests {
 
         test_harness::harness(DB, |db| {
             let db = StorageBackend::<Block>::new(db, true);
+            let time = Instant::now();
             let val = db.storage(hash, key1.as_slice()).unwrap();
+            let elapsed = time.elapsed();
+            println!("Took {} seconds, {} milli-seconds, {} nano-seconds", elapsed.as_secs(), elapsed.as_millis(), elapsed.as_nanos());
             let val: u128 = Decode::decode(&mut val.as_slice()).unwrap();
             assert_eq!(10379170000000000, val);
             let val = db.storage(hash, key2.as_slice()).unwrap();

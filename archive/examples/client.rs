@@ -52,8 +52,10 @@ pub fn main() {
     for key in keys.iter() {
         println!("Key: {}", hex::encode(key.0.as_slice()));
     }
-
+    let time = std::time::Instant::now();
     let val = client.storage(&BlockId::Hash(hash), &keys[0]).unwrap().unwrap();
+    let elapsed = time.elapsed();
+    println!("Took {} seconds, {} milli-seconds, {} nano-seconds", elapsed.as_secs(), elapsed.as_millis(), elapsed.as_nanos());
     println!("{:?}", val);
     let free_balance: u128 = Decode::decode(&mut val.0.as_slice()).unwrap();
     println!("free: {}", free_balance);
