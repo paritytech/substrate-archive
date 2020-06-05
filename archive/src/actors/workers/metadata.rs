@@ -131,6 +131,7 @@ where
         first.spec_version,
         last.spec_version
     );
+    // if first and last versions of metadata are the same, we only need to do one check
     if first == last {
         meta_checker(
             first.spec_version,
@@ -157,6 +158,8 @@ where
     Ok(())
 }
 
+// checks if the metadata exists in the database
+// if it doesn't exist yet, fetch metadata and insert it
 async fn meta_checker<T>(
     ver: u32,
     hash: Option<T::Hash>,

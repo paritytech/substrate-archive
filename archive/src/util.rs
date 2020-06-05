@@ -44,6 +44,23 @@ pub fn substrate_dir() -> PathBuf {
     }
 }
 
+/// Create rocksdb secondary directory if it doesn't exist yet
+/// Return path to that directory
+pub fn create_secondary_db_dir(chain: &str, id: &str) -> PathBuf {
+    let path = if let Some(base_dirs) = dirs::BaseDirs::new() {
+        let mut path = base_dirs.data_local_dir().to_path_buf();
+        path.push("substrate_archive");
+        path.push("rocksdb_secondary");
+        path.push(chain);
+        path.push(id);
+        path
+    } else {
+        panic!("Couldn't establish substrate adata local path");
+    };
+    std::fs::create_dir_all(path.as_path()).expect("Unable to create rocksdb secondary directory");
+    path
+}
+
 #[cfg(feature = "logging")]
 pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
     let colors = ColoredLevelConfig::new()

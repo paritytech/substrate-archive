@@ -59,11 +59,11 @@ where
         msg! {
             sched.context().recv().await.expect("Could not receive"),
             block: Block<T> =!> {
-                process_block(block.clone(), sched).await?;
+                process_block(block, sched).await?;
                 crate::archive_answer!(sched.context(), super::ArchiveAnswer::Success)?;
             };
             blocks: Vec<Block<T>> =!> {
-                process_blocks(blocks.clone(), sched).await?;
+                process_blocks(blocks, sched).await?;
                 crate::archive_answer!(sched.context(), super::ArchiveAnswer::Success)?;
             };
             meta: Metadata =!> {
@@ -105,12 +105,12 @@ where
 {
     log::info!("Got {} blocks", blocks.len());
     
-    let batch_blocks = BatchBlock::new(blocks.clone());
-    let ext: Vec<Extrinsic<T>> = batch_blocks.into();
+    let batch_blocks = BatchBlock::new(blocks);
+    let ext: Vec<Extrinsic<T>> = (&batch_blocks).into();
 
     // blocks need to be inserted before extrinsics, so that extrinsics may reference block hash in postgres
     log::info!("Processing blocks");
-    let v = sched.ask_next("db", blocks)?.await;
+    let v = sched.ask_next("db", batch_blocks)?.await;
     log::debug!("{:?}", v);
     let v = sched.ask_next("db", ext)?.await;
     log::debug!("{:?}", v);
