@@ -17,22 +17,10 @@
 //! A simple example
 
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use substrate_archive::{backend, twox_128, Archive, StorageKey};
+use substrate_archive::{backend, twox_128, Archive, ArchiveConfig, StorageKey, ArchiveContext};
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
-    // get spec/runtime from node library
-    let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-
-    // Open a RocksDB Database for the node we want to index
-    let path = std::path::PathBuf::from("/home/insipx/.local/share/polkadot/chains/ksmcc4/db");
-    let db = backend::open_database::<Block>(path.as_path(), 8192, spec.name(), spec.id()).unwrap();
-
-    let client =
-        backend::client::<Block, ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor, _>(
-            db, spec,
-        )
-        .unwrap();
 
     // create the keys we want to query storage for
     let system_key = twox_128(b"System").to_vec();
@@ -44,15 +32,20 @@ pub fn main() {
 
     keys.push(StorageKey(system_accounts));
 
-    // initialize the Archive runtime
-    let archive = Archive::init::<ksm_runtime::Runtime, _>(
-        client,
-        "ws://127.0.0.1:9944".to_string(),
-        keys.as_slice(),
-        None,
-    )
-    .unwrap();
+    let conf = ArchiveConfig {
+        db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc4/db".into(),
+        rpc_url: "ws://127.0.0.1:9944".into(),
+        psql_url: None,
+        cache_size: 8192,
+        keys,
+    };
+
+    // get spec/runtime from node library
+    let spec = polkadot_service::chain_spec::kusama_config().unwrap();
+    let archive = Archive::new(conf, spec).unwrap();
+    let client = archive.client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>().unwrap();
+    let context = archive.run_with::<ksm_runtime::Runtime, _>(client).unwrap();
 
     // run indefinitely
-    Archive::block_until_stopped().unwrap();
+    ArchiveContext::block_until_stopped().unwrap();
 }

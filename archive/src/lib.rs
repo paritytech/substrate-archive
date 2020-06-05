@@ -20,6 +20,7 @@
 mod util;
 mod actors;
 pub mod backend;
+pub mod archive;
 mod database;
 mod error;
 mod queries;
@@ -29,11 +30,11 @@ mod rpc;
 
 pub use error::Error;
 pub use types::{NotSignedBlock, Substrate};
+pub use archive::{Archive, ArchiveConfig};
+pub use actors::ArchiveContext;
 
 #[cfg(feature = "logging")]
 pub use util::init_logger;
-
-pub use self::actors::Archive;
 
 // Re-Exports
 

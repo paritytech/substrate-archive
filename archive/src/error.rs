@@ -23,6 +23,7 @@ use sp_blockchain::Error as BlockchainError;
 use sqlx::Error as SqlError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
+use sc_service::Error as ServiceError;
 
 pub type ArchiveResult<T> = Result<T, Error>;
 
@@ -53,8 +54,17 @@ pub enum Error {
     JsonrpseeRequest(#[fail(cause)] JsonrpseeRequest),
     #[fail(display = "Ws DNS Failure {}", _0)]
     WsDns(#[fail(cause)] WsNewDnsError),
+    #[fail(display = "Service Error {}", _0)]
+    ServiceError(String),
     #[fail(display = "Unexpected Error Occurred: {}", _0)]
     General(String),
+}
+
+impl From<ServiceError> for Error {
+    fn from(err: ServiceError) -> Error {
+        let err = format!("{:?}", err);
+        Error::ServiceError(err)
+    }
 }
 
 impl From<WsNewDnsError> for Error {

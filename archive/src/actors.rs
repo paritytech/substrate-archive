@@ -36,22 +36,22 @@ use std::{env, sync::Arc};
 /// Deals with starting and stopping the Archive Runtime
 /// # Examples
 /// ```
-///let archive = Archive::init::<ksm_runtime::Runtime, _>(
+///let archive = Actors::init::<ksm_runtime::Runtime, _>(
 ///     client,
 ///     "ws://127.0.0.1:9944".to_string(),
 ///     keys.as_slice(),
 ///     None
 /// ).unwrap();
 ///
-/// Archive::block_until_stopped();
+/// Actors::block_until_stopped();
 /// 
 ///
 /// ```
-pub struct Archive {
+pub struct ArchiveContext {
     workers: std::collections::HashMap<String, ChildrenRef>,
 }
 
-impl Archive {
+impl ArchiveContext {
 
     // TODO: Return a reference to the Db pool.
     // just expose a 'shutdown' fn that must be called in order to avoid missing data.
