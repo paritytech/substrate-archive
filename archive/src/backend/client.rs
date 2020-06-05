@@ -30,20 +30,23 @@ use super::{ChainAccess, RuntimeApiCollection};
 // create a macro `new_archive!` to simplify all these type constraints in the archive node library
 pub fn client<Block, Runtime, Dispatch, Spec>(
     db_config: DatabaseConfig,
-    spec: Spec
+    spec: Spec,
 ) -> Result<Arc<impl ChainAccess<Block>>, ServiceError>
 where
     Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>,
-    Runtime::RuntimeApi: RuntimeApiCollection<
-            Block,
-            StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>,
-        > + Send
+    Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>
+        + Send
         + Sync
         + 'static,
+    // Runtime::RuntimeApi: RuntimeApiCollection<
+    //        Block,
+    //        StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>,
+    //    > + Send
+    //    + Sync
+    //    + 'static,
     Dispatch: NativeExecutionDispatch + 'static,
     Spec: ChainSpec + 'static,
-    <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+    // <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
     let db_settings = sc_client_db::DatabaseSettings {
         state_cache_size: 4096,
@@ -52,7 +55,7 @@ where
         source: db_config,
     };
 
-    let (client, _) = sc_service::new_client::<_, Block, Runtime::RuntimeApi>(
+    let (client, _) = sc_service::new_client::<_, Block, Runtime>(
         db_settings,
         NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Interpreted, None, 8),
         &spec,
@@ -63,7 +66,8 @@ where
         None,
         Default::default(),
     )
-    .expect("should not fail");
+    .expect("client instantiation failed");
+
     Ok(Arc::new(client))
 }
 
