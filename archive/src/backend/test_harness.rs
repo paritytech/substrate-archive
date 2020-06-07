@@ -15,11 +15,13 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use crate::{backend, twox_128, Archive, ArchiveConfig, StorageKey, ArchiveContext, backend::ChainAccess};
+use crate::{backend, twox_128, Archive, ArchiveConfig, StorageKey, ArchiveContext, backend::{ChainAccess, ApiAccess}};
 use std::sync::Arc;
 use sc_client_db::Backend;
+use sp_api::ProvideRuntimeApi;
+use sc_service::TFullBackend;
 
-pub fn client_backend(db: &str) -> (Arc<impl ChainAccess<Block>>, Backend<Block>)
+pub fn client_backend(db: &str) -> (impl ApiAccess<Block, TFullBackend<Block>, ksm_runtime::RuntimeApi>, Backend<Block>)
 {
     let conf = ArchiveConfig {
         db_url: db.into(),
@@ -32,7 +34,7 @@ pub fn client_backend(db: &str) -> (Arc<impl ChainAccess<Block>>, Backend<Block>
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
     let archive = Archive::<Block, _>::new(conf, spec).unwrap();
-    let client = archive.client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>().unwrap();
+    let (client, _) = archive.api_client_pair::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>().unwrap();
     let backend = archive.make_backend::<ksm_runtime::Runtime>().unwrap();
     (client, backend)
 }

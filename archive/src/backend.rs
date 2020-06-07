@@ -25,12 +25,12 @@ mod util;
 mod test_harness;
 
 pub use self::storage_backend::StorageBackend;
-pub use self::{client::client, util::open_database};
-use sp_api::ProvideRuntimeApi;
+pub use self::{client::{client, runtime_api}, util::open_database};
+use sp_api::{ProvideRuntimeApi, ConstructRuntimeApi, CallApiAt};
 use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
 use sp_blockchain::{Error as BlockchainError, HeaderBackend, HeaderMetadata};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
-// use sc_client_api::{Backend as BackendT, BlockchainEvents};
+use sc_client_api::Backend as BackendT;
 
 // Could make this supertrait accept a Executor and a RuntimeAPI generic arguments
 // however, that would clutter the API when using ChainAccess everywhere within substrate-archive
@@ -55,6 +55,31 @@ where
         + HeaderMetadata<Block, Error = BlockchainError>
         + UsageProvider<Block>
         + ProvideRuntimeApi<Block>
+{
+}
+
+pub trait ApiAccess<Block, Backend, Runtime>: 
+    ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi> + Sized + Send + Sync
+    + CallApiAt<
+        Block, 
+        Error = sp_blockchain::Error,
+        StateBackend = Backend::State
+    >
+where
+    Block: BlockT,
+    Backend: BackendT<Block>,
+    Runtime: ConstructRuntimeApi<Block, Self>
+{
+}
+
+impl<Client, Block, Backend, Runtime> ApiAccess<Block, Backend, Runtime> for Client
+where
+    Block: BlockT,
+    Runtime: ConstructRuntimeApi<Block, Self>,
+    Backend: BackendT<Block>,
+    Client: ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi> 
+    + CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
+    + Sized + Send + Sync 
 {
 }
 

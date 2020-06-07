@@ -16,14 +16,15 @@
 
 use crate::{
     actors::ArchiveContext,
-    backend::{self, ChainAccess},
+    backend::{self, ChainAccess, ApiAccess, RuntimeApiCollection},
     error::Error as ArchiveError,
     types::*,
 };
+use sc_client_db::Backend;
 use sc_executor::NativeExecutionDispatch;
-use sc_service::{config::DatabaseConfig, ChainSpec};
+use sc_service::{config::DatabaseConfig, ChainSpec, TFullBackend};
 use sp_api::ConstructRuntimeApi;
-use sp_runtime::traits::Block as BlockT;
+use sp_runtime::traits::{Block as BlockT, BlakeTwo256};
 use sp_storage::StorageKey;
 use std::{sync::Arc, marker::PhantomData};
 
@@ -78,6 +79,45 @@ where
         let db_config = self.make_db_conf()?;
         Ok(Arc::new(backend::client::<Block, Runtime, Dispatch, _>(db_config, self.spec.clone())
             .map_err(ArchiveError::from)?))
+    }
+
+    pub(crate) fn deref_client<Runtime, Dispatch>(
+        &self,
+    ) -> Result<impl ChainAccess<Block>, ArchiveError> 
+    where
+        Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>
+            + Send
+            + Sync
+            + 'static,
+        Dispatch: NativeExecutionDispatch + 'static,
+    {
+        let db_config = self.make_db_conf()?;
+        Ok(backend::client::<Block, Runtime, Dispatch, _>(db_config, self.spec.clone())
+            .map_err(ArchiveError::from)?)
+    }
+
+    /// returns an Api Client with the associated backend
+    pub(crate) fn api_client_pair<Runtime, Dispatch>(
+        &self,
+    ) -> Result<(impl ApiAccess<Block, TFullBackend<Block>, Runtime>, Arc<Backend<Block>>), ArchiveError> 
+    where
+        Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>
+            + Send
+            + Sync
+            + 'static,
+        Runtime::RuntimeApi: RuntimeApiCollection<
+                Block,
+                StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>,
+            > + Send
+            + Sync
+            + 'static, 
+        Dispatch: NativeExecutionDispatch + 'static,
+        <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+    {
+        let db_config = self.make_db_conf()?;
+        let (client, backend) = backend::runtime_api::<Block, Runtime, Dispatch, _>(db_config, self.spec.clone())
+                                    .map_err(ArchiveError::from)?;
+        Ok((client, backend))
     }
 
     /// Internal API to open the rocksdb database

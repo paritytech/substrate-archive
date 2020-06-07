@@ -89,7 +89,7 @@ mod tests {
     fn should_create_new()
     {
         let (client, backend) = test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
-        // let api = client.runtime_api();
-        let executor = BlockExecutor::<Block, _, _>::new(&client, &backend);
+        let api = client.runtime_api();
+        let executor = BlockExecutor::new(&client, &backend);
     }
 }
