@@ -93,7 +93,23 @@ where
         Ok(db_config)
     }
 
-    /// Consu
+    pub(crate) fn make_backend<T>(&self) -> Result<sc_client_db::Backend<NotSignedBlock<T>>, ArchiveError>
+    where
+        T: Substrate + Send + Sync,
+        <T as System>::BlockNumber: Into<u32>,
+        <T as System>::Hash: From<primitive_types::H256>,
+        <T as System>::Header: serde::de::DeserializeOwned,
+    {
+        let settings = self.make_db_conf()?;
+        let settings = sc_client_db::DatabaseSettings {
+            state_cache_size: self.cache_size,
+            state_cache_child_ratio: None,
+            pruning: sc_client_db::PruningMode::ArchiveAll,
+            source: settings,
+        };
+       sc_client_db::Backend::new(settings, 5).map_err(ArchiveError::from)
+    }
+
     /// Returning context in which the archive is running
     pub fn run_with<T, C>(&self, client: Arc<C>) -> Result<ArchiveContext, ArchiveError>
     where
@@ -103,8 +119,10 @@ where
         <T as System>::Header: serde::de::DeserializeOwned,
         C: ChainAccess<NotSignedBlock<T>> + 'static,
     {
+        let backend = self.make_backend::<T>()?;
         ArchiveContext::init::<T, _>(
             client,
+            backend,
             self.rpc_url.clone(),
             self.keys.as_slice(),
             self.psql_url.as_deref()

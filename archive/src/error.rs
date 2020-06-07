@@ -103,6 +103,12 @@ impl From<&str> for Error {
     }
 }
 
+impl From<String> for Error {
+    fn from(err: String) -> Error {
+        Error::General(err)
+    }
+}
+
 impl From<SerdeError> for Error {
     fn from(err: SerdeError) -> Error {
         Error::Serialize(err)

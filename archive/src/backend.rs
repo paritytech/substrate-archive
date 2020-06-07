@@ -17,10 +17,12 @@
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
 mod client;
-//mod api;
+mod storage_block_backend;
 mod database;
 mod storage_backend;
 mod util;
+#[cfg(test)]
+mod test_harness;
 
 pub use self::storage_backend::StorageBackend;
 pub use self::{client::client, util::open_database};
@@ -71,7 +73,3 @@ where
     <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }
-
-// pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
-
-// impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}

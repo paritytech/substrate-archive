@@ -27,6 +27,7 @@ use super::{
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
+use sc_client_db::Backend;
 use bastion::prelude::*;
 use sp_storage::StorageKey;
 use sqlx::postgres::PgPool;
@@ -64,6 +65,7 @@ impl ArchiveContext {
     /// environment variable `DATABASE_URL` instead.
     pub fn init<T, C>(
         client: Arc<C>,
+        backend: Backend<NotSignedBlock<T>>,
         url: String,
         keys: &[StorageKey],
         psql_url: Option<&str>
