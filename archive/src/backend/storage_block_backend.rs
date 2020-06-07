@@ -86,7 +86,7 @@ mod tests {
     use polkadot_service::Block;
 
     #[test]
-    fn should_get_changes_for_block()
+    fn should_create_new()
     {
         let (client, backend) = test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
         // let api = client.runtime_api();
