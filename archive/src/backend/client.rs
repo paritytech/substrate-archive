@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use sc_client_api::execution_extensions::{ExecutionExtensions, ExecutionStrategies};
+use sc_client_api::{ExecutionStrategy, execution_extensions::{ExecutionExtensions, ExecutionStrategies}};
 use sc_client_db::Backend;
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
 use sc_service::{
@@ -56,13 +56,14 @@ where
         source: db_config,
     };
 
+    // wasmtime requires feature = wasmtime
     let (client, backend) = sc_service::new_client::<_, Block, Runtime>(
         db_settings,
-        NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Interpreted, None, 8),
+        NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Interpreted, None, 16),
         &spec,
         None,
         None,
-        ExecutionExtensions::new(ExecutionStrategies::default(), None),
+        ExecutionExtensions::new(execution_strategies(), None),
         Box::new(TaskExecutor::new()),
         None,
         Default::default(),
@@ -134,5 +135,15 @@ impl futures::task::Spawn for TaskExecutor {
 impl CloneableSpawn for TaskExecutor {
     fn clone(&self) -> Box<dyn CloneableSpawn> {
         Box::new(Clone::clone(self))
+    }
+}
+
+fn execution_strategies() -> ExecutionStrategies {
+    ExecutionStrategies {
+        syncing: ExecutionStrategy::NativeElseWasm,
+        importing: ExecutionStrategy::NativeElseWasm,
+        block_construction: ExecutionStrategy::AlwaysWasm,
+        offchain_worker: ExecutionStrategy::NativeWhenPossible,
+        other: ExecutionStrategy::NativeElseWasm,
     }
 }

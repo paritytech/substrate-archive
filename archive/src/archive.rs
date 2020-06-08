@@ -34,7 +34,6 @@ pub struct Archive<Block: BlockT + Send + Sync, Spec: ChainSpec + Clone + 'stati
     db_url: String,
     rpc_url: String,
     psql_url: Option<String>,
-    keys: Vec<StorageKey>,
     cache_size: usize,
     spec: Spec,
     _marker: PhantomData<Block>
@@ -45,7 +44,6 @@ pub struct ArchiveConfig {
     pub rpc_url: String,
     pub psql_url: Option<String>,
     pub cache_size: usize,
-    pub keys: Vec<StorageKey>
 }
 
 impl<Block, Spec> Archive<Block, Spec>
@@ -62,7 +60,6 @@ where
             rpc_url: conf.rpc_url,
             psql_url: conf.psql_url,
             cache_size: conf.cache_size,
-            keys: conf.keys,
             _marker: PhantomData
         })
     }
@@ -83,20 +80,6 @@ where
             .map_err(ArchiveError::from)?))
     }
 
-    pub(crate) fn deref_client<Runtime, Dispatch>(
-        &self,
-    ) -> Result<impl ChainAccess<Block>, ArchiveError> 
-    where
-        Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>
-            + Send
-            + Sync
-            + 'static,
-        Dispatch: NativeExecutionDispatch + 'static,
-    {
-        let db_config = self.make_db_conf()?;
-        Ok(backend::client::<Block, Runtime, Dispatch, _>(db_config, self.spec.clone())
-            .map_err(ArchiveError::from)?)
-    }
 
     /// returns an Api Client with the associated backend
     pub fn api_client<Runtime, Dispatch>(
