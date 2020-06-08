@@ -1,0 +1,20 @@
+# Must be an absolute path to db (no ~/)
+db_path = "/home/insipx/.local/share/node-template/chains/dev/db"
+
+# Can be set by exporting environment variable "DATABASE_URL" too
+psql_url = "postgres://archive:default@localhost/archive"
+
+[[modules]]
+name = "System"
+keys = [
+	"Events",
+	"Account"
+]
+
+[[modules]]
+name = "Democracy"
+keys = [
+	"PublicPropCount",
+	"PublicProps"
+]
+
