@@ -1,6 +1,6 @@
 [package]
 name = "substrate-archive"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
 edition = "2018"
 
@@ -38,22 +38,22 @@ kvdb-rocksdb = "0.8"
 parity-util-mem = "0.6.1"
 codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
 
+
 # Substrate
-sp-database = { git = "https://github.com/paritytech/substrate", branch = "master", package="sp-database" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-service" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-client-db" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-storage" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-runtime" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-client-api" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-blockchain" }
-substrate-rpc-primitives = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-rpc" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-api" }
-runtime-version = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-version" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-executor" }
-sc-transaction-graph = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-transaction-graph" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-system" }
+sp-database = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master", version = "2.0.0-rc2", package = "sp-database" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", version = "0.8.0-rc2", package = "sc-service" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master", version = "0.8.0-rc2", package = "sc-client-db" }
+sp-storage = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master", version = "2.0.0-rc2", package = "sp-storage" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master", version = "2.0.0-rc2", package = "sp-runtime" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", version = "2.0.0-rc2", package = "sc-client-api" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master", version = "2.0.0-rc2", package = "sp-blockchain" }
+
+substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "2.0.0-rc2", package = "sp-rpc" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "2.0.0-rc2", package = "sp-core" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "2.0.0-rc2", package = "sp-api" }
+runtime-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "2.0.0-rc2", package = "sp-version" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "0.8.0-rc2", package = "sc-executor" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "2.0.0-rc2", package = "frame-system" }
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
@@ -62,4 +62,14 @@ pretty_env_logger = "0.4.0"
 
 
 [features]
+default = ["std"]
+std = [
+    "sp-storage/std",
+    "sp-runtime/std",
+    "sp-core/std",
+    "sp-api/std",
+    "runtime-version/std",
+    "sc-executor/std",
+    "frame-system/std"
+]
 logging = ["chrono", "fern"]
