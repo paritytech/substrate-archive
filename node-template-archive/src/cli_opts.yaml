@@ -1,0 +1,33 @@
+name: kusama-archive 
+version: "0.1"
+author: Andrew P. <andrew.plaza@parity.io>
+about: Indexes the Kusama Canary Network 
+args:
+    - config:
+        short: c
+        long: config
+        value_name: FILE
+        help: Sets a custom config file
+        takes_value: true
+        required: true
+    - spec:
+        short: s
+        long: spec
+        help: sets spec for chain to run in (dev/local). Specify a path for custom chain-spec
+        takes_value: true
+        required: false
+    - verbose:
+        short: v
+        multiple: true
+        help: Sets the level of verbosity
+
+
+#subcommands:
+#   - test:
+#       about: controls testing features
+#       version: "1.3"
+#       author: Someone E. <someone_else@other.com>
+#       args:
+#           - debug:
+#               short: d
+#               about: print debug information

@@ -2,4 +2,5 @@
 members = [
     "archive",
     "kusama-archive",
+    "node-template-archive",
 ]

@@ -39,9 +39,10 @@ pub use self::actors::Archive;
 pub use sp_storage::StorageKey;
 pub use sp_core::twox_128;
 pub use sp_blockchain::Error as BlockchainError;
+pub use sp_runtime::MultiSignature;
 pub mod chain_traits  {
     //! Traits defining functions on the client needed for indexing
     pub use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
     pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
-    pub use sp_runtime::traits::{BlakeTwo256, Block};
+    pub use sp_runtime::traits::{BlakeTwo256, Block, Verify, IdentifyAccount};
 }
