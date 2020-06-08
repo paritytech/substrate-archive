@@ -18,9 +18,11 @@ mod database;
 mod defer_storage;
 mod metadata;
 mod transformers;
+mod full_storage;
 
 pub use self::database::actor as db;
 pub use self::defer_storage::actor as defer_storage;
 pub use self::metadata::actor as metadata;
 pub use self::transformers::actor as transformer;
+pub use self::full_storage::actor as full_storage;
 use super::{connect, ArchiveAnswer, ArchiveQuestion, Broadcast};

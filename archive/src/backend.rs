@@ -26,12 +26,13 @@ mod test_harness;
 
 pub use self::storage_backend::StorageBackend;
 pub use self::{client::{client, runtime_api}, util::open_database};
+pub use self::storage_block_backend::{BlockExecutor, BlockChanges};
 use sp_api::{ProvideRuntimeApi, ConstructRuntimeApi, CallApiAt};
 use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
 use sp_blockchain::{Error as BlockchainError, HeaderBackend, HeaderMetadata};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use sc_client_api::Backend as BackendT;
-
+use sc_executor::NativeExecutionDispatch;
 // Could make this supertrait accept a Executor and a RuntimeAPI generic arguments
 // however, that would clutter the API when using ChainAccess everywhere within substrate-archive
 // relying on the RPC for this is OK (for now)
@@ -58,6 +59,7 @@ where
 {
 }
 
+/// supertrait for accessing methods that rely on internal runtime api
 pub trait ApiAccess<Block, Backend, Runtime>: 
     ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi> + Sized + Send + Sync
     + CallApiAt<

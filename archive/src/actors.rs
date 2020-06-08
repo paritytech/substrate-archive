@@ -23,13 +23,16 @@ mod scheduler;
 mod workers;
 
 use super::{
-    backend::ChainAccess,
+    backend::{ChainAccess, ApiAccess},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
+use sc_client_api::backend;
 use sc_client_db::Backend;
 use bastion::prelude::*;
 use sp_storage::StorageKey;
+use sp_block_builder::BlockBuilder as BlockBuilderApi;
+use sp_api::{ConstructRuntimeApi, ApiExt};
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
 
@@ -63,16 +66,20 @@ impl ArchiveContext {
     /// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
     /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the 
     /// environment variable `DATABASE_URL` instead.
-    pub fn init<T, C>(
+    pub fn init<T, Runtime, ClientApi, C>(
         client: Arc<C>,
+        client_api: Arc<ClientApi>,
         backend: Backend<NotSignedBlock<T>>,
         url: String,
-        keys: &[StorageKey],
         psql_url: Option<&str>
     ) -> Result<Self, ArchiveError>
     where
         T: Substrate + Send + Sync,
         C: ChainAccess<NotSignedBlock<T>> + 'static,
+        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi>,
+        Runtime::RuntimeApi: BlockBuilderApi<NotSignedBlock<T>, Error = sp_blockchain::Error>
+            + ApiExt<NotSignedBlock<T>, StateBackend = backend::StateBackendFor<Backend<NotSignedBlock<T>>, NotSignedBlock<T>>>,
+        ClientApi: ApiAccess<NotSignedBlock<T>, Backend<NotSignedBlock<T>>, Runtime> + 'static,
         <T as System>::BlockNumber: Into<u32>,
         <T as System>::Hash: From<primitive_types::H256>,
         <T as System>::Header: serde::de::DeserializeOwned,
@@ -94,24 +101,21 @@ impl ArchiveContext {
         };
 
         // Normally workers aren't started on the top-level
-        // however we want access to this in order to send messages on program shutdown
-        let defer_workers = workers::defer_storage::<T>(pool.clone())?;
-        let storage = self::generators::storage::<T, _>(
-            client.clone(),
-            pool.clone(),
-            keys.to_vec(),
-            defer_workers.clone(),
-        )?;
-
-        workers.insert("defer".into(), defer_workers);
-        workers.insert("storage".into(), storage);
+        // storage is a special case. It lets us avoid generics on actor functions 
+        let backend = Arc::new(backend);
+        let storage = 
+            workers::full_storage::<T, Runtime, _>(client_api, backend, pool.clone())?;
+            
+        
+        // workers.insert("defer".into(), defer_workers);
+        workers.insert("storage".into(), storage.clone());
 
         // network generator. Gets headers from network but uses client to fetch block bodies
-        let network = self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())?;
+        let network = self::generators::network::<T, _>(client.clone(), pool.clone(), storage.clone(), url.clone())?;
         workers.insert("network".into(), network);
         // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
         // uses client to get those blocks
-        let missing = self::generators::db::<T, _>(client, pool, url)?;
+        let missing = self::generators::db::<T, _>(client, pool,storage, url)?;
         workers.insert("missing".into(), missing);
 
         Bastion::start();

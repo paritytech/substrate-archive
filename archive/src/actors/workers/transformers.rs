@@ -26,7 +26,7 @@ use sqlx::PgConnection;
 const REDUNDANCY: usize = 3;
 
 // actor that takes blocks and transforms them into different types
-pub fn actor<T>(pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ArchiveError>
+pub fn actor<T>(pool: sqlx::Pool<PgConnection>, storage: ChildrenRef) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -38,10 +38,12 @@ where
             .with_redundancy(REDUNDANCY)
             .with_exec(move |ctx: BastionContext| {
                 let workers = db_workers.clone();
+                let storage_workers = storage.clone();
                 async move {
                     log::info!("Transformer started");
                     let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                     sched.add_worker("db", &workers);
+                    sched.add_worker("storage", &storage_workers);
                     print_on_err!(handle_msg::<T>(&mut sched).await);
                     Ok(())
                 }
@@ -55,14 +57,18 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
+    // storage workers are told instead of asked
+    // to avoid waiting for a response
     loop {
         msg! {
             sched.context().recv().await.expect("Could not receive"),
             block: Block<T> =!> {
+                sched.tell_next("storage", block.clone())?;
                 process_block(block, sched).await?;
                 crate::archive_answer!(sched.context(), super::ArchiveAnswer::Success)?;
             };
             blocks: Vec<Block<T>> =!> {
+                sched.tell_next("storage", blocks.clone())?;
                 process_blocks(blocks, sched).await?;
                 crate::archive_answer!(sched.context(), super::ArchiveAnswer::Success)?;
             };

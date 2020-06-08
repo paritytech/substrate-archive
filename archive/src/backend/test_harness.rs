@@ -34,7 +34,24 @@ pub fn client_backend(db: &str) -> (impl ApiAccess<Block, TFullBackend<Block>, k
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
     let archive = Archive::<Block, _>::new(conf, spec).unwrap();
-    let (client, _) = archive.api_client_pair::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>().unwrap();
+    let client = archive.api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>().unwrap();
     let backend = archive.make_backend::<ksm_runtime::Runtime>().unwrap();
     (client, backend)
 }
+
+pub fn client(db: &str) -> impl ChainAccess<Block>
+{
+    let conf = ArchiveConfig {
+        db_url: db.into(),
+        rpc_url: "ws://127.0.0.1:9944".into(),
+        psql_url: None,
+        cache_size: 8192,
+        keys: Vec::new(),
+    };
+    // get spec/runtime from node library
+    let spec = polkadot_service::chain_spec::kusama_config().unwrap();
+    let archive = Archive::<Block, _>::new(conf, spec).unwrap();
+    let client = archive.deref_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>().unwrap();
+    client
+}
+

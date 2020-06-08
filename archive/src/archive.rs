@@ -21,9 +21,11 @@ use crate::{
     types::*,
 };
 use sc_client_db::Backend;
+use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
 use sc_service::{config::DatabaseConfig, ChainSpec, TFullBackend};
-use sp_api::ConstructRuntimeApi;
+use sp_block_builder::BlockBuilder as BlockBuilderApi;
+use sp_api::{ConstructRuntimeApi, ApiExt};
 use sp_runtime::traits::{Block as BlockT, BlakeTwo256};
 use sp_storage::StorageKey;
 use std::{sync::Arc, marker::PhantomData};
@@ -64,7 +66,7 @@ where
             _marker: PhantomData
         })
     }
-
+    // pub fn client<Runtime, Dispatch>(&self) -> Result<
     /// create a new client
     pub fn client<Runtime, Dispatch>(
         &self,
@@ -97,17 +99,16 @@ where
     }
 
     /// returns an Api Client with the associated backend
-    pub(crate) fn api_client_pair<Runtime, Dispatch>(
+    pub fn api_client<Runtime, Dispatch>(
         &self,
-    ) -> Result<(impl ApiAccess<Block, TFullBackend<Block>, Runtime>, Arc<Backend<Block>>), ArchiveError> 
+    ) -> Result<impl ApiAccess<Block, TFullBackend<Block>, Runtime>, ArchiveError> 
     where
         Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>
             + Send
             + Sync
             + 'static,
         Runtime::RuntimeApi: RuntimeApiCollection<
-                Block,
-                StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>,
+                Block, StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>,
             > + Send
             + Sync
             + 'static, 
@@ -115,9 +116,9 @@ where
         <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
     {
         let db_config = self.make_db_conf()?;
-        let (client, backend) = backend::runtime_api::<Block, Runtime, Dispatch, _>(db_config, self.spec.clone())
+        let (client, _) = backend::runtime_api::<Block, Runtime, Dispatch, _>(db_config, self.spec.clone())
                                     .map_err(ArchiveError::from)?;
-        Ok((client, backend))
+        Ok(client)
     }
 
     /// Internal API to open the rocksdb database
@@ -151,20 +152,24 @@ where
     }
 
     /// Returning context in which the archive is running
-    pub fn run_with<T, C>(&self, client: Arc<C>) -> Result<ArchiveContext, ArchiveError>
+    pub fn run_with<T, Runtime, ClientApi, C>(&self, client: Arc<C>, client_api: Arc<ClientApi>) -> Result<ArchiveContext, ArchiveError>
     where
         T: Substrate + Send + Sync,
+        C: ChainAccess<NotSignedBlock<T>> + 'static,
+        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi>,
+        Runtime::RuntimeApi: BlockBuilderApi<NotSignedBlock<T>, Error = sp_blockchain::Error>
+            + ApiExt<NotSignedBlock<T>, StateBackend = api_backend::StateBackendFor<Backend<NotSignedBlock<T>>, NotSignedBlock<T>>>,
+        ClientApi: ApiAccess<NotSignedBlock<T>, Backend<NotSignedBlock<T>>, Runtime> + 'static,
         <T as System>::BlockNumber: Into<u32>,
         <T as System>::Hash: From<primitive_types::H256>,
         <T as System>::Header: serde::de::DeserializeOwned,
-        C: ChainAccess<NotSignedBlock<T>> + 'static,
     {
         let backend = self.make_backend::<T>()?;
-        ArchiveContext::init::<T, _>(
+        ArchiveContext::init::<T, Runtime, _, _>(
             client,
+            client_api,
             backend,
             self.rpc_url.clone(),
-            self.keys.as_slice(),
             self.psql_url.as_deref()
         )
     }
