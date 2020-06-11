@@ -429,7 +429,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::test_harness;
+    use crate::backend::test_util;
     use crate::simple_db::SimpleDb;
     use polkadot_service::Block;
     use sp_blockchain::HeaderBackend;
@@ -439,8 +439,7 @@ mod tests {
 
     #[test]
     fn should_create_new() {
-        let full_client =
-            test_harness::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let full_client = test_util::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
         let id = BlockId::Number(50970);
         // let header = full_client.header(id).unwrap().expect("No such block exists!");
         let block = full_client
@@ -449,7 +448,7 @@ mod tests {
             .expect("No such block exists!")
             .block;
         let (client, backend) =
-            test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+            test_util::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
         let api = client.runtime_api();
         let executor = BlockExecutor::new(api, backend, block);
     }
@@ -457,8 +456,7 @@ mod tests {
     #[test]
     fn should_execute_blocks() {
         pretty_env_logger::try_init();
-        let full_client =
-            test_harness::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let full_client = test_util::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
         // let id = BlockId::Number(50970);
         // let id = BlockId::Number(1_730_000);
         let id = BlockId::Number(1_990_123);
@@ -468,7 +466,7 @@ mod tests {
             .expect("No such block exists!")
             .block;
         let (client, backend) =
-            test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+            test_util::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
 
         let api = client.runtime_api();
         let time = std::time::Instant::now();
@@ -492,8 +490,7 @@ mod tests {
 
     #[test]
     fn should_not_keep_old_extrinsics() {
-        let full_client =
-            test_harness::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let full_client = test_util::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
         let id0 = BlockId::Number(1000);
         let id1 = BlockId::Number(3000);
         let block0 = full_client
@@ -508,7 +505,7 @@ mod tests {
             .block;
 
         let (client, backend) =
-            test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+            test_util::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
         let time = std::time::Instant::now();
         let api = client.runtime_api();
         let executor = BlockExecutor::new(api, backend.clone(), block0.clone()).unwrap();
@@ -539,9 +536,9 @@ mod tests {
     fn should_execute_blocks_concurrently() {
         pretty_env_logger::try_init();
         let (client, backend) =
-            test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+            test_util::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
         let clients =
-            test_harness::many_clients("/home/insipx/.local/share/polkadot/chains/ksmcc3/db", 16);
+            test_util::many_clients("/home/insipx/.local/share/polkadot/chains/ksmcc3/db", 16);
         let db = SimpleDb::new(std::path::PathBuf::from(
             "/home/insipx/projects/parity/substrate-archive-api/archive/test_data/10K_BLOCKS.bin",
         ))

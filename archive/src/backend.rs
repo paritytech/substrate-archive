@@ -17,22 +17,23 @@
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
 mod client;
-mod storage_block_backend;
 mod database;
-mod storage_backend;
-mod util;
+mod storage_block_backend;
 #[cfg(test)]
-mod test_harness;
+mod test_util;
+mod util;
 
-pub use self::storage_backend::StorageBackend;
-pub use self::{client::{client, runtime_api}, util::open_database};
-pub use self::storage_block_backend::{BlockExecutor, BlockChanges};
-use sp_api::{ProvideRuntimeApi, ConstructRuntimeApi, CallApiAt};
+pub use self::storage_block_backend::{BlockChanges, BlockExecutor};
+pub use self::{
+    client::{client, runtime_api},
+    util::open_database,
+};
+use sc_client_api::Backend as BackendT;
 use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
+use sc_executor::NativeExecutionDispatch;
+use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_blockchain::{Error as BlockchainError, HeaderBackend, HeaderMetadata};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
-use sc_client_api::Backend as BackendT;
-use sc_executor::NativeExecutionDispatch;
 // Could make this supertrait accept a Executor and a RuntimeAPI generic arguments
 // however, that would clutter the API when using ChainAccess everywhere within substrate-archive
 // relying on the RPC for this is OK (for now)
@@ -50,27 +51,26 @@ pub trait ChainAccess<Block: BlockT>:
 impl<T, Block> ChainAccess<Block> for T
 where
     Block: BlockT,
-    T:  StorageProvider<Block, sc_client_db::Backend<Block>>
+    T: StorageProvider<Block, sc_client_db::Backend<Block>>
         + BlockBackend<Block>
         + HeaderBackend<Block>
         + HeaderMetadata<Block, Error = BlockchainError>
         + UsageProvider<Block>
-        + ProvideRuntimeApi<Block>
+        + ProvideRuntimeApi<Block>,
 {
 }
 
 /// supertrait for accessing methods that rely on internal runtime api
-pub trait ApiAccess<Block, Backend, Runtime>: 
-    ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi> + Sized + Send + Sync
-    + CallApiAt<
-        Block, 
-        Error = sp_blockchain::Error,
-        StateBackend = Backend::State
-    >
+pub trait ApiAccess<Block, Backend, Runtime>:
+    ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
+    + Sized
+    + Send
+    + Sync
+    + CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
 where
     Block: BlockT,
     Backend: BackendT<Block>,
-    Runtime: ConstructRuntimeApi<Block, Self>
+    Runtime: ConstructRuntimeApi<Block, Self>,
 {
 }
 
@@ -79,9 +79,11 @@ where
     Block: BlockT,
     Runtime: ConstructRuntimeApi<Block, Self>,
     Backend: BackendT<Block>,
-    Client: ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi> 
-    + CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
-    + Sized + Send + Sync 
+    Client: ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
+        + CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
+        + Sized
+        + Send
+        + Sync,
 {
 }
 
