@@ -65,8 +65,8 @@ impl ArchiveContext {
     /// environment variable `DATABASE_URL` instead.
     pub fn init<T, Runtime, ClientApi, C>(
         client: Arc<C>,
-        client_api: Arc<ClientApi>,
-        backend: Backend<NotSignedBlock<T>>,
+        _client_api: Arc<ClientApi>,
+        _backend: Backend<NotSignedBlock<T>>,
         url: String,
         psql_url: Option<&str>,
     ) -> Result<Self, ArchiveError>
@@ -100,25 +100,15 @@ impl ArchiveContext {
                 .build(&env::var("DATABASE_URL")?))?
         };
 
-        // Normally workers aren't started on the top-level
-        // storage is a special case. It lets us avoid generics on actor functions
-        let backend = Arc::new(backend);
-        let storage = workers::full_storage::<T, Runtime, _>(client_api, backend, pool.clone())?;
-
-        // workers.insert("defer".into(), defer_workers);
-        workers.insert("storage".into(), storage.clone());
+        // create storage generator here
+        // workers.insert("storage".into(), storage.clone());
 
         // network generator. Gets headers from network but uses client to fetch block bodies
-        let network = self::generators::network::<T, _>(
-            client.clone(),
-            pool.clone(),
-            storage.clone(),
-            url.clone(),
-        )?;
+        let network = self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())?;
         workers.insert("network".into(), network);
         // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
         // uses client to get those blocks
-        let missing = self::generators::db::<T, _>(client, pool, storage, url)?;
+        let missing = self::generators::db::<T, _>(client, pool, url)?;
         workers.insert("missing".into(), missing);
 
         Bastion::start();
@@ -140,72 +130,20 @@ impl ArchiveContext {
         log::info!("Shutting down");
         Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send messsage");
         for (name, worker) in self.workers.iter() {
-            if name != "defer" {
-                worker
-                    .stop()
-                    .expect(format!("Couldn't stop worker {}", name).as_str());
-            }
+            worker
+                .stop()
+                .expect(format!("Couldn't stop worker {}", name).as_str());
         }
-        // finish_work(self.workers.get("defer").expect("Defer workers must exist")).await;
         Bastion::kill();
         log::info!("Shut down succesfully");
         Ok(())
     }
 }
-/*
-/// Finish working on storage that can't be inserted into db yet.
-/// We send a message to every defer_storage worker in order to
-/// ask if they are done putting away defered storage, and then return.
-async fn finish_work(defer_workers: &ChildrenRef) {
-    loop {
-        let mut answers_needed = defer_workers.elems().len();
-        let mut answers = Vec::new();
-        for worker in defer_workers.elems() {
-            let ans = worker
-                .ask_anonymously(ArchiveQuestion::IsStorageDone)
-                .expect("Couldn't send shutdown message to defer storage");
-            answers.push(ans);
-        }
-        let answers = futures::future::join_all(answers).await;
-        for answer in answers.into_iter() {
-            msg! {
-                answer.expect("Could not receive answer"),
-                msg: ArchiveAnswer => {
-                    match msg {
-                        ArchiveAnswer::StorageIsDone => {
-                            answers_needed -= 1;
-                        },
-                        ArchiveAnswer::StorageNotDone => {
-                            timer::Delay::new(std::time::Duration::from_millis(10)).await;
-                            continue;
-                        }
-                        e @ _ => log::warn!("Unexpected Answer {:?}", e)
-                    };
-                };
-                e: _ => log::warn!("Unexpected message {:?}", e);
-            }
-        }
-        if answers_needed == 0 {
-            break;
-        } else {
-            timer::Delay::new(std::time::Duration::from_millis(10)).await;
-        }
-    }
-}
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum ArchiveQuestion {
-    /// as storage actors if the storage is finished being deferred
-    IsStorageDone,
-}
-*/
-#[derive(Debug, PartialEq, Clone)]
 pub enum ArchiveAnswer {
+    /// Default answer; will be returned when an 'ask' message is sent to an actor
     Success,
-    // Storage actor response that Storage is Done
-    //   StorageIsDone,
-    // Storage actor response that storage is not finished saving progress
-    //   StorageNotDone,
 }
 
 /// Messages that are sent to every actor if something happens that must be handled globally

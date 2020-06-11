@@ -29,13 +29,13 @@ const REDUNDANCY: usize = 5;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub fn actor<T>(url: String, pool: DbPool, storage_workers: ChildrenRef) -> Result<ChildrenRef, ArchiveError>
+pub fn actor<T>(url: String, pool: DbPool) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: DeserializeOwned,
 {
-    let transform_workers = super::transformers::actor::<T>(pool.clone(), storage_workers)?;
+    let transform_workers = super::transformers::actor::<T>(pool.clone())?;
     Bastion::children(|children| {
         children
             .with_redundancy(REDUNDANCY)

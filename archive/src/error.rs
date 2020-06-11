@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use bincode::ErrorKind as BincodeError;
 use codec::Error as CodecError;
 use failure::Fail;
 use jsonrpsee::client::RequestError as JsonrpseeRequest;
@@ -48,8 +47,6 @@ pub enum Error {
         to: String,
         details: String,
     },
-    #[fail(display = "Bincode encoding {}", _0)]
-    Bincode(#[fail(cause)] Box<BincodeError>),
     #[fail(display = "Rpc Request {}", _0)]
     JsonrpseeRequest(#[fail(cause)] JsonrpseeRequest),
     #[fail(display = "Ws DNS Failure {}", _0)]
@@ -76,12 +73,6 @@ impl From<WsNewDnsError> for Error {
 impl From<JsonrpseeRequest> for Error {
     fn from(err: JsonrpseeRequest) -> Error {
         Error::JsonrpseeRequest(err)
-    }
-}
-
-impl From<Box<BincodeError>> for Error {
-    fn from(err: Box<BincodeError>) -> Error {
-        Error::Bincode(err)
     }
 }
 

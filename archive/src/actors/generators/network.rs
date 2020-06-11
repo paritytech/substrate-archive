@@ -40,7 +40,6 @@ use std::sync::Arc;
 pub fn actor<T, C>(
     client: Arc<C>,
     pool: sqlx::Pool<PgConnection>,
-    storage_workers: ChildrenRef,
     url: String,
 ) -> Result<ChildrenRef, ArchiveError>
 where
@@ -49,7 +48,7 @@ where
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
-    let meta_workers = workers::metadata::<T>(url.clone(), pool, storage_workers)?;
+    let meta_workers = workers::metadata::<T>(url.clone(), pool)?;
     // actor which produces work in the form of collecting blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
