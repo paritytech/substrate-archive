@@ -7299,6 +7299,7 @@ dependencies = [
  "frame-system",
  "futures 0.3.5",
  "futures-timer 3.0.2",
+ "hash-db",
  "hex",
  "itertools 0.9.0",
  "jsonrpsee",
@@ -7325,10 +7326,12 @@ dependencies = [
  "sp-database",
  "sp-runtime",
  "sp-storage",
+ "sp-trie",
  "sp-version",
  "sqlx",
  "tempdir",
  "threadpool",
+ "trie-db",
 ]
 
 [[package]]

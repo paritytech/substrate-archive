@@ -36,6 +36,21 @@ impl ReadOnlyDatabase {
         log::info!("Returning inner");
         Ok(Self { inner })
     }
+
+    pub fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
+        match self.inner.get(col, key) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("{:?}", e);
+                None
+            }
+        }
+    }
+
+    pub fn try_catch_up_with_primary(&self) -> Option<()> {
+        self.inner.try_catch_up_with_primary().ok()?;
+        Some(())
+    }
 }
 
 //TODO: Remove panics with a warning that database has not been written to / is read-only
