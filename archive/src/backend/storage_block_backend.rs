@@ -14,106 +14,414 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-
 //! Executes blocks to get storage changes without traversing changes trie
+//! Contains a ThreadedBlockExecutor that executes blocks concurrently
 
-use crate::{
-    error::Error as ArchiveError,
-    types::*
-};
-use std::sync::Arc;
+use crate::{backend::ApiAccess, error::Error as ArchiveError, types::*};
+use crossbeam::deque::{Injector, Steal, Stealer, Worker};
+use frame_system::Trait as System;
 use sc_client_api::backend;
-use sp_api::{Core, ApiExt, ApiRef, ProvideRuntimeApi, StorageChanges};
-use sp_core::ExecutionContext;
+use sc_client_db::Backend;
+use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
     generic::BlockId,
-    traits::{Block as BlockT, HashFor, Header}
+    traits::{Block as BlockT, HashFor, Header, NumberFor},
 };
+use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
+use std::{iter, marker::PhantomData, sync::Arc};
+use threadpool::ThreadPool;
+
+pub type StorageKey = Vec<u8>;
+pub type StorageValue = Vec<u8>;
+pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
+pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
+
+const POOL_NAME: &str = "block-executor-worker";
+
+/// A worker on the threadpool that has
+/// blocks on the queue to execute
+pub struct BlockWorker<Block, Runtime, ClientApi>
+where
+    Block: BlockT,
+    Runtime: ConstructRuntimeApi<Block, ClientApi>,
+    Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+    ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+{
+    /// Local queue of tasks
+    local: Worker<Block>,
+    /// Other threads we can steal work from
+    stealers: Arc<Vec<Stealer<Block>>>,
+    /// Global queue of tasks
+    global: Arc<Injector<Block>>,
+    /// The Substrate API Client
+    client: Arc<ClientApi>,
+    /// The Substrate Disk Backend (RocksDB)
+    backend: Arc<Backend<Block>>,
+    _marker: PhantomData<Runtime>,
+}
+
+impl<Block, Runtime, ClientApi> BlockWorker<Block, Runtime, ClientApi>
+where
+    Block: BlockT,
+    Runtime: ConstructRuntimeApi<Block, ClientApi>,
+    Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+    ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+{
+    /// create a new worker
+    fn init_worker(
+        stealers: Arc<Vec<Stealer<Block>>>,
+        global: Arc<Injector<Block>>,
+        client: Arc<ClientApi>,
+        backend: Arc<Backend<Block>>,
+    ) -> Self {
+        let worker = Worker::new_fifo();
+        Self {
+            local: worker,
+            stealers,
+            global,
+            client,
+            backend,
+            _marker: PhantomData,
+        }
+    }
+
+    fn start_worker(self) -> Result<(), ArchiveError> {
+        loop {
+            let block = self.find_work();
+            if let Some(b) = block {
+                let now = std::time::Instant::now();
+                let api = self.client.runtime_api();
+                let block = BlockExecutor::new(api, self.backend.clone(), b)?.block_into_storage();
+                let elapsed = now.elapsed();
+                log::info!(
+                    "Took {} seconds, {} milli-seconds to execute block",
+                    elapsed.as_secs(),
+                    elapsed.as_millis()
+                );
+            } else {
+                return Err(ArchiveError::from("Couldn't find block to execute"));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        Ok(())
+    }
+
+    /// this will try to find work from the local queue first,
+    /// then from the global queue
+    /// then try to steal from other threads
+    /// On start, the worker should always find work from the global queue
+    fn find_work(&self) -> Option<Block> {
+        // Pop a task from the local queue, if not empty.
+        self.local.pop().or_else(|| {
+            // Otherwise, we need to look for a task elsewhere.
+            iter::repeat_with(|| {
+                // Try stealing a batch of tasks from the global queue.
+                self.global
+                    .steal_batch_and_pop(&self.local)
+                    // Or try stealing a task from one of the other threads.
+                    .or_else(|| self.stealers.iter().map(|s| s.steal()).collect())
+            })
+            // Loop while no task was stolen and any steal operation needs to be retried.
+            .find(|s| !s.is_retry())
+            // Extract the stolen task, if there is one.
+            .and_then(|s| s.success())
+        })
+    }
+
+    /// get the thief for this worker
+    fn own_stealer(&self) -> Stealer<Block> {
+        self.local.stealer()
+    }
+}
+
+struct BlockWorkerBuilder<Block, Runtime, ClientApi>
+where
+    Block: BlockT,
+    Runtime: ConstructRuntimeApi<Block, ClientApi>,
+    Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+    ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+{
+    /// Local queue of tasks
+    pub local: Worker<Block>,
+    /// Other threads we can steal work from
+    stealers: Option<Arc<Vec<Stealer<Block>>>>,
+    /// Global queue of tasks
+    global: Option<Arc<Injector<Block>>>,
+    /// The Substrate API Client
+    client: Option<Arc<ClientApi>>,
+    /// The Substrate Disk Backend (RocksDB)
+    backend: Option<Arc<Backend<Block>>>,
+    _marker: PhantomData<Runtime>,
+}
+
+impl<Block, Runtime, ClientApi> Default for BlockWorkerBuilder<Block, Runtime, ClientApi>
+where
+    Block: BlockT,
+    Runtime: ConstructRuntimeApi<Block, ClientApi>,
+    Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+    ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+{
+    fn default() -> Self {
+        Self {
+            local: Worker::new_fifo(),
+            stealers: None,
+            global: None,
+            client: None,
+            backend: None,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<Block, Runtime, ClientApi> BlockWorkerBuilder<Block, Runtime, ClientApi>
+where
+    Block: BlockT,
+    Runtime: ConstructRuntimeApi<Block, ClientApi>,
+    Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+    ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+{
+    fn stealers(mut self, stealers: Arc<Vec<Stealer<Block>>>) -> Self {
+        self.stealers = Some(stealers);
+        self
+    }
+
+    fn global(mut self, injector: Arc<Injector<Block>>) -> Self {
+        self.global = Some(injector);
+        self
+    }
+
+    fn client(mut self, client: Arc<ClientApi>) -> Self {
+        self.client = Some(client);
+        self
+    }
+
+    fn backend(mut self, backend: Arc<Backend<Block>>) -> Self {
+        self.backend = Some(backend);
+        self
+    }
+
+    fn build(self) -> BlockWorker<Block, Runtime, ClientApi> {
+        BlockWorker {
+            local: self.local,
+            stealers: self
+                .stealers
+                .expect("Stealers are required for block workers"),
+            global: self
+                .global
+                .expect("Global queue is required for block workers"),
+            client: self
+                .client
+                .expect("Runtime Api Client is required for block workers"),
+            backend: self
+                .backend
+                .expect("Disk Backend is required for block workers"),
+            _marker: PhantomData,
+        }
+    }
+}
+
+/// Executor that sends blocks to a thread pool for execution
+pub struct ThreadedBlockExecutor<Block: BlockT> {
+    /// the workers that execute blocks
+    worker_count: usize,
+    stealers: Arc<Vec<Stealer<Block>>>,
+    global_queue: Arc<Injector<Block>>,
+    /// the threadpool
+    pool: ThreadPool,
+}
+
+impl<Block: BlockT> ThreadedBlockExecutor<Block> {
+    /// create a new instance of the executor
+    pub fn new<Runtime, ClientApi>(
+        pool_multiplier: usize,
+        stack_size: Option<usize>,
+        client: Vec<Arc<ClientApi>>,
+        backend: Arc<Backend<Block>>,
+    ) -> Self
+    where
+        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
+        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+            + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+        ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+    {
+        let worker_count = num_cpus::get() * pool_multiplier;
+        let stack_size = stack_size.unwrap_or(8_000_000);
+        let pool = threadpool::Builder::new()
+            .num_threads(worker_count)
+            .thread_name(POOL_NAME.to_string())
+            .thread_stack_size(stack_size) // 8 MB
+            .build();
+        log::info!("Starting {} workers", worker_count);
+
+        let global_queue = Arc::new(Injector::<Block>::new());
+
+        let mut stealers = Vec::new();
+        let mut workers = Vec::new();
+
+        for _ in 0..worker_count {
+            workers.push(BlockWorkerBuilder::<Block, Runtime, ClientApi>::default())
+        }
+
+        for worker in workers.iter() {
+            stealers.push(worker.local.stealer())
+        }
+
+        let stealers = Arc::new(stealers);
+        assert!(&client.len() >= &pool.max_count());
+
+        let workers = workers
+            .into_iter()
+            .zip(client.into_iter())
+            .map(|(w, client)| {
+                w.stealers(stealers.clone())
+                    .global(global_queue.clone())
+                    .client(client)
+                    .backend(backend.clone())
+                    .build()
+            })
+            .collect::<Vec<BlockWorker<Block, Runtime, ClientApi>>>();
+
+        // having more workers than max count will cause a deadlock
+        assert_eq!(workers.len(), pool.max_count());
+        for worker in workers.into_iter() {
+            pool.execute(move || match worker.start_worker() {
+                Ok(_) => log::info!("Worker Finished"),
+                Err(e) => {
+                    log::error!("{:?}", e);
+                    panic!("Worker should be able to find work");
+                }
+            });
+        }
+
+        Self {
+            worker_count,
+            global_queue,
+            stealers,
+            pool,
+        }
+    }
+
+    pub fn push_to_queue(&self, block: Block) {
+        self.global_queue.push(block)
+    }
+
+    pub fn active(&self) -> usize {
+        self.pool.active_count()
+    }
+    pub fn join(&self) {
+        self.pool.join();
+    }
+}
 
 /// Storage Changes that occur as a result of a block's executions
-pub struct BlockChanges<Block: BlockT, StateBackend: backend::StateBackend<HashFor<Block>>> {
-	/// The changes that need to be applied to the backend to get the state of the build block.
-	pub storage_changes: StorageChanges<StateBackend, Block>,
+#[derive(Debug)]
+pub struct BlockChanges<Block: BlockT> {
+    /// In memory array of storage values.
+    pub storage_changes: StorageCollection,
+    /// In memory arrays of storage values for multiple child tries.
+    pub child_storage: ChildStorageCollection,
+    /// Hash of the block these changes come from
+    pub block_hash: Block::Hash,
+    pub block_num: NumberFor<Block>,
 }
-/*
-pub struct BlockExecutor<'a, Block: BlockT, Api: ProvideRuntimeApi<Block>, B> {
-    api: ApiRef<'a, Api::Api>,
-    backend: Arc<B>,
-    block: &'a Block,
-    id: BlockId<Block>
-}
-*/
 
-pub struct BlockExecutor<'a, Block, Api, B> 
+impl<T> From<BlockChanges<NotSignedBlock<T>>> for Vec<Storage<T>>
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    fn from(changes: BlockChanges<NotSignedBlock<T>>) -> Vec<Storage<T>> {
+        let hash = changes.block_hash;
+        let num: u32 = changes.block_num.into();
+
+        changes
+            .storage_changes
+            .into_iter()
+            .map(|s| {
+                Storage::new(
+                    hash.clone(),
+                    num,
+                    false,
+                    StorageKeyWrapper(s.0),
+                    s.1.map(|d| StorageData(d)),
+                )
+            })
+            .collect::<Vec<Storage<T>>>()
+    }
+}
+
+pub struct BlockExecutor<'a, Block, Api, B>
 where
     Block: BlockT,
     Api: BlockBuilderApi<Block, Error = sp_blockchain::Error>
         + ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
-    B: backend::Backend<Block>
+    B: backend::Backend<Block>,
 {
     api: ApiRef<'a, Api>,
     backend: Arc<B>,
-    block: &'a Block,
-    id: BlockId<Block>
+    block: Block,
+    id: BlockId<Block>,
 }
 
 impl<'a, Block, Api, B> BlockExecutor<'a, Block, Api, B>
 where
     Block: BlockT,
     // Api: ProvideRuntimeApi<Block>,
-    Api: BlockBuilderApi<Block, Error = sp_blockchain::Error> 
+    Api: BlockBuilderApi<Block, Error = sp_blockchain::Error>
         + ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
     B: backend::Backend<Block>,
 {
-    pub fn new(api: ApiRef<'a, Api>, backend: Arc<B>, block: &'a Block) -> Result<Self, ArchiveError> {
-        // let api = api.runtime_api();
+    pub fn new(api: ApiRef<'a, Api>, backend: Arc<B>, block: Block) -> Result<Self, ArchiveError> {
         let header = block.header();
         let parent_hash = header.parent_hash();
-        let id = BlockId::Hash(*parent_hash); 
-        api.initialize_block_with_context(&id, ExecutionContext::BlockConstruction, &header)?;
+        let id = BlockId::Hash(*parent_hash);
 
         Ok(Self {
-            api, backend, block, id,
+            api,
+            backend,
+            block,
+            id,
         })
     }
 
-    fn push_all_ext(&self) -> Result<(), ArchiveError> {
-        let block_id = &self.id;
-        for ext in self.block.extrinsics().iter() {
-            self.api.map_api_result(|api| {
-                match api.apply_extrinsic_with_context(
-                    block_id,
-                    ExecutionContext::BlockConstruction,
-                    ext.clone()
-                )? {
-                    Ok(_) => {
-                        Ok(())
-                    }
-                    // transactions should never be invalid because we are applying extrinsics
-                    // from already-finalized blocks
-                    Err(tx_validity) => Err(ArchiveError::from("Invalid Transaction"))
-                }
-            });
-        }
-        Ok(())
-    }
+    pub fn block_into_storage(self) -> Result<BlockChanges<Block>, ArchiveError> {
+        let header = (&self.block).header();
+        let parent_hash = header.parent_hash().clone();
+        let hash = header.hash();
+        let num = header.number().clone();
 
-    pub fn block_into_storage(&self) -> Result<BlockChanges<Block, backend::StateBackendFor<B, Block>>, ArchiveError> {
-        // we don't really want to finalize blocks, we just want storage changes 
-        // let header = self.api.finalize_block_with_context(&self.id, ExecutionContext::BlockConstruction)?;
-        // self.push_all_ext(); 
-        let parent_hash = self.block.header().parent_hash();
         let state = self.backend.state_at(self.id)?;
 
-		let storage_changes = self.api.into_storage_changes(
-            &state,
-            None,
-            *parent_hash,
-		)?;
+        // FIXME: For some reason, wasm runtime calculates a different number of digest items
+        // then what we have in the block
+        // We don't do anything with consensus
+        // so digest isn't very important (we don't currently index digest items anyway)
+        // popping a digest item has no effect on storage changes afaik
+        let (mut header, ext) = self.block.deconstruct();
+        header.digest_mut().pop();
+        let block = Block::new(header, ext);
+
+        let now = std::time::Instant::now();
+        self.api.execute_block(&self.id, block)?;
+        let elapsed = now.elapsed();
+        log::info!(
+            "Took {} seconds, {} milli-seconds to execute block",
+            elapsed.as_secs(),
+            elapsed.as_millis()
+        );
+        let storage_changes = self.api.into_storage_changes(&state, None, parent_hash)?;
 
         Ok(BlockChanges {
-            storage_changes,
+            storage_changes: storage_changes.main_storage_changes,
+            child_storage: storage_changes.child_storage_changes,
+            block_hash: hash,
+            block_num: num,
         })
     }
 }
@@ -122,66 +430,129 @@ where
 mod tests {
     use super::*;
     use crate::backend::test_harness;
+    use crate::simple_db::SimpleDb;
     use polkadot_service::Block;
     use sp_blockchain::HeaderBackend;
     //use sp_runtime::traits::BlockBackend;
     use sc_client_api::BlockBackend;
+    use sp_api::ProvideRuntimeApi;
 
     #[test]
     fn should_create_new() {
-        let full_client = test_harness::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let full_client =
+            test_harness::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
         let id = BlockId::Number(50970);
         // let header = full_client.header(id).unwrap().expect("No such block exists!");
-        let block = full_client.block(&id).unwrap().expect("No such block exists!").block;
-        let (client, backend) = test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
-        let executor = BlockExecutor::new(&client, &backend, &block);
+        let block = full_client
+            .block(&id)
+            .unwrap()
+            .expect("No such block exists!")
+            .block;
+        let (client, backend) =
+            test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let api = client.runtime_api();
+        let executor = BlockExecutor::new(api, backend, block);
     }
 
     #[test]
     fn should_execute_blocks() {
-        let full_client = test_harness::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
-        let id = BlockId::Number(50970);
-        let block = full_client.block(&id).unwrap().expect("No such block exists!").block;
-        let (client, backend) = test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        pretty_env_logger::try_init();
+        let full_client =
+            test_harness::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        // let id = BlockId::Number(50970);
+        // let id = BlockId::Number(1_730_000);
+        let id = BlockId::Number(1_990_123);
+        let block = full_client
+            .block(&id)
+            .unwrap()
+            .expect("No such block exists!")
+            .block;
+        let (client, backend) =
+            test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+
+        let api = client.runtime_api();
         let time = std::time::Instant::now();
-        let executor = BlockExecutor::new(&client, &backend, &block).unwrap();
-        let result = executor.block_into_storage().unwrap();
-        let elapsed = time.elapsed();
-        let main_changes = result.storage_changes.main_storage_changes;
-        
-        for (key, value) in main_changes.iter() {
-            let key = hex::encode(key);
-           
-            if value.is_some() {
-                let val = hex::encode(value.as_ref().unwrap()); 
-                println!("Key: {}, Value: {}", key, val);
-            } else {
-                println!("Key: {}, Value: None", key);
+        let executor = BlockExecutor::new(api, backend, block).unwrap();
+        match executor.block_into_storage() {
+            Ok(result) => {
+                let elapsed = time.elapsed();
+                println!(
+                    "Took {} seconds, {} milli-seconds, {} micro-seconds, {} nano-sconds",
+                    elapsed.as_secs(),
+                    elapsed.as_millis(),
+                    elapsed.as_micros(),
+                    elapsed.as_nanos()
+                );
+            }
+            Err(e) => {
+                println!("{:?}", e);
             }
         }
-        println!("Took {} seconds, {} milli-seconds, {} micro-seconds, {} nano-sconds", elapsed.as_secs(), elapsed.as_millis(), elapsed.as_micros(), elapsed.as_nanos());
     }
 
     #[test]
     fn should_not_keep_old_extrinsics() {
-        let full_client = test_harness::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let full_client =
+            test_harness::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
         let id0 = BlockId::Number(1000);
         let id1 = BlockId::Number(3000);
-        let block0 = full_client.block(&id0).unwrap().expect("No such block exists!").block;
-        let block1 = full_client.block(&id1).unwrap().expect("No such block exists!").block;
-     
-        let (client, backend) = test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
-        let time = std::time::Instant::now();
-        let executor = BlockExecutor::new(&client, &backend, &block0).unwrap();
-        let storage_changes0_0 = executor.block_into_storage().unwrap().storage_changes;
+        let block0 = full_client
+            .block(&id0)
+            .unwrap()
+            .expect("No such block exists!")
+            .block;
+        let block1 = full_client
+            .block(&id1)
+            .unwrap()
+            .expect("No such block exists!")
+            .block;
 
-        let executor = BlockExecutor::new(&client, &backend, &block1).unwrap();
+        let (client, backend) =
+            test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let time = std::time::Instant::now();
+        let api = client.runtime_api();
+        let executor = BlockExecutor::new(api, backend.clone(), block0.clone()).unwrap();
+        let storage_changes0_0 = executor.block_into_storage().unwrap();
+
+        let api = client.runtime_api();
+        let executor = BlockExecutor::new(api, backend.clone(), block1).unwrap();
         let storage_changes1 = executor.block_into_storage().unwrap();
-        
-        let executor = BlockExecutor::new(&client, &backend, &block0).unwrap();
-        let storage_changes0_1 = executor.block_into_storage().unwrap().storage_changes;
+
+        let api = client.runtime_api();
+        let executor = BlockExecutor::new(api, backend.clone(), block0).unwrap();
+        let storage_changes0_1 = executor.block_into_storage().unwrap();
         let elapsed = time.elapsed();
-        println!("Took {} seconds, {} milli-seconds, {} micro-seconds, {} nano-sconds", elapsed.as_secs(), elapsed.as_millis(), elapsed.as_micros(), elapsed.as_nanos());
-        assert_eq!(storage_changes0_0.main_storage_changes, storage_changes0_1.main_storage_changes);
+        println!(
+            "Took {} seconds, {} milli-seconds, {} micro-seconds, {} nano-seconds",
+            elapsed.as_secs(),
+            elapsed.as_millis(),
+            elapsed.as_micros(),
+            elapsed.as_nanos()
+        );
+        assert_eq!(
+            storage_changes0_0.storage_changes,
+            storage_changes0_1.storage_changes
+        );
+    }
+
+    #[test]
+    fn should_execute_blocks_concurrently() {
+        pretty_env_logger::try_init();
+        let (client, backend) =
+            test_harness::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let clients =
+            test_harness::many_clients("/home/insipx/.local/share/polkadot/chains/ksmcc3/db", 16);
+        let db = SimpleDb::new(std::path::PathBuf::from(
+            "/home/insipx/projects/parity/substrate-archive-api/archive/test_data/10K_BLOCKS.bin",
+        ))
+        .unwrap();
+        let blocks: Vec<Block> = db.get().unwrap();
+        println!("Got {} blocks", blocks.len());
+        // should push to global queue before starting execution
+        let executor = ThreadedBlockExecutor::new(1, Some(8_000_000), clients, backend);
+        for block in blocks.into_iter() {
+            executor.push_to_queue(block);
+        }
+        executor.join();
     }
 }

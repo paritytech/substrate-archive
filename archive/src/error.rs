@@ -18,12 +18,12 @@ use codec::Error as CodecError;
 use failure::Fail;
 use jsonrpsee::client::RequestError as JsonrpseeRequest;
 use jsonrpsee::transport::ws::WsNewDnsError;
+use sc_service::Error as ServiceError;
 use serde_json::Error as SerdeError;
 use sp_blockchain::Error as BlockchainError;
 use sqlx::Error as SqlError;
 use std::env::VarError as EnvironmentError;
 use std::io::Error as IoError;
-use sc_service::Error as ServiceError;
 
 pub type ArchiveResult<T> = Result<T, Error>;
 

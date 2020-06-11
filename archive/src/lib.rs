@@ -17,31 +17,31 @@
 // #![allow(warnings)]
 #![forbid(unsafe_code)]
 
-mod util;
 mod actors;
-pub mod backend;
 pub mod archive;
+pub mod backend;
 mod database;
 mod error;
 mod queries;
+mod rpc;
 mod simple_db;
 mod types;
-mod rpc;
+mod util;
 
+pub use actors::ArchiveContext;
+pub use archive::{Archive, ArchiveConfig};
 pub use error::Error;
 pub use types::{NotSignedBlock, Substrate};
-pub use archive::{Archive, ArchiveConfig};
-pub use actors::ArchiveContext;
 
 #[cfg(feature = "logging")]
 pub use util::init_logger;
 
 // Re-Exports
 
-pub use sp_storage::StorageKey;
-pub use sp_core::twox_128;
 pub use sp_blockchain::Error as BlockchainError;
-pub mod chain_traits  {
+pub use sp_core::twox_128;
+pub use sp_storage::StorageKey;
+pub mod chain_traits {
     //! Traits defining functions on the client needed for indexing
     pub use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
     pub use sp_blockchain::{HeaderBackend, HeaderMetadata};

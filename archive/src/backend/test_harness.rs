@@ -14,44 +14,79 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::{
+    backend,
+    backend::{ApiAccess, ChainAccess},
+    twox_128, Archive, ArchiveConfig, ArchiveContext, StorageKey,
+};
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use crate::{backend, twox_128, Archive, ArchiveConfig, StorageKey, ArchiveContext, backend::{ChainAccess, ApiAccess}};
-use std::sync::Arc;
 use sc_client_db::Backend;
-use sp_api::ProvideRuntimeApi;
 use sc_service::TFullBackend;
+use sp_api::ProvideRuntimeApi;
+use std::sync::Arc;
 
-pub fn client_backend(db: &str) -> (impl ApiAccess<Block, TFullBackend<Block>, ksm_runtime::RuntimeApi>, Backend<Block>)
-{
+pub fn client_backend(
+    db: &str,
+) -> (
+    Arc<impl ApiAccess<Block, TFullBackend<Block>, ksm_runtime::RuntimeApi>>,
+    Arc<Backend<Block>>,
+) {
     let conf = ArchiveConfig {
         db_url: db.into(),
         rpc_url: "ws://127.0.0.1:9944".into(),
         psql_url: None,
         cache_size: 8192,
-        keys: Vec::new(),
     };
 
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-    let archive = Archive::<Block, _>::new(conf, spec).unwrap();
-    let client = archive.api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>().unwrap();
+    let archive = Archive::new(conf, spec).unwrap();
+    let client = archive
+        .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
+        .unwrap();
     let backend = archive.make_backend::<ksm_runtime::Runtime>().unwrap();
+    let client = Arc::new(client);
+    let backend = Arc::new(backend);
     (client, backend)
 }
 
-pub fn client(db: &str) -> impl ChainAccess<Block>
-{
+pub fn many_clients(
+    db: &str,
+    amount: usize,
+) -> Vec<Arc<impl ApiAccess<Block, TFullBackend<Block>, ksm_runtime::RuntimeApi>>> {
+    let conf = ArchiveConfig {
+        db_url: db.into(),
+        rpc_url: "ws://127.0.0.1:9944".into(),
+        psql_url: None,
+        cache_size: 2048,
+    };
+
+    // get spec/runtime from node library
+    let spec = polkadot_service::chain_spec::kusama_config().unwrap();
+    let archive = Archive::new(conf, spec).unwrap();
+    let mut clients = Vec::new();
+    for i in 0..amount {
+        let client = archive
+            .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
+            .unwrap();
+        clients.push(Arc::new(client));
+    }
+
+    clients
+}
+
+pub fn client(db: &str) -> Arc<impl ChainAccess<Block>> {
     let conf = ArchiveConfig {
         db_url: db.into(),
         rpc_url: "ws://127.0.0.1:9944".into(),
         psql_url: None,
         cache_size: 8192,
-        keys: Vec::new(),
     };
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-    let archive = Archive::<Block, _>::new(conf, spec).unwrap();
-    let client = archive.deref_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>().unwrap();
+    let archive = Archive::new(conf, spec).unwrap();
+    let client = archive
+        .client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
+        .unwrap();
     client
 }
-

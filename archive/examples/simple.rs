@@ -17,8 +17,8 @@
 //! A simple example
 
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use substrate_archive::{backend, twox_128, Archive, ArchiveConfig, StorageKey, ArchiveContext};
 use std::sync::Arc;
+use substrate_archive::{backend, twox_128, Archive, ArchiveConfig, ArchiveContext, StorageKey};
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
@@ -33,10 +33,16 @@ pub fn main() {
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
     let archive = Archive::new(conf, spec).unwrap();
-    let client = archive.client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>().unwrap();
-    let api_client = archive.api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>().unwrap();
+    let client = archive
+        .client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
+        .unwrap();
+    let api_client = archive
+        .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
+        .unwrap();
     let api_client = Arc::new(api_client);
-    let _context = archive.run_with::<ksm_runtime::Runtime, ksm_runtime::RuntimeApi, _, _>(client, api_client).unwrap();
+    let _context = archive
+        .run_with::<ksm_runtime::Runtime, ksm_runtime::RuntimeApi, _, _>(client, api_client)
+        .unwrap();
 
     // run indefinitely
     ArchiveContext::block_until_stopped().unwrap();

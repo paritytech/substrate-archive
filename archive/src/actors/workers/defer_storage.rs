@@ -28,13 +28,12 @@ use crate::{
     types::{Storage, Substrate, System},
 };
 use bastion::prelude::*;
-use sqlx::PgConnection;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
 };
 
-pub fn actor<T>(pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ArchiveError>
+pub fn actor<T>(pool: sqlx::PgPool) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -160,7 +159,7 @@ where
         .cloned()
         .filter(|s| !missing.contains(&s.block_num()))
         .collect::<Vec<Storage<T>>>();
-    storage.retain(|s|missing.contains(&s.block_num()));
+    storage.retain(|s| missing.contains(&s.block_num()));
 
     if ready.len() > 0 {
         log::info!(
