@@ -16,14 +16,15 @@
 
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
+mod block_executor;
 mod client;
 mod database;
-mod storage_block_backend;
 #[cfg(test)]
 mod test_util;
+mod trie;
 mod util;
 
-pub use self::storage_block_backend::{BlockChanges, BlockExecutor};
+pub use self::block_executor::{BlockChanges, BlockExecutor};
 pub use self::{
     client::{client, runtime_api},
     util::open_database,

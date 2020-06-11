@@ -489,50 +489,6 @@ mod tests {
     }
 
     #[test]
-    fn should_not_keep_old_extrinsics() {
-        let full_client = test_util::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
-        let id0 = BlockId::Number(1000);
-        let id1 = BlockId::Number(3000);
-        let block0 = full_client
-            .block(&id0)
-            .unwrap()
-            .expect("No such block exists!")
-            .block;
-        let block1 = full_client
-            .block(&id1)
-            .unwrap()
-            .expect("No such block exists!")
-            .block;
-
-        let (client, backend) =
-            test_util::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
-        let time = std::time::Instant::now();
-        let api = client.runtime_api();
-        let executor = BlockExecutor::new(api, backend.clone(), block0.clone()).unwrap();
-        let storage_changes0_0 = executor.block_into_storage().unwrap();
-
-        let api = client.runtime_api();
-        let executor = BlockExecutor::new(api, backend.clone(), block1).unwrap();
-        let storage_changes1 = executor.block_into_storage().unwrap();
-
-        let api = client.runtime_api();
-        let executor = BlockExecutor::new(api, backend.clone(), block0).unwrap();
-        let storage_changes0_1 = executor.block_into_storage().unwrap();
-        let elapsed = time.elapsed();
-        println!(
-            "Took {} seconds, {} milli-seconds, {} micro-seconds, {} nano-seconds",
-            elapsed.as_secs(),
-            elapsed.as_millis(),
-            elapsed.as_micros(),
-            elapsed.as_nanos()
-        );
-        assert_eq!(
-            storage_changes0_0.storage_changes,
-            storage_changes0_1.storage_changes
-        );
-    }
-
-    #[test]
     fn should_execute_blocks_concurrently() {
         pretty_env_logger::try_init();
         let (client, backend) =
