@@ -16,106 +16,191 @@
 
 //! State Backend Interface
 
-use super::ReadOnlyBackend;
-use crate::error::Error as ArchiveError;
-
-use super::HashOut;
 use hash_db::{HashDB, Hasher, Prefix};
 use kvdb::DBValue;
 use sc_client_api::backend::StateBackend;
-use sp_runtime::traits::{BlakeTwo256, Block as BlockT, HashFor};
-use sp_state_machine::TrieBackendStorage;
-use sp_trie::{prefixed_key, PrefixedMemoryDB};
+use sp_core::storage::ChildInfo;
+use sp_database::Database;
+use sp_runtime::traits::{Block as BlockT, HashFor};
+use sp_state_machine::{StateMachineStats, TrieBackend, UsageInfo as StateUsageInfo};
+use std::marker::PhantomData;
+use std::sync::Arc;
+const DB_HASH_LEN: usize = 32;
+/// Hash type that this backend uses for the database.
+pub type DbHash = [u8; DB_HASH_LEN];
 
-impl<Block: BlockT> StateBackend<HashFor<Block>> for ReadOnlyBackend<Block> {
-    type Error = ArchiveError;
-    type Transaction = ConsolidateTransaction;
-    type TrieBackendStorage = Self;
-}
+/// DB-backed patricia trie state, transaction type is an overlay of changes to commit.
+pub type DbState<B> = TrieBackend<Arc<dyn sp_state_machine::Storage<HashFor<B>>>, HashFor<B>>;
 
-/// Not supported
-#[derive(Default, Clone)]
-pub struct ConsolidateTransaction;
-
-impl sp_state_machine::backend::Consolidate for ConsolidateTransaction {
-    fn consolidate(&mut self, other: Self) {
-        panic!("Consolidation of Transactions are not supported for Read Only Backend");
-    }
-}
-
-impl<Block: BlockT> TrieBackendStorage<HashFor<Block>> for ReadOnlyBackend<Block> {
-    type Overlay = StorageOverlay<HashFor<Block>>;
-
-    fn get(&self, key: &HashOut<Block>, prefix: Prefix) -> Result<Option<DBValue>, String> {
-        Ok(<Self as HashDB<HashFor<Block>>>::get(key, prefix))
-    }
-}
-
-impl<H: Hasher> Default for StorageOverlay<H> {
-    fn default() -> Self {
-        Self {
-            storage: PrefixedMemoryDB::default(),
-            prefix_keys: true,
-        }
-    }
-}
-
-pub struct StorageOverlay<H: Hasher> {
-    storage: PrefixedMemoryDB<H>,
+/// Holds a reference to the disk backend
+/// that trie operations can make use of
+pub struct StateVault<Block: BlockT> {
+    /// disk backend
+    pub db: Arc<dyn Database<DbHash>>,
     prefix_keys: bool,
+    _marker: PhantomData<Block>,
 }
 
-impl<H: Hasher> hash_db::HashDB<H, DBValue> for StorageOverlay<H> {
-    fn get(&self, key: &H::Out, prefix: Prefix) -> Option<DBValue> {
-        // TODO: Might be a problem,
-        // needs more research into how TrieBackend/TrieBackendEssence/TrieBackendStorage
-        // and the many different traits in Substrate work together
-        if self.prefix_keys {
-            let key = prefixed_key::<H>(key, prefix);
-            self.storage.get(super::columns::STATE, &key)
-        } else {
-            self.storage.get(super::columns::STATE, key.as_ref())
+impl<Block: BlockT> StateVault<Block> {
+    pub fn new(db: Arc<dyn Database<DbHash>>, prefix_keys: bool) -> Self {
+        Self {
+            db,
+            prefix_keys,
+            _marker: PhantomData,
         }
     }
+}
 
-    fn contains(&self, key: &H::Out, prefix: Prefix) -> bool {
-        hash_db::HashDB::get(self, key, prefix).is_some()
-    }
-
-    fn insert(&mut self, _prefix: Prefix, _value: &[u8]) -> H::Out {
-        panic!("Read Only Database; HashDB IMPL for StorageOverlay; insert(..)");
-    }
-
-    fn emplace(&mut self, _key: H::Out, _prefix: Prefix, _value: DBValue) {
-        panic!("Read Only Database; HashDB IMPL for StorageOverlay; emplace(..)");
-    }
-
-    fn remove(&mut self, _key: &H::Out, _prefix: Prefix) {
-        panic!("Read Only Database; HashDB IMPL for StorageOverlay; remove(..)");
+impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for StateVault<Block> {
+    fn get(&self, key: &Block::Hash, prefix: Prefix) -> Result<Option<DBValue>, String> {
+        if self.prefix_keys {
+            let key = sp_trie::prefixed_key::<HashFor<Block>>(key, prefix);
+            Ok(self.db.get(super::columns::STATE, &key))
+        } else {
+            Ok(self.db.get(super::columns::STATE, key.as_ref()))
+        }
     }
 }
 
-impl<H: Hasher> hash_db::HashDBRef<H, DBValue> for StorageOverlay<H> {
-    fn get(&self, key: &H::Out, prefix: Prefix) -> Option<DBValue> {
-        hash_db::HashDB::get(self, key, prefix)
-    }
+/// TrieState
+/// Returns a reference that implements Statebackend
+/// It makes sure that the hash we are using stays pinned in storage
+pub struct TrieState<Block: BlockT> {
+    state: DbState<Block>,
+    storage: Arc<StateVault<Block>>,
+    parent_hash: Option<Block::Hash>,
+}
 
-    fn contains(&self, key: &H::Out, prefix: Prefix) -> bool {
-        hash_db::HashDB::contains(self, key, prefix)
+impl<B: BlockT> TrieState<B> {
+    pub fn new(
+        state: DbState<B>,
+        storage: Arc<StateVault<B>>,
+        parent_hash: Option<B::Hash>,
+    ) -> Self {
+        TrieState {
+            state,
+            parent_hash,
+            storage,
+        }
     }
 }
 
-impl<H: Hasher> hash_db::AsHashDB<H, DBValue> for StorageOverlay<H> {
-    fn as_hash_db(&self) -> &(dyn hash_db::HashDB<H, DBValue>) {
-        self
-    }
-    fn as_hash_db_mut(&mut self) -> &mut (dyn hash_db::HashDB<H, DBValue>) {
-        panic!("Mutable references to database not allowed")
+impl<Block: BlockT> std::fmt::Debug for TrieState<Block> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Block {:?}", self.parent_hash)
     }
 }
 
-impl<H: Hasher> sp_state_machine::backend::Consolidate for StorageOverlay<H> {
-    fn consolidate(&mut self, other: Self) {
-        panic!("Consolidation of Transactions are not supported for Read Only Backend");
+impl<B: BlockT> StateBackend<HashFor<B>> for TrieState<B> {
+    type Error = <DbState<B> as StateBackend<HashFor<B>>>::Error;
+    type Transaction = <DbState<B> as StateBackend<HashFor<B>>>::Transaction;
+    type TrieBackendStorage = <DbState<B> as StateBackend<HashFor<B>>>::TrieBackendStorage;
+
+    fn storage(&self, key: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
+        self.state.storage(key)
+    }
+
+    fn storage_hash(&self, key: &[u8]) -> Result<Option<B::Hash>, Self::Error> {
+        self.state.storage_hash(key)
+    }
+
+    fn child_storage(
+        &self,
+        child_info: &ChildInfo,
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, Self::Error> {
+        self.state.child_storage(child_info, key)
+    }
+
+    fn exists_storage(&self, key: &[u8]) -> Result<bool, Self::Error> {
+        self.state.exists_storage(key)
+    }
+
+    fn exists_child_storage(
+        &self,
+        child_info: &ChildInfo,
+        key: &[u8],
+    ) -> Result<bool, Self::Error> {
+        self.state.exists_child_storage(child_info, key)
+    }
+
+    fn next_storage_key(&self, key: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
+        self.state.next_storage_key(key)
+    }
+
+    fn next_child_storage_key(
+        &self,
+        child_info: &ChildInfo,
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, Self::Error> {
+        self.state.next_child_storage_key(child_info, key)
+    }
+
+    fn for_keys_with_prefix<F: FnMut(&[u8])>(&self, prefix: &[u8], f: F) {
+        self.state.for_keys_with_prefix(prefix, f)
+    }
+
+    fn for_key_values_with_prefix<F: FnMut(&[u8], &[u8])>(&self, prefix: &[u8], f: F) {
+        self.state.for_key_values_with_prefix(prefix, f)
+    }
+
+    fn for_keys_in_child_storage<F: FnMut(&[u8])>(&self, child_info: &ChildInfo, f: F) {
+        self.state.for_keys_in_child_storage(child_info, f)
+    }
+
+    fn for_child_keys_with_prefix<F: FnMut(&[u8])>(
+        &self,
+        child_info: &ChildInfo,
+        prefix: &[u8],
+        f: F,
+    ) {
+        self.state.for_child_keys_with_prefix(child_info, prefix, f)
+    }
+
+    fn storage_root<'a>(
+        &self,
+        delta: impl Iterator<Item = (&'a [u8], Option<&'a [u8]>)>,
+    ) -> (B::Hash, Self::Transaction)
+    where
+        B::Hash: Ord,
+    {
+        self.state.storage_root(delta)
+    }
+
+    fn child_storage_root<'a>(
+        &self,
+        child_info: &ChildInfo,
+        delta: impl Iterator<Item = (&'a [u8], Option<&'a [u8]>)>,
+    ) -> (B::Hash, bool, Self::Transaction)
+    where
+        B::Hash: Ord,
+    {
+        self.state.child_storage_root(child_info, delta)
+    }
+
+    fn pairs(&self) -> Vec<(Vec<u8>, Vec<u8>)> {
+        self.state.pairs()
+    }
+
+    fn keys(&self, prefix: &[u8]) -> Vec<Vec<u8>> {
+        self.state.keys(prefix)
+    }
+
+    fn child_keys(&self, child_info: &ChildInfo, prefix: &[u8]) -> Vec<Vec<u8>> {
+        self.state.child_keys(child_info, prefix)
+    }
+
+    fn as_trie_backend(
+        &mut self,
+    ) -> Option<&sp_state_machine::TrieBackend<Self::TrieBackendStorage, HashFor<B>>> {
+        self.state.as_trie_backend()
+    }
+
+    fn register_overlay_stats(&mut self, stats: &StateMachineStats) {
+        self.state.register_overlay_stats(stats);
+    }
+
+    fn usage_info(&self) -> StateUsageInfo {
+        self.state.usage_info()
     }
 }

@@ -27,7 +27,6 @@ use sc_service::{config::DatabaseConfig, ChainSpec, TFullBackend};
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
-use sp_storage::StorageKey;
 use std::{marker::PhantomData, sync::Arc};
 
 pub struct Archive<Block: BlockT + Send + Sync, Spec: ChainSpec + Clone + 'static> {

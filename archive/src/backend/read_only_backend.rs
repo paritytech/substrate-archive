@@ -25,22 +25,23 @@
 
 mod state_backend;
 
+use self::state_backend::{DbHash, DbState, StateVault, TrieState};
 use super::database::ReadOnlyDatabase;
 use codec::Decode;
-use hash_db::{Hasher, Prefix};
+use hash_db::Prefix;
 use kvdb::DBValue; // need
+use sc_client_api::backend::StateBackend;
+use sp_database::Database;
 use sp_runtime::{
     generic::{BlockId, SignedBlock},
     traits::{Block as BlockT, HashFor, Header, NumberFor},
     Justification,
 };
-use sp_trie::{prefixed_key, read_trie_value, Layout}; // is fine
-use std::marker::PhantomData;
-use trie_db::{Trie, TrieDB}; // need
+use std::{marker::PhantomData, sync::Arc};
 
-#[derive(Debug)]
 pub struct ReadOnlyBackend<Block: BlockT> {
     db: ReadOnlyDatabase,
+    storage: Arc<StateVault<Block>>,
     prefix_keys: bool,
     _marker: PhantomData<Block>,
 }
@@ -49,11 +50,43 @@ impl<Block> ReadOnlyBackend<Block>
 where
     Block: BlockT,
 {
-    pub fn new(db: ReadOnlyDatabase, prefix_keys: bool) -> Self {
+    pub fn new(
+        db: ReadOnlyDatabase,
+        db_trait: Arc<dyn Database<DbHash>>,
+        prefix_keys: bool,
+    ) -> Self {
+        let vault = Arc::new(StateVault::new(db_trait, prefix_keys));
         Self {
             db,
             prefix_keys,
+            storage: vault,
             _marker: PhantomData,
+        }
+    }
+
+    fn state_at(&self, hash: Block::Hash) -> Option<TrieState<Block>> {
+        // genesis
+        if hash == Default::default() {
+            let genesis_storage = DbGenesisStorage::<Block>(Block::Hash::default());
+            let root = Block::Hash::default();
+            let state = DbState::<Block>::new(Arc::new(genesis_storage), root);
+            Some(TrieState::<Block>::new(
+                state,
+                self.storage.clone(),
+                Some(Block::Hash::default()),
+            ))
+        } else {
+            if let Some(state_root) = self.state_root(hash) {
+                let state = DbState::<Block>::new(self.storage.clone(), state_root);
+                Some(TrieState::<Block>::new(
+                    state,
+                    self.storage.clone(),
+                    Some(hash.clone()),
+                ))
+            } else {
+                log::warn!("No state found for block {:?}", hash);
+                None
+            }
         }
     }
 
@@ -71,27 +104,21 @@ where
         header.map(|h| *h.state_root())
     }
 
-    // TODO: Gotta handle genesis storage
     pub fn storage(&self, hash: Block::Hash, key: &[u8]) -> Option<Vec<u8>> {
-        let root = self.state_root(hash)?;
-        let val = read_trie_value::<Layout<HashFor<Block>>, _>(self, &root, key)
-            .expect("Read Trie Value Error");
-
-        val
+        match self.state_at(hash) {
+            Some(state) => state
+                .storage(key)
+                .expect(format!("No storage found for {:?}", hash).as_str()),
+            None => None,
+        }
     }
 
     /// get storage keys for a prefix at a block in time
     pub fn storage_keys(&self, hash: Block::Hash, prefix: &[u8]) -> Option<Vec<Vec<u8>>> {
-        let root = self.state_root(hash)?;
-        let trie = TrieDB::<Layout<HashFor<Block>>>::new(self, &root).unwrap();
-        let mut v = Vec::new();
-        for x in trie.iter().unwrap() {
-            let (key, _) = x.unwrap();
-            if key.starts_with(prefix) {
-                v.push(key.to_vec());
-            }
+        match self.state_at(hash) {
+            Some(state) => Some(state.keys(prefix)),
+            None => None,
         }
-        Some(v)
     }
 
     /// Get a block from the canon chain
@@ -171,52 +198,11 @@ where
     }
 }
 
-type HashOut<Block> = <HashFor<Block> as Hasher>::Out;
+struct DbGenesisStorage<Block: BlockT>(pub Block::Hash);
 
-impl<Block: BlockT> hash_db::HashDB<HashFor<Block>, DBValue> for ReadOnlyBackend<Block> {
-    fn get(&self, key: &HashOut<Block>, prefix: Prefix) -> Option<DBValue> {
-        // TODO: Might be a problem, don't know how hashdb interacts with KVDB
-        if self.prefix_keys {
-            let key = prefixed_key::<HashFor<Block>>(key, prefix);
-            self.db.get(columns::STATE, &key)
-        } else {
-            self.db.get(columns::STATE, key.as_ref())
-        }
-    }
-
-    fn contains(&self, key: &HashOut<Block>, prefix: Prefix) -> bool {
-        hash_db::HashDB::get(self, key, prefix).is_some()
-    }
-
-    fn insert(&mut self, _prefix: Prefix, _value: &[u8]) -> HashOut<Block> {
-        panic!("Read Only Database; HashDB IMPL for ReadOnlyBackend; insert(..)");
-    }
-
-    fn emplace(&mut self, _key: HashOut<Block>, _prefix: Prefix, _value: DBValue) {
-        panic!("Read Only Database; HashDB IMPL for ReadOnlyBackend; emplace(..)");
-    }
-
-    fn remove(&mut self, _key: &HashOut<Block>, _prefix: Prefix) {
-        panic!("Read Only Database; HashDB IMPL for ReadOnlyBackend; remove(..)");
-    }
-}
-
-impl<Block: BlockT> hash_db::HashDBRef<HashFor<Block>, DBValue> for ReadOnlyBackend<Block> {
-    fn get(&self, key: &HashOut<Block>, prefix: Prefix) -> Option<DBValue> {
-        hash_db::HashDB::get(self, key, prefix)
-    }
-
-    fn contains(&self, key: &HashOut<Block>, prefix: Prefix) -> bool {
-        hash_db::HashDB::contains(self, key, prefix)
-    }
-}
-
-impl<Block: BlockT> hash_db::AsHashDB<HashFor<Block>, DBValue> for ReadOnlyBackend<Block> {
-    fn as_hash_db(&self) -> &(dyn hash_db::HashDB<HashFor<Block>, DBValue>) {
-        self
-    }
-    fn as_hash_db_mut(&mut self) -> &mut (dyn hash_db::HashDB<HashFor<Block>, DBValue>) {
-        panic!("Mutable references to database not allowed")
+impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for DbGenesisStorage<Block> {
+    fn get(&self, _key: &Block::Hash, _prefix: Prefix) -> Result<Option<DBValue>, String> {
+        Ok(None)
     }
 }
 

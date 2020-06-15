@@ -18,7 +18,7 @@
 //! Contains a ThreadedBlockExecutor that executes blocks concurrently
 
 use crate::{backend::ApiAccess, error::Error as ArchiveError, types::*};
-use crossbeam::deque::{Injector, Steal, Stealer, Worker};
+use crossbeam::deque::{Injector, /*Steal,*/ Stealer, Worker};
 use frame_system::Trait as System;
 use sc_client_api::backend;
 use sc_client_db::Backend;
