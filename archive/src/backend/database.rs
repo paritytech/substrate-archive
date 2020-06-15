@@ -30,6 +30,13 @@ pub struct ReadOnlyDatabase {
     inner: Database,
 }
 
+impl std::fmt::Debug for ReadOnlyDatabase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let stats = self.io_stats(kvdb::IoStatsKind::Overall);
+        f.write_fmt(format_args!("Read Only Database Stats: {:?}", stats))
+    }
+}
+
 impl ReadOnlyDatabase {
     pub fn open(config: &DatabaseConfig, path: &str) -> io::Result<Self> {
         let inner = Database::open(config, path)?;

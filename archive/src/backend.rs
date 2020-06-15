@@ -19,12 +19,13 @@
 mod block_executor;
 mod client;
 mod database;
+mod read_only_backend;
 #[cfg(test)]
 mod test_util;
-mod trie;
 mod util;
 
 pub use self::block_executor::{BlockChanges, BlockExecutor};
+pub use self::read_only_backend::ReadOnlyBackend;
 pub use self::{
     client::{client, runtime_api},
     util::open_database,

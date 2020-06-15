@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Storage Backend that wraps Parity Trie Implementation to retrieve
+//! Backend that wraps Parity Trie Implementation to retrieve
 //! values from RocksDB.
 //! Preferred over using the Substrate Client, since this is a lighter-weight implementation
 //! that gives substrate-archive more fine-grained control over implementation and optimization details.
@@ -22,6 +22,8 @@
 //! According to benchmarks, performance improvements are currently neglible. Mostly because the code has only
 //! been slightly modified so far.
 //! This only wraps functions that are needed for substrate archive, avoiding needing to import entire runtimes.
+
+mod state_backend;
 
 use super::database::ReadOnlyDatabase;
 use codec::Decode;
@@ -36,13 +38,14 @@ use sp_trie::{prefixed_key, read_trie_value, Layout}; // is fine
 use std::marker::PhantomData;
 use trie_db::{Trie, TrieDB}; // need
 
-pub struct StorageBackend<Block: BlockT> {
+#[derive(Debug)]
+pub struct ReadOnlyBackend<Block: BlockT> {
     db: ReadOnlyDatabase,
     prefix_keys: bool,
     _marker: PhantomData<Block>,
 }
 
-impl<Block> StorageBackend<Block>
+impl<Block> ReadOnlyBackend<Block>
 where
     Block: BlockT,
 {
@@ -170,7 +173,7 @@ where
 
 type HashOut<Block> = <HashFor<Block> as Hasher>::Out;
 
-impl<Block: BlockT> hash_db::HashDB<HashFor<Block>, DBValue> for StorageBackend<Block> {
+impl<Block: BlockT> hash_db::HashDB<HashFor<Block>, DBValue> for ReadOnlyBackend<Block> {
     fn get(&self, key: &HashOut<Block>, prefix: Prefix) -> Option<DBValue> {
         // TODO: Might be a problem, don't know how hashdb interacts with KVDB
         if self.prefix_keys {
@@ -186,19 +189,19 @@ impl<Block: BlockT> hash_db::HashDB<HashFor<Block>, DBValue> for StorageBackend<
     }
 
     fn insert(&mut self, _prefix: Prefix, _value: &[u8]) -> HashOut<Block> {
-        panic!("Read Only Database; HashDB IMPL for StorageBackend; insert(..)");
+        panic!("Read Only Database; HashDB IMPL for ReadOnlyBackend; insert(..)");
     }
 
     fn emplace(&mut self, _key: HashOut<Block>, _prefix: Prefix, _value: DBValue) {
-        panic!("Read Only Database; HashDB IMPL for StorageBackend; emplace(..)");
+        panic!("Read Only Database; HashDB IMPL for ReadOnlyBackend; emplace(..)");
     }
 
     fn remove(&mut self, _key: &HashOut<Block>, _prefix: Prefix) {
-        panic!("Read Only Database; HashDB IMPL for StorageBackend; remove(..)");
+        panic!("Read Only Database; HashDB IMPL for ReadOnlyBackend; remove(..)");
     }
 }
 
-impl<Block: BlockT> hash_db::HashDBRef<HashFor<Block>, DBValue> for StorageBackend<Block> {
+impl<Block: BlockT> hash_db::HashDBRef<HashFor<Block>, DBValue> for ReadOnlyBackend<Block> {
     fn get(&self, key: &HashOut<Block>, prefix: Prefix) -> Option<DBValue> {
         hash_db::HashDB::get(self, key, prefix)
     }
@@ -208,7 +211,7 @@ impl<Block: BlockT> hash_db::HashDBRef<HashFor<Block>, DBValue> for StorageBacke
     }
 }
 
-impl<Block: BlockT> hash_db::AsHashDB<HashFor<Block>, DBValue> for StorageBackend<Block> {
+impl<Block: BlockT> hash_db::AsHashDB<HashFor<Block>, DBValue> for ReadOnlyBackend<Block> {
     fn as_hash_db(&self) -> &(dyn hash_db::HashDB<HashFor<Block>, DBValue>) {
         self
     }
@@ -257,7 +260,7 @@ mod tests {
     #[test]
     fn should_create_new() {
         test_harness::harness(DB, |db| {
-            StorageBackend::<Block>::new(db, false);
+            ReadOnlyBackend::<Block>::new(db, false);
         });
     }
 
@@ -277,7 +280,7 @@ mod tests {
         let hash = H256::from_slice(hash.as_slice());
 
         test_harness::harness(DB, |db| {
-            let db = StorageBackend::<Block>::new(db, true);
+            let db = ReadOnlyBackend::<Block>::new(db, true);
             let time = Instant::now(); // FIXME: bootleg benchmark. #[bench] not stabilized yet
             let val = db.storage(hash, key1.as_slice()).unwrap();
             let elapsed = time.elapsed();
@@ -303,7 +306,7 @@ mod tests {
         let key = balances_freebalance_key();
 
         test_harness::harness(DB, |db| {
-            let db = StorageBackend::<Block>::new(db, true);
+            let db = ReadOnlyBackend::<Block>::new(db, true);
             let time = Instant::now();
             let keys = db.storage_keys(hash, key.0.as_slice());
             let elapsed = time.elapsed();

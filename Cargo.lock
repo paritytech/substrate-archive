@@ -3143,6 +3143,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "memory-db"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb2999ff7a65d5a1d72172f6d51fa2ea03024b51aee709ba5ff81c3c629a2410"
+dependencies = [
+ "ahash 0.2.18",
+ "hash-db",
+ "hashbrown 0.6.3",
+ "parity-util-mem",
+]
+
+[[package]]
 name = "memory_units"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7098,7 +7110,7 @@ version = "2.0.0-rc3"
 source = "git+https://github.com/paritytech/substrate#606c56d2e2f69f68f3947551224be6a3515dff60"
 dependencies = [
  "hash-db",
- "memory-db",
+ "memory-db 0.20.1",
  "parity-scale-codec",
  "sp-core",
  "sp-std",
@@ -7307,6 +7319,7 @@ dependencies = [
  "kvdb-rocksdb",
  "lightproc",
  "log 0.4.8",
+ "memory-db 0.21.0",
  "num_cpus",
  "parity-scale-codec",
  "parity-util-mem",
@@ -7325,6 +7338,7 @@ dependencies = [
  "sp-core",
  "sp-database",
  "sp-runtime",
+ "sp-state-machine",
  "sp-storage",
  "sp-trie",
  "sp-version",
