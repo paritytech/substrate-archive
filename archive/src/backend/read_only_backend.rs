@@ -24,6 +24,8 @@
 //! This only wraps functions that are needed for substrate archive, avoiding needing to import entire runtimes.
 
 mod blockchain_backend;
+mod main_backend;
+mod misc_backend;
 mod state_backend;
 
 use self::state_backend::{DbHash, DbState, StateVault, TrieState};

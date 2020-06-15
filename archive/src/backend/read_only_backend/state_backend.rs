@@ -25,6 +25,7 @@ use sp_runtime::traits::{Block as BlockT, HashFor};
 use sp_state_machine::{StateMachineStats, TrieBackend, UsageInfo as StateUsageInfo};
 use std::marker::PhantomData;
 use std::sync::Arc;
+
 const DB_HASH_LEN: usize = 32;
 /// Hash type that this backend uses for the database.
 pub type DbHash = [u8; DB_HASH_LEN];
