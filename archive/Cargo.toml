@@ -58,6 +58,7 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-system" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" } 
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
+parking_lot = "0.10.2"
 
 
 [dev-dependencies]

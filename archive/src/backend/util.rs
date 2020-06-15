@@ -27,7 +27,7 @@ use sc_service::config::DatabaseConfig as DBConfig;
 use sp_database::Database as DatabaseTrait;
 use sp_runtime::{
     generic::BlockId,
-    traits::{Block as BlockT, UniqueSaturatedFrom, UniqueSaturatedInto},
+    traits::{Block as BlockT, Header as HeaderT, UniqueSaturatedFrom, UniqueSaturatedInto, Zero},
 };
 use std::{convert::TryInto, path::Path, sync::Arc};
 
@@ -91,6 +91,43 @@ fn open_db<Block: BlockT>(
     Ok(sp_database::as_database(db))
 }
 
+#[allow(unused)]
+pub(crate) mod columns {
+    pub const META: u32 = 0;
+    pub const STATE: u32 = 1;
+    pub const STATE_META: u32 = 2;
+    /// maps hashes -> lookup keys and numbers to canon hashes
+    pub const KEY_LOOKUP: u32 = 3;
+    pub const HEADER: u32 = 4;
+    pub const BODY: u32 = 5;
+    pub const JUSTIFICATION: u32 = 6;
+    pub const CHANGES_TRIE: u32 = 7;
+    pub const AUX: u32 = 8;
+    pub const OFFCHAIN: u32 = 9;
+    pub const CACHE: u32 = 10;
+}
+
+/// Keys of entries in COLUMN_META.
+#[allow(unused)]
+pub mod meta_keys {
+    /// Type of storage (full or light).
+    pub const TYPE: &[u8; 4] = b"type";
+    /// Best block key.
+    pub const BEST_BLOCK: &[u8; 4] = b"best";
+    /// Last finalized block key.
+    pub const FINALIZED_BLOCK: &[u8; 5] = b"final";
+    /// Meta information prefix for list-based caches.
+    pub const CACHE_META_PREFIX: &[u8; 5] = b"cache";
+    /// Meta information for changes tries key.
+    pub const CHANGES_TRIES_META: &[u8; 5] = b"ctrie";
+    /// Genesis block hash.
+    pub const GENESIS_HASH: &[u8; 3] = b"gen";
+    /// Leaves prefix list key.
+    pub const LEAF_PREFIX: &[u8; 4] = b"leaf";
+    /// Children prefix list key.
+    pub const CHILDREN_PREFIX: &[u8; 8] = b"children";
+}
+
 pub fn read_header<Block: BlockT>(
     db: &ReadOnlyDatabase,
     col_index: u32,
@@ -147,4 +184,88 @@ pub fn number_index_key<N: TryInto<u32>>(n: N) -> ArchiveResult<NumberIndexKey> 
         ((n >> 8) & 0xff) as u8,
         (n & 0xff) as u8,
     ])
+}
+
+/// Database metadata.
+#[derive(Debug)]
+pub struct Meta<N, H> {
+    /// Hash of the best known block.
+    pub best_hash: H,
+    /// Number of the best known block.
+    pub best_number: N,
+    /// Hash of the best finalized block.
+    pub finalized_hash: H,
+    /// Number of the best finalized block.
+    pub finalized_number: N,
+    /// Hash of the genesis block.
+    pub genesis_hash: H,
+}
+
+/// Read meta from the database.
+pub fn read_meta<Block>(
+    db: &ReadOnlyDatabase,
+    col_header: u32,
+) -> Result<Meta<<<Block as BlockT>::Header as HeaderT>::Number, Block::Hash>, sp_blockchain::Error>
+where
+    Block: BlockT,
+{
+    let genesis_hash: Block::Hash = match read_genesis_hash(db)? {
+        Some(genesis_hash) => genesis_hash,
+        None => {
+            return Ok(Meta {
+                best_hash: Default::default(),
+                best_number: Zero::zero(),
+                finalized_hash: Default::default(),
+                finalized_number: Zero::zero(),
+                genesis_hash: Default::default(),
+            })
+        }
+    };
+
+    let load_meta_block = |desc, key| -> Result<_, sp_blockchain::Error> {
+        if let Some(Some(header)) = match db.get(columns::META, key) {
+            Some(id) => db
+                .get(col_header, &id)
+                .map(|b| Block::Header::decode(&mut &b[..]).ok()),
+            None => None,
+        } {
+            let hash = header.hash();
+            log::debug!(
+                "DB Opened blockchain db, fetched {} = {:?} ({})",
+                desc,
+                hash,
+                header.number()
+            );
+            Ok((hash, *header.number()))
+        } else {
+            Ok((genesis_hash.clone(), Zero::zero()))
+        }
+    };
+
+    let (best_hash, best_number) = load_meta_block("best", meta_keys::BEST_BLOCK)?;
+    let (finalized_hash, finalized_number) = load_meta_block("final", meta_keys::FINALIZED_BLOCK)?;
+
+    Ok(Meta {
+        best_hash,
+        best_number,
+        finalized_hash,
+        finalized_number,
+        genesis_hash,
+    })
+}
+
+/// Read genesis hash from database.
+pub fn read_genesis_hash<Hash: Decode>(
+    db: &ReadOnlyDatabase,
+) -> sp_blockchain::Result<Option<Hash>> {
+    match db.get(columns::META, meta_keys::GENESIS_HASH) {
+        Some(h) => match Decode::decode(&mut &h[..]) {
+            Ok(h) => Ok(Some(h)),
+            Err(err) => Err(sp_blockchain::Error::Backend(format!(
+                "Error decoding genesis hash: {}",
+                err
+            ))),
+        },
+        None => Ok(None),
+    }
 }

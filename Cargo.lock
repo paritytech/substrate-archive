@@ -7323,6 +7323,7 @@ dependencies = [
  "num_cpus",
  "parity-scale-codec",
  "parity-util-mem",
+ "parking_lot 0.10.2",
  "polkadot-service 0.8.7 (git+https://github.com/paritytech/polkadot?tag=v0.8.7)",
  "pretty_env_logger",
  "primitive-types",

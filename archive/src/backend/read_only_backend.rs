@@ -23,14 +23,17 @@
 //! been slightly modified so far.
 //! This only wraps functions that are needed for substrate archive, avoiding needing to import entire runtimes.
 
+mod blockchain_backend;
 mod state_backend;
 
 use self::state_backend::{DbHash, DbState, StateVault, TrieState};
 use super::database::ReadOnlyDatabase;
+use super::util::columns;
 use codec::Decode;
 use hash_db::Prefix;
 use kvdb::DBValue; // need
 use sc_client_api::backend::StateBackend;
+use sp_blockchain::{Backend as _, HeaderBackend as _};
 use sp_database::Database;
 use sp_runtime::{
     generic::{BlockId, SignedBlock},
@@ -125,75 +128,16 @@ where
     /// This also tries to catch up with the primary rocksdb instance
     pub fn block(&self, id: BlockId<Block>) -> Option<SignedBlock<Block>> {
         self.db.try_catch_up_with_primary();
-        match (self.header(id), self.body(id), self.justification(id)) {
+        match (
+            self.header(id).ok()?,
+            self.body(id).ok()?,
+            self.justification(id).ok()?,
+        ) {
             (Some(header), Some(extrinsics), justification) => Some(SignedBlock {
                 block: Block::new(header, extrinsics),
                 justification,
             }),
             _ => None,
-        }
-    }
-
-    /// get the hash for some block
-    pub fn hash(&self, number: NumberFor<Block>) -> Option<Block::Hash> {
-        self.header(BlockId::Number(number)).map(|h| h.hash())
-    }
-
-    fn header(&self, id: BlockId<Block>) -> Option<Block::Header> {
-        super::util::read_header::<Block>(&self.db, columns::KEY_LOOKUP, columns::HEADER, id)
-            .expect("Couldn't read header")
-    }
-
-    fn body(&self, id: BlockId<Block>) -> Option<Vec<Block::Extrinsic>> {
-        let res = super::util::read_db::<Block>(&self.db, columns::KEY_LOOKUP, columns::BODY, id);
-
-        let res = match res {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!("{:?}", e);
-                None
-            }
-        };
-
-        match res {
-            Some(body) => match Decode::decode(&mut &body[..]) {
-                Ok(body) => Some(body),
-                Err(e) => {
-                    // FIXME: just log error for now until thiserror
-                    log::error!("{:?}", e);
-                    None
-                }
-            },
-            None => None,
-        }
-    }
-
-    fn justification(&self, id: BlockId<Block>) -> Option<Justification> {
-        let res = super::util::read_db::<Block>(
-            &self.db,
-            columns::KEY_LOOKUP,
-            columns::JUSTIFICATION,
-            id,
-        );
-
-        let res = match res {
-            Ok(v) => v,
-            Err(e) => {
-                // FIXME
-                log::error!("{:?}", e);
-                None
-            }
-        };
-
-        match res {
-            Some(justification) => match Decode::decode(&mut &justification[..]) {
-                Ok(justification) => Some(justification),
-                Err(err) => {
-                    log::error!("{:?}", err);
-                    None
-                }
-            },
-            None => None,
         }
     }
 }
@@ -204,22 +148,6 @@ impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for DbGenesisStora
     fn get(&self, _key: &Block::Hash, _prefix: Prefix) -> Result<Option<DBValue>, String> {
         Ok(None)
     }
-}
-
-#[allow(unused)]
-pub(crate) mod columns {
-    pub const META: u32 = 0;
-    pub const STATE: u32 = 1;
-    pub const STATE_META: u32 = 2;
-    /// maps hashes -> lookup keys and numbers to canon hashes
-    pub const KEY_LOOKUP: u32 = 3;
-    pub const HEADER: u32 = 4;
-    pub const BODY: u32 = 5;
-    pub const JUSTIFICATION: u32 = 6;
-    pub const CHANGES_TRIE: u32 = 7;
-    pub const AUX: u32 = 8;
-    pub const OFFCHAIN: u32 = 9;
-    pub const CACHE: u32 = 10;
 }
 
 #[cfg(feature = "test_rocksdb")]
