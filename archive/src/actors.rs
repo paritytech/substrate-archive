@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-
-//! Main entrypoint for substrate-archive. `init` will start all actors and begin indexing the 
+//! Main entrypoint for substrate-archive. `init` will start all actors and begin indexing the
 //! chain defined with the passed-in Client and URL.
 
 mod generators;
@@ -23,12 +22,15 @@ mod scheduler;
 mod workers;
 
 use super::{
-    backend::ChainAccess,
+    backend::{ApiAccess, ChainAccess},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
 use bastion::prelude::*;
-use sp_storage::StorageKey;
+use sc_client_api::backend;
+use sc_client_db::Backend;
+use sp_api::{ApiExt, ConstructRuntimeApi};
+use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
 
@@ -36,23 +38,22 @@ use std::{env, sync::Arc};
 /// Deals with starting and stopping the Archive Runtime
 /// # Examples
 /// ```
-///let archive = Archive::init::<ksm_runtime::Runtime, _>(
+///let archive = Actors::init::<ksm_runtime::Runtime, _>(
 ///     client,
 ///     "ws://127.0.0.1:9944".to_string(),
 ///     keys.as_slice(),
 ///     None
 /// ).unwrap();
 ///
-/// Archive::block_until_stopped();
-/// 
+/// Actors::block_until_stopped();
+///
 ///
 /// ```
-pub struct Archive {
+pub struct ArchiveContext {
     workers: std::collections::HashMap<String, ChildrenRef>,
 }
 
-impl Archive {
-
+impl ArchiveContext {
     // TODO: Return a reference to the Db pool.
     // just expose a 'shutdown' fn that must be called in order to avoid missing data.
     // or just return an archive object for general telemetry/ops.
@@ -60,49 +61,47 @@ impl Archive {
     // to make configuring this easier.
     /// Initialize substrate archive.
     /// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
-    /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the 
+    /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the
     /// environment variable `DATABASE_URL` instead.
-    pub fn init<T, C>(
+    pub fn init<T, Runtime, ClientApi, C>(
         client: Arc<C>,
+        _client_api: Arc<ClientApi>,
+        _backend: Backend<NotSignedBlock<T>>,
         url: String,
-        keys: &[StorageKey],
-        psql_url: Option<&str>
+        psql_url: Option<&str>,
     ) -> Result<Self, ArchiveError>
     where
         T: Substrate + Send + Sync,
         C: ChainAccess<NotSignedBlock<T>> + 'static,
+        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi>,
+        Runtime::RuntimeApi: BlockBuilderApi<NotSignedBlock<T>, Error = sp_blockchain::Error>
+            + ApiExt<
+                NotSignedBlock<T>,
+                StateBackend = backend::StateBackendFor<
+                    Backend<NotSignedBlock<T>>,
+                    NotSignedBlock<T>,
+                >,
+            >,
+        ClientApi: ApiAccess<NotSignedBlock<T>, Backend<NotSignedBlock<T>>, Runtime> + 'static,
         <T as System>::BlockNumber: Into<u32>,
         <T as System>::Hash: From<primitive_types::H256>,
         <T as System>::Header: serde::de::DeserializeOwned,
+        <T as System>::BlockNumber: From<u32>,
     {
-        let mut workers = std::collections::HashMap::new(); 
-        
+        let mut workers = std::collections::HashMap::new();
+
         Bastion::init();
         let pool = if let Some(url) = psql_url {
-            run!(PgPool::builder()
-                .max_size(10)
-                .build(url))?
+            run!(PgPool::builder().max_size(32).build(url))?
         } else {
             log::warn!("No url passed on initialization, using environment variable");
-            run!(
-                PgPool::builder()
-                    .max_size(10)
-                    .build(&env::var("DATABASE_URL")?)
-            )?
+            run!(PgPool::builder()
+                .max_size(10)
+                .build(&env::var("DATABASE_URL")?))?
         };
 
-        // Normally workers aren't started on the top-level
-        // however we want access to this in order to send messages on program shutdown
-        let defer_workers = workers::defer_storage::<T>(pool.clone())?;
-        let storage = self::generators::storage::<T, _>(
-            client.clone(),
-            pool.clone(),
-            keys.to_vec(),
-            defer_workers.clone(),
-        )?;
-
-        workers.insert("defer".into(), defer_workers);
-        workers.insert("storage".into(), storage);
+        // create storage generator here
+        // workers.insert("storage".into(), storage.clone());
 
         // network generator. Gets headers from network but uses client to fetch block bodies
         let network = self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())?;
@@ -113,10 +112,8 @@ impl Archive {
         workers.insert("missing".into(), missing);
 
         Bastion::start();
-        
-        Ok (Self {
-            workers,
-        })
+
+        Ok(Self { workers })
     }
 
     /// Run indefinitely
@@ -133,70 +130,20 @@ impl Archive {
         log::info!("Shutting down");
         Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send messsage");
         for (name, worker) in self.workers.iter() {
-            if name != "defer" {
-                worker.stop().expect(format!("Couldn't stop worker {}", name).as_str());
-            }
+            worker
+                .stop()
+                .expect(format!("Couldn't stop worker {}", name).as_str());
         }
-        finish_work(self.workers.get("defer").expect("Defer workers must exist")).await;
         Bastion::kill();
         log::info!("Shut down succesfully");
         Ok(())
     }
 }
 
-/// Finish working on storage that can't be inserted into db yet.
-/// We send a message to every defer_storage worker in order to 
-/// ask if they are done putting away defered storage, and then return.
-async fn finish_work(defer_workers: &ChildrenRef) {
-    loop {
-        let mut answers_needed = defer_workers.elems().len();
-        let mut answers = Vec::new();
-        for worker in defer_workers.elems() {
-            let ans = worker
-                .ask_anonymously(ArchiveQuestion::IsStorageDone)
-                .expect("Couldn't send shutdown message to defer storage");
-            answers.push(ans);
-        }
-        let answers = futures::future::join_all(answers).await;
-        for answer in answers.into_iter() {
-            msg! {
-                answer.expect("Could not receive answer"),
-                msg: ArchiveAnswer => {
-                    match msg {
-                        ArchiveAnswer::StorageIsDone => {
-                            answers_needed -= 1;
-                        },
-                        ArchiveAnswer::StorageNotDone => {
-                            timer::Delay::new(std::time::Duration::from_millis(10)).await;
-                            continue;
-                        }
-                        e @ _ => log::warn!("Unexpected Answer {:?}", e)
-                    };
-                };
-                e: _ => log::warn!("Unexpected message {:?}", e);
-            }
-        }
-        if answers_needed == 0 {
-            break;
-        } else {
-            timer::Delay::new(std::time::Duration::from_millis(10)).await;
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ArchiveQuestion {
-    /// as storage actors if the storage is finished being deferred
-    IsStorageDone,
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum ArchiveAnswer {
+    /// Default answer; will be returned when an 'ask' message is sent to an actor
     Success,
-    /// Storage actor response that Storage is Done
-    StorageIsDone,
-    /// Storage actor response that storage is not finished saving progress
-    StorageNotDone,
 }
 
 /// Messages that are sent to every actor if something happens that must be handled globally

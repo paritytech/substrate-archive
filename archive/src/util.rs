@@ -20,7 +20,9 @@ use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
 use std::path::{Path, PathBuf};
 
-// panics if it fails because of anything other than the directory already exists
+/// create an arbitrary directory on disk
+/// panics if it fails because of anything other than the directory already exists
+#[allow(unused)]
 pub fn create_dir(path: &Path) {
     match std::fs::create_dir_all(path) {
         Err(e) => match e.kind() {
@@ -34,6 +36,8 @@ pub fn create_dir(path: &Path) {
     }
 }
 
+/// get the path to a local substrate directory where we can save data
+#[allow(unused)]
 pub fn substrate_dir() -> PathBuf {
     if let Some(base_dirs) = dirs::BaseDirs::new() {
         let mut path = base_dirs.data_local_dir().to_path_buf();

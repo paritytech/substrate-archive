@@ -26,7 +26,7 @@ use crate::{
     backend::ChainAccess,
     error::Error as ArchiveError,
     queries,
-    types::{NotSignedBlock, Substrate, System},
+    types::{NotSignedBlock, Substrate, SubstrateBlock, System},
 };
 use bastion::prelude::*;
 use sp_runtime::generic::BlockId;
@@ -79,6 +79,8 @@ async fn entry<T, C>(
 where
     T: Substrate + Send + Sync,
     C: ChainAccess<NotSignedBlock<T>> + 'static,
+    // <T as System>::Block: serde::Serialize + serde::de::DeserializeOwned,
+    NotSignedBlock<T>: serde::Serialize + serde::de::DeserializeOwned,
 {
     let block_nums = queries::missing_blocks(&pool).await?;
     log::info!("missing {} blocks", block_nums.len());
@@ -92,17 +94,31 @@ where
         block_nums[0].generate_series,
         block_nums[block_nums.len() - 1].generate_series
     );
-    let mut blocks = Vec::new();
-    for block_num in block_nums.iter() {
-        let num = block_num.generate_series as u32;
-        let b = client.block(&BlockId::Number(T::BlockNumber::from(num)))?;
-        if b.is_none() {
-            log::warn!("Block does not exist!")
-        } else {
-            blocks.push(b.expect("Checked for none; qed"));
+    let client = client.clone();
+    let now = std::time::Instant::now();
+    let blocks: Vec<SubstrateBlock<T>> = blocking!((move || {
+        let mut blocks = Vec::new();
+        for block_num in block_nums.iter() {
+            let num = block_num.generate_series as u32;
+            let b = client
+                .block(&BlockId::Number(T::BlockNumber::from(num)))
+                .expect("Error getting block");
+            if b.is_none() {
+                log::warn!("Block does not exist!")
+            } else {
+                blocks.push(b.expect("Checked for none; qed"));
+            }
         }
-    }
-    log::info!("Got {} blocks", blocks.len());
+        blocks
+    })())
+    .await
+    .unwrap();
+    let elapsed = now.elapsed();
+    log::info!(
+        "Took {} seconds to crawl {} missing blocks",
+        elapsed.as_secs(),
+        blocks.len()
+    );
     let answer = sched.ask_next("meta", blocks)?.await;
     log::debug!("{:?}", answer);
     Ok(())

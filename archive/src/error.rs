@@ -13,11 +13,11 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use bincode::ErrorKind as BincodeError;
 use codec::Error as CodecError;
 use failure::Fail;
 use jsonrpsee::client::RequestError as JsonrpseeRequest;
 use jsonrpsee::transport::ws::WsNewDnsError;
+use sc_service::Error as ServiceError;
 use serde_json::Error as SerdeError;
 use sp_blockchain::Error as BlockchainError;
 use sqlx::Error as SqlError;
@@ -47,14 +47,21 @@ pub enum Error {
         to: String,
         details: String,
     },
-    #[fail(display = "Bincode encoding {}", _0)]
-    Bincode(#[fail(cause)] Box<BincodeError>),
     #[fail(display = "Rpc Request {}", _0)]
     JsonrpseeRequest(#[fail(cause)] JsonrpseeRequest),
     #[fail(display = "Ws DNS Failure {}", _0)]
     WsDns(#[fail(cause)] WsNewDnsError),
+    #[fail(display = "Service Error {}", _0)]
+    ServiceError(String),
     #[fail(display = "Unexpected Error Occurred: {}", _0)]
     General(String),
+}
+
+impl From<ServiceError> for Error {
+    fn from(err: ServiceError) -> Error {
+        let err = format!("{:?}", err);
+        Error::ServiceError(err)
+    }
 }
 
 impl From<WsNewDnsError> for Error {
@@ -66,12 +73,6 @@ impl From<WsNewDnsError> for Error {
 impl From<JsonrpseeRequest> for Error {
     fn from(err: JsonrpseeRequest) -> Error {
         Error::JsonrpseeRequest(err)
-    }
-}
-
-impl From<Box<BincodeError>> for Error {
-    fn from(err: Box<BincodeError>) -> Error {
-        Error::Bincode(err)
     }
 }
 
@@ -90,6 +91,12 @@ impl From<SqlError> for Error {
 impl From<&str> for Error {
     fn from(err: &str) -> Error {
         Error::General(err.to_string())
+    }
+}
+
+impl From<String> for Error {
+    fn from(err: String) -> Error {
+        Error::General(err)
     }
 }
 

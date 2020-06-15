@@ -17,42 +17,33 @@
 //! A simple example
 
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use substrate_archive::{backend, twox_128, Archive, StorageKey};
+use std::sync::Arc;
+use substrate_archive::{backend, twox_128, Archive, ArchiveConfig, ArchiveContext, StorageKey};
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
+
+    let conf = ArchiveConfig {
+        db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
+        rpc_url: "ws://127.0.0.1:9944".into(),
+        psql_url: None,
+        cache_size: 8192,
+    };
+
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-
-    // Open a RocksDB Database for the node we want to index
-    let path = std::path::PathBuf::from("/home/insipx/.local/share/polkadot/chains/ksmcc4/db");
-    let db = backend::open_database::<Block>(path.as_path(), 8192, spec.name(), spec.id()).unwrap();
-
-    let client =
-        backend::client::<Block, ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor, _>(
-            db, spec,
-        )
+    let archive = Archive::new(conf, spec).unwrap();
+    let client = archive
+        .client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
+        .unwrap();
+    let api_client = archive
+        .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
+        .unwrap();
+    let api_client = Arc::new(api_client);
+    let _context = archive
+        .run_with::<ksm_runtime::Runtime, ksm_runtime::RuntimeApi, _, _>(client, api_client)
         .unwrap();
 
-    // create the keys we want to query storage for
-    let system_key = twox_128(b"System").to_vec();
-    let accounts_key = twox_128(b"Account").to_vec();
-    let mut keys = Vec::new();
-
-    let mut system_accounts = system_key.clone();
-    system_accounts.extend(accounts_key);
-
-    keys.push(StorageKey(system_accounts));
-
-    // initialize the Archive runtime
-    let archive = Archive::init::<ksm_runtime::Runtime, _>(
-        client,
-        "ws://127.0.0.1:9944".to_string(),
-        keys.as_slice(),
-        None,
-    )
-    .unwrap();
-
     // run indefinitely
-    Archive::block_until_stopped().unwrap();
+    ArchiveContext::block_until_stopped().unwrap();
 }

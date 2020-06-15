@@ -67,6 +67,9 @@ where
                 crate::archive_answer!(sched.context(), super::ArchiveAnswer::Success)?;
             };
             meta: Metadata =!> {
+                // we ask here because metadata needs to be inserted
+                // before blocks. This gives the caller the opportunity to wait for
+                // that event as well
                 let v = sched.ask_next("db", meta)?.await;
                 log::debug!("{:?}", v);
             };
@@ -104,7 +107,7 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     log::info!("Got {} blocks", blocks.len());
-    
+
     let batch_blocks = BatchBlock::new(blocks);
     let ext: Vec<Extrinsic<T>> = (&batch_blocks).into();
 

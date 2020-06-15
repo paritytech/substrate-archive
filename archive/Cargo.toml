@@ -1,6 +1,6 @@
 [package]
 name = "substrate-archive"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
 edition = "2018"
 
@@ -24,11 +24,12 @@ tempdir = "0.3.7"
 sqlx = { version = "0.3.5", features = ["postgres"] }
 async-trait = "0.1.31"
 hex = "0.4.2"
-flate2 = "1.0.14"
-bincode = "1.2.1"
 bastion-executor = "0.3.4"
 lightproc = "0.3.4"
 itertools = "0.9.0"
+num_cpus = "1.13.0"
+threadpool = "1.8.1"
+crossbeam = "0.7.3"
 
 # Parity
 primitive-types = "0.7"
@@ -37,6 +38,9 @@ kvdb = "0.6"
 kvdb-rocksdb = "0.8"
 parity-util-mem = "0.6.1"
 codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
+trie-db = "0.20.1"
+hash-db = "0.15.2"
+memory-db = "0.21.0"
 
 # Substrate
 sp-database = { git = "https://github.com/paritytech/substrate", branch = "master", package="sp-database" }
@@ -46,20 +50,24 @@ sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-runtime" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-client-api" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-blockchain" }
-substrate-rpc-primitives = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-rpc" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-api" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-block-builder" }
 runtime-version = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-version" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-executor" }
-sc-transaction-graph = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-transaction-graph" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["wasmtime"], package = "sc-executor" }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-system" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" } 
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
+parking_lot = "0.10.2"
+
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", tag = "v0.8.7", default-features = false }
 pretty_env_logger = "0.4.0"
-
+# used in tests for storing test data on disk
+flate2 = "1.0.14"
+bincode = "1.2.1"
 
 [features]
 default = []
