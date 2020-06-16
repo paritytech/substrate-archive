@@ -30,6 +30,7 @@ itertools = "0.9.0"
 num_cpus = "1.13.0"
 threadpool = "1.8.1"
 crossbeam = "0.7.3"
+parking_lot = "0.10.2"
 
 # Parity
 primitive-types = "0.7"
@@ -38,9 +39,9 @@ kvdb = "0.6"
 kvdb-rocksdb = "0.8"
 parity-util-mem = "0.6.1"
 codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
-trie-db = "0.20.1"
-hash-db = "0.15.2"
-memory-db = "0.21.0"
+trie-db = "0.20"
+hash-db = "0.15"
+memory-db = "0.21"
 
 # Substrate
 sp-database = { git = "https://github.com/paritytech/substrate", branch = "master", package="sp-database" }
@@ -58,7 +59,6 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-system" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" } 
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
-parking_lot = "0.10.2"
 
 
 [dev-dependencies]

@@ -156,7 +156,7 @@ impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for DbGenesisStora
 mod tests {
     #[allow(unused)]
     use super::*;
-    use crate::backend::test_harness;
+    use crate::backend::test_util::harness;
     use crate::{twox_128, StorageKey};
     use codec::Decode;
     use polkadot_service::Block;
@@ -175,7 +175,7 @@ mod tests {
 
     #[test]
     fn should_create_new() {
-        test_harness::harness(DB, |db| {
+        harness(DB, |db| {
             ReadOnlyBackend::<Block>::new(db, false);
         });
     }
@@ -195,7 +195,7 @@ mod tests {
             .unwrap();
         let hash = H256::from_slice(hash.as_slice());
 
-        test_harness::harness(DB, |db| {
+        harness(DB, |db| {
             let db = ReadOnlyBackend::<Block>::new(db, true);
             let time = Instant::now(); // FIXME: bootleg benchmark. #[bench] not stabilized yet
             let val = db.storage(hash, key1.as_slice()).unwrap();
@@ -221,7 +221,7 @@ mod tests {
         let hash = H256::from_slice(hash.as_slice());
         let key = balances_freebalance_key();
 
-        test_harness::harness(DB, |db| {
+        harness(DB, |db| {
             let db = ReadOnlyBackend::<Block>::new(db, true);
             let time = Instant::now();
             let keys = db.storage_keys(hash, key.0.as_slice());

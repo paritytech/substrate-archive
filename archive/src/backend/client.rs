@@ -35,13 +35,7 @@ use super::{ApiAccess, ChainAccess, RuntimeApiCollection};
 pub fn runtime_api<Block, Runtime, Dispatch, Spec>(
     db_config: DatabaseConfig,
     spec: Spec,
-) -> Result<
-    (
-        impl ApiAccess<Block, TFullBackend<Block>, Runtime>,
-        Arc<Backend<Block>>,
-    ),
-    ServiceError,
->
+) -> Result<impl ApiAccess<Block, TFullBackend<Block>, Runtime>, ServiceError>
 where
     Block: BlockT,
     Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>
@@ -76,13 +70,13 @@ where
         None,
         None,
         ExecutionExtensions::new(execution_strategies(), None),
-        Box::new(TaskExecutor::new()),
+        task_executor(),
         None,
         Default::default(),
     )
     .expect("client instantiation failed");
 
-    Ok((client, backend))
+    Ok(client)
 }
 
 // create a macro `new_archive!` to simplify all these type constraints in the archive node library
@@ -113,47 +107,13 @@ where
         None,
         None,
         ExecutionExtensions::new(ExecutionStrategies::default(), None),
-        Box::new(TaskExecutor::new()),
+        task_executor(),
         None,
         Default::default(),
     )
     .expect("client instantiation failed");
 
     Ok(client)
-}
-
-#[derive(Debug, Clone)]
-pub struct TaskExecutor {
-    pool: futures::executor::ThreadPool,
-}
-
-impl TaskExecutor {
-    fn new() -> Self {
-        let cpus = num_cpus::get();
-        let pool = futures::executor::ThreadPoolBuilder::new()
-            .pool_size(cpus)
-            .stack_size(8_000_000)
-            .name_prefix("archive-wasm-")
-            .create();
-        Self {
-            pool: pool.expect("Failed to create executor"),
-        }
-    }
-}
-
-impl futures::task::Spawn for TaskExecutor {
-    fn spawn_obj(
-        &self,
-        future: futures::task::FutureObj<'static, ()>,
-    ) -> Result<(), futures::task::SpawnError> {
-        self.pool.spawn_obj(future)
-    }
-}
-
-impl CloneableSpawn for TaskExecutor {
-    fn clone(&self) -> Box<dyn CloneableSpawn> {
-        Box::new(Clone::clone(self))
-    }
 }
 
 fn execution_strategies() -> ExecutionStrategies {

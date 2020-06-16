@@ -98,10 +98,8 @@ where
             sp_api::StateBackend<BlakeTwo256>,
     {
         let db_config = self.make_db_conf()?;
-        let (client, _) =
-            backend::runtime_api::<Block, Runtime, Dispatch, _>(db_config, self.spec.clone())
-                .map_err(ArchiveError::from)?;
-        Ok(client)
+        backend::runtime_api::<Block, Runtime, Dispatch, _>(db_config, self.spec.clone())
+            .map_err(ArchiveError::from)
     }
 
     /// Internal API to open the rocksdb database

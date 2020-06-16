@@ -17,11 +17,15 @@
 //! Executes blocks to get storage changes without traversing changes trie
 //! Contains a ThreadedBlockExecutor that executes blocks concurrently
 
-use crate::{backend::ApiAccess, error::Error as ArchiveError, types::*};
+use crate::{
+    backend::{ApiAccess, ReadOnlyBackend as Backend},
+    error::Error as ArchiveError,
+    types::*,
+};
 use crossbeam::deque::{Injector, /*Steal,*/ Stealer, Worker};
 use frame_system::Trait as System;
 use sc_client_api::backend;
-use sc_client_db::Backend;
+// use sc_client_db::Backend;
 use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
