@@ -72,3 +72,4 @@ bincode = "1.2.1"
 [features]
 default = []
 logging = ["chrono", "fern"]
+test_rocksdb = []

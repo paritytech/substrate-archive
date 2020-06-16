@@ -489,6 +489,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn should_execute_blocks_concurrently() {
         pretty_env_logger::try_init();
 
