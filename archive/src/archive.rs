@@ -16,14 +16,17 @@
 
 use crate::{
     actors::ArchiveContext,
-    backend::{self, ApiAccess, ReadOnlyBackend, RuntimeApiCollection},
+    backend::{
+        self,
+        frontend::{Client, TArchiveClient},
+        ApiAccess, ReadOnlyBackend, ReadOnlyDatabase, RuntimeApiCollection,
+    },
     error::Error as ArchiveError,
     types::*,
 };
+use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
-use sc_client_db::Backend;
 use sc_executor::NativeExecutionDispatch;
-use sc_service::{config::DatabaseConfig, ChainSpec, TFullBackend};
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
@@ -65,15 +68,15 @@ where
     /// returns an Api Client with the associated backend
     pub fn api_client<Runtime, Dispatch>(
         &self,
-    ) -> Result<impl ApiAccess<Block, TFullBackend<Block>, Runtime>, ArchiveError>
+    ) -> Result<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>, ArchiveError>
     where
-        Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>
+        Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>>
             + Send
             + Sync
             + 'static,
         Runtime::RuntimeApi: RuntimeApiCollection<
                 Block,
-                StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>,
+                StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block>, Block>,
             > + Send
             + Sync
             + 'static,
@@ -81,21 +84,18 @@ where
         <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend:
             sp_api::StateBackend<BlakeTwo256>,
     {
-        let db_config = self.make_db_conf()?;
-        backend::runtime_api::<Block, Runtime, Dispatch, _>(db_config, self.spec.clone())
+        let db = self.make_database()?;
+        backend::runtime_api::<Block, Runtime, Dispatch, _>(db, self.spec.clone())
             .map_err(ArchiveError::from)
     }
 
-    /// Internal API to open the rocksdb database
-    pub(crate) fn make_db_conf(&self) -> Result<DatabaseConfig, ArchiveError> {
-        let db_path = std::path::PathBuf::from(self.db_url.as_str());
-        let db_config = backend::open_database(
-            db_path.as_path(),
+    pub(crate) fn make_database(&self) -> Result<ReadOnlyDatabase, ArchiveError> {
+        Ok(backend::util::open_database(
+            self.db_url.as_str(),
             self.cache_size,
             self.spec.name(),
             self.spec.id(),
-        )?;
-        Ok(db_config)
+        )?)
     }
 
     pub(crate) fn make_backend<T>(&self) -> Result<ReadOnlyBackend<NotSignedBlock<T>>, ArchiveError>
@@ -105,12 +105,7 @@ where
         <T as System>::Hash: From<primitive_types::H256>,
         <T as System>::Header: serde::de::DeserializeOwned,
     {
-        let db = backend::util::open_db(
-            self.db_url.as_str(),
-            self.cache_size,
-            self.spec.name(),
-            self.spec.id(),
-        )?;
+        let db = self.make_database()?;
         Ok(ReadOnlyBackend::new(db, true))
     }
 
@@ -126,11 +121,12 @@ where
             + ApiExt<
                 NotSignedBlock<T>,
                 StateBackend = api_backend::StateBackendFor<
-                    Backend<NotSignedBlock<T>>,
+                    ReadOnlyBackend<NotSignedBlock<T>>,
                     NotSignedBlock<T>,
                 >,
             >,
-        ClientApi: ApiAccess<NotSignedBlock<T>, Backend<NotSignedBlock<T>>, Runtime> + 'static,
+        ClientApi:
+            ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
         <T as System>::BlockNumber: Into<u32>,
         <T as System>::Hash: From<primitive_types::H256>,
         <T as System>::Header: serde::de::DeserializeOwned,

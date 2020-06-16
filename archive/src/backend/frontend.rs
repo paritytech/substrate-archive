@@ -15,38 +15,52 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod client;
-
+mod executor;
+pub use self::client::Client;
 use sc_client_api::{
     execution_extensions::{ExecutionExtensions, ExecutionStrategies},
     ExecutionStrategy,
 };
-use sc_client_db::Backend;
+// use sc_client_db::Backend;
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
+/*
 use sc_service::{
     config::{DatabaseConfig, PruningMode},
     error::Error as ServiceError,
     ChainSpec, TFullBackend,
 };
+*/
+use self::executor::ArchiveExecutor;
+use crate::{backend::database::ReadOnlyDatabase, error::Error as ArchiveError};
+use sc_chain_spec::ChainSpec;
 use sp_api::ConstructRuntimeApi;
 use sp_core::{tasks::executor as task_executor, traits::CloneableSpawn};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
 
-use super::{ApiAccess, RuntimeApiCollection};
+use super::{ApiAccess, ReadOnlyBackend, RuntimeApiCollection};
+
+/// Archive Client Condensed Type
+pub type TArchiveClient<TBl, TRtApi, TExecDisp> =
+    Client<TFullCallExecutor<TBl, TExecDisp>, TBl, TRtApi>;
+
+/// Full client call executor type.
+type TFullCallExecutor<TBl, TExecDisp> =
+    self::executor::ArchiveExecutor<ReadOnlyBackend<TBl>, NativeExecutor<TExecDisp>>;
 
 pub fn runtime_api<Block, Runtime, Dispatch, Spec>(
-    db_config: DatabaseConfig,
+    db: ReadOnlyDatabase,
     spec: Spec,
-) -> Result<impl ApiAccess<Block, TFullBackend<Block>, Runtime>, ServiceError>
+) -> Result<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>, ArchiveError>
 where
     Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>
+    Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>>
         + Send
         + Sync
         + 'static,
     Runtime::RuntimeApi: RuntimeApiCollection<
             Block,
-            StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>,
+            StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block>, Block>,
         > + Send
         + Sync
         + 'static,
@@ -54,30 +68,18 @@ where
     Spec: ChainSpec + 'static,
     <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
-    let db_settings = sc_client_db::DatabaseSettings {
-        state_cache_size: 1024,
-        state_cache_child_ratio: None,
-        pruning: PruningMode::ArchiveAll,
-        source: db_config,
-    };
+    // FIXME: prefix keys
 
-    let (client, backend) = sc_service::new_client::<_, Block, Runtime>(
-        db_settings,
-        NativeExecutor::<Dispatch>::new(
-            WasmExecutionMethod::Compiled,
-            /*Some(16384),*/ Some(4096),
-            2,
-        ),
-        &spec,
-        None,
-        None,
+    let backend = Arc::new(ReadOnlyBackend::new(db, true));
+
+    let executor = NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Compiled, Some(4096), 16);
+    let executor = ArchiveExecutor::new(backend.clone(), executor, task_executor());
+
+    let client = Client::new(
+        backend,
+        executor,
         ExecutionExtensions::new(execution_strategies(), None),
-        task_executor(),
-        None,
-        Default::default(),
-    )
-    .expect("client instantiation failed");
-
+    )?;
     Ok(client)
 }
 

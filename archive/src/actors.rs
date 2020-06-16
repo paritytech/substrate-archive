@@ -28,7 +28,6 @@ use super::{
 };
 use bastion::prelude::*;
 use sc_client_api::backend;
-use sc_client_db::Backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sqlx::postgres::PgPool;
@@ -76,11 +75,12 @@ impl ArchiveContext {
             + ApiExt<
                 NotSignedBlock<T>,
                 StateBackend = backend::StateBackendFor<
-                    Backend<NotSignedBlock<T>>,
+                    ReadOnlyBackend<NotSignedBlock<T>>,
                     NotSignedBlock<T>,
                 >,
             >,
-        ClientApi: ApiAccess<NotSignedBlock<T>, Backend<NotSignedBlock<T>>, Runtime> + 'static,
+        ClientApi:
+            ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
         <T as System>::BlockNumber: Into<u32>,
         <T as System>::Hash: From<primitive_types::H256>,
         <T as System>::Header: serde::de::DeserializeOwned,

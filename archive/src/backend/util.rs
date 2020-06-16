@@ -23,7 +23,7 @@ use crate::{
 use codec::Decode;
 use kvdb::DBValue;
 use kvdb_rocksdb::DatabaseConfig;
-use sc_service::config::DatabaseConfig as DBConfig;
+// use sc_service::config::DatabaseConfig as DBConfig;
 use sp_database::Database as DatabaseTrait;
 use sp_runtime::{
     generic::BlockId,
@@ -35,25 +35,8 @@ pub const NUM_COLUMNS: u32 = 11;
 
 pub type NumberIndexKey = [u8; 4];
 
-// taken from substrate/client/db/src/lib.rs
-const DB_HASH_LEN: usize = 32;
-pub type DbHash = [u8; DB_HASH_LEN];
-
-/// Open a rocksdb Database as Read-Only
-pub fn open_database(
-    path: &Path,
-    cache_size: usize,
-    chain: &str,
-    id: &str,
-) -> sp_blockchain::Result<DBConfig> {
-    let path = path.to_str().expect("Path to rocksdb not valid UTF-8");
-    let db = open_db(path, cache_size, chain, id)?;
-    let db = sp_database::as_database(db);
-    Ok(DBConfig::Custom(db))
-}
-
 /// Open a database as read-only
-pub(crate) fn open_db(
+pub fn open_database(
     path: &str,
     cache_size: usize,
     chain: &str,

@@ -21,8 +21,8 @@ use jsonrpsee::{
     common::{to_value as to_json_value, Params},
     Client,
 };
-use runtime_version::RuntimeVersion;
 use sp_core::Bytes;
+use sp_version::RuntimeVersion;
 use std::marker::PhantomData;
 
 use crate::{error::Error as ArchiveError, types::Substrate};

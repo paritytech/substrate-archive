@@ -21,6 +21,7 @@
 //! It's recommended to use the backend (ReadOnlyBackend) for anything that requires getting blocks, querying
 //! storage, or similar operations. Client usage should be reserved for calling into the Runtime
 
+use super::executor::ArchiveExecutor;
 use crate::{
     backend::{ReadOnlyBackend, TrieState},
     error::ArchiveResult,
@@ -30,13 +31,13 @@ use codec::{Decode, Encode};
 use sc_client_api::{
     backend::Backend as _, execution_extensions::ExecutionExtensions, CallExecutor,
 };
-use sc_executor::RuntimeVersion;
+use sc_executor::{RuntimeInfo, RuntimeVersion};
 use sp_api::{
     ApiExt, ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Core as CoreApi,
     ProvideRuntimeApi,
 };
 use sp_blockchain::HeaderBackend as _;
-use sp_core::NativeOrEncoded;
+use sp_core::{tasks::executor as task_executor, traits::CodeExecutor, NativeOrEncoded};
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, Header as HeaderT, One},
