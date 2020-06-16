@@ -20,14 +20,12 @@ use crate::{
     twox_128, Archive, ArchiveConfig, ArchiveContext, StorageKey,
 };
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use sc_client_db::Backend;
-use sc_service::TFullBackend;
 use sp_api::ProvideRuntimeApi;
 use std::sync::Arc;
 
 pub fn client(
     db: &str,
-) -> Arc<impl ApiAccess<Block, TFullBackend<Block>, ksm_runtime::RuntimeApi>> {
+) -> Arc<impl ApiAccess<Block, ReadOnlyBackend<Block>, ksm_runtime::RuntimeApi>> {
     let conf = ArchiveConfig {
         db_url: db.into(),
         rpc_url: "ws://127.0.0.1:9944".into(),
@@ -41,10 +39,7 @@ pub fn client(
     let client = archive
         .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
         .unwrap();
-    let backend = archive.make_backend::<ksm_runtime::Runtime>().unwrap();
-    let client = Arc::new(client);
-    let backend = Arc::new(backend);
-    client
+    Arc::new(client)
 }
 
 pub fn backend(db: &str) -> ReadOnlyBackend<Block> {
@@ -63,7 +58,7 @@ pub fn backend(db: &str) -> ReadOnlyBackend<Block> {
 pub fn many_clients(
     db: &str,
     amount: usize,
-) -> Vec<Arc<impl ApiAccess<Block, TFullBackend<Block>, ksm_runtime::RuntimeApi>>> {
+) -> Vec<Arc<impl ApiAccess<Block, ReadOnlyBackend<Block>, ksm_runtime::RuntimeApi>>> {
     let conf = ArchiveConfig {
         db_url: db.into(),
         rpc_url: "ws://127.0.0.1:9944".into(),

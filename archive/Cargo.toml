@@ -45,10 +45,6 @@ memory-db = "0.21"
 
 # Substrate
 sp-database = { git = "https://github.com/paritytech/substrate", branch = "master", package="sp-database" }
-
-# sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-service" }
-# sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-client-db" }
-
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-storage" }
 sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-externalities" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-runtime" }

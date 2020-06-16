@@ -447,11 +447,7 @@ mod tests {
         let full_client = test_util::backend(DB_STR);
         let id = BlockId::Number(50970);
         // let header = full_client.header(id).unwrap().expect("No such block exists!");
-        let block = full_client
-            .block(&id)
-            .unwrap()
-            .expect("No such block exists!")
-            .block;
+        let block = full_client.block(&id).unwrap().block;
         let client = test_util::client(DB_STR);
         let backend = Arc::new(test_util::backend(DB_STR));
 
@@ -460,18 +456,16 @@ mod tests {
     }
 
     #[test]
-    fn should_execute_blocks() {
+    fn should_execute_a_block() {
         pretty_env_logger::try_init();
-        let backend = test_util::backend(DB_STR);
+        let backend = Arc::new(test_util::backend(DB_STR));
         let client = test_util::client(DB_STR);
         // let id = BlockId::Number(50970);
         // let id = BlockId::Number(1_730_000);
         let id = BlockId::Number(1_990_123);
-        let block = backend
-            .block(&id)
-            .unwrap()
-            .expect("No such block exists!")
-            .block;
+        let block = backend.block(&id).unwrap().block;
+
+        println!("Starting the API!");
 
         let api = client.runtime_api();
         let time = std::time::Instant::now();
@@ -479,6 +473,7 @@ mod tests {
         match executor.block_into_storage() {
             Ok(result) => {
                 let elapsed = time.elapsed();
+                println!("{:?}", result);
                 println!(
                     "Took {} seconds, {} milli-seconds, {} micro-seconds, {} nano-sconds",
                     elapsed.as_secs(),
