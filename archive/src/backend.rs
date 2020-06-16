@@ -17,16 +17,16 @@
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
 mod block_executor;
-mod client;
 mod database;
+mod frontend;
 mod read_only_backend;
 #[cfg(test)]
 mod test_util;
 pub mod util;
 
 pub use self::block_executor::{BlockChanges, BlockExecutor};
-pub use self::read_only_backend::ReadOnlyBackend;
-pub use self::{client::runtime_api, util::open_database};
+pub use self::read_only_backend::{ReadOnlyBackend, TrieState};
+pub use self::{frontend::runtime_api, util::open_database};
 use sc_client_api::Backend as BackendT;
 use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
 use sc_executor::NativeExecutionDispatch;

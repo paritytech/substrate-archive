@@ -28,7 +28,8 @@ mod main_backend;
 mod misc_backend;
 mod state_backend;
 
-use self::state_backend::{DbHash, DbState, StateVault, TrieState};
+pub use self::state_backend::TrieState;
+use self::state_backend::{DbHash, DbState, StateVault};
 use super::database::ReadOnlyDatabase;
 use super::util::columns;
 use codec::Decode;
