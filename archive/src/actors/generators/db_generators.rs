@@ -23,7 +23,7 @@ use crate::actors::{
     workers,
 };
 use crate::{
-    backend::ChainAccess,
+    backend::ReadOnlyBackend,
     error::Error as ArchiveError,
     queries,
     types::{NotSignedBlock, Substrate, SubstrateBlock, System},
@@ -33,14 +33,13 @@ use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
 use std::sync::Arc;
 
-pub fn actor<T, C>(
-    client: Arc<C>,
+pub fn actor<T>(
+    client: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
     pool: sqlx::Pool<PgConnection>,
     url: String,
 ) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
@@ -58,7 +57,7 @@ where
                     if handle_shutdown(&ctx).await {
                         break;
                     }
-                    match entry::<T, _>(&client, &pool, &mut sched).await {
+                    match entry::<T>(&client, &pool, &mut sched).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
@@ -71,15 +70,13 @@ where
     .map_err(|_| ArchiveError::from("Could not instantiate database generator"))
 }
 
-async fn entry<T, C>(
-    client: &Arc<C>,
+async fn entry<T>(
+    client: &Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
     pool: &sqlx::Pool<PgConnection>,
     sched: &mut Scheduler<'_>,
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock<T>> + 'static,
-    // <T as System>::Block: serde::Serialize + serde::de::DeserializeOwned,
     NotSignedBlock<T>: serde::Serialize + serde::de::DeserializeOwned,
 {
     let block_nums = queries::missing_blocks(&pool).await?;
@@ -100,9 +97,8 @@ where
         let mut blocks = Vec::new();
         for block_num in block_nums.iter() {
             let num = block_num.generate_series as u32;
-            let b = client
-                .block(&BlockId::Number(T::BlockNumber::from(num)))
-                .expect("Error getting block");
+            let b = client.block(&BlockId::Number(T::BlockNumber::from(num)));
+
             if b.is_none() {
                 log::warn!("Block does not exist!")
             } else {

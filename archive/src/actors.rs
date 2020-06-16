@@ -22,7 +22,7 @@ mod scheduler;
 mod workers;
 
 use super::{
-    backend::{ApiAccess, ChainAccess},
+    backend::{ApiAccess, ReadOnlyBackend},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
@@ -63,16 +63,14 @@ impl ArchiveContext {
     /// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
     /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the
     /// environment variable `DATABASE_URL` instead.
-    pub fn init<T, Runtime, ClientApi, C>(
-        client: Arc<C>,
-        _client_api: Arc<ClientApi>,
-        _backend: Backend<NotSignedBlock<T>>,
+    pub fn init<T, Runtime, ClientApi>(
+        client_api: Arc<ClientApi>,
+        backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
         url: String,
         psql_url: Option<&str>,
     ) -> Result<Self, ArchiveError>
     where
         T: Substrate + Send + Sync,
-        C: ChainAccess<NotSignedBlock<T>> + 'static,
         Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi>,
         Runtime::RuntimeApi: BlockBuilderApi<NotSignedBlock<T>, Error = sp_blockchain::Error>
             + ApiExt<
@@ -104,11 +102,11 @@ impl ArchiveContext {
         // workers.insert("storage".into(), storage.clone());
 
         // network generator. Gets headers from network but uses client to fetch block bodies
-        let network = self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())?;
+        let network = self::generators::network::<T>(backend.clone(), pool.clone(), url.clone())?;
         workers.insert("network".into(), network);
         // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
         // uses client to get those blocks
-        let missing = self::generators::db::<T, _>(client, pool, url)?;
+        let missing = self::generators::db::<T>(backend, pool, url)?;
         workers.insert("missing".into(), missing);
 
         Bastion::start();

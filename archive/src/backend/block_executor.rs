@@ -444,7 +444,7 @@ mod tests {
     pub const DB_STR: &str = "/home/insipx/.local/share/polkadot/chains/ksmcc3/db";
     #[test]
     fn should_create_new() {
-        let full_client = test_util::client(DB_STR);
+        let full_client = test_util::backend(DB_STR);
         let id = BlockId::Number(50970);
         // let header = full_client.header(id).unwrap().expect("No such block exists!");
         let block = full_client
@@ -452,7 +452,7 @@ mod tests {
             .unwrap()
             .expect("No such block exists!")
             .block;
-        let client = test_util::client_backend(DB_STR);
+        let client = test_util::client(DB_STR);
         let backend = Arc::new(test_util::backend(DB_STR));
 
         let api = client.runtime_api();
@@ -462,17 +462,16 @@ mod tests {
     #[test]
     fn should_execute_blocks() {
         pretty_env_logger::try_init();
-        let full_client = test_util::client(DB_STR);
+        let backend = test_util::backend(DB_STR);
+        let client = test_util::client(DB_STR);
         // let id = BlockId::Number(50970);
         // let id = BlockId::Number(1_730_000);
         let id = BlockId::Number(1_990_123);
-        let block = full_client
+        let block = backend
             .block(&id)
             .unwrap()
             .expect("No such block exists!")
             .block;
-        let client = test_util::client_backend(DB_STR);
-        let backend = Arc::new(test_util::backend(DB_STR));
 
         let api = client.runtime_api();
         let time = std::time::Instant::now();
@@ -498,7 +497,6 @@ mod tests {
     fn should_execute_blocks_concurrently() {
         pretty_env_logger::try_init();
 
-        let client = test_util::client_backend(DB_STR);
         let clients = test_util::many_clients(DB_STR, 16);
         let db = SimpleDb::new(std::path::PathBuf::from(
             "/home/insipx/projects/parity/substrate-archive-api/archive/test_data/10K_BLOCKS.bin",

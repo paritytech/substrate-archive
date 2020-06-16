@@ -24,7 +24,7 @@ use crate::actors::{
     workers,
 };
 use crate::{
-    backend::ChainAccess,
+    backend::ReadOnlyBackend,
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
@@ -37,14 +37,13 @@ use std::sync::Arc;
 
 /// Subscribe to new blocks via RPC
 /// this is a worker that never stops
-pub fn actor<T, C>(
-    client: Arc<C>,
+pub fn actor<T>(
+    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
     pool: sqlx::Pool<PgConnection>,
     url: String,
 ) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
@@ -54,11 +53,11 @@ where
         children.with_exec(move |ctx: BastionContext| {
             let meta_workers = meta_workers.clone();
             let url: String = url.clone();
-            let client = client.clone();
+            let client = backend.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                 sched.add_worker("meta", &meta_workers);
-                match entry::<T, _>(&mut sched, client, url.as_str()).await {
+                match entry::<T>(&mut sched, client, url.as_str()).await {
                     Ok(_) => (),
                     Err(e) => log::error!("{:?}", e),
                 };
@@ -70,14 +69,13 @@ where
     .map_err(|_| ArchiveError::from("Could not instantiate network generator"))
 }
 
-async fn entry<T, C>(
+async fn entry<T>(
     sched: &mut Scheduler<'_>,
-    client: Arc<C>,
+    client: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
     url: &str,
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
@@ -91,7 +89,7 @@ where
             break;
         }
         let head = subscription.next().await;
-        let block = client.block(&BlockId::Number(*head.number()))?;
+        let block = client.block(&BlockId::Number(*head.number()));
         if let Some(b) = block {
             log::trace!("{:?}", b);
             sched.tell_next("meta", b)?

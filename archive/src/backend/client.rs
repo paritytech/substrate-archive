@@ -30,7 +30,7 @@ use sp_core::{tasks::executor as task_executor, traits::CloneableSpawn};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
 
-use super::{ApiAccess, ChainAccess, RuntimeApiCollection};
+use super::{ApiAccess, RuntimeApiCollection};
 
 pub fn runtime_api<Block, Runtime, Dispatch, Spec>(
     db_config: DatabaseConfig,
@@ -70,43 +70,6 @@ where
         None,
         None,
         ExecutionExtensions::new(execution_strategies(), None),
-        task_executor(),
-        None,
-        Default::default(),
-    )
-    .expect("client instantiation failed");
-
-    Ok(client)
-}
-
-// create a macro `new_archive!` to simplify all these type constraints in the archive node library
-pub fn client<Block, Runtime, Dispatch, Spec>(
-    db_config: DatabaseConfig,
-    spec: Spec,
-) -> Result<impl ChainAccess<Block>, ServiceError>
-where
-    Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>
-        + Send
-        + Sync
-        + 'static,
-    Dispatch: NativeExecutionDispatch + 'static,
-    Spec: ChainSpec + 'static,
-{
-    let db_settings = sc_client_db::DatabaseSettings {
-        state_cache_size: 4096,
-        state_cache_child_ratio: None,
-        pruning: PruningMode::ArchiveAll,
-        source: db_config,
-    };
-
-    let (client, _) = sc_service::new_client::<_, Block, Runtime>(
-        db_settings,
-        NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Interpreted, None, 8),
-        &spec,
-        None,
-        None,
-        ExecutionExtensions::new(ExecutionStrategies::default(), None),
         task_executor(),
         None,
         Default::default(),

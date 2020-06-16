@@ -40,25 +40,25 @@ const DB_HASH_LEN: usize = 32;
 pub type DbHash = [u8; DB_HASH_LEN];
 
 /// Open a rocksdb Database as Read-Only
-pub fn open_database<Block: BlockT>(
+pub fn open_database(
     path: &Path,
     cache_size: usize,
     chain: &str,
     id: &str,
 ) -> sp_blockchain::Result<DBConfig> {
     let path = path.to_str().expect("Path to rocksdb not valid UTF-8");
-    Ok(DBConfig::Custom(open_db::<Block>(
-        path, cache_size, chain, id,
-    )?))
+    let db = open_db(path, cache_size, chain, id)?;
+    let db = sp_database::as_database(db);
+    Ok(DBConfig::Custom(db))
 }
 
 /// Open a database as read-only
-fn open_db<Block: BlockT>(
+pub(crate) fn open_db(
     path: &str,
     cache_size: usize,
     chain: &str,
     id: &str,
-) -> sp_blockchain::Result<Arc<dyn DatabaseTrait<DbHash>>> {
+) -> sp_blockchain::Result<ReadOnlyDatabase> {
     let db_path = crate::util::create_secondary_db_dir(chain, id);
     // need to make sure this is `Some` to open secondary instance
     let db_path = db_path.as_path().to_str().expect("Creating db path failed");
@@ -86,9 +86,8 @@ fn open_db<Block: BlockT>(
         NUM_COLUMNS,
         other_col_budget,
     );
-    let db = super::database::ReadOnlyDatabase::open(&db_config, &path)
-        .map_err(|err| sp_blockchain::Error::Backend(format!("{}", err)))?;
-    Ok(sp_database::as_database(db))
+    super::database::ReadOnlyDatabase::open(&db_config, &path)
+        .map_err(|err| sp_blockchain::Error::Backend(format!("{}", err)))
 }
 
 #[allow(unused)]

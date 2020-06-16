@@ -45,8 +45,10 @@ use sp_runtime::{
 use std::{marker::PhantomData, sync::Arc};
 
 pub struct ReadOnlyBackend<Block: BlockT> {
-    db: ReadOnlyDatabase,
+    db: Arc<ReadOnlyDatabase>,
     storage: Arc<StateVault<Block>>,
+    // FIXME: I don't think we need this here
+    // because it's specified in StateVault
     prefix_keys: bool,
     _marker: PhantomData<Block>,
 }
@@ -55,12 +57,9 @@ impl<Block> ReadOnlyBackend<Block>
 where
     Block: BlockT,
 {
-    pub fn new(
-        db: ReadOnlyDatabase,
-        db_trait: Arc<dyn Database<DbHash>>,
-        prefix_keys: bool,
-    ) -> Self {
-        let vault = Arc::new(StateVault::new(db_trait, prefix_keys));
+    pub fn new(db: ReadOnlyDatabase, prefix_keys: bool) -> Self {
+        let db = Arc::new(db);
+        let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
         Self {
             db,
             prefix_keys,
@@ -128,12 +127,12 @@ where
 
     /// Get a block from the canon chain
     /// This also tries to catch up with the primary rocksdb instance
-    pub fn block(&self, id: BlockId<Block>) -> Option<SignedBlock<Block>> {
+    pub fn block(&self, id: &BlockId<Block>) -> Option<SignedBlock<Block>> {
         self.db.try_catch_up_with_primary();
         match (
-            self.header(id).ok()?,
-            self.body(id).ok()?,
-            self.justification(id).ok()?,
+            self.header(*id).ok()?,
+            self.body(*id).ok()?,
+            self.justification(*id).ok()?,
         ) {
             (Some(header), Some(extrinsics), justification) => Some(SignedBlock {
                 block: Block::new(header, extrinsics),
