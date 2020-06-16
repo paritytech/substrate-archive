@@ -53,11 +53,11 @@ where
         children.with_exec(move |ctx: BastionContext| {
             let meta_workers = meta_workers.clone();
             let url: String = url.clone();
-            let client = backend.clone();
+            let backend = backend.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                 sched.add_worker("meta", &meta_workers);
-                match entry::<T>(&mut sched, client, url.as_str()).await {
+                match entry::<T>(&mut sched, backend, url.as_str()).await {
                     Ok(_) => (),
                     Err(e) => log::error!("{:?}", e),
                 };
@@ -71,7 +71,7 @@ where
 
 async fn entry<T>(
     sched: &mut Scheduler<'_>,
-    client: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
     url: &str,
 ) -> Result<(), ArchiveError>
 where
@@ -89,7 +89,7 @@ where
             break;
         }
         let head = subscription.next().await;
-        let block = client.block(&BlockId::Number(*head.number()));
+        let block = backend.block(&BlockId::Number(*head.number()));
         if let Some(b) = block {
             log::trace!("{:?}", b);
             sched.tell_next("meta", b)?

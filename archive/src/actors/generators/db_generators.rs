@@ -34,7 +34,7 @@ use sqlx::PgConnection;
 use std::sync::Arc;
 
 pub fn actor<T>(
-    client: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
     pool: sqlx::Pool<PgConnection>,
     url: String,
 ) -> Result<ChildrenRef, ArchiveError>
@@ -47,7 +47,7 @@ where
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
-            let client = client.clone();
+            let backend = backend.clone();
             let pool = pool.clone();
             let workers = meta_workers.clone();
             async move {
@@ -57,7 +57,7 @@ where
                     if handle_shutdown(&ctx).await {
                         break;
                     }
-                    match entry::<T>(&client, &pool, &mut sched).await {
+                    match entry::<T>(&backend, &pool, &mut sched).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
@@ -71,7 +71,7 @@ where
 }
 
 async fn entry<T>(
-    client: &Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    backend: &Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
     pool: &sqlx::Pool<PgConnection>,
     sched: &mut Scheduler<'_>,
 ) -> Result<(), ArchiveError>
@@ -91,13 +91,13 @@ where
         block_nums[0].generate_series,
         block_nums[block_nums.len() - 1].generate_series
     );
-    let client = client.clone();
+    let backend = backend.clone();
     let now = std::time::Instant::now();
     let blocks: Vec<SubstrateBlock<T>> = blocking!((move || {
         let mut blocks = Vec::new();
         for block_num in block_nums.iter() {
             let num = block_num.generate_series as u32;
-            let b = client.block(&BlockId::Number(T::BlockNumber::from(num)));
+            let b = backend.block(&BlockId::Number(T::BlockNumber::from(num)));
 
             if b.is_none() {
                 log::warn!("Block does not exist!")
