@@ -43,8 +43,10 @@ pub fn client(
 }
 
 pub fn backend(db: &str) -> ReadOnlyBackend<Block> {
-    let secondary_db = tempdir::TempDir::new("archive-test")
-        .expect("Couldn't create a temporary directory")
+    let secondary_db = tempfile::Builder::new()
+        .prefix("archive-test")
+        .tempdir()
+        .expect("Could not create temporary directory")
         .into_path();
     let conf = DatabaseConfig {
         secondary: Some(secondary_db.to_str().unwrap().to_string()),
@@ -88,8 +90,10 @@ pub fn harness<F>(db: &str, fun: F)
 where
     F: FnOnce(ReadOnlyDatabase),
 {
-    let secondary_db = tempdir::TempDir::new("archive-test")
-        .expect("Couldn't create a temporary directory")
+    let secondary_db = tempfile::Builder::new()
+        .prefix("archive-test")
+        .tempdir()
+        .expect("could not create temporary directory")
         .into_path();
     let conf = DatabaseConfig {
         secondary: Some(secondary_db.to_str().unwrap().to_string()),

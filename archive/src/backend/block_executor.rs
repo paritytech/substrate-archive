@@ -245,7 +245,7 @@ impl<Block: BlockT> ThreadedBlockExecutor<Block> {
     pub fn new<Runtime, ClientApi>(
         pool_multiplier: usize,
         stack_size: Option<usize>,
-        client: Vec<Arc<ClientApi>>,
+        client: Arc<ClientApi>,
         backend: Arc<Backend<Block>>,
     ) -> Self
     where
@@ -277,15 +277,13 @@ impl<Block: BlockT> ThreadedBlockExecutor<Block> {
         }
 
         let stealers = Arc::new(stealers);
-        assert!(&client.len() >= &pool.max_count());
 
         let workers = workers
             .into_iter()
-            .zip(client.into_iter())
-            .map(|(w, client)| {
+            .map(|w| {
                 w.stealers(stealers.clone())
                     .global(global_queue.clone())
-                    .client(client)
+                    .client(client.clone())
                     .backend(backend.clone())
                     .build()
             })
@@ -489,11 +487,11 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn should_execute_blocks_concurrently() {
         pretty_env_logger::try_init();
 
-        let clients = test_util::many_clients(DB_STR, 16);
+        let client = test_util::client(DB_STR);
         let db = SimpleDb::new(std::path::PathBuf::from(
             "/home/insipx/projects/parity/substrate-archive-api/archive/test_data/10K_BLOCKS.bin",
         ))
@@ -503,7 +501,7 @@ mod tests {
         let blocks: Vec<Block> = db.get().unwrap();
         println!("Got {} blocks", blocks.len());
         // should push to global queue before starting execution
-        let executor = ThreadedBlockExecutor::new(1, Some(8_000_000), clients, backend);
+        let executor = ThreadedBlockExecutor::new(1, Some(8_000_000), client, backend);
         for block in blocks.into_iter() {
             executor.push_to_queue(block);
         }

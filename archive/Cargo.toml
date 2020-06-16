@@ -20,12 +20,12 @@ chrono = { version = "0.4", optional = true }
 serde_json = "1.0.50"
 dirs = { version = "2", package = "directories" }
 bastion = "0.3"
-tempdir = "0.3.7"
 sqlx = { version = "0.3.5", features = ["postgres"] }
 async-trait = "0.1.31"
 hex = "0.4.2"
 bastion-executor = "0.3.4"
 lightproc = "0.3.4"
+#  (itertools) - only used in prepare_sql
 itertools = "0.9.0"
 num_cpus = "1.13.0"
 threadpool = "1.8.1"
@@ -39,9 +39,7 @@ kvdb = "0.6"
 kvdb-rocksdb = "0.8"
 parity-util-mem = "0.6.1"
 codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
-trie-db = "0.20"
 hash-db = "0.15"
-memory-db = "0.21"
 
 # Substrate
 sp-database = { git = "https://github.com/paritytech/substrate", branch = "master", package="sp-database" }
@@ -68,6 +66,7 @@ pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
 flate2 = "1.0.14"
 bincode = "1.2.1"
+tempfile = "3.1"
 
 [features]
 default = []
