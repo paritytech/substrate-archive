@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(test)]
+use bincode::ErrorKind as BincodeError;
 use codec::Error as CodecError;
 use failure::Fail;
 use jsonrpsee::client::RequestError as JsonrpseeRequest;
@@ -55,6 +57,23 @@ pub enum Error {
     ServiceError(String),
     #[fail(display = "Unexpected Error Occurred: {}", _0)]
     General(String),
+    #[cfg(test)]
+    #[fail(display = "Bincode Serialization Error")]
+    BincodeError(#[fail(cause)] BincodeError),
+}
+
+#[cfg(test)]
+impl From<BincodeError> for Error {
+    fn from(err: BincodeError) -> Error {
+        Error::BincodeError(err)
+    }
+}
+
+#[cfg(test)]
+impl From<Box<BincodeError>> for Error {
+    fn from(err: Box<BincodeError>) -> Error {
+        Error::General(err.to_string())
+    }
 }
 
 impl From<ServiceError> for Error {

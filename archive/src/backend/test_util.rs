@@ -16,7 +16,7 @@
 
 use crate::{
     backend,
-    backend::{ApiAccess, ChainAccess},
+    backend::{ApiAccess, ChainAccess, ReadOnlyBackend},
     twox_128, Archive, ArchiveConfig, ArchiveContext, StorageKey,
 };
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
@@ -27,10 +27,7 @@ use std::sync::Arc;
 
 pub fn client_backend(
     db: &str,
-) -> (
-    Arc<impl ApiAccess<Block, TFullBackend<Block>, ksm_runtime::RuntimeApi>>,
-    Arc<Backend<Block>>,
-) {
+) -> Arc<impl ApiAccess<Block, TFullBackend<Block>, ksm_runtime::RuntimeApi>> {
     let conf = ArchiveConfig {
         db_url: db.into(),
         rpc_url: "ws://127.0.0.1:9944".into(),
@@ -47,7 +44,23 @@ pub fn client_backend(
     let backend = archive.make_backend::<ksm_runtime::Runtime>().unwrap();
     let client = Arc::new(client);
     let backend = Arc::new(backend);
-    (client, backend)
+    client
+}
+
+pub fn backend(db: &str) -> ReadOnlyBackend<Block> {
+    let secondary_db = tempdir::TempDir::new("archive-test")
+        .expect("Couldn't create a temporary directory")
+        .into_path();
+    let conf = DatabaseConfig {
+        secondary: Some(secondary_db.to_str().unwrap().to_string()),
+        ..DatabaseConfig::with_columns(NUM_COLUMNS)
+    };
+    let db_main = ReadOnlyDatabase::open(&conf, db).expect("Couldn't open a secondary instance");
+    let db_as = ReadOnlyDatabase::open(&conf, db).expect("Couldn't open a secondary instance");
+
+    let as_database = sp_database::as_database(db_as);
+
+    ReadOnlyBackend::new(db_main, as_database, true)
 }
 
 pub fn many_clients(

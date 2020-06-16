@@ -441,9 +441,10 @@ mod tests {
     use sc_client_api::BlockBackend;
     use sp_api::ProvideRuntimeApi;
 
+    pub const DB_STR: &str = "/home/insipx/.local/share/polkadot/chains/ksmcc3/db";
     #[test]
     fn should_create_new() {
-        let full_client = test_util::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let full_client = test_util::client(DB_STR);
         let id = BlockId::Number(50970);
         // let header = full_client.header(id).unwrap().expect("No such block exists!");
         let block = full_client
@@ -451,8 +452,9 @@ mod tests {
             .unwrap()
             .expect("No such block exists!")
             .block;
-        let (client, backend) =
-            test_util::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let client = test_util::client_backend(DB_STR);
+        let backend = Arc::new(test_util::backend(DB_STR));
+
         let api = client.runtime_api();
         let executor = BlockExecutor::new(api, backend, block);
     }
@@ -460,7 +462,7 @@ mod tests {
     #[test]
     fn should_execute_blocks() {
         pretty_env_logger::try_init();
-        let full_client = test_util::client("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let full_client = test_util::client(DB_STR);
         // let id = BlockId::Number(50970);
         // let id = BlockId::Number(1_730_000);
         let id = BlockId::Number(1_990_123);
@@ -469,8 +471,8 @@ mod tests {
             .unwrap()
             .expect("No such block exists!")
             .block;
-        let (client, backend) =
-            test_util::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
+        let client = test_util::client_backend(DB_STR);
+        let backend = Arc::new(test_util::backend(DB_STR));
 
         let api = client.runtime_api();
         let time = std::time::Instant::now();
@@ -495,14 +497,15 @@ mod tests {
     #[test]
     fn should_execute_blocks_concurrently() {
         pretty_env_logger::try_init();
-        let (client, backend) =
-            test_util::client_backend("/home/insipx/.local/share/polkadot/chains/ksmcc3/db");
-        let clients =
-            test_util::many_clients("/home/insipx/.local/share/polkadot/chains/ksmcc3/db", 16);
+
+        let client = test_util::client_backend(DB_STR);
+        let clients = test_util::many_clients(DB_STR, 16);
         let db = SimpleDb::new(std::path::PathBuf::from(
             "/home/insipx/projects/parity/substrate-archive-api/archive/test_data/10K_BLOCKS.bin",
         ))
         .unwrap();
+
+        let backend = Arc::new(test_util::backend(DB_STR));
         let blocks: Vec<Block> = db.get().unwrap();
         println!("Got {} blocks", blocks.len());
         // should push to global queue before starting execution
