@@ -14,13 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Actors which do work by decoding data before it's inserted into the database
-//! these actors may do highly parallelized work
+//! Actors which do work by transforming data before it's inserted into the database
 //! These actors do not make any external connections to a Database or Network
 use crate::actors::scheduler::{Algorithm, Scheduler};
 use crate::print_on_err;
 use crate::{error::Error as ArchiveError, types::*};
 use bastion::prelude::*;
+use sp_core::storage::StorageChangeSet;
 use sqlx::PgConnection;
 
 const REDUNDANCY: usize = 3;
@@ -73,12 +73,38 @@ where
                 let v = sched.ask_next("db", meta)?.await;
                 log::debug!("{:?}", v);
             };
+            storage: (<T as System>::BlockNumber, StorageChangeSet<<T as System>::Hash>) => {
+                let (num, changes) = storage;
+                process_storage::<T>(num, changes, sched).await?;
+            };
             ref _broadcast: super::Broadcast => {
                 ()
             };
             e: _ => log::warn!("Received unknown data {:?}", e);
         }
     }
+}
+
+pub async fn process_storage<T>(
+    num: <T as System>::BlockNumber,
+    changes: StorageChangeSet<<T as System>::Hash>,
+    sched: &mut Scheduler<'_>,
+) -> Result<(), ArchiveError>
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    let hash = changes.block;
+    let num: u32 = num.into();
+    let changes = changes
+        .changes
+        .into_iter()
+        .map(|s| Storage::new(hash, num, false, s.0, s.1))
+        .collect::<Vec<Storage<T>>>();
+    log::info!("Inserting storage");
+    let v = sched.ask_next("db", changes)?.await;
+    log::debug!("{:?}", v);
+    Ok(())
 }
 
 pub async fn process_block<T>(

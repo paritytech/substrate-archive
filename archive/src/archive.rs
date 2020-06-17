@@ -68,7 +68,7 @@ where
     /// returns an Api Client with the associated backend
     pub fn api_client<Runtime, Dispatch>(
         &self,
-    ) -> Result<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>, ArchiveError>
+    ) -> Result<Arc<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>>, ArchiveError>
     where
         Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>>
             + Send
@@ -85,8 +85,9 @@ where
             sp_api::StateBackend<BlakeTwo256>,
     {
         let db = self.make_database()?;
-        backend::runtime_api::<Block, Runtime, Dispatch, _>(db, self.spec.clone())
-            .map_err(ArchiveError::from)
+        let backend = backend::runtime_api::<Block, Runtime, Dispatch, _>(db, self.spec.clone())
+            .map_err(ArchiveError::from)?;
+        Ok(Arc::new(backend))
     }
 
     pub(crate) fn make_database(&self) -> Result<ReadOnlyDatabase, ArchiveError> {
@@ -110,7 +111,7 @@ where
     }
 
     /// Returning context in which the archive is running
-    pub fn run_with<T, Runtime, ClientApi, C>(
+    pub fn run_with<T, Runtime, ClientApi>(
         &self,
         client_api: Arc<ClientApi>,
     ) -> Result<ArchiveContext, ArchiveError>

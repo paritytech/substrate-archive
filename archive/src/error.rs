@@ -20,6 +20,7 @@ use failure::Fail;
 use jsonrpsee::client::RequestError as JsonrpseeRequest;
 use jsonrpsee::transport::ws::WsNewDnsError;
 // use sc_service::Error as ServiceError;
+use crossbeam::channel::SendError;
 use serde_json::Error as SerdeError;
 use sp_blockchain::Error as BlockchainError;
 use sqlx::Error as SqlError;

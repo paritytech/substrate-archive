@@ -17,7 +17,7 @@
 //! State Backend Interface
 
 use crate::backend::database::ReadOnlyDatabase;
-use hash_db::{HashDB, Hasher, Prefix};
+use hash_db::Prefix;
 use kvdb::DBValue;
 use sc_client_api::backend::StateBackend;
 use sp_core::storage::ChildInfo;

@@ -14,239 +14,92 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Indexes storage 
+//! Storage Actor
+//! Gets storage changes from substrate RPC
+
 use crate::actors::{
+    self,
     scheduler::{Algorithm, Scheduler},
     workers,
 };
 use crate::{
-    backend::{ChainAccess, StorageBackend},
+    backend::ReadOnlyBackend,
     error::Error as ArchiveError,
-    queries,
-    types::*,
+    types::{NotSignedBlock, Substrate, System},
 };
 use bastion::prelude::*;
-use primitive_types::H256;
-use sp_storage::StorageKey;
+use jsonrpsee::client::Subscription;
+use sp_blockchain::HeaderBackend as _;
+use sp_runtime::{generic::BlockId, traits::Header as _};
 use sqlx::PgConnection;
 use std::sync::Arc;
 
-//TODO need to find a better way to speed up indexing
-/// Actor to index storage for PostgreSQL database
-/// accepts a list of storage keys to index
-/// Indexing all keys will take a very long time. Key prefixes work as well as full keys
-pub fn actor<T, C>(
-    client: Arc<C>,
+/// Subscribe to new blocks via RPC
+/// this is a worker that never stops
+pub fn actor<T>(
+    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
     pool: sqlx::Pool<PgConnection>,
-    keys: Vec<StorageKey>,
-    defer_workers: ChildrenRef,
+    url: String,
 ) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock<T>> + 'static,
-    <T as System>::Hash: From<H256>,
     <T as System>::BlockNumber: Into<u32>,
+    <T as System>::Header: serde::de::DeserializeOwned,
 {
-    let db = crate::database::Database::new(&pool)?;
-    let db_workers = workers::db::<T>(db)?;
-    super::collect_storage::actor::<T>(defer_workers.clone())?;
+    let transform_workers = workers::transformers::<T>(pool)?;
+    // actor which produces work in the form of collecting blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
-            let db_workers = db_workers.clone();
-            let defer_workers = defer_workers.clone();
-            let pool = pool.clone();
-            let client = client.clone();
-            let keys = keys.clone();
-
+            let transform_workers = transform_workers.clone();
+            let url: String = url.clone();
+            let backend = backend.clone();
             async move {
-                let mut max_storage: u32 = 0;
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
-                sched.add_worker("db", &db_workers);
-                sched.add_worker("defer", &defer_workers);
-                loop {
-                    if handle_shutdown::<T>(&ctx).await {
-                        break;
-                    }
-                    match entry::<T, C>(&client, &pool, &mut sched, keys.clone(), &mut max_storage).await {
-                        Ok(_) => (),
-                        Err(e) => log::error!("{:?}", e),
-                    }
-                }
+                sched.add_worker("transform", &transform_workers);
+                match entry::<T>(&mut sched, backend, url.as_str()).await {
+                    Ok(_) => (),
+                    Err(e) => log::error!("{:?}", e),
+                };
+                Bastion::stop();
                 Ok(())
             }
         })
     })
-    .map_err(|_| ArchiveError::from("Could not instantiate storage generator"))
+    .map_err(|_| ArchiveError::from("Could not instantiate network generator"))
 }
 
-async fn entry<T, C>(
-    client: &Arc<C>,
-    pool: &sqlx::Pool<PgConnection>,
+async fn entry<T>(
     sched: &mut Scheduler<'_>,
-    keys: Vec<StorageKey>,
-    max_storage: &mut u32,
+    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    url: &str,
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock<T>> + 'static,
-    <T as System>::Hash: From<H256>,
     <T as System>::BlockNumber: Into<u32>,
+    <T as System>::Header: serde::de::DeserializeOwned,
 {
-    if queries::are_blocks_empty(pool).await? {
-        timer::Delay::new(std::time::Duration::from_secs(5)).await;
-        return Ok(());
+    log::info!("Hello from storage");
+    let rpc = actors::connect::<T>(url).await;
+    let mut subscription = rpc.subscribe_storage().await.map_err(ArchiveError::from)?;
+    log::info!("Subscribing to storage");
+    loop {
+        if handle_shutdown::<T, _>(sched.context(), &mut subscription).await {
+            break;
+        }
+        let storage = subscription.next().await;
+        log::info!("A storage item came through");
+        let block_num = backend.number(storage.block)?;
+        if let Some(b) = block_num {
+            log::info!("Telling transformers about storage");
+            sched.tell_next("transform", (b, storage))?
+        } else {
+            log::warn!("Block does not exist!");
+        }
     }
-
-    let (mut query_from_num, query_from_hash) = queries::get_max_storage(&pool).await.unwrap_or((
-        *max_storage,
-        client
-            .hash(T::BlockNumber::from(*max_storage))?
-            .expect("Block doesn't exist!")
-            .as_ref()
-            .to_vec(),
-    ));
-
-    if *max_storage > query_from_num {
-        query_from_num = *max_storage;
-    } else if query_from_num > *max_storage {
-        *max_storage = query_from_num;
-    }
-
-    let (mut query_to_num, _) = queries::get_max_block_num(&pool).await?;
-    log::info!("Query from num: {}", query_from_num);
-    log::info!("Query to num 0: {}", query_to_num);
-    if (query_to_num - query_from_num) > 2000 {
-        query_to_num = query_from_num + 1500;
-    }
-    log::info!("Query to num 1: {}", query_to_num);
-
-    *max_storage = query_to_num;
-    log::info!("max storage {:?}", *max_storage);
-
-    // we've already collected storage up to most recent block
-    // inserting here would cause a Postgres Error (since storage.hash relates to blocks.hash)
-
-    if query_from_num == query_to_num || query_from_num > query_to_num {
-        // TODO: block time is 5 seconds so a good choice for sleep?
-        // Should we sleep at all?
-        timer::Delay::new(std::time::Duration::from_secs(5)).await;
-        return Ok(());
-    }
-
-    let query_from_hash = H256::from_slice(query_from_hash.as_slice());
-    let query_to_hash = client
-        .hash(T::BlockNumber::from(query_to_num))?;
-    let query_to_hash = if let Some(q) = query_to_hash {
-        q
-    } else {
-        log::warn!("Block does not exist yet!");
-        timer::Delay::new(std::time::Duration::from_millis(50)).await;
-        return Ok(())
-    };
-
-    log::info!(
-        "\nquery_from_num={:?}, query_from_hash={:?} \n query_to_num = {:?}, query_to_hash={:?}\n",
-        query_from_num,
-        hex::encode(query_from_hash.as_bytes()),
-        query_to_num,
-        hex::encode(query_to_hash.as_ref())
-    );
-
-    let storage_backend = StorageBackend::<T, C>::new(client.clone());
-
-    let now = std::time::Instant::now();
-    let change_set = blocking! {
-        storage_backend.query_storage(
-            T::Hash::from(query_from_hash),
-            Some(query_to_hash),
-            keys
-        )
-    };
-    let change_set = spawn!(change_set)
-        .await
-        .ok_or(ArchiveError::from("Could not spawn blocking"))?
-        .unwrap()?;
-    let elapsed = now.elapsed();
-    log::info!(
-        "Took {} seconds, {} milli-seconds to query storage from {} to {}",
-        elapsed.as_secs(),
-        elapsed.as_millis(),
-        query_from_num,
-        query_to_num
-    );
-
-    let missing_blocks = queries::missing_blocks_min_max(&pool, query_from_num, query_to_num)
-        .await?
-        .into_iter()
-        .map(|b| b.generate_series as u32)
-        .collect::<Vec<u32>>();
-
-    let now = std::time::Instant::now();
-    let storage = change_set
-        .into_iter()
-        .map(|change| {
-            let num = client
-                .number(change.block)
-                .expect("Could not fetch number for block");
-            let block_hash = change.block;
-            if let Some(num) = num {
-                change
-                    .changes
-                    .into_iter()
-                    .map(|(key, data)| {
-                        if num == T::BlockNumber::from(query_from_num) {
-                            Storage::new(block_hash, num.into(), true, key, data)
-                        } else {
-                            Storage::new(block_hash, num.into(), false, key, data)
-                        }
-                    })
-                    .collect::<Vec<Storage<T>>>()
-            } else {
-                log::warn!("Block doesn't exist!");
-                Vec::new()
-            }
-        })
-        .flatten()
-        .collect::<Vec<Storage<T>>>();
-
-    // TODO use drain_filter when stabilized
-    let to_defer = storage
-        .iter()
-        .cloned()
-        .filter(|s| missing_blocks.contains(&s.block_num().into()))
-        .collect::<Vec<Storage<T>>>();
-    
-    let storage = storage
-        .iter()
-        .cloned()
-        .filter(|s| !missing_blocks.contains(&s.block_num().into()))
-        .collect::<Vec<Storage<T>>>();
-    
-        let elapsed = now.elapsed();
-    log::info!(
-        "Took {} seconds, {} milli-seconds to process storage from {} to {}",
-        elapsed.as_secs(),
-        elapsed.as_millis(),
-        query_from_num,
-        query_to_num
-    );
-
-    if to_defer.len() > 0 {
-        log::info!("Storage should be deferred");
-        sched.tell_next("defer", to_defer)?;
-    }
-
-    if !(storage.len() > 0) {
-        return Ok(());
-    }
-
-    log::info!("{:?}", storage);
-    log::info!("Indexing {} storage entries", storage.len());
-    sched.tell_next("db", storage)?;
     Ok(())
 }
 
-async fn handle_shutdown<T>(ctx: &BastionContext) -> bool
+async fn handle_shutdown<T, N>(ctx: &BastionContext, subscription: &mut Subscription<N>) -> bool
 where
     T: Substrate + Send + Sync,
 {
@@ -255,7 +108,11 @@ where
             msg,
             ref broadcast: super::Broadcast => {
                 match broadcast {
-                    _ => { return true }
+                    super::Broadcast::Shutdown => {
+                        // dropping a jsonrpsee::Subscription unsubscribes
+                        std::mem::drop(subscription);
+                        return true;
+                    }
                 }
             };
             e: _ => log::warn!("Received unknown message: {:?}", e);

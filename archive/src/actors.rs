@@ -102,11 +102,15 @@ impl ArchiveContext {
         // workers.insert("storage".into(), storage.clone());
 
         // network generator. Gets headers from network but uses client to fetch block bodies
-        let network = self::generators::network::<T>(backend.clone(), pool.clone(), url.clone())?;
-        workers.insert("network".into(), network);
+        let blocks = self::generators::blocks::<T>(backend.clone(), pool.clone(), url.clone())?;
+        workers.insert("blocks".into(), blocks);
+
+        let storage = self::generators::storage::<T>(backend.clone(), pool.clone(), url.clone())?;
+        workers.insert("storage".into(), storage);
+
         // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
         // uses client to get those blocks
-        let missing = self::generators::db::<T>(backend, pool, url)?;
+        let missing = self::generators::missing_blocks::<T>(backend, pool, url)?;
         workers.insert("missing".into(), missing);
 
         Bastion::start();

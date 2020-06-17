@@ -17,8 +17,7 @@
 //! A simple example
 
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use std::sync::Arc;
-use substrate_archive::{backend, twox_128, Archive, ArchiveConfig, ArchiveContext, StorageKey};
+use substrate_archive::{backend, Archive, ArchiveConfig, ArchiveContext, StorageKey};
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
@@ -27,21 +26,17 @@ pub fn main() {
         db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
         rpc_url: "ws://127.0.0.1:9944".into(),
         psql_url: None,
-        cache_size: 8192,
+        cache_size: 2048,
     };
 
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
     let archive = Archive::new(conf, spec).unwrap();
-    let client = archive
-        .client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
-        .unwrap();
-    let api_client = archive
+    let client_api = archive
         .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
         .unwrap();
-    let api_client = Arc::new(api_client);
     let _context = archive
-        .run_with::<ksm_runtime::Runtime, ksm_runtime::RuntimeApi, _, _>(client, api_client)
+        .run_with::<ksm_runtime::Runtime, ksm_runtime::RuntimeApi, _>(client_api)
         .unwrap();
 
     // run indefinitely

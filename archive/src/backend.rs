@@ -24,14 +24,13 @@ mod read_only_backend;
 mod test_util;
 pub mod util;
 
+// re-exports
 pub use self::block_executor::{BlockChanges, BlockExecutor};
 pub use self::read_only_backend::{ReadOnlyBackend, TrieState};
 pub use self::{database::ReadOnlyDatabase, frontend::runtime_api, util::open_database};
+
 use sc_client_api::Backend as BackendT;
-use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
-use sc_executor::NativeExecutionDispatch;
 use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
-use sp_blockchain::{Error as BlockchainError, HeaderBackend, HeaderMetadata};
 use sp_runtime::{
     generic::{BlockId, SignedBlock},
     traits::{BlakeTwo256, Block as BlockT},

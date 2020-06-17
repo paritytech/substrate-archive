@@ -14,9 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Network Actors
-//! These aggregate data for child actors to work with
-//! they mostly wait on network IO
+//! Block actor
+//! Gets new finalized blocks from substrate RPC
 
 use crate::actors::{
     self,

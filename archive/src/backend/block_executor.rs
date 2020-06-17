@@ -16,6 +16,7 @@
 
 //! Executes blocks to get storage changes without traversing changes trie
 //! Contains a ThreadedBlockExecutor that executes blocks concurrently
+//! according to a work-stealing scheduler
 
 use crate::{
     backend::{ApiAccess, ReadOnlyBackend as Backend},
@@ -26,6 +27,7 @@ use crossbeam::deque::{Injector, /*Steal,*/ Stealer, Worker};
 use frame_system::Trait as System;
 use sc_client_api::backend;
 // use sc_client_db::Backend;
+use crossbeam::channel;
 use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
@@ -63,6 +65,7 @@ where
     client: Arc<ClientApi>,
     /// The Substrate Disk Backend (RocksDB)
     backend: Arc<Backend<Block>>,
+    sender: channel::Sender<BlockChanges<Block>>,
     _marker: PhantomData<Runtime>,
 }
 
@@ -80,6 +83,7 @@ where
         global: Arc<Injector<Block>>,
         client: Arc<ClientApi>,
         backend: Arc<Backend<Block>>,
+        sender: channel::Sender<BlockChanges<Block>>,
     ) -> Self {
         let worker = Worker::new_fifo();
         Self {
@@ -88,27 +92,42 @@ where
             global,
             client,
             backend,
+            sender,
             _marker: PhantomData,
         }
     }
 
+    /// Start the worker loop
     fn start_worker(self) -> Result<(), ArchiveError> {
         loop {
             let block = self.find_work();
             if let Some(b) = block {
                 let now = std::time::Instant::now();
                 let api = self.client.runtime_api();
-                let block = BlockExecutor::new(api, self.backend.clone(), b)?.block_into_storage();
+                let block =
+                    BlockExecutor::new(api, self.backend.clone(), b)?.block_into_storage()?;
                 let elapsed = now.elapsed();
-                log::info!(
+                match self.sender.send(block) {
+                    Ok(_) => (),
+                    Err(e) => {
+                        log::error!("Could not send storage changes because {}", e);
+                    }
+                }
+                log::debug!(
                     "Took {} seconds, {} milli-seconds to execute block",
                     elapsed.as_secs(),
                     elapsed.as_millis()
                 );
             } else {
-                return Err(ArchiveError::from("Couldn't find block to execute"));
+                // return Err(ArchiveError::from("Couldn't find block to execute"));
+                std::thread::sleep(std::time::Duration::from_millis(5));
+                continue;
             }
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            // TODO: Park os thread
+            // currently the OS thread just sleeps
+            // we should park it and wait  for other work
+            // or just stop the thread, and spawn more workers when more work comes in
+            std::thread::sleep(std::time::Duration::from_millis(1));
         }
         Ok(())
     }
@@ -141,6 +160,17 @@ where
     }
 }
 
+/// Builder for the BlockWorker
+/// must have stealers, global queue, client, and backend specified
+///
+///# Examples
+///```
+/// let worker = BlockWorkerBuilder::<Block, Runtime, ClientApi>::default()
+///     .global(..)
+///     .client(..)
+///     .backend(..)
+///     .build()
+///```
 struct BlockWorkerBuilder<Block, Runtime, ClientApi>
 where
     Block: BlockT,
@@ -159,6 +189,7 @@ where
     client: Option<Arc<ClientApi>>,
     /// The Substrate Disk Backend (RocksDB)
     backend: Option<Arc<Backend<Block>>>,
+    sender: Option<channel::Sender<BlockChanges<Block>>>,
     _marker: PhantomData<Runtime>,
 }
 
@@ -177,6 +208,7 @@ where
             global: None,
             client: None,
             backend: None,
+            sender: None,
             _marker: PhantomData,
         }
     }
@@ -210,21 +242,19 @@ where
         self
     }
 
+    fn sender(mut self, sender: channel::Sender<BlockChanges<Block>>) -> Self {
+        self.sender = Some(sender);
+        self
+    }
+
     fn build(self) -> BlockWorker<Block, Runtime, ClientApi> {
         BlockWorker {
             local: self.local,
-            stealers: self
-                .stealers
-                .expect("Stealers are required for block workers"),
-            global: self
-                .global
-                .expect("Global queue is required for block workers"),
-            client: self
-                .client
-                .expect("Runtime Api Client is required for block workers"),
-            backend: self
-                .backend
-                .expect("Disk Backend is required for block workers"),
+            stealers: self.stealers.expect("Stealers are required"),
+            global: self.global.expect("Global queue is required"),
+            client: self.client.expect("Runtime Api Client is required"),
+            backend: self.backend.expect("Disk Backend is required"),
+            sender: self.sender.expect("Sender is required"),
             _marker: PhantomData,
         }
     }
@@ -234,10 +264,14 @@ where
 pub struct ThreadedBlockExecutor<Block: BlockT> {
     /// the workers that execute blocks
     worker_count: usize,
+    /// Other threads from which work can be stolen
     stealers: Arc<Vec<Stealer<Block>>>,
+    /// global queue that keeps unexecuteed blocks
     global_queue: Arc<Injector<Block>>,
     /// the threadpool
     pool: ThreadPool,
+    sender: channel::Sender<BlockChanges<Block>>,
+    receiver: channel::Receiver<BlockChanges<Block>>,
 }
 
 impl<Block: BlockT> ThreadedBlockExecutor<Block> {
@@ -277,6 +311,7 @@ impl<Block: BlockT> ThreadedBlockExecutor<Block> {
         }
 
         let stealers = Arc::new(stealers);
+        let (sender, receiver) = channel::unbounded();
 
         let workers = workers
             .into_iter()
@@ -285,6 +320,7 @@ impl<Block: BlockT> ThreadedBlockExecutor<Block> {
                     .global(global_queue.clone())
                     .client(client.clone())
                     .backend(backend.clone())
+                    .sender(sender.clone())
                     .build()
             })
             .collect::<Vec<BlockWorker<Block, Runtime, ClientApi>>>();
@@ -306,16 +342,22 @@ impl<Block: BlockT> ThreadedBlockExecutor<Block> {
             global_queue,
             stealers,
             pool,
+            sender,
+            receiver,
         }
     }
 
+    /// push some work to the global pool
     pub fn push_to_queue(&self, block: Block) {
         self.global_queue.push(block)
     }
 
+    /// return how many workers are actively executing blocks
     pub fn active(&self) -> usize {
         self.pool.active_count()
     }
+
+    /// wait for the workers to finish
     pub fn join(&self) {
         self.pool.join();
     }
