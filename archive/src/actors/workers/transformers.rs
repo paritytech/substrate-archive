@@ -43,7 +43,6 @@ where
             .with_exec(move |ctx: BastionContext| {
                 let workers = db_workers.clone();
                 async move {
-                    log::info!("Transformer started");
                     let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                     sched.add_worker("db", &workers);
                     print_on_err!(handle_msg::<T>(&mut sched).await);
@@ -81,6 +80,12 @@ where
                 let (num, changes) = storage;
                 process_storage::<T>(num, changes, sched).await?;
             };
+            bulk_storage: Vec<Storage<T>> => {
+                for s in bulk_storage.into_iter() {
+                    let v = sched.ask_next("db", s)?.await;
+                    log::debug!("{:?}", v);
+                }
+            };
             ref _broadcast: super::Broadcast => {
                 ()
             };
@@ -101,7 +106,6 @@ where
     let hash = changes.block;
     let num: u32 = num.into();
     let storage = Storage::<T>::new(hash, num, false, changes.changes);
-    log::info!("Inserting storage");
     let v = sched.ask_next("db", storage)?.await;
     log::debug!("{:?}", v);
     Ok(())

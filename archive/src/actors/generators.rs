@@ -21,6 +21,7 @@ mod storage;
 
 pub use self::blocks::actor as blocks;
 pub use self::missing_blocks::actor as missing_blocks;
+pub use self::missing_storage::actor as missing_storage;
 pub use self::storage::actor as storage;
 
 pub use super::Broadcast;

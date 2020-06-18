@@ -129,8 +129,6 @@ where
     T: Substrate + Send + Sync,
 {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
-        log::info!("Inserting {} storage entries", self.len());
-
         let mut sizes = Vec::new();
         let chunks = self.chunks(12_000);
 

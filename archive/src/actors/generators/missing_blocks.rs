@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Work Generated and gathered from the PostgreSQL Database
+//! Work generated and gathered from the PostgreSQL Database
 //! IE: Missing Blocks/Storage/Inherents/Transactions
 //! Gathers Missing blocks -> passes to metadata -> passes to extractors -> passes to decode -> passes to insert
 
@@ -86,7 +86,7 @@ where
         return Ok(());
     }
     log::info!(
-        "Starting to crawl for {} missing blocks, from {} to {} ...",
+        "Indexing {} missing blocks, from {} to {} ...",
         block_nums.len(),
         block_nums[0].generate_series,
         block_nums[block_nums.len() - 1].generate_series

@@ -35,7 +35,11 @@ use sp_runtime::{
     traits::{Block as BlockT, HashFor, Header, NumberFor},
 };
 use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
-use std::{iter, marker::PhantomData, sync::Arc};
+use std::{
+    iter,
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 use threadpool::ThreadPool;
 
 pub type StorageKey = Vec<u8>;
@@ -56,11 +60,11 @@ where
     ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
 {
     /// Local queue of tasks
-    local: Worker<Block>,
+    local: Worker<u32>,
     /// Other threads we can steal work from
-    stealers: Arc<Vec<Stealer<Block>>>,
+    stealers: Arc<Vec<Stealer<u32>>>,
     /// Global queue of tasks
-    global: Arc<Injector<Block>>,
+    global: Arc<Injector<u32>>,
     /// The Substrate API Client
     client: Arc<ClientApi>,
     /// The Substrate Disk Backend (RocksDB)
@@ -79,8 +83,8 @@ where
 {
     /// create a new worker
     fn init_worker(
-        stealers: Arc<Vec<Stealer<Block>>>,
-        global: Arc<Injector<Block>>,
+        stealers: Arc<Vec<Stealer<u32>>>,
+        global: Arc<Injector<u32>>,
         client: Arc<ClientApi>,
         backend: Arc<Backend<Block>>,
         sender: channel::Sender<BlockChanges<Block>>,
@@ -100,24 +104,26 @@ where
     /// Start the worker loop
     fn start_worker(self) -> Result<(), ArchiveError> {
         loop {
-            let block = self.find_work();
+            let block_num = match self.find_work() {
+                Some(b) => b,
+                None => {
+                    std::thread::sleep(std::time::Duration::from_millis(2));
+                    continue;
+                }
+            };
+            let block = self
+                .backend
+                .block(&BlockId::Number(NumberFor::<Block>::from(block_num)));
             if let Some(b) = block {
-                let now = std::time::Instant::now();
                 let api = self.client.runtime_api();
                 let block =
-                    BlockExecutor::new(api, self.backend.clone(), b)?.block_into_storage()?;
-                let elapsed = now.elapsed();
+                    BlockExecutor::new(api, self.backend.clone(), b.block)?.block_into_storage()?;
                 match self.sender.send(block) {
                     Ok(_) => (),
                     Err(e) => {
                         log::error!("Could not send storage changes because {}", e);
                     }
                 }
-                log::debug!(
-                    "Took {} seconds, {} milli-seconds to execute block",
-                    elapsed.as_secs(),
-                    elapsed.as_millis()
-                );
             } else {
                 // return Err(ArchiveError::from("Couldn't find block to execute"));
                 std::thread::sleep(std::time::Duration::from_millis(5));
@@ -136,7 +142,7 @@ where
     /// then from the global queue
     /// then try to steal from other threads
     /// On start, the worker should always find work from the global queue
-    fn find_work(&self) -> Option<Block> {
+    fn find_work(&self) -> Option<u32> {
         // Pop a task from the local queue, if not empty.
         self.local.pop().or_else(|| {
             // Otherwise, we need to look for a task elsewhere.
@@ -155,7 +161,7 @@ where
     }
 
     /// get the thief for this worker
-    fn own_stealer(&self) -> Stealer<Block> {
+    fn own_stealer(&self) -> Stealer<u32> {
         self.local.stealer()
     }
 }
@@ -180,11 +186,11 @@ where
     ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
 {
     /// Local queue of tasks
-    pub local: Worker<Block>,
+    pub local: Worker<u32>,
     /// Other threads we can steal work from
-    stealers: Option<Arc<Vec<Stealer<Block>>>>,
+    stealers: Option<Arc<Vec<Stealer<u32>>>>,
     /// Global queue of tasks
-    global: Option<Arc<Injector<Block>>>,
+    global: Option<Arc<Injector<u32>>>,
     /// The Substrate API Client
     client: Option<Arc<ClientApi>>,
     /// The Substrate Disk Backend (RocksDB)
@@ -222,12 +228,12 @@ where
         + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
     ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
 {
-    fn stealers(mut self, stealers: Arc<Vec<Stealer<Block>>>) -> Self {
+    fn stealers(mut self, stealers: Arc<Vec<Stealer<u32>>>) -> Self {
         self.stealers = Some(stealers);
         self
     }
 
-    fn global(mut self, injector: Arc<Injector<Block>>) -> Self {
+    fn global(mut self, injector: Arc<Injector<u32>>) -> Self {
         self.global = Some(injector);
         self
     }
@@ -265,12 +271,11 @@ pub struct ThreadedBlockExecutor<Block: BlockT> {
     /// the workers that execute blocks
     worker_count: usize,
     /// Other threads from which work can be stolen
-    stealers: Arc<Vec<Stealer<Block>>>,
+    stealers: Arc<Vec<Stealer<u32>>>,
     /// global queue that keeps unexecuteed blocks
-    global_queue: Arc<Injector<Block>>,
+    global_queue: Arc<Injector<u32>>,
     /// the threadpool
-    pool: ThreadPool,
-    sender: channel::Sender<BlockChanges<Block>>,
+    pool: Arc<Mutex<ThreadPool>>,
     receiver: channel::Receiver<BlockChanges<Block>>,
 }
 
@@ -297,7 +302,7 @@ impl<Block: BlockT> ThreadedBlockExecutor<Block> {
             .build();
         log::info!("Starting {} workers", worker_count);
 
-        let global_queue = Arc::new(Injector::<Block>::new());
+        let global_queue = Arc::new(Injector::<u32>::new());
 
         let mut stealers = Vec::new();
         let mut workers = Vec::new();
@@ -336,30 +341,42 @@ impl<Block: BlockT> ThreadedBlockExecutor<Block> {
                 }
             });
         }
-
+        let pool = Arc::new(Mutex::new(pool));
         Self {
             worker_count,
             global_queue,
             stealers,
             pool,
-            sender,
             receiver,
         }
     }
 
     /// push some work to the global pool
-    pub fn push_to_queue(&self, block: Block) {
-        self.global_queue.push(block)
+    pub fn push_to_queue(&self, block_num: u32) {
+        self.global_queue.push(block_num)
     }
 
     /// return how many workers are actively executing blocks
-    pub fn active(&self) -> usize {
-        self.pool.active_count()
+    pub fn active(&self) -> Result<usize, ArchiveError> {
+        Ok(self
+            .pool
+            .lock()
+            .map_err(|_| ArchiveError::from("Could not obtain mutex"))?
+            .active_count())
     }
 
     /// wait for the workers to finish
-    pub fn join(&self) {
-        self.pool.join();
+    pub fn join(&self) -> Result<(), ArchiveError> {
+        self.pool
+            .lock()
+            .map_err(|_| ArchiveError::from("Could not obtain mutex"))?
+            .join();
+        Ok(())
+    }
+
+    /// get the receiving end for this channel
+    pub fn receiver(&self) -> &channel::Receiver<BlockChanges<Block>> {
+        &self.receiver
     }
 }
 
@@ -448,14 +465,7 @@ where
         header.digest_mut().pop();
         let block = Block::new(header, ext);
 
-        let now = std::time::Instant::now();
         self.api.execute_block(&self.id, block)?;
-        let elapsed = now.elapsed();
-        log::info!(
-            "Took {} seconds, {} milli-seconds to execute block",
-            elapsed.as_secs(),
-            elapsed.as_millis()
-        );
         let storage_changes = self.api.into_storage_changes(&state, None, parent_hash)?;
 
         Ok(BlockChanges {
@@ -531,13 +541,14 @@ mod tests {
         pretty_env_logger::try_init();
 
         let client = test_util::client(DB_STR);
-        let db = SimpleDb::new(std::path::PathBuf::from(
+        /* let db = SimpleDb::new(std::path::PathBuf::from(
             "/home/insipx/projects/parity/substrate-archive-api/archive/test_data/10K_BLOCKS.bin",
         ))
         .unwrap();
-
+        */
         let backend = Arc::new(test_util::backend(DB_STR));
-        let blocks: Vec<Block> = db.get().unwrap();
+        // let blocks: Vec<Block> = db.get().unwrap();
+        let blocks: Vec<u32> = (0..9999).collect();
         println!("Got {} blocks", blocks.len());
         // should push to global queue before starting execution
         let executor = ThreadedBlockExecutor::new(1, Some(8_000_000), client, backend);

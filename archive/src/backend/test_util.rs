@@ -17,7 +17,7 @@
 use crate::{
     backend,
     backend::{ApiAccess, ReadOnlyBackend},
-    twox_128, Archive, ArchiveConfig, ArchiveContext, StorageKey,
+    Archive, ArchiveConfig, ArchiveContext, StorageKey,
 };
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
 use sp_api::ProvideRuntimeApi;
@@ -55,31 +55,6 @@ pub fn backend(db: &str) -> ReadOnlyBackend<Block> {
     let db = ReadOnlyDatabase::open(&conf, db).expect("Couldn't open a secondary instance");
 
     ReadOnlyBackend::new(db, true)
-}
-
-pub fn many_clients(
-    db: &str,
-    amount: usize,
-) -> Vec<Arc<impl ApiAccess<Block, ReadOnlyBackend<Block>, ksm_runtime::RuntimeApi>>> {
-    let conf = ArchiveConfig {
-        db_url: db.into(),
-        rpc_url: "ws://127.0.0.1:9944".into(),
-        psql_url: None,
-        cache_size: 2048,
-    };
-
-    // get spec/runtime from node library
-    let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-    let archive = Archive::new(conf, spec).unwrap();
-    let mut clients = Vec::new();
-    for i in 0..amount {
-        let client = archive
-            .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
-            .unwrap();
-        clients.push(Arc::new(client));
-    }
-
-    clients
 }
 
 use crate::backend::database::ReadOnlyDatabase;

@@ -22,7 +22,7 @@ mod scheduler;
 mod workers;
 
 use super::{
-    backend::{ApiAccess, ReadOnlyBackend},
+    backend::{ApiAccess, ReadOnlyBackend, ThreadedBlockExecutor},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
@@ -30,6 +30,7 @@ use bastion::prelude::*;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
+use sp_runtime::traits::Block as BlockT;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
 
@@ -48,11 +49,12 @@ use std::{env, sync::Arc};
 ///
 ///
 /// ```
-pub struct ArchiveContext {
+pub struct ArchiveContext<T: Substrate + Send + Sync> {
     workers: std::collections::HashMap<String, ChildrenRef>,
+    executor: Arc<ThreadedBlockExecutor<NotSignedBlock<T>>>,
 }
 
-impl ArchiveContext {
+impl<T: Substrate + Send + Sync> ArchiveContext<T> {
     // TODO: Return a reference to the Db pool.
     // just expose a 'shutdown' fn that must be called in order to avoid missing data.
     // or just return an archive object for general telemetry/ops.
@@ -62,15 +64,14 @@ impl ArchiveContext {
     /// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
     /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the
     /// environment variable `DATABASE_URL` instead.
-    pub fn init<T, Runtime, ClientApi>(
+    pub fn init<Runtime, ClientApi>(
         client_api: Arc<ClientApi>,
         backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
         url: String,
         psql_url: Option<&str>,
     ) -> Result<Self, ArchiveError>
     where
-        T: Substrate + Send + Sync,
-        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi>,
+        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi> + Send + 'static,
         Runtime::RuntimeApi: BlockBuilderApi<NotSignedBlock<T>, Error = sp_blockchain::Error>
             + ApiExt<
                 NotSignedBlock<T>,
@@ -87,6 +88,12 @@ impl ArchiveContext {
         <T as System>::BlockNumber: From<u32>,
     {
         let mut workers = std::collections::HashMap::new();
+        let executor = Arc::new(ThreadedBlockExecutor::new(
+            1,
+            Some(8_000_000),
+            client_api.clone(),
+            backend.clone(),
+        ));
 
         Bastion::init();
         let pool = if let Some(url) = psql_url {
@@ -108,6 +115,10 @@ impl ArchiveContext {
         let storage = self::generators::storage::<T>(backend.clone(), pool.clone(), url.clone())?;
         workers.insert("storage".into(), storage);
 
+        let missing_storage =
+            self::generators::missing_storage::<T>(executor.clone(), pool.clone())?;
+        workers.insert("missing_storage".into(), missing_storage);
+
         // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
         // uses client to get those blocks
         let missing = self::generators::missing_blocks::<T>(backend, pool, url)?;
@@ -115,14 +126,15 @@ impl ArchiveContext {
 
         Bastion::start();
 
-        Ok(Self { workers })
+        Ok(Self { workers, executor })
     }
 
     /// Run indefinitely
     /// If the application is shut down during execution, this will leave progress unsaved.
     /// It is recommended to wait for some other event (IE: Ctrl-C) and run `shutdown` instead.
-    pub fn block_until_stopped() -> Result<(), ArchiveError> {
+    pub fn block_until_stopped(&self) -> Result<(), ArchiveError> {
         Bastion::block_until_stopped();
+        self.executor.join();
         Ok(())
     }
 

@@ -72,7 +72,8 @@ where
 
     let backend = Arc::new(ReadOnlyBackend::new(db, true));
 
-    let executor = NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Compiled, Some(4096), 16);
+    let executor =
+        NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Interpreted, Some(4096), 16);
     let executor = ArchiveExecutor::new(backend.clone(), executor, task_executor());
 
     let client = Client::new(

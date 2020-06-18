@@ -25,9 +25,7 @@ pub struct Block {
 }
 
 /// get missing blocks from relational database
-pub(crate) async fn missing_blocks(
-    pool: &sqlx::Pool<PgConnection>,
-) -> Result<Vec<Block>, ArchiveError> {
+pub(crate) async fn missing_blocks(pool: &sqlx::PgPool) -> Result<Vec<Block>, ArchiveError> {
     sqlx::query_as(
         "SELECT generate_series
         FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
@@ -40,8 +38,40 @@ pub(crate) async fn missing_blocks(
     .map_err(Into::into)
 }
 
+pub(crate) async fn missing_storage(pool: &sqlx::PgPool) -> Result<Vec<Block>, ArchiveError> {
+    sqlx::query_as(
+        "SELECT generate_series
+        FROM (SELECT 0 as a, max(block_num) as z FROM storage) x, generate_series(a, z)
+        WHERE
+        NOT EXISTS(SELECT id FROM storage WHERE block_num = generate_series)
+        LIMIT 10000",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(Into::into)
+}
+
+/// returns the count of rows that exist in a range
+pub(crate) async fn get_present_in_range(
+    pool: &sqlx::PgPool,
+    min: u32,
+    max: u32,
+) -> Result<u32, ArchiveError> {
+    let row: (i64,) = sqlx::query_as(
+        r#"SELECT COUNT(*) FROM 
+            (SELECT DISTINCT block_num FROM storage) a 
+            WHERE block_num BETWEEN $1 and $2"#,
+    )
+    .bind(min as i64)
+    .bind(max as i64)
+    .fetch_one(pool)
+    .await
+    .map_err(ArchiveError::from)?;
+    Ok(row.0 as u32)
+}
+
 pub(crate) async fn missing_blocks_min_max(
-    pool: &sqlx::Pool<PgConnection>,
+    pool: &sqlx::PgPool,
     min: u32,
     max: u32,
 ) -> Result<Vec<Block>, ArchiveError> {
@@ -60,7 +90,7 @@ pub(crate) async fn missing_blocks_min_max(
 /// check if a runtime versioned metadata exists in the database
 pub(crate) async fn check_if_meta_exists(
     spec: u32,
-    pool: &sqlx::Pool<PgConnection>,
+    pool: &sqlx::PgPool,
 ) -> Result<bool, ArchiveError> {
     let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM metadata WHERE version=$1)"#)
         .bind(spec)
@@ -71,7 +101,7 @@ pub(crate) async fn check_if_meta_exists(
 
 pub(crate) async fn check_if_block_exists(
     hash: &[u8],
-    pool: &sqlx::Pool<PgConnection>,
+    pool: &sqlx::PgPool,
 ) -> Result<bool, ArchiveError> {
     let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash=$1)"#)
         .bind(hash)
@@ -85,18 +115,14 @@ pub struct Version {
     pub version: i32,
 }
 
-pub(crate) async fn get_versions(
-    pool: &sqlx::Pool<PgConnection>,
-) -> Result<Vec<Version>, ArchiveError> {
+pub(crate) async fn get_versions(pool: &sqlx::PgPool) -> Result<Vec<Version>, ArchiveError> {
     sqlx::query_as::<_, Version>("SELECT version FROM metadata")
         .fetch_all(pool)
         .await
         .map_err(Into::into)
 }
 
-pub(crate) async fn get_max_storage(
-    pool: &sqlx::Pool<PgConnection>,
-) -> Result<(u32, Vec<u8>), ArchiveError> {
+pub(crate) async fn get_max_storage(pool: &sqlx::PgPool) -> Result<(u32, Vec<u8>), ArchiveError> {
     let row: (i32, Vec<u8>) =
         sqlx::query_as(r#"SELECT block_num, hash FROM storage WHERE block_num = (SELECT MAX(block_num) FROM storage)"#)
         .fetch_one(pool)
@@ -104,9 +130,7 @@ pub(crate) async fn get_max_storage(
     Ok((row.0 as u32, row.1))
 }
 
-pub(crate) async fn get_max_block_num(
-    pool: &sqlx::Pool<PgConnection>,
-) -> Result<(u32, Vec<u8>), ArchiveError> {
+pub(crate) async fn get_max_block_num(pool: &sqlx::PgPool) -> Result<(u32, Vec<u8>), ArchiveError> {
     let row: (i32, Vec<u8>) =
         sqlx::query_as(r#"SELECT block_num, hash FROM blocks WHERE block_num = (SELECT MAX(block_num) FROM blocks)"#)
         .fetch_one(pool)
@@ -115,9 +139,7 @@ pub(crate) async fn get_max_block_num(
 }
 
 /// checks if blocks table has anything in it
-pub(crate) async fn are_blocks_empty(
-    pool: &sqlx::Pool<PgConnection>,
-) -> Result<bool, ArchiveError> {
+pub(crate) async fn are_blocks_empty(pool: &sqlx::PgPool) -> Result<bool, ArchiveError> {
     let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) from blocks"#)
         .fetch_one(pool)
         .await?;

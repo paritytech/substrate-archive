@@ -68,11 +68,9 @@ where
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
             storage: Storage<T> => {
-                log::info!("Inserting {} storage entries", storage.changes().len());
                 process_storage(&db, storage).await?;
             };
             storage: Storage<T> =!> {
-                log::info!("Inserting {} storage entries", storage.changes().len());
                 process_storage(&db, storage).await?;
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };

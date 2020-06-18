@@ -114,10 +114,10 @@ where
     pub fn run_with<T, Runtime, ClientApi>(
         &self,
         client_api: Arc<ClientApi>,
-    ) -> Result<ArchiveContext, ArchiveError>
+    ) -> Result<ArchiveContext<T>, ArchiveError>
     where
         T: Substrate + Send + Sync,
-        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi>,
+        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi> + Send + 'static,
         Runtime::RuntimeApi: BlockBuilderApi<NotSignedBlock<T>, Error = sp_blockchain::Error>
             + ApiExt<
                 NotSignedBlock<T>,
@@ -134,7 +134,7 @@ where
         <T as System>::BlockNumber: From<u32>,
     {
         let backend = Arc::new(self.make_backend::<T>()?);
-        ArchiveContext::init::<T, Runtime, _>(
+        ArchiveContext::init(
             client_api,
             backend,
             self.rpc_url.clone(),

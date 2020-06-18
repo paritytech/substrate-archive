@@ -36,10 +36,10 @@ pub fn main() {
     let client_api = archive
         .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
         .unwrap();
-    let _context = archive
+    let context = archive
         .run_with::<ksm_runtime::Runtime, ksm_runtime::RuntimeApi, _>(client_api)
         .unwrap();
 
     // run indefinitely
-    ArchiveContext::block_until_stopped().unwrap();
+    context.block_until_stopped().unwrap();
 }

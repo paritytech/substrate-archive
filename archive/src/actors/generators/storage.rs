@@ -78,19 +78,15 @@ where
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
-    log::info!("Hello from storage");
     let rpc = actors::connect::<T>(url).await;
     let mut subscription = rpc.subscribe_storage().await.map_err(ArchiveError::from)?;
-    log::info!("Subscribing to storage");
     loop {
         if handle_shutdown::<T, _>(sched.context(), &mut subscription).await {
             break;
         }
         let storage = subscription.next().await;
-        log::info!("A storage item came through");
         let block_num = backend.number(storage.block)?;
         if let Some(b) = block_num {
-            log::info!("Telling transformers about storage");
             sched.tell_next("transform", (b, storage))?
         } else {
             log::warn!("Block does not exist!");
