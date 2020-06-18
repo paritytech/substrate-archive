@@ -15,9 +15,10 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A simple example
-
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use substrate_archive::{backend, Archive, ArchiveConfig, ArchiveContext, StorageKey};
+use substrate_archive::{
+    backend, native_executor_instance, Archive, ArchiveConfig, ArchiveContext, StorageKey,
+};
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);

@@ -16,6 +16,7 @@
 
 //! prepared statements for sqlx
 
+use super::models::*;
 use crate::error::ArchiveResult;
 use crate::types::*;
 use sqlx::Postgres;
@@ -135,7 +136,7 @@ VALUES {}
     }
 }
 
-impl<'a, T> PrepareSql<'a> for Storage<T>
+impl<'a, T> PrepareSql<'a> for StorageModel<T>
 where
     T: Substrate + Send + Sync,
 {
@@ -155,7 +156,7 @@ is_full = EXCLUDED.is_full
     }
 }
 
-impl<'a, T> PrepareBatchSql<'a> for Vec<Storage<T>>
+impl<'a, T> PrepareBatchSql<'a> for Vec<StorageModel<T>>
 where
     T: Substrate + Send + Sync,
 {

@@ -48,8 +48,7 @@ pub(crate) async fn missing_blocks_min_max(
     sqlx::query_as(
         "SELECT generate_series
          FROM (SELECT $1 as a, $2 as z FROM blocks) x, generate_series(a, z)
-         WHERE
-         NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)",
+         WHERE NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)",
     )
     .bind(min as i32)
     .bind(max as i32)
@@ -69,6 +68,18 @@ pub(crate) async fn check_if_meta_exists(
         .await?;
     Ok(row.0)
 }
+
+pub(crate) async fn check_if_block_exists(
+    hash: &[u8],
+    pool: &sqlx::Pool<PgConnection>,
+) -> Result<bool, ArchiveError> {
+    let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash=$1)"#)
+        .bind(hash)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0)
+}
+
 #[derive(sqlx::FromRow, Debug)]
 pub struct Version {
     pub version: i32,

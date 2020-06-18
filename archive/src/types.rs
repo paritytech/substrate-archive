@@ -137,48 +137,27 @@ where
     }
 }
 
-/// newType for Storage Data
+/// NewType for Storage Data
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Storage<T: Substrate + Send + Sync> {
     hash: T::Hash,
     block_num: u32,
     full_storage: bool,
-    key: StorageKey,
-    data: Option<StorageData>,
+    pub changes: Vec<(StorageKey, Option<StorageData>)>,
 }
 
-// need to manually implement hash here because Rust doesn't recognize that T::Hash implements hash
-// if we derive `Hash`
-impl<T> Hash for Storage<T>
-where
-    T: Substrate + Send + Sync,
-{
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.hash.hash(state);
-        self.block_num.hash(state);
-        self.full_storage.hash(state);
-        self.key.hash(state);
-        self.data.hash(state);
-    }
-}
-
-impl<T> Storage<T>
-where
-    T: Substrate + Send + Sync,
-{
+impl<T: Substrate + Send + Sync> Storage<T> {
     pub fn new(
         hash: T::Hash,
         block_num: u32,
         full_storage: bool,
-        key: StorageKey,
-        data: Option<StorageData>,
+        changes: Vec<(StorageKey, Option<StorageData>)>,
     ) -> Self {
         Self {
             block_num,
             hash,
             full_storage,
-            key,
-            data,
+            changes,
         }
     }
 
@@ -194,12 +173,8 @@ where
         &self.hash
     }
 
-    pub fn key(&self) -> &StorageKey {
-        &self.key
-    }
-
-    pub fn data(&self) -> Option<&StorageData> {
-        self.data.as_ref()
+    pub fn changes(&self) -> &[(StorageKey, Option<StorageData>)] {
+        self.changes.as_slice()
     }
 }
 
@@ -225,7 +200,7 @@ where
 impl<T> From<&BatchBlock<T>> for Vec<Extrinsic<T>>
 where
     T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>
+    <T as System>::BlockNumber: Into<u32>,
 {
     fn from(batch_block: &BatchBlock<T>) -> Vec<Extrinsic<T>> {
         batch_block

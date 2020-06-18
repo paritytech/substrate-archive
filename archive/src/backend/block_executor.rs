@@ -375,28 +375,25 @@ pub struct BlockChanges<Block: BlockT> {
     pub block_num: NumberFor<Block>,
 }
 
-impl<T> From<BlockChanges<NotSignedBlock<T>>> for Vec<Storage<T>>
+impl<T> From<BlockChanges<NotSignedBlock<T>>> for Storage<T>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    fn from(changes: BlockChanges<NotSignedBlock<T>>) -> Vec<Storage<T>> {
+    fn from(changes: BlockChanges<NotSignedBlock<T>>) -> Storage<T> {
         let hash = changes.block_hash;
         let num: u32 = changes.block_num.into();
 
-        changes
-            .storage_changes
-            .into_iter()
-            .map(|s| {
-                Storage::new(
-                    hash.clone(),
-                    num,
-                    false,
-                    StorageKeyWrapper(s.0),
-                    s.1.map(|d| StorageData(d)),
-                )
-            })
-            .collect::<Vec<Storage<T>>>()
+        Storage::new(
+            hash,
+            num,
+            false,
+            changes
+                .storage_changes
+                .into_iter()
+                .map(|s| (StorageKeyWrapper(s.0), s.1.map(|d| StorageData(d))))
+                .collect::<Vec<(StorageKeyWrapper, Option<StorageData>)>>(),
+        )
     }
 }
 

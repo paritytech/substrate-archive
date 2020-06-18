@@ -17,6 +17,7 @@
 //! IO for the PostgreSQL database connected to Substrate Archive Node
 //! Handles inserting of data into the database
 
+pub mod models;
 mod prepare_sql;
 
 use async_trait::async_trait;
@@ -24,7 +25,10 @@ use futures::future;
 use sp_runtime::traits::Header as _;
 use sqlx::{PgConnection, Postgres};
 
-use self::prepare_sql::{BindAll, PrepareBatchSql as _, PrepareSql as _};
+use self::{
+    models::*,
+    prepare_sql::{BindAll, PrepareBatchSql as _, PrepareSql as _},
+};
 use crate::{
     error::{ArchiveResult, Error as ArchiveError},
     types::*,
@@ -110,7 +114,7 @@ where
 }
 
 #[async_trait]
-impl<T> Insert for Storage<T>
+impl<T> Insert for StorageModel<T>
 where
     T: Substrate + Send + Sync,
 {
@@ -120,7 +124,7 @@ where
 }
 
 #[async_trait]
-impl<T> Insert for Vec<Storage<T>>
+impl<T> Insert for Vec<StorageModel<T>>
 where
     T: Substrate + Send + Sync,
 {
@@ -158,7 +162,7 @@ where
     }
 }
 
-impl<'a, T> BindAll<'a> for Storage<T>
+impl<'a, T> BindAll<'a> for StorageModel<T>
 where
     T: Substrate + Send + Sync,
 {

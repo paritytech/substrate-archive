@@ -16,9 +16,13 @@
 
 //! Actors which do work by transforming data before it's inserted into the database
 //! These actors do not make any external connections to a Database or Network
-use crate::actors::scheduler::{Algorithm, Scheduler};
-use crate::print_on_err;
-use crate::{error::Error as ArchiveError, types::*};
+use crate::{
+    actors::scheduler::{Algorithm, Scheduler},
+    database::models::*,
+    error::Error as ArchiveError,
+    print_on_err,
+    types::*,
+};
 use bastion::prelude::*;
 use sp_core::storage::StorageChangeSet;
 use sqlx::PgConnection;
@@ -96,13 +100,9 @@ where
 {
     let hash = changes.block;
     let num: u32 = num.into();
-    let changes = changes
-        .changes
-        .into_iter()
-        .map(|s| Storage::new(hash, num, false, s.0, s.1))
-        .collect::<Vec<Storage<T>>>();
+    let storage = Storage::<T>::new(hash, num, false, changes.changes);
     log::info!("Inserting storage");
-    let v = sched.ask_next("db", changes)?.await;
+    let v = sched.ask_next("db", storage)?.await;
     log::debug!("{:?}", v);
     Ok(())
 }

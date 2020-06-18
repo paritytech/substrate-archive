@@ -13,31 +13,31 @@ log = "0.4"
 futures = { version = "0.3" }
 failure = "0.1"
 timer = { version = "3.0", package = "futures-timer" }
-serde = { version = "1.0.105", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
 # enabling arbitrary_precision for serde_json may cause rpc requests to fail
 fern = { version = "0.6", features = ["colored"], optional = true }
 chrono = { version = "0.4", optional = true }
-serde_json = "1.0.50"
+serde_json = "1.0"
 dirs = { version = "2", package = "directories" }
 bastion = "0.3"
 sqlx = { version = "0.3.5", features = ["postgres"] }
-async-trait = "0.1.31"
-hex = "0.4.2"
-bastion-executor = "0.3.4"
-lightproc = "0.3.4"
+async-trait = "0.1.35"
+hex = "0.4"
+bastion-executor = "0.3"
+lightproc = "0.3"
 #  (itertools) - only used in prepare_sql
-itertools = "0.9.0"
-num_cpus = "1.13.0"
-threadpool = "1.8.1"
-crossbeam = "0.7.3"
-parking_lot = "0.10.2"
+itertools = "0.9"
+num_cpus = "1.13"
+threadpool = "1.8"
+crossbeam = "0.7"
+parking_lot = "0.10"
 
 # Parity
 primitive-types = "0.7"
 jsonrpsee = "0.1.0"
 kvdb = "0.6"
 kvdb-rocksdb = "0.8"
-parity-util-mem = "0.6.1"
+parity-util-mem = { version = "*", default-features = false, features = ["std"] }
 codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
 hash-db = "0.15"
 
@@ -61,7 +61,8 @@ sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", tag = "v0.8.9", default-features = false }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master" }
+
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
 flate2 = "1.0.14"
