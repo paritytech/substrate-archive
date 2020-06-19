@@ -23,11 +23,12 @@ use crate::actors::{
     workers,
 };
 use crate::{
-    backend::ReadOnlyBackend,
+    backend::{BlockData, BlockOrNumber, ExecutorContext, ReadOnlyBackend, ThreadedBlockExecutor},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
 use bastion::prelude::*;
+use crossbeam::channel::Sender;
 use jsonrpsee::client::Subscription;
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Header as _;
@@ -38,6 +39,7 @@ use std::sync::Arc;
 /// this is a worker that never stops
 pub fn actor<T>(
     backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    executor: ExecutorContext<NotSignedBlock<T>>,
     pool: sqlx::Pool<PgConnection>,
     url: String,
 ) -> Result<ChildrenRef, ArchiveError>
@@ -53,10 +55,11 @@ where
             let meta_workers = meta_workers.clone();
             let url: String = url.clone();
             let backend = backend.clone();
+            let executor = executor.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                 sched.add_worker("meta", &meta_workers);
-                match entry::<T>(&mut sched, backend, url.as_str()).await {
+                match entry::<T>(&mut sched, backend, executor.clone(), url.as_str()).await {
                     Ok(_) => (),
                     Err(e) => log::error!("{:?}", e),
                 };
@@ -71,6 +74,7 @@ where
 async fn entry<T>(
     sched: &mut Scheduler<'_>,
     backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    executor: ExecutorContext<NotSignedBlock<T>>,
     url: &str,
 ) -> Result<(), ArchiveError>
 where
@@ -91,6 +95,11 @@ where
         let block = backend.block(&BlockId::Number(*head.number()));
         if let Some(b) = block {
             log::trace!("{:?}", b);
+            let block = b.block.clone();
+            executor
+                .work
+                .send(BlockData::Single(BlockOrNumber::Block(block)))
+                .unwrap();
             sched.tell_next("meta", b)?
         } else {
             log::warn!("Block does not exist!");

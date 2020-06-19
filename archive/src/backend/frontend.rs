@@ -74,7 +74,7 @@ where
 
     let executor =
         NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Interpreted, Some(4096), 16);
-    let executor = ArchiveExecutor::new(backend.clone(), executor, task_executor());
+    let executor = ArchiveExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()));
 
     let client = Client::new(
         backend,
@@ -82,6 +82,38 @@ where
         ExecutionExtensions::new(execution_strategies(), None),
     )?;
     Ok(client)
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskExecutor {
+    pool: futures::executor::ThreadPool,
+}
+
+impl TaskExecutor {
+    fn new() -> Self {
+        let pool = futures::executor::ThreadPool::builder()
+            .pool_size(8)
+            .create()
+            .unwrap();
+        Self {
+            pool: futures::executor::ThreadPool::new().expect("Failed to create executor"),
+        }
+    }
+}
+
+impl futures::task::Spawn for TaskExecutor {
+    fn spawn_obj(
+        &self,
+        future: futures::task::FutureObj<'static, ()>,
+    ) -> Result<(), futures::task::SpawnError> {
+        self.pool.spawn_obj(future)
+    }
+}
+
+impl CloneableSpawn for TaskExecutor {
+    fn clone(&self) -> Box<dyn CloneableSpawn> {
+        Box::new(Clone::clone(self))
+    }
 }
 
 fn execution_strategies() -> ExecutionStrategies {

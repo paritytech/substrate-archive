@@ -119,11 +119,8 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let ext: Vec<Extrinsic<T>> = (&block).into();
     // blocks need to be inserted before extrinsics, so that extrinsics may reference block hash in postgres
     let v = sched.ask_next("db", block)?.await;
-    log::debug!("{:?}", v);
-    let v = sched.ask_next("db", ext)?.await;
     log::debug!("{:?}", v);
     Ok(())
 }
@@ -139,13 +136,9 @@ where
     log::info!("Got {} blocks", blocks.len());
 
     let batch_blocks = BatchBlock::new(blocks);
-    let ext: Vec<Extrinsic<T>> = (&batch_blocks).into();
-
     // blocks need to be inserted before extrinsics, so that extrinsics may reference block hash in postgres
     log::info!("Processing blocks");
     let v = sched.ask_next("db", batch_blocks)?.await;
-    log::debug!("{:?}", v);
-    let v = sched.ask_next("db", ext)?.await;
     log::debug!("{:?}", v);
     Ok(())
 }

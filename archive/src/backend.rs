@@ -25,7 +25,9 @@ mod test_util;
 pub mod util;
 
 // re-exports
-pub use self::block_executor::{BlockChanges, BlockExecutor, ThreadedBlockExecutor};
+pub use self::block_executor::{
+    BlockChanges, BlockData, BlockExecutor, BlockOrNumber, ExecutorContext, ThreadedBlockExecutor,
+};
 pub use self::read_only_backend::{ReadOnlyBackend, TrieState};
 pub use self::{database::ReadOnlyDatabase, frontend::runtime_api, util::open_database};
 

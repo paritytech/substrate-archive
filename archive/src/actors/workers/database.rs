@@ -59,10 +59,6 @@ where
                 process_blocks(&db, blocks).await?;
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
-            extrinsics: Vec<Extrinsic<T>> =!> {
-                db.insert(extrinsics).await.map(|_| ())?;
-                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
-            };
             metadata: Metadata =!> {
                 db.insert(metadata).await.map(|_| ())?;
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;

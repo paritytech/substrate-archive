@@ -18,21 +18,25 @@
 //! Crawls for missing entires in the storage table
 //! Gets storage changes based on those missing entries
 
-use crate::actors::{
-    scheduler::{Algorithm, Scheduler},
-    workers,
+use crate::{
+    actors::{
+        scheduler::{Algorithm, Scheduler},
+        workers,
+    },
+    backend::{BlockChanges, BlockData, BlockOrNumber, ExecutorContext, ThreadedBlockExecutor},
+    sql_block_builder::BlockBuilder,
 };
-use crate::backend::{BlockChanges, ThreadedBlockExecutor};
 use crate::{
     error::Error as ArchiveError,
     queries,
     types::{NotSignedBlock, Storage, Substrate, System},
 };
 use bastion::prelude::*;
-use crossbeam::channel;
+use crossbeam::channel::{self, Sender};
+use sp_runtime::generic::BlockId;
 use std::sync::Arc;
 
-type BlockExecutor<T> = Arc<ThreadedBlockExecutor<NotSignedBlock<T>>>;
+type BlockExecutor<T> = ExecutorContext<NotSignedBlock<T>>;
 
 pub fn actor<T>(executor: BlockExecutor<T>, pool: sqlx::PgPool) -> Result<ChildrenRef, ArchiveError>
 where
@@ -46,9 +50,17 @@ where
             let executor = executor.clone();
             let workers = workers.clone();
             let pool = pool.clone();
+
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                 sched.add_worker("transform", &workers);
+                match on_start::<T>(&executor, &pool, &mut sched).await {
+                    Ok(_) => (),
+                    Err(e) => {
+                        log::error!("{:?}", e);
+                        panic!("Missing storage not started properly");
+                    }
+                }
                 loop {
                     if handle_shutdown(&ctx).await {
                         break;
@@ -75,49 +87,75 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let block_nums = queries::missing_storage(&pool).await?;
-    log::info!("missing {} blocks", block_nums.len());
-    if !(block_nums.len() > 0) {
-        timer::Delay::new(std::time::Duration::from_secs(5)).await;
-        return Ok(());
-    }
-    log::info!(
-        "indexing {} missing storage entries, from {} to {} ...",
-        block_nums.len(),
-        block_nums[0].generate_series,
-        block_nums[block_nums.len() - 1].generate_series
-    );
-    for num in block_nums.iter() {
-        executor.push_to_queue(num.generate_series as u32);
-    }
-    let min = block_nums[0].generate_series;
-    let max = block_nums[block_nums.len() - 1].generate_series;
-    let count = block_nums.len() as u32;
-    let now = std::time::Instant::now();
-    while queries::get_present_in_range(&pool, min as u32, max as u32).await? < count {
-        timer::Delay::new(std::time::Duration::from_secs(1)).await;
+    timer::Delay::new(std::time::Duration::from_secs(1)).await;
+    let count = check_work::<T>(executor, sched)?;
+    log::info!("Syncing Storage {} bps", count);
+    Ok(())
+}
 
-        let block_changes = executor
-            .receiver()
-            .try_iter()
-            .map(|c| Storage::<T>::from(c))
-            .collect::<Vec<Storage<T>>>();
-
-        log::info!("Syncing Storage {} bps", block_changes.len());
-
-        if block_changes.len() > 0 {
-            let answer = sched.tell_next("transform", block_changes)?;
-            log::debug!("{:?}", answer);
+async fn on_start<T>(
+    executor: &BlockExecutor<T>,
+    pool: &sqlx::PgPool,
+    sched: &mut Scheduler<'_>,
+) -> Result<(), ArchiveError>
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    loop {
+        let count = queries::blocks_storage_intersection_count(pool).await?;
+        // 100 is arbitrary, we just want the blocks table to begin
+        // being filled/ensure it's not empty before we crawl for missing entries
+        if count > 100 {
+            break;
+        } else {
+            let count = check_work::<T>(executor, sched)?;
+            log::info!("Syncing Storage {} bps", count);
+            timer::Delay::new(std::time::Duration::from_secs(1)).await;
         }
     }
+    let now = std::time::Instant::now();
+    let builder = BlockBuilder::new(pool.clone());
+    let blocks = builder.with_vec(queries::blocks_storage_intersection(pool).await?)?;
     let elapsed = now.elapsed();
     log::info!(
-        "took {} seconds to execute {} blocks",
-        elapsed.as_secs(),
-        count
+        "TOOK {} milli-seconds, {} micro-seconds to get and build blocks",
+        elapsed.as_millis(),
+        elapsed.as_micros()
     );
-
+    executor
+        .work
+        .send(BlockData::Batch(
+            blocks
+                .into_iter()
+                .map(|b| BlockOrNumber::Block(b))
+                .collect::<Vec<BlockOrNumber<NotSignedBlock<T>>>>(),
+        ))
+        .unwrap();
     Ok(())
+}
+
+fn check_work<T>(
+    executor: &BlockExecutor<T>,
+    sched: &mut Scheduler<'_>,
+) -> Result<usize, ArchiveError>
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    let block_changes = executor
+        .results
+        .try_iter()
+        .map(|c| Storage::<T>::from(c))
+        .collect::<Vec<Storage<T>>>();
+
+    if block_changes.len() > 0 {
+        let count = block_changes.len();
+        sched.tell_next("transform", block_changes)?;
+        Ok(count)
+    } else {
+        Ok(0)
+    }
 }
 
 // Handle a shutdown

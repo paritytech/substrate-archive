@@ -23,7 +23,7 @@ use crate::actors::{
     workers,
 };
 use crate::{
-    backend::ReadOnlyBackend,
+    backend::{BlockData, BlockOrNumber, ExecutorContext, ReadOnlyBackend},
     error::Error as ArchiveError,
     queries,
     types::{NotSignedBlock, Substrate, SubstrateBlock, System},
@@ -33,8 +33,11 @@ use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
 use std::sync::Arc;
 
+type BlockExecutor<T> = ExecutorContext<NotSignedBlock<T>>;
+
 pub fn actor<T>(
     backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    executor: BlockExecutor<T>,
     pool: sqlx::Pool<PgConnection>,
     url: String,
 ) -> Result<ChildrenRef, ArchiveError>
@@ -50,6 +53,7 @@ where
             let backend = backend.clone();
             let pool = pool.clone();
             let workers = meta_workers.clone();
+            let executor = executor.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                 sched.add_worker("meta", &workers);
@@ -57,7 +61,7 @@ where
                     if handle_shutdown(&ctx).await {
                         break;
                     }
-                    match entry::<T>(&backend, &pool, &mut sched).await {
+                    match entry::<T>(&backend, &executor, &pool, &mut sched).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
@@ -72,6 +76,7 @@ where
 
 async fn entry<T>(
     backend: &Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    executor: &BlockExecutor<T>,
     pool: &sqlx::Pool<PgConnection>,
     sched: &mut Scheduler<'_>,
 ) -> Result<(), ArchiveError>
@@ -93,6 +98,7 @@ where
     );
     let backend = backend.clone();
     let now = std::time::Instant::now();
+    let executor = executor.clone();
     let blocks: Vec<SubstrateBlock<T>> = blocking!((move || {
         let mut blocks = Vec::new();
         for block_num in block_nums.iter() {
@@ -102,7 +108,12 @@ where
             if b.is_none() {
                 log::warn!("Block does not exist!")
             } else {
-                blocks.push(b.expect("Checked for none; qed"));
+                let b = b.expect("Checked for none; qed");
+                executor
+                    .work
+                    .send(BlockData::Single(BlockOrNumber::Block(b.block.clone())))
+                    .unwrap();
+                blocks.push(b);
             }
         }
         blocks

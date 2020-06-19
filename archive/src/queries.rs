@@ -16,16 +16,18 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
-use crate::error::Error as ArchiveError;
+use crate::{error::Error as ArchiveError, sql_block_builder::SqlBlock};
 use sqlx::{postgres::PgQueryAs as _, PgConnection};
 
-#[derive(sqlx::FromRow, Debug)]
-pub struct Block {
+#[derive(sqlx::FromRow, Debug, Clone)]
+pub struct BlockNumSeries {
     pub generate_series: i32,
 }
 
 /// get missing blocks from relational database
-pub(crate) async fn missing_blocks(pool: &sqlx::PgPool) -> Result<Vec<Block>, ArchiveError> {
+pub(crate) async fn missing_blocks(
+    pool: &sqlx::PgPool,
+) -> Result<Vec<BlockNumSeries>, ArchiveError> {
     sqlx::query_as(
         "SELECT generate_series
         FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
@@ -38,7 +40,9 @@ pub(crate) async fn missing_blocks(pool: &sqlx::PgPool) -> Result<Vec<Block>, Ar
     .map_err(Into::into)
 }
 
-pub(crate) async fn missing_storage(pool: &sqlx::PgPool) -> Result<Vec<Block>, ArchiveError> {
+pub(crate) async fn missing_storage(
+    pool: &sqlx::PgPool,
+) -> Result<Vec<BlockNumSeries>, ArchiveError> {
     sqlx::query_as(
         "SELECT generate_series
         FROM (SELECT 0 as a, max(block_num) as z FROM storage) x, generate_series(a, z)
@@ -51,30 +55,44 @@ pub(crate) async fn missing_storage(pool: &sqlx::PgPool) -> Result<Vec<Block>, A
     .map_err(Into::into)
 }
 
-/// returns the count of rows that exist in a range
-pub(crate) async fn get_present_in_range(
+/// Will get blocks such that they exist in the `blocks` table but they
+/// do not exist in the `storage` table
+pub(crate) async fn blocks_storage_intersection(
     pool: &sqlx::PgPool,
-    min: u32,
-    max: u32,
-) -> Result<u32, ArchiveError> {
-    let row: (i64,) = sqlx::query_as(
-        r#"SELECT COUNT(*) FROM 
-            (SELECT DISTINCT block_num FROM storage) a 
-            WHERE block_num BETWEEN $1 and $2"#,
+) -> Result<Vec<SqlBlock>, ArchiveError> {
+    sqlx::query_as(
+       "SELECT a.parent_hash, a.hash, a.block_num, a.state_root, a.extrinsics_root, a.digest, a.ext, a.spec
+        FROM blocks AS a
+        LEFT JOIN storage b ON b.block_num = a.block_num
+        WHERE b.block_num IS NULL"
     )
-    .bind(min as i64)
-    .bind(max as i64)
+    .fetch_all(pool)
+    .await
+    .map_err(Into::into)
+}
+
+/// Will get blocks such that they exist in the `blocks` table but they
+/// do not exist in the `storage` table
+pub(crate) async fn blocks_storage_intersection_count(
+    pool: &sqlx::PgPool,
+) -> Result<u64, ArchiveError> {
+    let row: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*)
+        FROM blocks AS a
+        LEFT JOIN storage b ON b.block_num = a.block_num
+        WHERE b.block_num IS NULL",
+    )
     .fetch_one(pool)
     .await
     .map_err(ArchiveError::from)?;
-    Ok(row.0 as u32)
+    Ok(row.0 as u64)
 }
 
 pub(crate) async fn missing_blocks_min_max(
     pool: &sqlx::PgPool,
     min: u32,
     max: u32,
-) -> Result<Vec<Block>, ArchiveError> {
+) -> Result<Vec<BlockNumSeries>, ArchiveError> {
     sqlx::query_as(
         "SELECT generate_series
          FROM (SELECT $1 as a, $2 as z FROM blocks) x, generate_series(a, z)

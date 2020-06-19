@@ -28,6 +28,7 @@ use frame_system::Trait as System;
 use sc_client_api::backend;
 // use sc_client_db::Backend;
 use crossbeam::channel;
+use hashbrown::HashSet;
 use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
@@ -36,7 +37,7 @@ use sp_runtime::{
 };
 use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
 use std::{
-    iter,
+    iter::{self, FromIterator},
     marker::PhantomData,
     sync::{Arc, Mutex},
 };
@@ -49,6 +50,127 @@ pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
 const POOL_NAME: &str = "block-executor-worker";
 
+pub enum BlockData<Block: BlockT> {
+    Batch(Vec<BlockOrNumber<Block>>),
+    Single(BlockOrNumber<Block>),
+    Stop,
+}
+
+pub struct ExecutorContext<Block: BlockT> {
+    pub work: channel::Sender<BlockData<Block>>,
+    pub results: channel::Receiver<BlockChanges<Block>>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl<Block: BlockT> Clone for ExecutorContext<Block> {
+    fn clone(&self) -> Self {
+        Self {
+            work: self.work.clone(),
+            results: self.results.clone(),
+            // only one thread may own a handle
+            handle: None,
+        }
+    }
+}
+
+impl<Block: BlockT> ExecutorContext<Block>
+where
+    NumberFor<Block>: Into<u32>,
+{
+    pub fn from_executor(executor: ThreadedBlockExecutor<Block>) -> Self {
+        let results = executor.receiver().clone();
+        let (work, handle) = Self::scheduler_loop(executor);
+
+        Self {
+            results,
+            work,
+            handle: Some(handle),
+        }
+    }
+
+    fn scheduler_loop(
+        mut executor: ThreadedBlockExecutor<Block>,
+    ) -> (
+        channel::Sender<BlockData<Block>>,
+        std::thread::JoinHandle<()>,
+    ) {
+        let (tx, rx) = channel::unbounded();
+        let handle = std::thread::spawn(move || loop {
+            let data = rx.recv();
+            match data.unwrap() {
+                BlockData::Batch(v) => executor.push_vec_to_queue(v).unwrap(),
+                BlockData::Single(v) => executor.push_to_queue(v).unwrap(),
+                Stop => {
+                    executor.join();
+                    break;
+                }
+            }
+        });
+        (tx, handle)
+    }
+
+    pub fn stop(mut self) -> Result<(), ArchiveError> {
+        self.work.send(BlockData::Stop);
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        self.handle.take().map(std::thread::JoinHandle::join);
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub enum BlockOrNumber<Block: BlockT> {
+    Block(Block),
+    Number(u32),
+}
+
+impl<Block: BlockT> PartialEq for BlockOrNumber<Block>
+where
+    NumberFor<Block>: Into<u32>,
+{
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            BlockOrNumber::Block(b0) => match other {
+                BlockOrNumber::Block(b1) => b0.header().number() == b1.header().number(),
+                BlockOrNumber::Number(n) => {
+                    let num: u32 = (*b0.header().number()).into();
+                    num == *n
+                }
+            },
+            BlockOrNumber::Number(n0) => match other {
+                BlockOrNumber::Block(b) => {
+                    let num: u32 = (*b.header().number()).into();
+                    *n0 == num
+                }
+                BlockOrNumber::Number(n1) => n0 == n1,
+            },
+        }
+    }
+}
+
+impl<Block: BlockT> Eq for BlockOrNumber<Block> where NumberFor<Block>: Into<u32> {}
+
+impl<Block: BlockT> std::hash::Hash for BlockOrNumber<Block>
+where
+    NumberFor<Block>: Into<u32>,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            BlockOrNumber::Block(b) => b.header().number().hash(state),
+            BlockOrNumber::Number(n) => n.hash(state),
+        }
+    }
+}
+
+impl<Block: BlockT> BlockOrNumber<Block> {
+    pub fn from_block(block: Block) -> BlockOrNumber<Block> {
+        BlockOrNumber::Block(block)
+    }
+
+    pub fn from_num(num: u32) -> BlockOrNumber<Block> {
+        BlockOrNumber::Number(num)
+    }
+}
+
 /// A worker on the threadpool that has
 /// blocks on the queue to execute
 pub struct BlockWorker<Block, Runtime, ClientApi>
@@ -60,11 +182,11 @@ where
     ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
 {
     /// Local queue of tasks
-    local: Worker<u32>,
+    local: Worker<BlockOrNumber<Block>>,
     /// Other threads we can steal work from
-    stealers: Arc<Vec<Stealer<u32>>>,
+    stealers: Arc<Vec<Stealer<BlockOrNumber<Block>>>>,
     /// Global queue of tasks
-    global: Arc<Injector<u32>>,
+    global: Arc<Injector<BlockOrNumber<Block>>>,
     /// The Substrate API Client
     client: Arc<ClientApi>,
     /// The Substrate Disk Backend (RocksDB)
@@ -83,8 +205,8 @@ where
 {
     /// create a new worker
     fn init_worker(
-        stealers: Arc<Vec<Stealer<u32>>>,
-        global: Arc<Injector<u32>>,
+        stealers: Arc<Vec<Stealer<BlockOrNumber<Block>>>>,
+        global: Arc<Injector<BlockOrNumber<Block>>>,
         client: Arc<ClientApi>,
         backend: Arc<Backend<Block>>,
         sender: channel::Sender<BlockChanges<Block>>,
@@ -104,30 +226,30 @@ where
     /// Start the worker loop
     fn start_worker(self) -> Result<(), ArchiveError> {
         loop {
-            let block_num = match self.find_work() {
-                Some(b) => b,
-                None => {
-                    std::thread::sleep(std::time::Duration::from_millis(2));
-                    continue;
-                }
-            };
-            let block = self
-                .backend
-                .block(&BlockId::Number(NumberFor::<Block>::from(block_num)));
-            if let Some(b) = block {
-                let api = self.client.runtime_api();
-                let block =
-                    BlockExecutor::new(api, self.backend.clone(), b.block)?.block_into_storage()?;
-                match self.sender.send(block) {
-                    Ok(_) => (),
-                    Err(e) => {
-                        log::error!("Could not send storage changes because {}", e);
-                    }
-                }
+            let block = if let Some(b) = self.find_work() {
+                b
             } else {
-                // return Err(ArchiveError::from("Couldn't find block to execute"));
                 std::thread::sleep(std::time::Duration::from_millis(5));
                 continue;
+            };
+
+            let block: Block = match block {
+                BlockOrNumber::Block(b) => b,
+                BlockOrNumber::Number(num) => {
+                    self.backend
+                        .block(&BlockId::Number(NumberFor::<Block>::from(num)))
+                        .ok_or(ArchiveError::from("Block Not Found"))?
+                        .block
+                }
+            };
+            let api = self.client.runtime_api();
+            let block =
+                BlockExecutor::new(api, self.backend.clone(), block)?.block_into_storage()?;
+            match self.sender.send(block) {
+                Ok(_) => (),
+                Err(e) => {
+                    log::error!("Could not send storage changes because {}", e);
+                }
             }
             // TODO: Park os thread
             // currently the OS thread just sleeps
@@ -142,7 +264,7 @@ where
     /// then from the global queue
     /// then try to steal from other threads
     /// On start, the worker should always find work from the global queue
-    fn find_work(&self) -> Option<u32> {
+    fn find_work(&self) -> Option<BlockOrNumber<Block>> {
         // Pop a task from the local queue, if not empty.
         self.local.pop().or_else(|| {
             // Otherwise, we need to look for a task elsewhere.
@@ -161,7 +283,7 @@ where
     }
 
     /// get the thief for this worker
-    fn own_stealer(&self) -> Stealer<u32> {
+    fn own_stealer(&self) -> Stealer<BlockOrNumber<Block>> {
         self.local.stealer()
     }
 }
@@ -184,13 +306,14 @@ where
     Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
         + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
     ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+    NumberFor<Block>: Into<u32>,
 {
     /// Local queue of tasks
-    pub local: Worker<u32>,
+    pub local: Worker<BlockOrNumber<Block>>,
     /// Other threads we can steal work from
-    stealers: Option<Arc<Vec<Stealer<u32>>>>,
+    stealers: Option<Arc<Vec<Stealer<BlockOrNumber<Block>>>>>,
     /// Global queue of tasks
-    global: Option<Arc<Injector<u32>>>,
+    global: Option<Arc<Injector<BlockOrNumber<Block>>>>,
     /// The Substrate API Client
     client: Option<Arc<ClientApi>>,
     /// The Substrate Disk Backend (RocksDB)
@@ -206,6 +329,7 @@ where
     Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
         + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
     ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+    NumberFor<Block>: Into<u32>,
 {
     fn default() -> Self {
         Self {
@@ -227,13 +351,14 @@ where
     Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
         + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
     ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+    NumberFor<Block>: Into<u32>,
 {
-    fn stealers(mut self, stealers: Arc<Vec<Stealer<u32>>>) -> Self {
+    fn stealers(mut self, stealers: Arc<Vec<Stealer<BlockOrNumber<Block>>>>) -> Self {
         self.stealers = Some(stealers);
         self
     }
 
-    fn global(mut self, injector: Arc<Injector<u32>>) -> Self {
+    fn global(mut self, injector: Arc<Injector<BlockOrNumber<Block>>>) -> Self {
         self.global = Some(injector);
         self
     }
@@ -271,15 +396,20 @@ pub struct ThreadedBlockExecutor<Block: BlockT> {
     /// the workers that execute blocks
     worker_count: usize,
     /// Other threads from which work can be stolen
-    stealers: Arc<Vec<Stealer<u32>>>,
+    stealers: Arc<Vec<Stealer<BlockOrNumber<Block>>>>,
     /// global queue that keeps unexecuteed blocks
-    global_queue: Arc<Injector<u32>>,
+    global_queue: Arc<Injector<BlockOrNumber<Block>>>,
     /// the threadpool
     pool: Arc<Mutex<ThreadPool>>,
+    /// Entries that have been inserted (avoids inserting duplicates)
+    inserted: HashSet<BlockOrNumber<Block>>,
     receiver: channel::Receiver<BlockChanges<Block>>,
 }
 
-impl<Block: BlockT> ThreadedBlockExecutor<Block> {
+impl<Block: BlockT> ThreadedBlockExecutor<Block>
+where
+    NumberFor<Block>: Into<u32>,
+{
     /// create a new instance of the executor
     pub fn new<Runtime, ClientApi>(
         pool_multiplier: usize,
@@ -302,7 +432,7 @@ impl<Block: BlockT> ThreadedBlockExecutor<Block> {
             .build();
         log::info!("Starting {} workers", worker_count);
 
-        let global_queue = Arc::new(Injector::<u32>::new());
+        let global_queue = Arc::new(Injector::<BlockOrNumber<Block>>::new());
 
         let mut stealers = Vec::new();
         let mut workers = Vec::new();
@@ -348,12 +478,40 @@ impl<Block: BlockT> ThreadedBlockExecutor<Block> {
             stealers,
             pool,
             receiver,
+            inserted: HashSet::new(),
         }
     }
 
     /// push some work to the global pool
-    pub fn push_to_queue(&self, block_num: u32) {
-        self.global_queue.push(block_num)
+    pub fn push_to_queue(&mut self, block_num: BlockOrNumber<Block>) -> Result<(), ArchiveError> {
+        if self.inserted.contains(&block_num) {
+            return Ok(());
+        } else {
+            self.inserted.insert(block_num.clone());
+            self.global_queue.push(block_num)
+        }
+        Ok(())
+    }
+
+    pub fn push_vec_to_queue(
+        &mut self,
+        blocks: Vec<BlockOrNumber<Block>>,
+    ) -> Result<(), ArchiveError> {
+        let other = HashSet::from_iter(blocks.iter());
+
+        let to_insert = other
+            .difference(&self.inserted.iter().collect::<HashSet<_>>())
+            .map(|v| *v)
+            .cloned()
+            .collect::<Vec<BlockOrNumber<Block>>>();
+
+        if to_insert.len() > 0 {
+            for block in to_insert.into_iter() {
+                self.inserted.insert(block.clone());
+                self.global_queue.push(block)
+            }
+        }
+        Ok(())
     }
 
     /// return how many workers are actively executing blocks
@@ -541,13 +699,15 @@ mod tests {
         pretty_env_logger::try_init();
 
         let client = test_util::client(DB_STR);
-        /* let db = SimpleDb::new(std::path::PathBuf::from(
+        let db = SimpleDb::new(std::path::PathBuf::from(
             "/home/insipx/projects/parity/substrate-archive-api/archive/test_data/10K_BLOCKS.bin",
         ))
         .unwrap();
-        */
+        let blocks: Vec<Block> = db.get().unwrap();
+        // 650 000   --  659 999
+        println!("Min: {:?}, Max: {:?}", blocks[0], blocks[blocks.len() - 1]);
+
         let backend = Arc::new(test_util::backend(DB_STR));
-        // let blocks: Vec<Block> = db.get().unwrap();
         let blocks: Vec<u32> = (0..9999).collect();
         println!("Got {} blocks", blocks.len());
         // should push to global queue before starting execution

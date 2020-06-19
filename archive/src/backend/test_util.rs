@@ -39,7 +39,7 @@ pub fn client(
     let client = archive
         .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
         .unwrap();
-    Arc::new(client)
+    client
 }
 
 pub fn backend(db: &str) -> ReadOnlyBackend<Block> {

@@ -22,11 +22,12 @@ mod scheduler;
 mod workers;
 
 use super::{
-    backend::{ApiAccess, ReadOnlyBackend, ThreadedBlockExecutor},
+    backend::{ApiAccess, BlockData, ExecutorContext, ReadOnlyBackend, ThreadedBlockExecutor},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
 use bastion::prelude::*;
+use crossbeam::channel;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
@@ -51,10 +52,16 @@ use std::{env, sync::Arc};
 /// ```
 pub struct ArchiveContext<T: Substrate + Send + Sync> {
     workers: std::collections::HashMap<String, ChildrenRef>,
-    executor: Arc<ThreadedBlockExecutor<NotSignedBlock<T>>>,
+    executor_handle: ExecutorContext<NotSignedBlock<T>>,
 }
 
-impl<T: Substrate + Send + Sync> ArchiveContext<T> {
+impl<T: Substrate + Send + Sync> ArchiveContext<T>
+where
+    <T as System>::BlockNumber: Into<u32>,
+    <T as System>::Hash: From<primitive_types::H256>,
+    <T as System>::Header: serde::de::DeserializeOwned,
+    <T as System>::BlockNumber: From<u32>,
+{
     // TODO: Return a reference to the Db pool.
     // just expose a 'shutdown' fn that must be called in order to avoid missing data.
     // or just return an archive object for general telemetry/ops.
@@ -82,18 +89,11 @@ impl<T: Substrate + Send + Sync> ArchiveContext<T> {
             >,
         ClientApi:
             ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
-        <T as System>::BlockNumber: Into<u32>,
-        <T as System>::Hash: From<primitive_types::H256>,
-        <T as System>::Header: serde::de::DeserializeOwned,
-        <T as System>::BlockNumber: From<u32>,
     {
         let mut workers = std::collections::HashMap::new();
-        let executor = Arc::new(ThreadedBlockExecutor::new(
-            1,
-            Some(8_000_000),
-            client_api.clone(),
-            backend.clone(),
-        ));
+        let context =
+            ThreadedBlockExecutor::new(1, Some(8_000_000), client_api.clone(), backend.clone());
+        let context = ExecutorContext::from_executor(context);
 
         Bastion::init();
         let pool = if let Some(url) = psql_url {
@@ -109,38 +109,46 @@ impl<T: Substrate + Send + Sync> ArchiveContext<T> {
         // workers.insert("storage".into(), storage.clone());
 
         // network generator. Gets headers from network but uses client to fetch block bodies
-        let blocks = self::generators::blocks::<T>(backend.clone(), pool.clone(), url.clone())?;
+        let blocks = self::generators::blocks::<T>(
+            backend.clone(),
+            context.clone(),
+            pool.clone(),
+            url.clone(),
+        )?;
         workers.insert("blocks".into(), blocks);
 
         let storage = self::generators::storage::<T>(backend.clone(), pool.clone(), url.clone())?;
         workers.insert("storage".into(), storage);
 
         let missing_storage =
-            self::generators::missing_storage::<T>(executor.clone(), pool.clone())?;
+            self::generators::missing_storage::<T>(context.clone(), pool.clone())?;
         workers.insert("missing_storage".into(), missing_storage);
 
         // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
         // uses client to get those blocks
-        let missing = self::generators::missing_blocks::<T>(backend, pool, url)?;
+        let missing = self::generators::missing_blocks::<T>(backend, context.clone(), pool, url)?;
         workers.insert("missing".into(), missing);
 
         Bastion::start();
 
-        Ok(Self { workers, executor })
+        Ok(Self {
+            workers,
+            executor_handle: context,
+        })
     }
 
     /// Run indefinitely
     /// If the application is shut down during execution, this will leave progress unsaved.
     /// It is recommended to wait for some other event (IE: Ctrl-C) and run `shutdown` instead.
-    pub fn block_until_stopped(&self) -> Result<(), ArchiveError> {
+    pub fn block_until_stopped(self) -> Result<(), ArchiveError> {
         Bastion::block_until_stopped();
-        self.executor.join();
+        self.executor_handle.stop();
         Ok(())
     }
 
     /// Shutdown Gracefully.
     /// This makes sure any data we have is saved for the next time substrate-archive is run.
-    pub async fn shutdown(&self) -> Result<(), ArchiveError> {
+    pub async fn shutdown(self) -> Result<(), ArchiveError> {
         log::info!("Shutting down");
         Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send messsage");
         for (name, worker) in self.workers.iter() {
@@ -149,6 +157,7 @@ impl<T: Substrate + Send + Sync> ArchiveContext<T> {
                 .expect(format!("Couldn't stop worker {}", name).as_str());
         }
         Bastion::kill();
+        self.executor_handle.stop();
         log::info!("Shut down succesfully");
         Ok(())
     }

@@ -21,6 +21,7 @@ pub mod models;
 mod prepare_sql;
 
 use async_trait::async_trait;
+use codec::Encode;
 use futures::future;
 use sp_runtime::traits::Header as _;
 use sqlx::{PgConnection, Postgres};
@@ -102,6 +103,8 @@ where
         let block_num: u32 = (*self.inner.block.header.number()).into();
         let state_root = self.inner.block.header.state_root().as_ref();
         let extrinsics_root = self.inner.block.header.extrinsics_root().as_ref();
+        let digest = self.inner.block.header.digest().encode();
+        let extrinsics = self.inner.block.extrinsics.encode();
 
         Ok(query
             .bind(parent_hash)
@@ -109,6 +112,8 @@ where
             .bind(block_num)
             .bind(state_root)
             .bind(extrinsics_root)
+            .bind(digest.as_slice())
+            .bind(extrinsics.as_slice())
             .bind(self.spec))
     }
 }
@@ -194,38 +199,6 @@ impl<'a> BindAll<'a> for Metadata {
 }
 
 #[async_trait]
-impl<T> Insert for Vec<Extrinsic<T>>
-where
-    T: Substrate + Send + Sync,
-{
-    async fn insert(mut self, db: DbConnection) -> DbReturn {
-        let mut rows_changed = 0;
-        for ext in self.chunks(15_000) {
-            let ext = ext.to_vec();
-            let sql = ext.build_sql(None);
-            rows_changed += ext.batch_insert(&sql)?.execute(&db).await?;
-        }
-        Ok(rows_changed)
-    }
-}
-
-impl<'a, T> BindAll<'a> for Extrinsic<T>
-where
-    T: Substrate + Send + Sync,
-{
-    fn bind_all_arguments(
-        &self,
-        query: sqlx::Query<'a, Postgres>,
-    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(query
-            .bind(self.hash.as_slice())
-            .bind(self.spec)
-            .bind(self.index)
-            .bind(self.inner.as_slice()))
-    }
-}
-
-#[async_trait]
 impl<T> Insert for BatchBlock<T>
 where
     T: Substrate + Send + Sync,
@@ -233,12 +206,13 @@ where
 {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
         log::info!("Batch inserting {} blocks into DB", self.inner().len());
-        let sql = self.inner().build_sql(None);
-        self.inner()
-            .batch_insert(&sql)?
-            .execute(&db)
-            .await
-            .map_err(Into::into)
+        let mut rows_changed = 0;
+        for blocks in self.inner().chunks(8_000) {
+            let blocks = blocks.to_vec();
+            let sql = blocks.build_sql(None);
+            rows_changed += blocks.batch_insert(&sql)?.execute(&db).await?;
+        }
+        Ok(rows_changed)
     }
 }
 

@@ -26,6 +26,7 @@ mod queries;
 mod rpc;
 #[cfg(test)]
 mod simple_db;
+mod sql_block_builder;
 mod types;
 mod util;
 
