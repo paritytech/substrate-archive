@@ -62,32 +62,6 @@ impl Metadata {
 }
 
 #[derive(Debug, Clone)]
-pub struct Extrinsic<T: Substrate + Send + Sync> {
-    pub hash: Vec<u8>,
-    /// The SCALE-encoded extrinsic
-    pub inner: Vec<u8>,
-    /// Spec that the extrinsic is from
-    pub spec: u32,
-    pub index: u32,
-    _marker: PhantomData<T>,
-}
-
-impl<T> Extrinsic<T>
-where
-    T: Substrate + Send + Sync,
-{
-    pub fn new(ext: &OpaqueExtrinsic, hash: T::Hash, index: u32, spec: u32) -> Self {
-        Self {
-            hash: hash.as_ref().to_vec(),
-            inner: ext.encode(),
-            _marker: PhantomData,
-            index,
-            spec,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct Block<T: Substrate + Send + Sync> {
     pub inner: SubstrateBlock<T>,
     pub spec: u32,
@@ -137,48 +111,27 @@ where
     }
 }
 
-/// newType for Storage Data
+/// NewType for Storage Data
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Storage<T: Substrate + Send + Sync> {
     hash: T::Hash,
     block_num: u32,
     full_storage: bool,
-    key: StorageKey,
-    data: Option<StorageData>,
+    pub changes: Vec<(StorageKey, Option<StorageData>)>,
 }
 
-// need to manually implement hash here because Rust doesn't recognize that T::Hash implements hash
-// if we derive `Hash`
-impl<T> Hash for Storage<T>
-where
-    T: Substrate + Send + Sync,
-{
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.hash.hash(state);
-        self.block_num.hash(state);
-        self.full_storage.hash(state);
-        self.key.hash(state);
-        self.data.hash(state);
-    }
-}
-
-impl<T> Storage<T>
-where
-    T: Substrate + Send + Sync,
-{
+impl<T: Substrate + Send + Sync> Storage<T> {
     pub fn new(
         hash: T::Hash,
         block_num: u32,
         full_storage: bool,
-        key: StorageKey,
-        data: Option<StorageData>,
+        changes: Vec<(StorageKey, Option<StorageData>)>,
     ) -> Self {
         Self {
             block_num,
             hash,
             full_storage,
-            key,
-            data,
+            changes,
         }
     }
 
@@ -194,47 +147,7 @@ where
         &self.hash
     }
 
-    pub fn key(&self) -> &StorageKey {
-        &self.key
-    }
-
-    pub fn data(&self) -> Option<&StorageData> {
-        self.data.as_ref()
-    }
-}
-
-impl<T> From<&Block<T>> for Vec<Extrinsic<T>>
-where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
-{
-    fn from(block: &Block<T>) -> Vec<Extrinsic<T>> {
-        let spec = block.spec;
-        let hash = block.hash();
-        block
-            .inner()
-            .block
-            .extrinsics
-            .iter()
-            .enumerate()
-            .map(move |(i, e)| Extrinsic::new(e, hash, i as u32, spec))
-            .collect::<Vec<Extrinsic<T>>>()
-    }
-}
-
-impl<T> From<&BatchBlock<T>> for Vec<Extrinsic<T>>
-where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>
-{
-    fn from(batch_block: &BatchBlock<T>) -> Vec<Extrinsic<T>> {
-        batch_block
-            .inner()
-            .iter()
-            .map(|b| b.into())
-            .collect::<Vec<Vec<Extrinsic<T>>>>()
-            .into_iter()
-            .flatten()
-            .collect()
+    pub fn changes(&self) -> &[(StorageKey, Option<StorageData>)] {
+        self.changes.as_slice()
     }
 }

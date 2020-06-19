@@ -26,6 +26,7 @@ mod queries;
 mod rpc;
 #[cfg(test)]
 mod simple_db;
+mod sql_block_builder;
 mod types;
 mod util;
 
@@ -39,6 +40,7 @@ pub use util::init_logger;
 
 // Re-Exports
 
+pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
 pub use sp_core::twox_128;
 pub use sp_storage::StorageKey;

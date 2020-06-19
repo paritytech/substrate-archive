@@ -79,7 +79,7 @@ impl<Block: BlockT> Backend<Block> for ReadOnlyBackend<Block> {
 
     fn changes_trie_storage(&self) -> Option<&dyn PrunableStateChangesTrieStorage<Block>> {
         // TODO: Implement Changes Trie
-        log::warn!("Changes trie not supported");
+        // log::warn!("Changes trie not supported");
         None
     }
 

@@ -17,50 +17,26 @@
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
 mod block_executor;
-mod client;
 mod database;
+pub mod frontend;
 mod read_only_backend;
 #[cfg(test)]
 mod test_util;
-mod util;
+pub mod util;
 
-pub use self::block_executor::{BlockChanges, BlockExecutor};
-pub use self::read_only_backend::ReadOnlyBackend;
-pub use self::{
-    client::{client, runtime_api},
-    util::open_database,
+// re-exports
+pub use self::block_executor::{
+    BlockChanges, BlockData, BlockExecutor, BlockOrNumber, ExecutorContext, ThreadedBlockExecutor,
 };
-use sc_client_api::Backend as BackendT;
-use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
-use sc_executor::NativeExecutionDispatch;
-use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
-use sp_blockchain::{Error as BlockchainError, HeaderBackend, HeaderMetadata};
-use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
-// Could make this supertrait accept a Executor and a RuntimeAPI generic arguments
-// however, that would clutter the API when using ChainAccess everywhere within substrate-archive
-// relying on the RPC for this is OK (for now)
-/// Super trait defining what access the archive node needs to siphon data from running chains
-pub trait ChainAccess<Block: BlockT>:
-    StorageProvider<Block, sc_client_db::Backend<Block>>
-    + BlockBackend<Block>
-    + HeaderBackend<Block>
-    + HeaderMetadata<Block, Error = BlockchainError>
-    + UsageProvider<Block>
-    + ProvideRuntimeApi<Block>
-{
-}
+pub use self::read_only_backend::{ReadOnlyBackend, TrieState};
+pub use self::{database::ReadOnlyDatabase, frontend::runtime_api, util::open_database};
 
-impl<T, Block> ChainAccess<Block> for T
-where
-    Block: BlockT,
-    T: StorageProvider<Block, sc_client_db::Backend<Block>>
-        + BlockBackend<Block>
-        + HeaderBackend<Block>
-        + HeaderMetadata<Block, Error = BlockchainError>
-        + UsageProvider<Block>
-        + ProvideRuntimeApi<Block>,
-{
-}
+use sc_client_api::Backend as BackendT;
+use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_runtime::{
+    generic::{BlockId, SignedBlock},
+    traits::{BlakeTwo256, Block as BlockT},
+};
 
 /// supertrait for accessing methods that rely on internal runtime api
 pub trait ApiAccess<Block, Backend, Runtime>:

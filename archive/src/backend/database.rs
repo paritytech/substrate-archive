@@ -40,17 +40,28 @@ impl std::fmt::Debug for ReadOnlyDatabase {
 impl ReadOnlyDatabase {
     pub fn open(config: &DatabaseConfig, path: &str) -> io::Result<Self> {
         let inner = Database::open(config, path)?;
-        log::info!("Returning inner");
         Ok(Self { inner })
     }
 
     pub fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
-        match self.inner.get(col, key) {
+        let val = match self.inner.get(col, key) {
             Ok(v) => v,
             Err(e) => {
                 log::error!("{:?}", e);
                 None
             }
+        };
+        if val.is_none() {
+            self.try_catch_up_with_primary()?;
+            match self.inner.get(col, key) {
+                Ok(v) => v,
+                Err(e) => {
+                    log::error!("{:?}", e);
+                    None
+                }
+            }
+        } else {
+            val
         }
     }
 

@@ -28,7 +28,8 @@ mod main_backend;
 mod misc_backend;
 mod state_backend;
 
-use self::state_backend::{DbHash, DbState, StateVault, TrieState};
+pub use self::state_backend::TrieState;
+use self::state_backend::{DbHash, DbState, StateVault};
 use super::database::ReadOnlyDatabase;
 use super::util::columns;
 use codec::Decode;
@@ -45,8 +46,10 @@ use sp_runtime::{
 use std::{marker::PhantomData, sync::Arc};
 
 pub struct ReadOnlyBackend<Block: BlockT> {
-    db: ReadOnlyDatabase,
+    db: Arc<ReadOnlyDatabase>,
     storage: Arc<StateVault<Block>>,
+    // FIXME: I don't think we need this here
+    // because it's specified in StateVault
     prefix_keys: bool,
     _marker: PhantomData<Block>,
 }
@@ -55,12 +58,9 @@ impl<Block> ReadOnlyBackend<Block>
 where
     Block: BlockT,
 {
-    pub fn new(
-        db: ReadOnlyDatabase,
-        db_trait: Arc<dyn Database<DbHash>>,
-        prefix_keys: bool,
-    ) -> Self {
-        let vault = Arc::new(StateVault::new(db_trait, prefix_keys));
+    pub fn new(db: ReadOnlyDatabase, prefix_keys: bool) -> Self {
+        let db = Arc::new(db);
+        let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
         Self {
             db,
             prefix_keys,
@@ -128,12 +128,12 @@ where
 
     /// Get a block from the canon chain
     /// This also tries to catch up with the primary rocksdb instance
-    pub fn block(&self, id: BlockId<Block>) -> Option<SignedBlock<Block>> {
+    pub fn block(&self, id: &BlockId<Block>) -> Option<SignedBlock<Block>> {
         self.db.try_catch_up_with_primary();
         match (
-            self.header(id).ok()?,
-            self.body(id).ok()?,
-            self.justification(id).ok()?,
+            self.header(*id).ok()?,
+            self.body(*id).ok()?,
+            self.justification(*id).ok()?,
         ) {
             (Some(header), Some(extrinsics), justification) => Some(SignedBlock {
                 block: Block::new(header, extrinsics),
@@ -156,7 +156,7 @@ impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for DbGenesisStora
 mod tests {
     #[allow(unused)]
     use super::*;
-    use crate::backend::test_harness;
+    use crate::backend::test_util::harness;
     use crate::{twox_128, StorageKey};
     use codec::Decode;
     use polkadot_service::Block;
@@ -175,7 +175,7 @@ mod tests {
 
     #[test]
     fn should_create_new() {
-        test_harness::harness(DB, |db| {
+        harness(DB, |db| {
             ReadOnlyBackend::<Block>::new(db, false);
         });
     }
@@ -195,7 +195,7 @@ mod tests {
             .unwrap();
         let hash = H256::from_slice(hash.as_slice());
 
-        test_harness::harness(DB, |db| {
+        harness(DB, |db| {
             let db = ReadOnlyBackend::<Block>::new(db, true);
             let time = Instant::now(); // FIXME: bootleg benchmark. #[bench] not stabilized yet
             let val = db.storage(hash, key1.as_slice()).unwrap();
@@ -221,7 +221,7 @@ mod tests {
         let hash = H256::from_slice(hash.as_slice());
         let key = balances_freebalance_key();
 
-        test_harness::harness(DB, |db| {
+        harness(DB, |db| {
             let db = ReadOnlyBackend::<Block>::new(db, true);
             let time = Instant::now();
             let keys = db.storage_keys(hash, key.0.as_slice());

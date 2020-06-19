@@ -16,7 +16,8 @@
 
 //! State Backend Interface
 
-use hash_db::{HashDB, Hasher, Prefix};
+use crate::backend::database::ReadOnlyDatabase;
+use hash_db::Prefix;
 use kvdb::DBValue;
 use sc_client_api::backend::StateBackend;
 use sp_core::storage::ChildInfo;
@@ -37,13 +38,13 @@ pub type DbState<B> = TrieBackend<Arc<dyn sp_state_machine::Storage<HashFor<B>>>
 /// that trie operations can make use of
 pub struct StateVault<Block: BlockT> {
     /// disk backend
-    pub db: Arc<dyn Database<DbHash>>,
+    pub db: Arc<ReadOnlyDatabase>,
     prefix_keys: bool,
     _marker: PhantomData<Block>,
 }
 
 impl<Block: BlockT> StateVault<Block> {
-    pub fn new(db: Arc<dyn Database<DbHash>>, prefix_keys: bool) -> Self {
+    pub fn new(db: Arc<ReadOnlyDatabase>, prefix_keys: bool) -> Self {
         Self {
             db,
             prefix_keys,

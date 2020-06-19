@@ -14,15 +14,9 @@ CREATE TABLE IF NOT EXISTS blocks (
   block_num int check (block_num >= 0 and block_num < 2147483647) NOT NULL UNIQUE,
   state_root bytea NOT NULL,
   extrinsics_root bytea NOT NULL,
+  digest bytea NOT NULL,
+  ext bytea NOT NULL,
   spec integer NOT NULL REFERENCES metadata(version) ON DELETE CASCADE ON UPDATE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS extrinsics (
-  id SERIAL PRIMARY KEY,
-  hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE,
-  spec integer NOT NULL,
-  index integer NOT NULL,
-  ext bytea NOT NULL -- the raw extrinsic payload
 );
 
 CREATE TABLE IF NOT EXISTS storage (
@@ -36,3 +30,4 @@ CREATE TABLE IF NOT EXISTS storage (
 );
 
 CREATE UNIQUE INDEX only_unique_hash_key_storage ON storage (hash, key, md5(storage));
+

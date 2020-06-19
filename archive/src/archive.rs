@@ -16,14 +16,17 @@
 
 use crate::{
     actors::ArchiveContext,
-    backend::{self, ApiAccess, ChainAccess, RuntimeApiCollection},
+    backend::{
+        self,
+        frontend::{Client, TArchiveClient},
+        ApiAccess, ReadOnlyBackend, ReadOnlyDatabase, RuntimeApiCollection,
+    },
     error::Error as ArchiveError,
     types::*,
 };
+use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
-use sc_client_db::Backend;
 use sc_executor::NativeExecutionDispatch;
-use sc_service::{config::DatabaseConfig, ChainSpec, TFullBackend};
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
@@ -61,35 +64,19 @@ where
             _marker: PhantomData,
         })
     }
-    // pub fn client<Runtime, Dispatch>(&self) -> Result<
-    /// create a new client
-    pub fn client<Runtime, Dispatch>(&self) -> Result<Arc<impl ChainAccess<Block>>, ArchiveError>
-    where
-        Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>
-            + Send
-            + Sync
-            + 'static,
-        Dispatch: NativeExecutionDispatch + 'static,
-    {
-        let db_config = self.make_db_conf()?;
-        Ok(Arc::new(
-            backend::client::<Block, Runtime, Dispatch, _>(db_config, self.spec.clone())
-                .map_err(ArchiveError::from)?,
-        ))
-    }
 
     /// returns an Api Client with the associated backend
     pub fn api_client<Runtime, Dispatch>(
         &self,
-    ) -> Result<impl ApiAccess<Block, TFullBackend<Block>, Runtime>, ArchiveError>
+    ) -> Result<Arc<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>>, ArchiveError>
     where
-        Runtime: ConstructRuntimeApi<Block, sc_service::TFullClient<Block, Runtime, Dispatch>>
+        Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>>
             + Send
             + Sync
             + 'static,
         Runtime::RuntimeApi: RuntimeApiCollection<
                 Block,
-                StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>,
+                StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block>, Block>,
             > + Send
             + Sync
             + 'static,
@@ -97,71 +84,57 @@ where
         <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend:
             sp_api::StateBackend<BlakeTwo256>,
     {
-        let db_config = self.make_db_conf()?;
-        let (client, _) =
-            backend::runtime_api::<Block, Runtime, Dispatch, _>(db_config, self.spec.clone())
-                .map_err(ArchiveError::from)?;
-        Ok(client)
+        let db = self.make_database()?;
+        let backend = backend::runtime_api::<Block, Runtime, Dispatch, _>(db, self.spec.clone())
+            .map_err(ArchiveError::from)?;
+        Ok(Arc::new(backend))
     }
 
-    /// Internal API to open the rocksdb database
-    pub(crate) fn make_db_conf(&self) -> Result<DatabaseConfig, ArchiveError> {
-        let db_path = std::path::PathBuf::from(self.db_url.as_str());
-        let db_config = backend::open_database::<Block>(
-            db_path.as_path(),
+    pub(crate) fn make_database(&self) -> Result<ReadOnlyDatabase, ArchiveError> {
+        Ok(backend::util::open_database(
+            self.db_url.as_str(),
             self.cache_size,
             self.spec.name(),
             self.spec.id(),
-        )?;
-        Ok(db_config)
+        )?)
     }
 
-    pub(crate) fn make_backend<T>(
-        &self,
-    ) -> Result<sc_client_db::Backend<NotSignedBlock<T>>, ArchiveError>
+    pub(crate) fn make_backend<T>(&self) -> Result<ReadOnlyBackend<NotSignedBlock<T>>, ArchiveError>
     where
         T: Substrate + Send + Sync,
         <T as System>::BlockNumber: Into<u32>,
         <T as System>::Hash: From<primitive_types::H256>,
         <T as System>::Header: serde::de::DeserializeOwned,
     {
-        let settings = self.make_db_conf()?;
-        let settings = sc_client_db::DatabaseSettings {
-            state_cache_size: self.cache_size,
-            state_cache_child_ratio: None,
-            pruning: sc_client_db::PruningMode::ArchiveAll,
-            source: settings,
-        };
-        sc_client_db::Backend::new(settings, 5).map_err(ArchiveError::from)
+        let db = self.make_database()?;
+        Ok(ReadOnlyBackend::new(db, true))
     }
 
     /// Returning context in which the archive is running
-    pub fn run_with<T, Runtime, ClientApi, C>(
+    pub fn run_with<T, Runtime, ClientApi>(
         &self,
-        client: Arc<C>,
         client_api: Arc<ClientApi>,
-    ) -> Result<ArchiveContext, ArchiveError>
+    ) -> Result<ArchiveContext<T>, ArchiveError>
     where
         T: Substrate + Send + Sync,
-        C: ChainAccess<NotSignedBlock<T>> + 'static,
-        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi>,
+        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi> + Send + 'static,
         Runtime::RuntimeApi: BlockBuilderApi<NotSignedBlock<T>, Error = sp_blockchain::Error>
             + ApiExt<
                 NotSignedBlock<T>,
                 StateBackend = api_backend::StateBackendFor<
-                    Backend<NotSignedBlock<T>>,
+                    ReadOnlyBackend<NotSignedBlock<T>>,
                     NotSignedBlock<T>,
                 >,
             >,
-        ClientApi: ApiAccess<NotSignedBlock<T>, Backend<NotSignedBlock<T>>, Runtime> + 'static,
+        ClientApi:
+            ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
         <T as System>::BlockNumber: Into<u32>,
         <T as System>::Hash: From<primitive_types::H256>,
         <T as System>::Header: serde::de::DeserializeOwned,
         <T as System>::BlockNumber: From<u32>,
     {
-        let backend = self.make_backend::<T>()?;
-        ArchiveContext::init::<T, Runtime, _, _>(
-            client,
+        let backend = Arc::new(self.make_backend::<T>()?);
+        ArchiveContext::init(
             client_api,
             backend,
             self.rpc_url.clone(),

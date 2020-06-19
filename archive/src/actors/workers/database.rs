@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::database::Database;
+use crate::database::{models::*, Database};
 use crate::error::Error as ArchiveError;
 use crate::print_on_err;
 use crate::queries;
@@ -59,17 +59,16 @@ where
                 process_blocks(&db, blocks).await?;
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
-            extrinsics: Vec<Extrinsic<T>> =!> {
-                db.insert(extrinsics).await.map(|_| ())?;
-                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
-            };
             metadata: Metadata =!> {
                 db.insert(metadata).await.map(|_| ())?;
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
-            storage: Vec<Storage<T>> => {
-                log::info!("Inserting {} storage entries", storage.len());
-                db.insert(storage).await.map(|_| ())?;
+            storage: Storage<T> => {
+                process_storage(&db, storage).await?;
+            };
+            storage: Storage<T> =!> {
+                process_storage(&db, storage).await?;
+                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
             ref broadcast: super::Broadcast => {
                 match broadcast {
@@ -82,6 +81,18 @@ where
         }
     }
     Ok(())
+}
+
+async fn process_storage<T>(db: &Database, storage: Storage<T>) -> Result<(), ArchiveError>
+where
+    T: Substrate + Send + Sync,
+{
+    while !queries::check_if_block_exists(storage.hash().as_ref(), db.pool()).await? {
+        timer::Delay::new(std::time::Duration::from_millis(10)).await;
+    }
+    db.insert(Vec::<StorageModel<T>>::from(storage))
+        .await
+        .map(|_| ())
 }
 
 async fn process_block<T>(db: &Database, block: Block<T>) -> Result<(), ArchiveError>

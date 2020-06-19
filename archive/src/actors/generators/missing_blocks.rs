@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Work Generated and gathered from the PostgreSQL Database
+//! Work generated and gathered from the PostgreSQL Database
 //! IE: Missing Blocks/Storage/Inherents/Transactions
 //! Gathers Missing blocks -> passes to metadata -> passes to extractors -> passes to decode -> passes to insert
 
@@ -23,7 +23,7 @@ use crate::actors::{
     workers,
 };
 use crate::{
-    backend::ChainAccess,
+    backend::{BlockData, BlockOrNumber, ExecutorContext, ReadOnlyBackend},
     error::Error as ArchiveError,
     queries,
     types::{NotSignedBlock, Substrate, SubstrateBlock, System},
@@ -33,14 +33,16 @@ use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
 use std::sync::Arc;
 
-pub fn actor<T, C>(
-    client: Arc<C>,
+type BlockExecutor<T> = ExecutorContext<NotSignedBlock<T>>;
+
+pub fn actor<T>(
+    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    executor: BlockExecutor<T>,
     pool: sqlx::Pool<PgConnection>,
     url: String,
 ) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock<T>> + 'static,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
@@ -48,9 +50,10 @@ where
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
-            let client = client.clone();
+            let backend = backend.clone();
             let pool = pool.clone();
             let workers = meta_workers.clone();
+            let executor = executor.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                 sched.add_worker("meta", &workers);
@@ -58,7 +61,7 @@ where
                     if handle_shutdown(&ctx).await {
                         break;
                     }
-                    match entry::<T, _>(&client, &pool, &mut sched).await {
+                    match entry::<T>(&backend, &executor, &pool, &mut sched).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
@@ -71,15 +74,14 @@ where
     .map_err(|_| ArchiveError::from("Could not instantiate database generator"))
 }
 
-async fn entry<T, C>(
-    client: &Arc<C>,
+async fn entry<T>(
+    backend: &Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    executor: &BlockExecutor<T>,
     pool: &sqlx::Pool<PgConnection>,
     sched: &mut Scheduler<'_>,
 ) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    C: ChainAccess<NotSignedBlock<T>> + 'static,
-    // <T as System>::Block: serde::Serialize + serde::de::DeserializeOwned,
     NotSignedBlock<T>: serde::Serialize + serde::de::DeserializeOwned,
 {
     let block_nums = queries::missing_blocks(&pool).await?;
@@ -89,24 +91,29 @@ where
         return Ok(());
     }
     log::info!(
-        "Starting to crawl for {} missing blocks, from {} to {} ...",
+        "Indexing {} missing blocks, from {} to {} ...",
         block_nums.len(),
         block_nums[0].generate_series,
         block_nums[block_nums.len() - 1].generate_series
     );
-    let client = client.clone();
+    let backend = backend.clone();
     let now = std::time::Instant::now();
+    let executor = executor.clone();
     let blocks: Vec<SubstrateBlock<T>> = blocking!((move || {
         let mut blocks = Vec::new();
         for block_num in block_nums.iter() {
             let num = block_num.generate_series as u32;
-            let b = client
-                .block(&BlockId::Number(T::BlockNumber::from(num)))
-                .expect("Error getting block");
+            let b = backend.block(&BlockId::Number(T::BlockNumber::from(num)));
+
             if b.is_none() {
                 log::warn!("Block does not exist!")
             } else {
-                blocks.push(b.expect("Checked for none; qed"));
+                let b = b.expect("Checked for none; qed");
+                executor
+                    .work
+                    .send(BlockData::Single(BlockOrNumber::Block(b.block.clone())))
+                    .unwrap();
+                blocks.push(b);
             }
         }
         blocks

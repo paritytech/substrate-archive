@@ -14,15 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! substrate RPC
+//! Substrate RPC
 
 use jsonrpsee::{
     client::Subscription,
     common::{to_value as to_json_value, Params},
     Client,
 };
-use runtime_version::RuntimeVersion;
-use sp_core::Bytes;
+use sp_core::{
+    storage::{StorageChangeSet, StorageKey},
+    Bytes,
+};
+use sp_version::RuntimeVersion;
 use std::marker::PhantomData;
 
 use crate::{error::Error as ArchiveError, types::Substrate};
@@ -76,6 +79,20 @@ where
                 "chain_subscribeFinalizedHeads",
             )
             .await?;
+        Ok(subscription)
+    }
+
+    pub(crate) async fn subscribe_storage(
+        &self,
+    ) -> Result<Subscription<StorageChangeSet<T::Hash>>, ArchiveError> {
+        let keys: Option<Vec<StorageKey>> = None;
+        let params = Params::Array(vec![to_json_value(keys)?]);
+
+        let subscription = self
+            .client
+            .subscribe("state_subscribeStorage", params, "state_unsubscribeStorage")
+            .await?;
+
         Ok(subscription)
     }
 }
