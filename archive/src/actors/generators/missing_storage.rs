@@ -23,7 +23,7 @@ use crate::{
         scheduler::{Algorithm, Scheduler},
         workers,
     },
-    backend::{BlockChanges, BlockData, BlockOrNumber, ExecutorContext, ThreadedBlockExecutor},
+    backend::{BlockChanges, BlockData, ExecutorContext, ThreadedBlockExecutor},
     sql_block_builder::BlockBuilder,
 };
 use crate::{
@@ -123,15 +123,7 @@ where
         elapsed.as_millis(),
         elapsed.as_micros()
     );
-    executor
-        .work
-        .send(BlockData::Batch(
-            blocks
-                .into_iter()
-                .map(|b| BlockOrNumber::Block(b))
-                .collect::<Vec<BlockOrNumber<NotSignedBlock<T>>>>(),
-        ))
-        .unwrap();
+    executor.work.send(BlockData::Batch(blocks)).unwrap();
     Ok(())
 }
 

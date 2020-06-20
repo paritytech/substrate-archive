@@ -23,7 +23,7 @@ use crate::actors::{
     workers,
 };
 use crate::{
-    backend::{BlockData, BlockOrNumber, ExecutorContext, ReadOnlyBackend, ThreadedBlockExecutor},
+    backend::{BlockData, ExecutorContext, ReadOnlyBackend, ThreadedBlockExecutor},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
@@ -96,10 +96,7 @@ where
         if let Some(b) = block {
             log::trace!("{:?}", b);
             let block = b.block.clone();
-            executor
-                .work
-                .send(BlockData::Single(BlockOrNumber::Block(block)))
-                .unwrap();
+            executor.work.send(BlockData::Single(block)).unwrap();
             sched.tell_next("meta", b)?
         } else {
             log::warn!("Block does not exist!");

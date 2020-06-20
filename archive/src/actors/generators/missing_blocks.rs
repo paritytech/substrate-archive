@@ -23,7 +23,7 @@ use crate::actors::{
     workers,
 };
 use crate::{
-    backend::{BlockData, BlockOrNumber, ExecutorContext, ReadOnlyBackend},
+    backend::{BlockData, ExecutorContext, ReadOnlyBackend},
     error::Error as ArchiveError,
     queries,
     types::{NotSignedBlock, Substrate, SubstrateBlock, System},
@@ -111,7 +111,7 @@ where
                 let b = b.expect("Checked for none; qed");
                 executor
                     .work
-                    .send(BlockData::Single(BlockOrNumber::Block(b.block.clone())))
+                    .send(BlockData::Single(b.block.clone()))
                     .unwrap();
                 blocks.push(b);
             }
