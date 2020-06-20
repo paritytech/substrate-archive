@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2018-2019 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -23,7 +23,7 @@ use crate::{
         scheduler::{Algorithm, Scheduler},
         workers,
     },
-    backend::{BlockChanges, BlockData, ExecutorContext, ThreadedBlockExecutor},
+    backend::{BlockBroker, BlockChanges, BlockData, ThreadedBlockExecutor},
     sql_block_builder::BlockBuilder,
 };
 use crate::{
@@ -36,7 +36,7 @@ use crossbeam::channel::{self, Sender};
 use sp_runtime::generic::BlockId;
 use std::sync::Arc;
 
-type BlockExecutor<T> = ExecutorContext<NotSignedBlock<T>>;
+type BlockExecutor<T> = BlockBroker<NotSignedBlock<T>>;
 
 pub fn actor<T>(executor: BlockExecutor<T>, pool: sqlx::PgPool) -> Result<ChildrenRef, ArchiveError>
 where

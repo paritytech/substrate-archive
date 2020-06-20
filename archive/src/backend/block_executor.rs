@@ -56,13 +56,16 @@ pub enum BlockData<Block: BlockT> {
     Stop,
 }
 
-pub struct ExecutorContext<Block: BlockT> {
+/// A layer between ThreadedBlockExecutor and whatever else that contains
+/// channels for sending new work and receiving storage changes
+/// Works in it's own thread
+pub struct BlockBroker<Block: BlockT> {
     pub work: channel::Sender<BlockData<Block>>,
     pub results: channel::Receiver<BlockChanges<Block>>,
     handle: Option<std::thread::JoinHandle<()>>,
 }
 
-impl<Block: BlockT> Clone for ExecutorContext<Block> {
+impl<Block: BlockT> Clone for BlockBroker<Block> {
     fn clone(&self) -> Self {
         Self {
             work: self.work.clone(),
@@ -73,7 +76,7 @@ impl<Block: BlockT> Clone for ExecutorContext<Block> {
     }
 }
 
-impl<Block: BlockT> ExecutorContext<Block>
+impl<Block: BlockT> BlockBroker<Block>
 where
     NumberFor<Block>: Into<u32>,
 {

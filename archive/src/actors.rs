@@ -22,7 +22,7 @@ mod scheduler;
 mod workers;
 
 use super::{
-    backend::{ApiAccess, BlockData, ExecutorContext, ReadOnlyBackend, ThreadedBlockExecutor},
+    backend::{ApiAccess, BlockBroker, BlockData, ReadOnlyBackend, ThreadedBlockExecutor},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
@@ -52,7 +52,7 @@ use std::{env, sync::Arc};
 /// ```
 pub struct ArchiveContext<T: Substrate + Send + Sync> {
     workers: std::collections::HashMap<String, ChildrenRef>,
-    executor_handle: ExecutorContext<NotSignedBlock<T>>,
+    executor_handle: BlockBroker<NotSignedBlock<T>>,
 }
 
 impl<T: Substrate + Send + Sync> ArchiveContext<T>
@@ -93,7 +93,7 @@ where
         let mut workers = std::collections::HashMap::new();
         let context =
             ThreadedBlockExecutor::new(1, Some(8_000_000), client_api.clone(), backend.clone());
-        let context = ExecutorContext::from_executor(context);
+        let context = BlockBroker::from_executor(context);
 
         Bastion::init();
         let pool = if let Some(url) = psql_url {

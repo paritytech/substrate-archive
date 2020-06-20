@@ -23,7 +23,7 @@ use crate::actors::{
     workers,
 };
 use crate::{
-    backend::{BlockData, ExecutorContext, ReadOnlyBackend, ThreadedBlockExecutor},
+    backend::{BlockBroker, BlockData, ReadOnlyBackend, ThreadedBlockExecutor},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
@@ -39,7 +39,7 @@ use std::sync::Arc;
 /// this is a worker that never stops
 pub fn actor<T>(
     backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
-    executor: ExecutorContext<NotSignedBlock<T>>,
+    executor: BlockBroker<NotSignedBlock<T>>,
     pool: sqlx::Pool<PgConnection>,
     url: String,
 ) -> Result<ChildrenRef, ArchiveError>
@@ -74,7 +74,7 @@ where
 async fn entry<T>(
     sched: &mut Scheduler<'_>,
     backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
-    executor: ExecutorContext<NotSignedBlock<T>>,
+    executor: BlockBroker<NotSignedBlock<T>>,
     url: &str,
 ) -> Result<(), ArchiveError>
 where

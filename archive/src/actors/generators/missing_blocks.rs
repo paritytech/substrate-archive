@@ -23,7 +23,7 @@ use crate::actors::{
     workers,
 };
 use crate::{
-    backend::{BlockData, ExecutorContext, ReadOnlyBackend},
+    backend::{BlockBroker, BlockData, ReadOnlyBackend},
     error::Error as ArchiveError,
     queries,
     types::{NotSignedBlock, Substrate, SubstrateBlock, System},
@@ -33,7 +33,7 @@ use sp_runtime::generic::BlockId;
 use sqlx::PgConnection;
 use std::sync::Arc;
 
-type BlockExecutor<T> = ExecutorContext<NotSignedBlock<T>>;
+type BlockExecutor<T> = BlockBroker<NotSignedBlock<T>>;
 
 pub fn actor<T>(
     backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
