@@ -73,9 +73,9 @@ impl<'a, Block: BlockT> BlockBuilder<Block> {
     }
 
     fn into_generic(
-        parent_hash: &[u8],
-        state_root: &[u8],
-        extrinsics_root: &[u8],
+        mut parent_hash: &[u8],
+        mut state_root: &[u8],
+        mut extrinsics_root: &[u8],
     ) -> Result<
         (
             <Block::Header as HeaderT>::Hash,
@@ -84,14 +84,37 @@ impl<'a, Block: BlockT> BlockBuilder<Block> {
         ),
         ArchiveError,
     > {
-        let parent_hash = parent_hash.encode();
-        let state_root = state_root.encode();
-        let extrinsics_root = extrinsics_root.encode();
-
         Ok((
-            Decode::decode(&mut parent_hash.as_slice())?,
-            Decode::decode(&mut state_root.as_slice())?,
-            Decode::decode(&mut extrinsics_root.as_slice())?,
+            Decode::decode(&mut parent_hash)?,
+            Decode::decode(&mut state_root)?,
+            Decode::decode(&mut extrinsics_root)?,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::test_util;
+    use crate::queries;
+    use polkadot_service::Block;
+    use sp_runtime::generic::BlockId;
+    use sqlx::PgPool;
+
+    pub const DB_STR: &str = "/home/insipx/.local/share/polkadot/chains/ksmcc3/db";
+
+    #[test]
+    #[ignore]
+    fn block_should_be_identical() {
+        let url = std::env::var("DATABASE_URL").unwrap();
+        let pool = futures::executor::block_on(PgPool::builder().max_size(1).build(&url)).unwrap();
+        let backend = test_util::backend(DB_STR);
+        let block = backend.block(&BlockId::Number(500)).unwrap();
+
+        let sql_block = futures::executor::block_on(queries::get_full_block(&pool, 500)).unwrap();
+        let full_sql_block = BlockBuilder::<Block>::new(pool.clone())
+            .with_single(sql_block)
+            .unwrap();
+        assert_eq!(block.block, full_sql_block);
     }
 }

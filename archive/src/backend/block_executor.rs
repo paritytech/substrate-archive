@@ -180,8 +180,17 @@ where
             };
 
             let api = self.client.runtime_api();
-            let block =
-                BlockExecutor::new(api, self.backend.clone(), block)?.block_into_storage()?;
+            let num = *block.header().number();
+            let block = BlockExecutor::new(api, self.backend.clone(), block)?;
+            let block = match block.block_into_storage() {
+                Ok(v) => v,
+                Err(e) => {
+                    log::info!("problematic block number: {}", num);
+                    log::error!("{:?}", e);
+                    return Err(e);
+                }
+            };
+
             match self.sender.send(block) {
                 Ok(_) => (),
                 Err(e) => {
@@ -639,13 +648,10 @@ mod tests {
         println!("Min: {:?}, Max: {:?}", blocks[0], blocks[blocks.len() - 1]);
 
         let backend = Arc::new(test_util::backend(DB_STR));
-        let blocks: Vec<u32> = (0..9999).collect();
         println!("Got {} blocks", blocks.len());
         // should push to global queue before starting execution
-        let executor = ThreadedBlockExecutor::new(1, Some(8_000_000), client, backend);
-        for block in blocks.into_iter() {
-            executor.push_to_queue(block);
-        }
+        let mut executor = ThreadedBlockExecutor::new(1, Some(8_000_000), client, backend);
+        executor.push_vec_to_queue(blocks);
         executor.join();
     }
 }

@@ -71,6 +71,23 @@ pub(crate) async fn blocks_storage_intersection(
     .map_err(Into::into)
 }
 
+pub(crate) async fn get_full_block(
+    pool: &sqlx::PgPool,
+    block_num: u32,
+) -> Result<SqlBlock, ArchiveError> {
+    sqlx::query_as(
+        "
+        SELECT parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
+        FROM blocks
+        WHERE block_num = $1
+        ",
+    )
+    .bind(block_num as i32)
+    .fetch_one(pool)
+    .await
+    .map_err(Into::into)
+}
+
 /// Will get blocks such that they exist in the `blocks` table but they
 /// do not exist in the `storage` table
 pub(crate) async fn blocks_storage_intersection_count(

@@ -89,7 +89,6 @@ where
                     Some(hash.clone()),
                 ))
             } else {
-                log::warn!("No state found for block {:?}", hash);
                 None
             }
         }
@@ -105,7 +104,19 @@ where
             columns::HEADER,
             BlockId::Hash(hash),
         )
-        .expect("Header Metadata Lookup Failed");
+        .expect("Header metadata lookup failed");
+        let header = if header.is_none() {
+            self.db.try_catch_up_with_primary();
+            super::util::read_header::<Block>(
+                &self.db,
+                columns::KEY_LOOKUP,
+                columns::HEADER,
+                BlockId::Hash(hash),
+            )
+            .expect("Header metadata lookup failed")
+        } else {
+            header
+        };
         header.map(|h| *h.state_root())
     }
 
@@ -124,6 +135,10 @@ where
             Some(state) => Some(state.keys(prefix)),
             None => None,
         }
+    }
+
+    pub(crate) fn try_catch_up_with_primary(&self) {
+        self.db.try_catch_up_with_primary();
     }
 
     /// Get a block from the canon chain

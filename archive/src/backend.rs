@@ -21,7 +21,7 @@ mod database;
 pub mod frontend;
 mod read_only_backend;
 #[cfg(test)]
-mod test_util;
+pub mod test_util;
 pub mod util;
 
 // re-exports
