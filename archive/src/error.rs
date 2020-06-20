@@ -16,11 +16,10 @@
 #[cfg(test)]
 use bincode::ErrorKind as BincodeError;
 use codec::Error as CodecError;
+use crossbeam::SendError;
 use failure::Fail;
 use jsonrpsee::client::RequestError as JsonrpseeRequest;
 use jsonrpsee::transport::ws::WsNewDnsError;
-// use sc_service::Error as ServiceError;
-use crossbeam::channel::SendError;
 use serde_json::Error as SerdeError;
 use sp_blockchain::Error as BlockchainError;
 use sqlx::Error as SqlError;
@@ -50,17 +49,23 @@ pub enum Error {
         to: String,
         details: String,
     },
+    #[fail(display = "Send Could Not Complete {}", _0)]
+    SendError(String),
     #[fail(display = "Rpc Request {}", _0)]
     JsonrpseeRequest(#[fail(cause)] JsonrpseeRequest),
     #[fail(display = "Ws DNS Failure {}", _0)]
     WsDns(#[fail(cause)] WsNewDnsError),
-    // #[fail(display = "Service Error {}", _0)]
-    // ServiceError(String),
     #[fail(display = "Unexpected Error Occurred: {}", _0)]
     General(String),
     #[cfg(test)]
     #[fail(display = "Bincode Serialization Error")]
     BincodeError(#[fail(cause)] BincodeError),
+}
+
+impl<T> From<SendError<T>> for Error {
+    fn from(err: SendError<T>) -> Error {
+        Error::SendError(err.to_string())
+    }
 }
 
 #[cfg(test)]
@@ -76,14 +81,7 @@ impl From<Box<BincodeError>> for Error {
         Error::General(err.to_string())
     }
 }
-/*
-impl From<ServiceError> for Error {
-    fn from(err: ServiceError) -> Error {
-        let err = format!("{:?}", err);
-        Error::ServiceError(err)
-    }
-}
-*/
+
 impl From<WsNewDnsError> for Error {
     fn from(err: WsNewDnsError) -> Error {
         Error::WsDns(err)

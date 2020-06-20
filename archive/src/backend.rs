@@ -33,10 +33,7 @@ pub use self::{database::ReadOnlyDatabase, frontend::runtime_api, util::open_dat
 
 use sc_client_api::Backend as BackendT;
 use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
-use sp_runtime::{
-    generic::{BlockId, SignedBlock},
-    traits::{BlakeTwo256, Block as BlockT},
-};
+use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
 /// supertrait for accessing methods that rely on internal runtime api
 pub trait ApiAccess<Block, Backend, Runtime>:

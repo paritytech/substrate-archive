@@ -18,7 +18,6 @@
 //! These actors do not make any external connections to a Database or Network
 use crate::{
     actors::scheduler::{Algorithm, Scheduler},
-    database::models::*,
     error::Error as ArchiveError,
     print_on_err,
     types::*,

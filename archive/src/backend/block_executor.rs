@@ -33,11 +33,11 @@ use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
     generic::BlockId,
-    traits::{Block as BlockT, HashFor, Header, NumberFor},
+    traits::{Block as BlockT, Header, NumberFor},
 };
 use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
 use std::{
-    iter::{self, FromIterator},
+    iter,
     marker::PhantomData,
     sync::{Arc, Mutex},
 };
@@ -80,40 +80,46 @@ impl<Block: BlockT> BlockBroker<Block>
 where
     NumberFor<Block>: Into<u32>,
 {
-    pub fn from_executor(executor: ThreadedBlockExecutor<Block>) -> Self {
+    pub fn from_executor(executor: ThreadedBlockExecutor<Block>) -> Result<Self, ArchiveError> {
         let results = executor.receiver().clone();
-        let (work, handle) = Self::scheduler_loop(executor);
+        let (work, handle) = Self::scheduler_loop(executor)?;
 
-        Self {
+        Ok(Self {
             results,
             work,
             handle: Some(handle),
-        }
+        })
     }
 
     fn scheduler_loop(
         mut executor: ThreadedBlockExecutor<Block>,
-    ) -> (
-        channel::Sender<BlockData<Block>>,
-        std::thread::JoinHandle<()>,
-    ) {
+    ) -> Result<
+        (
+            channel::Sender<BlockData<Block>>,
+            std::thread::JoinHandle<()>,
+        ),
+        ArchiveError,
+    > {
         let (tx, rx) = channel::unbounded();
         let handle = std::thread::spawn(move || loop {
             let data = rx.recv();
             match data.unwrap() {
                 BlockData::Batch(v) => executor.push_vec_to_queue(v).unwrap(),
                 BlockData::Single(v) => executor.push_to_queue(v).unwrap(),
-                Stop => {
-                    executor.join();
+                BlockData::Stop => {
+                    match executor.join() {
+                        Ok(_) => (),
+                        Err(e) => log::error!("{:?}", e),
+                    }
                     break;
                 }
             }
         });
-        (tx, handle)
+        Ok((tx, handle))
     }
 
     pub fn stop(mut self) -> Result<(), ArchiveError> {
-        self.work.send(BlockData::Stop);
+        self.work.send(BlockData::Stop)?;
         std::thread::sleep(std::time::Duration::from_millis(250));
         self.handle.take().map(std::thread::JoinHandle::join);
         Ok(())
@@ -122,6 +128,7 @@ where
 
 /// A worker on the threadpool that has
 /// blocks on the queue to execute
+/// Use `BlockWorkerBuilder` in order to build
 pub struct BlockWorker<Block, Runtime, ClientApi>
 where
     Block: BlockT,
@@ -152,26 +159,6 @@ where
         + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
     ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
 {
-    /// create a new worker
-    fn init_worker(
-        stealers: Arc<Vec<Stealer<Block>>>,
-        global: Arc<Injector<Block>>,
-        client: Arc<ClientApi>,
-        backend: Arc<Backend<Block>>,
-        sender: channel::Sender<BlockChanges<Block>>,
-    ) -> Self {
-        let worker = Worker::new_fifo();
-        Self {
-            local: worker,
-            stealers,
-            global,
-            client,
-            backend,
-            sender,
-            _marker: PhantomData,
-        }
-    }
-
     /// Start the worker loop
     fn start_worker(self) -> Result<(), ArchiveError> {
         loop {
@@ -233,11 +220,6 @@ where
             // Extract the stolen task, if there is one.
             .and_then(|s| s.success())
         })
-    }
-
-    /// get the thief for this worker
-    fn own_stealer(&self) -> Stealer<Block> {
-        self.local.stealer()
     }
 }
 
@@ -346,10 +328,10 @@ where
 
 /// Executor that sends blocks to a thread pool for execution
 pub struct ThreadedBlockExecutor<Block: BlockT> {
-    /// the workers that execute blocks
-    worker_count: usize,
-    /// Other threads from which work can be stolen
-    stealers: Arc<Vec<Stealer<Block>>>,
+    // /// the workers that execute blocks
+    // worker_count: usize,
+    // /// Other threads from which work can be stolen
+    // stealers: Arc<Vec<Stealer<Block>>>,
     /// global queue that keeps unexecuteed blocks
     global_queue: Arc<Injector<Block>>,
     /// the threadpool
@@ -426,9 +408,9 @@ where
         }
         let pool = Arc::new(Mutex::new(pool));
         Self {
-            worker_count,
+            // worker_count,
             global_queue,
-            stealers,
+            // stealers,
             pool,
             receiver,
             inserted: HashSet::new(),

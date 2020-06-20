@@ -23,12 +23,11 @@ use crate::actors::{
     workers,
 };
 use crate::{
-    backend::{BlockBroker, BlockData, ReadOnlyBackend, ThreadedBlockExecutor},
+    backend::{BlockBroker, BlockData, ReadOnlyBackend},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
 use bastion::prelude::*;
-use crossbeam::channel::Sender;
 use jsonrpsee::client::Subscription;
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Header as _;

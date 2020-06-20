@@ -17,7 +17,7 @@
 //! Common Sql queries on Archive Database abstracted into rust functions
 
 use crate::{error::Error as ArchiveError, sql_block_builder::SqlBlock};
-use sqlx::{postgres::PgQueryAs as _, PgConnection};
+use sqlx::postgres::PgQueryAs as _;
 
 #[derive(sqlx::FromRow, Debug, Clone)]
 pub struct BlockNumSeries {
@@ -33,21 +33,6 @@ pub(crate) async fn missing_blocks(
         FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
         WHERE
         NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
-        LIMIT 10000",
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(Into::into)
-}
-
-pub(crate) async fn missing_storage(
-    pool: &sqlx::PgPool,
-) -> Result<Vec<BlockNumSeries>, ArchiveError> {
-    sqlx::query_as(
-        "SELECT generate_series
-        FROM (SELECT 0 as a, max(block_num) as z FROM storage) x, generate_series(a, z)
-        WHERE
-        NOT EXISTS(SELECT id FROM storage WHERE block_num = generate_series)
         LIMIT 10000",
     )
     .fetch_all(pool)
@@ -71,6 +56,7 @@ pub(crate) async fn blocks_storage_intersection(
     .map_err(Into::into)
 }
 
+#[cfg(test)]
 pub(crate) async fn get_full_block(
     pool: &sqlx::PgPool,
     block_num: u32,
@@ -103,23 +89,6 @@ pub(crate) async fn blocks_storage_intersection_count(
     .await
     .map_err(ArchiveError::from)?;
     Ok(row.0 as u64)
-}
-
-pub(crate) async fn missing_blocks_min_max(
-    pool: &sqlx::PgPool,
-    min: u32,
-    max: u32,
-) -> Result<Vec<BlockNumSeries>, ArchiveError> {
-    sqlx::query_as(
-        "SELECT generate_series
-         FROM (SELECT $1 as a, $2 as z FROM blocks) x, generate_series(a, z)
-         WHERE NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)",
-    )
-    .bind(min as i32)
-    .bind(max as i32)
-    .fetch_all(pool)
-    .await
-    .map_err(Into::into)
 }
 
 /// check if a runtime versioned metadata exists in the database
@@ -155,30 +124,6 @@ pub(crate) async fn get_versions(pool: &sqlx::PgPool) -> Result<Vec<Version>, Ar
         .fetch_all(pool)
         .await
         .map_err(Into::into)
-}
-
-pub(crate) async fn get_max_storage(pool: &sqlx::PgPool) -> Result<(u32, Vec<u8>), ArchiveError> {
-    let row: (i32, Vec<u8>) =
-        sqlx::query_as(r#"SELECT block_num, hash FROM storage WHERE block_num = (SELECT MAX(block_num) FROM storage)"#)
-        .fetch_one(pool)
-        .await?;
-    Ok((row.0 as u32, row.1))
-}
-
-pub(crate) async fn get_max_block_num(pool: &sqlx::PgPool) -> Result<(u32, Vec<u8>), ArchiveError> {
-    let row: (i32, Vec<u8>) =
-        sqlx::query_as(r#"SELECT block_num, hash FROM blocks WHERE block_num = (SELECT MAX(block_num) FROM blocks)"#)
-        .fetch_one(pool)
-        .await?;
-    Ok((row.0 as u32, row.1))
-}
-
-/// checks if blocks table has anything in it
-pub(crate) async fn are_blocks_empty(pool: &sqlx::PgPool) -> Result<bool, ArchiveError> {
-    let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) from blocks"#)
-        .fetch_one(pool)
-        .await?;
-    Ok(!(row.0 > 0))
 }
 
 #[cfg(test)]

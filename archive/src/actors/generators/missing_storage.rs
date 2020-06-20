@@ -23,7 +23,7 @@ use crate::{
         scheduler::{Algorithm, Scheduler},
         workers,
     },
-    backend::{BlockBroker, BlockChanges, BlockData, ThreadedBlockExecutor},
+    backend::{BlockBroker, BlockData},
     sql_block_builder::BlockBuilder,
 };
 use crate::{
@@ -32,9 +32,6 @@ use crate::{
     types::{NotSignedBlock, Storage, Substrate, System},
 };
 use bastion::prelude::*;
-use crossbeam::channel::{self, Sender};
-use sp_runtime::generic::BlockId;
-use std::sync::Arc;
 
 type BlockExecutor<T> = BlockBroker<NotSignedBlock<T>>;
 
@@ -65,7 +62,7 @@ where
                     if handle_shutdown(&ctx).await {
                         break;
                     }
-                    match entry::<T>(&executor, &pool, &mut sched).await {
+                    match entry::<T>(&executor, &mut sched).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
@@ -80,7 +77,6 @@ where
 
 async fn entry<T>(
     executor: &BlockExecutor<T>,
-    pool: &sqlx::PgPool,
     sched: &mut Scheduler<'_>,
 ) -> Result<(), ArchiveError>
 where
@@ -115,8 +111,7 @@ where
         }
     }
     let now = std::time::Instant::now();
-    let builder = BlockBuilder::new(pool.clone());
-    let blocks = builder.with_vec(queries::blocks_storage_intersection(pool).await?)?;
+    let blocks = BlockBuilder::new().with_vec(queries::blocks_storage_intersection(pool).await?)?;
     let elapsed = now.elapsed();
     log::info!(
         "TOOK {} milli-seconds, {} micro-seconds to get and build blocks",

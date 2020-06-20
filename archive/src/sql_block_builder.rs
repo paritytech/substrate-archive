@@ -36,14 +36,12 @@ pub struct SqlBlock {
 }
 
 pub struct BlockBuilder<Block: BlockT> {
-    pool: sqlx::PgPool,
     _marker: PhantomData<Block>,
 }
 
 impl<'a, Block: BlockT> BlockBuilder<Block> {
-    pub fn new(pool: sqlx::PgPool) -> Self {
+    pub fn new() -> Self {
         Self {
-            pool,
             _marker: PhantomData,
         }
     }

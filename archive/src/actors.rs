@@ -22,16 +22,14 @@ mod scheduler;
 mod workers;
 
 use super::{
-    backend::{ApiAccess, BlockBroker, BlockData, ReadOnlyBackend, ThreadedBlockExecutor},
+    backend::{ApiAccess, BlockBroker, ReadOnlyBackend, ThreadedBlockExecutor},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
 use bastion::prelude::*;
-use crossbeam::channel;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::Block as BlockT;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
 
@@ -93,7 +91,7 @@ where
         let mut workers = std::collections::HashMap::new();
         let context =
             ThreadedBlockExecutor::new(1, Some(8_000_000), client_api.clone(), backend.clone());
-        let context = BlockBroker::from_executor(context);
+        let context = BlockBroker::from_executor(context)?;
 
         Bastion::init();
         let pool = if let Some(url) = psql_url {
@@ -139,7 +137,7 @@ where
     /// It is recommended to wait for some other event (IE: Ctrl-C) and run `shutdown` instead.
     pub fn block_until_stopped(self) -> Result<(), ArchiveError> {
         Bastion::block_until_stopped();
-        self.executor_handle.stop();
+        self.executor_handle.stop()?;
         Ok(())
     }
 
@@ -154,7 +152,7 @@ where
                 .expect(format!("Couldn't stop worker {}", name).as_str());
         }
         Bastion::kill();
-        self.executor_handle.stop();
+        self.executor_handle.stop()?;
         log::info!("Shut down succesfully");
         Ok(())
     }

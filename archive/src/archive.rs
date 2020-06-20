@@ -17,9 +17,8 @@
 use crate::{
     actors::ArchiveContext,
     backend::{
-        self,
-        frontend::{Client, TArchiveClient},
-        ApiAccess, ReadOnlyBackend, ReadOnlyDatabase, RuntimeApiCollection,
+        self, frontend::TArchiveClient, ApiAccess, ReadOnlyBackend, ReadOnlyDatabase,
+        RuntimeApiCollection,
     },
     error::Error as ArchiveError,
     types::*,
@@ -85,8 +84,8 @@ where
             sp_api::StateBackend<BlakeTwo256>,
     {
         let db = self.make_database()?;
-        let backend = backend::runtime_api::<Block, Runtime, Dispatch, _>(db, self.spec.clone())
-            .map_err(ArchiveError::from)?;
+        let backend =
+            backend::runtime_api::<Block, Runtime, Dispatch>(db).map_err(ArchiveError::from)?;
         Ok(Arc::new(backend))
     }
 
