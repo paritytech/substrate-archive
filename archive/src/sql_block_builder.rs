@@ -110,9 +110,7 @@ mod tests {
         let block = backend.block(&BlockId::Number(500)).unwrap();
 
         let sql_block = futures::executor::block_on(queries::get_full_block(&pool, 500)).unwrap();
-        let full_sql_block = BlockBuilder::<Block>::new(pool.clone())
-            .with_single(sql_block)
-            .unwrap();
+        let full_sql_block = BlockBuilder::<Block>::new().with_single(sql_block).unwrap();
         assert_eq!(block.block, full_sql_block);
     }
 }

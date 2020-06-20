@@ -640,7 +640,7 @@ mod tests {
         println!("Got {} blocks", blocks.len());
         // should push to global queue before starting execution
         let mut executor = ThreadedBlockExecutor::new(1, Some(8_000_000), client, backend);
-        executor.push_vec_to_queue(blocks);
+        executor.push_vec_to_queue(blocks).unwrap();
         executor.join();
     }
 }
