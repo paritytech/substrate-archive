@@ -119,7 +119,7 @@ where
     let now = std::time::Instant::now();
     let first = rpc.version(Some(&blocks[0].block.header().hash())).await?;
     let elapsed = now.elapsed();
-    log::info!(
+    log::debug!(
         "Rpc request for version took {} milli-seconds",
         elapsed.as_millis()
     );

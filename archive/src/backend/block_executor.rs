@@ -180,16 +180,20 @@ where
             };
 
             let api = self.client.runtime_api();
-            let num = *block.header().number();
-            let block = BlockExecutor::new(api, self.backend.clone(), block)?;
-            let block = match block.block_into_storage() {
-                Ok(v) => v,
-                Err(e) => {
-                    log::info!("problematic block number: {}", num);
-                    log::error!("{:?}", e);
-                    return Err(e);
-                }
-            };
+
+            // don't execute genesis block
+            if *block.header().parent_hash() == Default::default() {
+                continue;
+            }
+
+            log::trace!(
+                "Executing Block: {}:{:?}",
+                block.header().hash(),
+                block.header().number()
+            );
+
+            let block =
+                BlockExecutor::new(api, self.backend.clone(), block)?.block_into_storage()?;
 
             match self.sender.send(block) {
                 Ok(_) => (),

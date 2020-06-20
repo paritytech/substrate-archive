@@ -47,7 +47,7 @@ impl ReadOnlyDatabase {
         let val = match self.inner.get(col, key) {
             Ok(v) => v,
             Err(e) => {
-                log::error!("{:?}", e);
+                log::warn!("{:?}, Catching up with primary and trying again...", e);
                 None
             }
         };
