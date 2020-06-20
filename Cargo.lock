@@ -7245,7 +7245,6 @@ dependencies = [
  "chrono",
  "crossbeam",
  "directories",
- "failure",
  "fern",
  "flate2",
  "frame-system",
@@ -7285,6 +7284,7 @@ dependencies = [
  "sp-version",
  "sqlx",
  "tempfile",
+ "thiserror",
  "threadpool",
 ]
 

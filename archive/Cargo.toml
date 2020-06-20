@@ -11,12 +11,9 @@ path = "src/lib.rs"
 # external
 log = "0.4"
 futures = { version = "0.3" }
-failure = "0.1"
 timer = { version = "3.0", package = "futures-timer" }
 serde = { version = "1.0", features = ["derive"] }
 # enabling arbitrary_precision for serde_json may cause rpc requests to fail
-fern = { version = "0.6", features = ["colored"], optional = true }
-chrono = { version = "0.4", optional = true }
 serde_json = "1.0"
 dirs = { version = "2", package = "directories" }
 bastion = "0.3"
@@ -31,6 +28,12 @@ num_cpus = "1.13"
 threadpool = "1.8"
 crossbeam = "0.7"
 parking_lot = "0.10"
+hashbrown = "0.8.0"
+thiserror = "1.0.20"
+
+# Optional 
+fern = { version = "0.6", features = ["colored"], optional = true }
+chrono = { version = "0.4", optional = true }
 
 # Parity
 primitive-types = "0.7"
@@ -57,8 +60,6 @@ sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "mas
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-system" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" } 
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
-hashbrown = "0.8.0"
-
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
