@@ -117,9 +117,6 @@ where
         )?;
         workers.insert("blocks".into(), blocks);
 
-        let storage = self::generators::storage::<T>(backend.clone(), pool.clone(), url.clone())?;
-        workers.insert("storage".into(), storage);
-
         let missing_storage =
             self::generators::missing_storage::<T>(context.clone(), pool.clone())?;
         workers.insert("missing_storage".into(), missing_storage);
