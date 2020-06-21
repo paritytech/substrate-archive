@@ -41,7 +41,7 @@ type TFullCallExecutor<TBl, TExecDisp> =
     self::executor::ArchiveExecutor<ReadOnlyBackend<TBl>, NativeExecutor<TExecDisp>>;
 
 pub fn runtime_api<Block, Runtime, Dispatch>(
-    db: ReadOnlyDatabase,
+    db: Arc<ReadOnlyDatabase>,
 ) -> Result<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>, ArchiveError>
 where
     Block: BlockT,

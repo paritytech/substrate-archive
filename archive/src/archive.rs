@@ -32,11 +32,11 @@ use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::{marker::PhantomData, sync::Arc};
 
 pub struct Archive<Block: BlockT + Send + Sync, Spec: ChainSpec + Clone + 'static> {
-    db_url: String,
     rpc_url: String,
     psql_url: Option<String>,
     cache_size: usize,
     spec: Spec,
+    db: Arc<ReadOnlyDatabase>,
     _marker: PhantomData<Block>,
 }
 
@@ -54,9 +54,15 @@ where
 {
     /// Create a new instance of the Archive DB
     pub fn new(conf: ArchiveConfig, spec: Spec) -> Result<Self, ArchiveError> {
+        let db = Arc::new(backend::util::open_database(
+            conf.db_url.as_str(),
+            conf.cache_size,
+            spec.name(),
+            spec.id(),
+        )?);
         Ok(Self {
             spec,
-            db_url: conf.db_url,
+            db,
             rpc_url: conf.rpc_url,
             psql_url: conf.psql_url,
             cache_size: conf.cache_size,
@@ -83,30 +89,9 @@ where
         <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend:
             sp_api::StateBackend<BlakeTwo256>,
     {
-        let db = self.make_database()?;
-        let backend =
-            backend::runtime_api::<Block, Runtime, Dispatch>(db).map_err(ArchiveError::from)?;
+        let backend = backend::runtime_api::<Block, Runtime, Dispatch>(self.db.clone())
+            .map_err(ArchiveError::from)?;
         Ok(Arc::new(backend))
-    }
-
-    pub(crate) fn make_database(&self) -> Result<ReadOnlyDatabase, ArchiveError> {
-        Ok(backend::util::open_database(
-            self.db_url.as_str(),
-            self.cache_size,
-            self.spec.name(),
-            self.spec.id(),
-        )?)
-    }
-
-    pub(crate) fn make_backend<T>(&self) -> Result<ReadOnlyBackend<NotSignedBlock<T>>, ArchiveError>
-    where
-        T: Substrate + Send + Sync,
-        <T as System>::BlockNumber: Into<u32>,
-        <T as System>::Hash: From<primitive_types::H256>,
-        <T as System>::Header: serde::de::DeserializeOwned,
-    {
-        let db = self.make_database()?;
-        Ok(ReadOnlyBackend::new(db, true))
     }
 
     /// Returning context in which the archive is running
@@ -132,7 +117,7 @@ where
         <T as System>::Header: serde::de::DeserializeOwned,
         <T as System>::BlockNumber: From<u32>,
     {
-        let backend = Arc::new(self.make_backend::<T>()?);
+        let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
         ArchiveContext::init(
             client_api,
             backend,

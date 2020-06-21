@@ -100,9 +100,9 @@ where
 {
     loop {
         let count = queries::blocks_storage_intersection_count(pool).await?;
-        // 100 is arbitrary, we just want the blocks table to begin
+        //  we just want the blocks table to begin
         // being filled/ensure it's not empty before we crawl for missing entries
-        if count > 100 {
+        if count > 1 {
             break;
         } else {
             let count = check_work::<T>(executor, sched)?;

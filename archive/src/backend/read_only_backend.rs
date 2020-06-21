@@ -54,8 +54,7 @@ impl<Block> ReadOnlyBackend<Block>
 where
     Block: BlockT,
 {
-    pub fn new(db: ReadOnlyDatabase, prefix_keys: bool) -> Self {
-        let db = Arc::new(db);
+    pub fn new(db: Arc<ReadOnlyDatabase>, prefix_keys: bool) -> Self {
         let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
         Self {
             db,
