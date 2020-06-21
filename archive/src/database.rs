@@ -80,7 +80,7 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
-        log::info!(
+        log::trace!(
             "block_num = {:?}, hash = {:X?}",
             self.inner.block.header.number(),
             hex::encode(self.inner.block.header.hash().as_ref())
@@ -205,7 +205,7 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
-        log::info!("Batch inserting {} blocks into DB", self.inner().len());
+        log::trace!("Batch inserting {} blocks into DB", self.inner().len());
         let mut rows_changed = 0;
         for blocks in self.inner().chunks(8_000) {
             let blocks = blocks.to_vec();

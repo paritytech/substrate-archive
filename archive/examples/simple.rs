@@ -27,7 +27,7 @@ pub fn main() {
         db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
         rpc_url: "ws://127.0.0.1:9944".into(),
         psql_url: None,
-        cache_size: 2048,
+        cache_size: 1024,
     };
 
     // get spec/runtime from node library

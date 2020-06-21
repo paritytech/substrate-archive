@@ -99,10 +99,10 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     loop {
-        let count = queries::blocks_storage_intersection_count(pool).await?;
+        let count = queries::blocks_count(pool).await?;
         //  we just want the blocks table to begin
         // being filled/ensure it's not empty before we crawl for missing entries
-        if count > 1 {
+        if count > 0 {
             break;
         } else {
             let count = check_work::<T>(executor, sched)?;
@@ -114,14 +114,16 @@ where
     let blocks = BlockBuilder::new().with_vec(queries::blocks_storage_intersection(pool).await?)?;
     let elapsed = now.elapsed();
     log::info!(
-        "TOOK {} milli-seconds, {} micro-seconds to get and build blocks",
+        "TOOK {} seconds, {} milli-seconds to get and build blocks",
+        elapsed.as_secs(),
         elapsed.as_millis(),
-        elapsed.as_micros()
     );
     executor.work.send(BlockData::Batch(blocks)).unwrap();
     Ok(())
 }
 
+/// Check the receiver end of the BlockExecution ThreadPool for any storage
+/// changes resulting from block execution.
 fn check_work<T>(
     executor: &BlockExecutor<T>,
     sched: &mut Scheduler<'_>,

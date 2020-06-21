@@ -46,10 +46,9 @@ pub(crate) async fn blocks_storage_intersection(
     pool: &sqlx::PgPool,
 ) -> Result<Vec<SqlBlock>, ArchiveError> {
     sqlx::query_as(
-       "SELECT a.parent_hash, a.hash, a.block_num, a.state_root, a.extrinsics_root, a.digest, a.ext, a.spec
-        FROM blocks AS a
-        LEFT JOIN storage b ON b.block_num = a.block_num
-        WHERE b.block_num IS NULL"
+        "SELECT *
+        FROM blocks
+        WHERE NOT EXISTS (SELECT * FROM storage WHERE storage.block_num = blocks.block_num)",
     )
     .fetch_all(pool)
     .await
@@ -72,6 +71,14 @@ pub(crate) async fn get_full_block(
     .fetch_one(pool)
     .await
     .map_err(Into::into)
+}
+
+pub(crate) async fn blocks_count(pool: &sqlx::PgPool) -> Result<u64, ArchiveError> {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM blocks")
+        .fetch_one(pool)
+        .await
+        .map_err(ArchiveError::from)?;
+    Ok(row.0 as u64)
 }
 
 /// Will get blocks such that they exist in the `blocks` table but they
