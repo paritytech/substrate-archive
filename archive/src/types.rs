@@ -22,8 +22,6 @@ use sp_runtime::{
 };
 use sp_storage::{StorageData, StorageKey};
 
-pub type DbPool = sqlx::Pool<sqlx::PgConnection>;
-
 /// Consolidation of substrate traits representing fundamental types
 pub trait Substrate: System + Send + Sync + std::fmt::Debug {}
 

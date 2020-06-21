@@ -81,23 +81,6 @@ pub(crate) async fn blocks_count(pool: &sqlx::PgPool) -> Result<u64, ArchiveErro
     Ok(row.0 as u64)
 }
 
-/// Will get blocks such that they exist in the `blocks` table but they
-/// do not exist in the `storage` table
-pub(crate) async fn blocks_storage_intersection_count(
-    pool: &sqlx::PgPool,
-) -> Result<u64, ArchiveError> {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*)
-        FROM blocks AS a
-        LEFT JOIN storage b ON b.block_num = a.block_num
-        WHERE b.block_num IS NULL",
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(ArchiveError::from)?;
-    Ok(row.0 as u64)
-}
-
 /// check if a runtime versioned metadata exists in the database
 pub(crate) async fn check_if_meta_exists(
     spec: u32,

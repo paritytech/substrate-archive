@@ -35,6 +35,7 @@ pub struct Archive<Block: BlockT + Send + Sync, Spec: ChainSpec + Clone + 'stati
     rpc_url: String,
     psql_url: Option<String>,
     cache_size: usize,
+    #[allow(unused)]
     spec: Spec,
     db: Arc<ReadOnlyDatabase>,
     _marker: PhantomData<Block>,

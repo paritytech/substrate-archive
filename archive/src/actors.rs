@@ -33,6 +33,47 @@ use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sqlx::postgres::PgPool;
 use std::{env, sync::Arc};
 
+/// Context that every actor may use
+#[derive(Clone)]
+pub struct ActorContext<T: Substrate + Send + Sync> {
+    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    broker: BlockBroker<NotSignedBlock<T>>,
+    rpc_url: String,
+    pool: sqlx::PgPool,
+}
+
+impl<T: Substrate + Send + Sync> ActorContext<T> {
+    pub fn new(
+        backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+        broker: BlockBroker<NotSignedBlock<T>>,
+        rpc_url: String,
+        pool: sqlx::PgPool,
+    ) -> Self {
+        Self {
+            backend,
+            broker,
+            rpc_url,
+            pool,
+        }
+    }
+
+    pub fn backend(&self) -> &Arc<ReadOnlyBackend<NotSignedBlock<T>>> {
+        &self.backend
+    }
+
+    pub fn rpc_url(&self) -> &str {
+        self.rpc_url.as_str()
+    }
+
+    pub fn pool(&self) -> sqlx::PgPool {
+        self.pool.clone()
+    }
+
+    pub fn broker(&self) -> &BlockBroker<NotSignedBlock<T>> {
+        &self.broker
+    }
+}
+
 /// Main entrypoint for substrate-archive.
 /// Deals with starting and stopping the Archive Runtime
 /// # Examples
@@ -50,7 +91,7 @@ use std::{env, sync::Arc};
 /// ```
 pub struct ArchiveContext<T: Substrate + Send + Sync> {
     workers: std::collections::HashMap<String, ChildrenRef>,
-    executor_handle: BlockBroker<NotSignedBlock<T>>,
+    actor_context: ActorContext<T>,
 }
 
 impl<T: Substrate + Send + Sync> ArchiveContext<T>
@@ -89,9 +130,9 @@ where
             ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
     {
         let mut workers = std::collections::HashMap::new();
-        let context =
+        let broker =
             ThreadedBlockExecutor::new(1, Some(8_000_000), client_api.clone(), backend.clone());
-        let context = BlockBroker::from_executor(context)?;
+        let broker = BlockBroker::from_executor(broker)?;
 
         Bastion::init();
         let pool = if let Some(url) = psql_url {
@@ -102,33 +143,28 @@ where
                 .max_size(10)
                 .build(&env::var("DATABASE_URL")?))?
         };
+        let context = ActorContext::new(backend.clone(), broker, url, pool.clone());
 
         // create storage generator here
         // workers.insert("storage".into(), storage.clone());
 
         // network generator. Gets headers from network but uses client to fetch block bodies
-        let blocks = self::generators::blocks::<T>(
-            backend.clone(),
-            context.clone(),
-            pool.clone(),
-            url.clone(),
-        )?;
+        let blocks = self::generators::blocks::<T>(context.clone())?;
         workers.insert("blocks".into(), blocks);
 
-        let missing_storage =
-            self::generators::missing_storage::<T>(context.clone(), pool.clone())?;
+        let missing_storage = self::generators::missing_storage::<T>(context.clone())?;
         workers.insert("missing_storage".into(), missing_storage);
 
         // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
         // uses client to get those blocks
-        let missing = self::generators::missing_blocks::<T>(backend, context.clone(), pool, url)?;
+        let missing = self::generators::missing_blocks::<T>(context.clone())?;
         workers.insert("missing".into(), missing);
 
         Bastion::start();
 
         Ok(Self {
             workers,
-            executor_handle: context,
+            actor_context: context,
         })
     }
 
@@ -137,7 +173,7 @@ where
     /// It is recommended to wait for some other event (IE: Ctrl-C) and run `shutdown` instead.
     pub fn block_until_stopped(self) -> Result<(), ArchiveError> {
         Bastion::block_until_stopped();
-        self.executor_handle.stop()?;
+        self.actor_context.broker.stop()?;
         Ok(())
     }
 
@@ -152,7 +188,7 @@ where
                 .expect(format!("Couldn't stop worker {}", name).as_str());
         }
         Bastion::kill();
-        self.executor_handle.stop()?;
+        self.actor_context.broker.stop()?;
         log::info!("Shut down succesfully");
         Ok(())
     }

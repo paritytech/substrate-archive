@@ -20,45 +20,36 @@
 use crate::actors::{
     self,
     scheduler::{Algorithm, Scheduler},
-    workers,
+    workers, ActorContext,
 };
 use crate::{
-    backend::{BlockBroker, BlockData, ReadOnlyBackend},
+    backend::BlockData,
     error::Error as ArchiveError,
-    types::{NotSignedBlock, Substrate, System},
+    types::{Substrate, System},
 };
 use bastion::prelude::*;
 use jsonrpsee::client::Subscription;
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Header as _;
-use sqlx::PgConnection;
-use std::sync::Arc;
 
 /// Subscribe to new blocks via RPC
 /// this is a worker that never stops
-pub fn actor<T>(
-    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
-    executor: BlockBroker<NotSignedBlock<T>>,
-    pool: sqlx::Pool<PgConnection>,
-    url: String,
-) -> Result<ChildrenRef, ArchiveError>
+pub fn actor<T>(context: ActorContext<T>) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
-    let meta_workers = workers::metadata::<T>(url.clone(), pool)?;
+    let meta_workers = workers::metadata::<T>(context.rpc_url().to_string(), context.pool())?;
     // actor which produces work in the form of collecting blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let meta_workers = meta_workers.clone();
-            let url: String = url.clone();
-            let backend = backend.clone();
-            let executor = executor.clone();
+            let context = context.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                 sched.add_worker("meta", &meta_workers);
-                match entry::<T>(&mut sched, backend, executor.clone(), url.as_str()).await {
+                match entry::<T>(&mut sched, context).await {
                     Ok(_) => (),
                     Err(e) => log::error!("{:?}", e),
                 };
@@ -70,18 +61,13 @@ where
     .map_err(|_| ArchiveError::from("Could not instantiate network generator"))
 }
 
-async fn entry<T>(
-    sched: &mut Scheduler<'_>,
-    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
-    executor: BlockBroker<NotSignedBlock<T>>,
-    url: &str,
-) -> Result<(), ArchiveError>
+async fn entry<T>(sched: &mut Scheduler<'_>, context: ActorContext<T>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
-    let rpc = actors::connect::<T>(url).await;
+    let rpc = actors::connect::<T>(context.rpc_url()).await;
     let mut subscription = rpc
         .subscribe_finalized_heads()
         .await
@@ -91,11 +77,11 @@ where
             break;
         }
         let head = subscription.next().await;
-        let block = backend.block(&BlockId::Number(*head.number()));
+        let block = context.backend().block(&BlockId::Number(*head.number()));
         if let Some(b) = block {
             log::trace!("{:?}", b);
             let block = b.block.clone();
-            executor.work.send(BlockData::Single(block)).unwrap();
+            context.broker.work.send(BlockData::Single(block)).unwrap();
             sched.tell_next("meta", b)?
         } else {
             log::warn!("Block does not exist!");
