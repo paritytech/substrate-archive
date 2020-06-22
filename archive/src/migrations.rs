@@ -123,8 +123,6 @@ fn parse(conf: MigrationConfig) -> MigrateConfigParsed {
         .name
         .unwrap_or_else(|| process_var("DB_NAME").expect("database name must be defined"));
 
-    log::info!("Running migrations for database {}", name.as_str());
-
     MigrateConfigParsed {
         host,
         port,
