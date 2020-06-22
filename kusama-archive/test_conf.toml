@@ -17,6 +17,6 @@ db_pass = "default"
 # These variables can also be exposed with DB_NAME environment variable
 westend_db = "westend-archive"
 kusama_db = "archive"
-polkadot-db = "polkadot-archive"
+polkadot_db = "polkadot-archive"
 
 
