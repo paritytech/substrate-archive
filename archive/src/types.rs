@@ -14,19 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use codec::Encode;
 pub use frame_system::Trait as System;
 use serde::{Deserialize, Serialize};
 use sp_runtime::{
     generic::{Block as BlockT, SignedBlock},
-    traits::Header as _,
     OpaqueExtrinsic,
 };
 use sp_storage::{StorageData, StorageKey};
-
-use std::{hash::Hash, marker::PhantomData};
-
-pub type DbPool = sqlx::Pool<sqlx::PgConnection>;
 
 /// Consolidation of substrate traits representing fundamental types
 pub trait Substrate: System + Send + Sync + std::fmt::Debug {}
@@ -74,18 +68,6 @@ where
 {
     pub fn new(block: SubstrateBlock<T>, spec: u32) -> Self {
         Self { inner: block, spec }
-    }
-
-    pub fn inner(&self) -> &SubstrateBlock<T> {
-        &self.inner
-    }
-
-    pub fn spec(&self) -> u32 {
-        self.spec
-    }
-
-    pub fn hash(&self) -> T::Hash {
-        self.inner().block.header.hash()
     }
 }
 

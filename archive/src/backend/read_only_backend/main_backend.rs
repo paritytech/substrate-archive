@@ -44,14 +44,14 @@ impl<Block: BlockT> Backend<Block> for ReadOnlyBackend<Block> {
 
     fn begin_state_operation(
         &self,
-        operation: &mut Self::BlockImportOperation,
-        block: BlockId<Block>,
+        _operation: &mut Self::BlockImportOperation,
+        _block: BlockId<Block>,
     ) -> ChainResult<()> {
         log::warn!("State operations not supported on a read-only backend. Operation not begun.");
         Ok(())
     }
 
-    fn commit_operation(&self, transaction: Self::BlockImportOperation) -> ChainResult<()> {
+    fn commit_operation(&self, _transaction: Self::BlockImportOperation) -> ChainResult<()> {
         log::warn!(
             "State operations not supported on a read-only backend. Operation not committed"
         );
@@ -60,8 +60,8 @@ impl<Block: BlockT> Backend<Block> for ReadOnlyBackend<Block> {
 
     fn finalize_block(
         &self,
-        block: BlockId<Block>,
-        justification: Option<Justification>,
+        _block: BlockId<Block>,
+        _justification: Option<Justification>,
     ) -> ChainResult<()> {
         log::warn!("State operations not supported on a read-only backend. Block not finalized.");
         Ok(())
@@ -113,7 +113,11 @@ impl<Block: BlockT> Backend<Block> for ReadOnlyBackend<Block> {
         }
     }
 
-    fn revert(&self, n: NumberFor<Block>, revert_finalized: bool) -> ChainResult<NumberFor<Block>> {
+    fn revert(
+        &self,
+        _n: NumberFor<Block>,
+        _revert_finalized: bool,
+    ) -> ChainResult<NumberFor<Block>> {
         log::warn!("Reverting blocks not supported for a read only backend");
         Err(BlockchainError::Msg(
             "Reverting blocks not supported".into(),

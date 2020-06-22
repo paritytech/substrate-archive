@@ -3,7 +3,7 @@
 
 // substrate-archive is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
+// the Free Software Foundation, either vdebugersion 3 of the License, or
 // (at your option) any later version.
 
 // substrate-archive is distributed in the hope that it will be useful,
@@ -21,10 +21,7 @@ use jsonrpsee::{
     common::{to_value as to_json_value, Params},
     Client,
 };
-use sp_core::{
-    storage::{StorageChangeSet, StorageKey},
-    Bytes,
-};
+use sp_core::Bytes;
 use sp_version::RuntimeVersion;
 use std::marker::PhantomData;
 
@@ -79,20 +76,6 @@ where
                 "chain_subscribeFinalizedHeads",
             )
             .await?;
-        Ok(subscription)
-    }
-
-    pub(crate) async fn subscribe_storage(
-        &self,
-    ) -> Result<Subscription<StorageChangeSet<T::Hash>>, ArchiveError> {
-        let keys: Option<Vec<StorageKey>> = None;
-        let params = Params::Array(vec![to_json_value(keys)?]);
-
-        let subscription = self
-            .client
-            .subscribe("state_subscribeStorage", params, "state_unsubscribeStorage")
-            .await?;
-
         Ok(subscription)
     }
 }

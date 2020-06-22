@@ -21,22 +21,19 @@ mod database;
 pub mod frontend;
 mod read_only_backend;
 #[cfg(test)]
-mod test_util;
+pub mod test_util;
 pub mod util;
 
 // re-exports
 pub use self::block_executor::{
-    BlockChanges, BlockData, BlockExecutor, BlockOrNumber, ExecutorContext, ThreadedBlockExecutor,
+    BlockBroker, BlockChanges, BlockData, BlockExecutor, ThreadedBlockExecutor,
 };
 pub use self::read_only_backend::{ReadOnlyBackend, TrieState};
 pub use self::{database::ReadOnlyDatabase, frontend::runtime_api, util::open_database};
 
 use sc_client_api::Backend as BackendT;
 use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
-use sp_runtime::{
-    generic::{BlockId, SignedBlock},
-    traits::{BlakeTwo256, Block as BlockT},
-};
+use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
 /// supertrait for accessing methods that rely on internal runtime api
 pub trait ApiAccess<Block, Backend, Runtime>:

@@ -83,7 +83,7 @@ impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
     }
 
     /// Return hashes of all blocks that are children of the block with `parent_hash`.
-    fn children(&self, parent_hash: Block::Hash) -> ChainResult<Vec<Block::Hash>> {
+    fn children(&self, _parent_hash: Block::Hash) -> ChainResult<Vec<Block::Hash>> {
         unimplemented!()
     }
 

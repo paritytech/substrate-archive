@@ -55,7 +55,6 @@ where
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
             blocks: BatchBlock<T> =!> {
-                log::info!("Inserting {} blocks", blocks.inner().len());
                 process_blocks(&db, blocks).await?;
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
@@ -111,7 +110,6 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    log::info!("Got {} blocks", blocks.inner().len());
     let mut specs = blocks.inner().clone();
     specs.as_mut_slice().sort_by_key(|b| b.spec);
     let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();

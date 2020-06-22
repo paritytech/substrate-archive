@@ -17,11 +17,11 @@
 use crate::{
     actors::ArchiveContext,
     backend::{
-        self,
-        frontend::{Client, TArchiveClient},
-        ApiAccess, ReadOnlyBackend, ReadOnlyDatabase, RuntimeApiCollection,
+        self, frontend::TArchiveClient, ApiAccess, ReadOnlyBackend, ReadOnlyDatabase,
+        RuntimeApiCollection,
     },
     error::Error as ArchiveError,
+    migrations::MigrationConfig,
     types::*,
 };
 use sc_chain_spec::ChainSpec;
@@ -32,35 +32,41 @@ use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::{marker::PhantomData, sync::Arc};
 
-pub struct Archive<Block: BlockT + Send + Sync, Spec: ChainSpec + Clone + 'static> {
-    db_url: String,
+pub struct Archive<Block: BlockT + Send + Sync> {
     rpc_url: String,
-    psql_url: Option<String>,
-    cache_size: usize,
-    spec: Spec,
+    psql_url: String,
+    // cache_size: usize,
+    db: Arc<ReadOnlyDatabase>,
     _marker: PhantomData<Block>,
 }
 
 pub struct ArchiveConfig {
     pub db_url: String,
     pub rpc_url: String,
-    pub psql_url: Option<String>,
     pub cache_size: usize,
+    pub psql_conf: MigrationConfig,
 }
 
-impl<Block, Spec> Archive<Block, Spec>
+impl<Block> Archive<Block>
 where
     Block: BlockT + Send + Sync,
-    Spec: ChainSpec + Clone + 'static,
 {
     /// Create a new instance of the Archive DB
-    pub fn new(conf: ArchiveConfig, spec: Spec) -> Result<Self, ArchiveError> {
+    /// and run Postgres Migrations
+    pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self, ArchiveError> {
+        let psql_url = crate::migrations::migrate(conf.psql_conf)?;
+
+        let db = Arc::new(backend::util::open_database(
+            conf.db_url.as_str(),
+            conf.cache_size,
+            spec.name(),
+            spec.id(),
+        )?);
         Ok(Self {
-            spec,
-            db_url: conf.db_url,
+            db,
+            psql_url,
             rpc_url: conf.rpc_url,
-            psql_url: conf.psql_url,
-            cache_size: conf.cache_size,
+            // cache_size: conf.cache_size,
             _marker: PhantomData,
         })
     }
@@ -84,33 +90,13 @@ where
         <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend:
             sp_api::StateBackend<BlakeTwo256>,
     {
-        let db = self.make_database()?;
-        let backend = backend::runtime_api::<Block, Runtime, Dispatch, _>(db, self.spec.clone())
+        let backend = backend::runtime_api::<Block, Runtime, Dispatch>(self.db.clone())
             .map_err(ArchiveError::from)?;
         Ok(Arc::new(backend))
     }
 
-    pub(crate) fn make_database(&self) -> Result<ReadOnlyDatabase, ArchiveError> {
-        Ok(backend::util::open_database(
-            self.db_url.as_str(),
-            self.cache_size,
-            self.spec.name(),
-            self.spec.id(),
-        )?)
-    }
-
-    pub(crate) fn make_backend<T>(&self) -> Result<ReadOnlyBackend<NotSignedBlock<T>>, ArchiveError>
-    where
-        T: Substrate + Send + Sync,
-        <T as System>::BlockNumber: Into<u32>,
-        <T as System>::Hash: From<primitive_types::H256>,
-        <T as System>::Header: serde::de::DeserializeOwned,
-    {
-        let db = self.make_database()?;
-        Ok(ReadOnlyBackend::new(db, true))
-    }
-
-    /// Returning context in which the archive is running
+    /// Constructs the Archive and returns the context
+    /// in which the archive is running.
     pub fn run_with<T, Runtime, ClientApi>(
         &self,
         client_api: Arc<ClientApi>,
@@ -133,12 +119,12 @@ where
         <T as System>::Header: serde::de::DeserializeOwned,
         <T as System>::BlockNumber: From<u32>,
     {
-        let backend = Arc::new(self.make_backend::<T>()?);
+        let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
         ArchiveContext::init(
             client_api,
             backend,
             self.rpc_url.clone(),
-            self.psql_url.as_deref(),
+            self.psql_url.as_str(),
         )
     }
 }

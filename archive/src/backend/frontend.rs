@@ -22,19 +22,11 @@ use sc_client_api::{
     ExecutionStrategy,
 };
 // use sc_client_db::Backend;
-use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
-/*
-use sc_service::{
-    config::{DatabaseConfig, PruningMode},
-    error::Error as ServiceError,
-    ChainSpec, TFullBackend,
-};
-*/
 use self::executor::ArchiveExecutor;
 use crate::{backend::database::ReadOnlyDatabase, error::Error as ArchiveError};
-use sc_chain_spec::ChainSpec;
+use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
 use sp_api::ConstructRuntimeApi;
-use sp_core::{tasks::executor as task_executor, traits::CloneableSpawn};
+use sp_core::traits::CloneableSpawn;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
 
@@ -48,9 +40,8 @@ pub type TArchiveClient<TBl, TRtApi, TExecDisp> =
 type TFullCallExecutor<TBl, TExecDisp> =
     self::executor::ArchiveExecutor<ReadOnlyBackend<TBl>, NativeExecutor<TExecDisp>>;
 
-pub fn runtime_api<Block, Runtime, Dispatch, Spec>(
-    db: ReadOnlyDatabase,
-    spec: Spec,
+pub fn runtime_api<Block, Runtime, Dispatch>(
+    db: Arc<ReadOnlyDatabase>,
 ) -> Result<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>, ArchiveError>
 where
     Block: BlockT,
@@ -65,7 +56,6 @@ where
         + Sync
         + 'static,
     Dispatch: NativeExecutionDispatch + 'static,
-    Spec: ChainSpec + 'static,
     <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
     // FIXME: prefix keys
@@ -91,10 +81,11 @@ pub struct TaskExecutor {
 
 impl TaskExecutor {
     fn new() -> Self {
-        let pool = futures::executor::ThreadPool::builder()
-            .pool_size(8)
-            .create()
-            .unwrap();
+        //TODO: ?????
+        // let _pool = futures::executor::ThreadPool::builder()
+        //   .pool_size(8)
+        //    .create()
+        //    .unwrap();
         Self {
             pool: futures::executor::ThreadPool::new().expect("Failed to create executor"),
         }

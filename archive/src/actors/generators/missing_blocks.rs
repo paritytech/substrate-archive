@@ -20,40 +20,30 @@
 
 use crate::actors::{
     scheduler::{Algorithm, Scheduler},
-    workers,
+    workers, ActorContext,
 };
 use crate::{
-    backend::{BlockData, BlockOrNumber, ExecutorContext, ReadOnlyBackend},
+    backend::BlockData,
     error::Error as ArchiveError,
     queries,
     types::{NotSignedBlock, Substrate, SubstrateBlock, System},
 };
 use bastion::prelude::*;
 use sp_runtime::generic::BlockId;
-use sqlx::PgConnection;
-use std::sync::Arc;
 
-type BlockExecutor<T> = ExecutorContext<NotSignedBlock<T>>;
-
-pub fn actor<T>(
-    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
-    executor: BlockExecutor<T>,
-    pool: sqlx::Pool<PgConnection>,
-    url: String,
-) -> Result<ChildrenRef, ArchiveError>
+pub fn actor<T>(context: ActorContext<T>) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
-    let meta_workers = workers::metadata::<T>(url, pool.clone())?;
+    let meta_workers =
+        workers::metadata::<T>(context.rpc_url().to_string(), context.pool().clone())?;
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
-            let backend = backend.clone();
-            let pool = pool.clone();
+            let context = context.clone();
             let workers = meta_workers.clone();
-            let executor = executor.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                 sched.add_worker("meta", &workers);
@@ -61,7 +51,7 @@ where
                     if handle_shutdown(&ctx).await {
                         break;
                     }
-                    match entry::<T>(&backend, &executor, &pool, &mut sched).await {
+                    match entry::<T>(&context, &mut sched).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
@@ -74,17 +64,12 @@ where
     .map_err(|_| ArchiveError::from("Could not instantiate database generator"))
 }
 
-async fn entry<T>(
-    backend: &Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
-    executor: &BlockExecutor<T>,
-    pool: &sqlx::Pool<PgConnection>,
-    sched: &mut Scheduler<'_>,
-) -> Result<(), ArchiveError>
+async fn entry<T>(context: &ActorContext<T>, sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     NotSignedBlock<T>: serde::Serialize + serde::de::DeserializeOwned,
 {
-    let block_nums = queries::missing_blocks(&pool).await?;
+    let block_nums = queries::missing_blocks(&context.pool()).await?;
     log::info!("missing {} blocks", block_nums.len());
     if !(block_nums.len() > 0) {
         timer::Delay::new(std::time::Duration::from_secs(5)).await;
@@ -96,9 +81,9 @@ where
         block_nums[0].generate_series,
         block_nums[block_nums.len() - 1].generate_series
     );
-    let backend = backend.clone();
+    let backend = context.backend().clone();
+    let broker = context.broker().clone();
     let now = std::time::Instant::now();
-    let executor = executor.clone();
     let blocks: Vec<SubstrateBlock<T>> = blocking!((move || {
         let mut blocks = Vec::new();
         for block_num in block_nums.iter() {
@@ -109,9 +94,9 @@ where
                 log::warn!("Block does not exist!")
             } else {
                 let b = b.expect("Checked for none; qed");
-                executor
+                broker
                     .work
-                    .send(BlockData::Single(BlockOrNumber::Block(b.block.clone())))
+                    .send(BlockData::Single(b.block.clone()))
                     .unwrap();
                 blocks.push(b);
             }

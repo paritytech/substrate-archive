@@ -23,7 +23,6 @@ use super::ReadOnlyBackend;
 use crate::backend::util::columns;
 use sc_client_api::backend::{AuxStore, BlockImportOperation, NewBlockState, TransactionForSB};
 use sp_blockchain::{well_known_cache_keys::Id, Error as BlockchainError};
-use sp_core::offchain::storage::OffchainOverlayedChanges;
 use sp_core::offchain::OffchainStorage;
 use sp_runtime::{
     generic::BlockId,
@@ -48,37 +47,37 @@ impl<Block: BlockT> BlockImportOperation<Block> for RealBlockImportOperation {
 
     fn set_block_data(
         &mut self,
-        header: Block::Header,
-        body: Option<Vec<Block::Extrinsic>>,
-        justification: Option<Justification>,
-        state: NewBlockState,
+        _header: Block::Header,
+        _body: Option<Vec<Block::Extrinsic>>,
+        _justification: Option<Justification>,
+        _state: NewBlockState,
     ) -> ChainResult<()> {
         log::warn!("Block state may not be set with a Read Only Backend");
         Ok(())
     }
 
-    fn update_cache(&mut self, cache: std::collections::HashMap<Id, Vec<u8>>) {
+    fn update_cache(&mut self, _cache: std::collections::HashMap<Id, Vec<u8>>) {
         // TODO: maybe we should have a cache??
         log::warn!("No cache on a read only backend");
     }
 
     fn update_db_storage(
         &mut self,
-        update: TransactionForSB<Self::State, Block>,
+        _update: TransactionForSB<Self::State, Block>,
     ) -> ChainResult<()> {
         log::warn!("Cannot modify storage of a read only backend. Storage not updated");
         Ok(())
     }
 
-    fn reset_storage(&mut self, reset: Storage) -> ChainResult<Block::Hash> {
+    fn reset_storage(&mut self, _reset: Storage) -> ChainResult<Block::Hash> {
         log::warn!("Cannot modify storage of a read only backend. Storage not reset.");
         Ok(Default::default())
     }
 
     fn update_storage(
         &mut self,
-        update: StorageCollection,
-        child_update: ChildStorageCollection,
+        _update: StorageCollection,
+        _child_update: ChildStorageCollection,
     ) -> ChainResult<()> {
         log::warn!("Cannot modify storage of a read only backend. Storage not updated.");
         Ok(Default::default())
@@ -86,13 +85,13 @@ impl<Block: BlockT> BlockImportOperation<Block> for RealBlockImportOperation {
 
     fn update_changes_trie(
         &mut self,
-        update: ChangesTrieTransaction<HashFor<Block>, NumberFor<Block>>,
+        _update: ChangesTrieTransaction<HashFor<Block>, NumberFor<Block>>,
     ) -> ChainResult<()> {
         log::warn!("Cannot modify storage of a read only backend. Changes Trie not updated.");
         Ok(())
     }
 
-    fn insert_aux<I>(&mut self, ops: I) -> ChainResult<()>
+    fn insert_aux<I>(&mut self, _ops: I) -> ChainResult<()>
     where
         I: IntoIterator<Item = (Vec<u8>, Option<Vec<u8>>)>,
     {
@@ -102,14 +101,14 @@ impl<Block: BlockT> BlockImportOperation<Block> for RealBlockImportOperation {
 
     fn mark_finalized(
         &mut self,
-        id: BlockId<Block>,
-        justification: Option<Justification>,
+        _id: BlockId<Block>,
+        _justification: Option<Justification>,
     ) -> ChainResult<()> {
         log::warn!("Cannot modify storage of a read only backend. finalized not marked.");
         Ok(())
     }
 
-    fn mark_head(&mut self, id: BlockId<Block>) -> ChainResult<()> {
+    fn mark_head(&mut self, _id: BlockId<Block>) -> ChainResult<()> {
         log::warn!("Cannot modify storage of a read only backend. Head not marked.");
         Ok(())
     }
@@ -119,25 +118,25 @@ impl<Block: BlockT> BlockImportOperation<Block> for RealBlockImportOperation {
 pub struct OffchainStorageBackend;
 
 impl OffchainStorage for OffchainStorageBackend {
-    fn set(&mut self, prefix: &[u8], key: &[u8], value: &[u8]) {
+    fn set(&mut self, _prefix: &[u8], _key: &[u8], _value: &[u8]) {
         log::warn!("Cannot modify storage of a read only backend. Offchain Storage not set.");
     }
 
-    fn remove(&mut self, prefix: &[u8], key: &[u8]) {
+    fn remove(&mut self, _prefix: &[u8], _key: &[u8]) {
         log::warn!("Cannot modify storage of a read only backend. Offchain Storage not set.");
     }
 
-    fn get(&self, prefix: &[u8], key: &[u8]) -> Option<Vec<u8>> {
+    fn get(&self, _prefix: &[u8], _key: &[u8]) -> Option<Vec<u8>> {
         log::warn!("Offchain Storage operations not supported");
         None
     }
 
     fn compare_and_set(
         &mut self,
-        prefix: &[u8],
-        key: &[u8],
-        old_value: Option<&[u8]>,
-        new_value: &[u8],
+        _prefix: &[u8],
+        _key: &[u8],
+        _old_value: Option<&[u8]>,
+        _new_value: &[u8],
     ) -> bool {
         log::warn!("Cannot modify storage of a read only backend. Offchain storage not set");
         false
@@ -153,8 +152,8 @@ impl<Block: BlockT> AuxStore for ReadOnlyBackend<Block> {
         D: IntoIterator<Item = &'a &'b [u8]>,
     >(
         &self,
-        insert: I,
-        delete: D,
+        _insert: I,
+        _delete: D,
     ) -> ChainResult<()> {
         log::warn!("Insert operations not supported for Read Only Backend");
         Ok(())

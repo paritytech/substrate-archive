@@ -29,19 +29,16 @@ mod misc_backend;
 mod state_backend;
 
 pub use self::state_backend::TrieState;
-use self::state_backend::{DbHash, DbState, StateVault};
+use self::state_backend::{DbState, StateVault};
 use super::database::ReadOnlyDatabase;
 use super::util::columns;
-use codec::Decode;
 use hash_db::Prefix;
 use kvdb::DBValue; // need
 use sc_client_api::backend::StateBackend;
 use sp_blockchain::{Backend as _, HeaderBackend as _};
-use sp_database::Database;
 use sp_runtime::{
     generic::{BlockId, SignedBlock},
-    traits::{Block as BlockT, HashFor, Header, NumberFor},
-    Justification,
+    traits::{Block as BlockT, HashFor, Header},
 };
 use std::{marker::PhantomData, sync::Arc};
 
@@ -50,7 +47,6 @@ pub struct ReadOnlyBackend<Block: BlockT> {
     storage: Arc<StateVault<Block>>,
     // FIXME: I don't think we need this here
     // because it's specified in StateVault
-    prefix_keys: bool,
     _marker: PhantomData<Block>,
 }
 
@@ -58,12 +54,10 @@ impl<Block> ReadOnlyBackend<Block>
 where
     Block: BlockT,
 {
-    pub fn new(db: ReadOnlyDatabase, prefix_keys: bool) -> Self {
-        let db = Arc::new(db);
+    pub fn new(db: Arc<ReadOnlyDatabase>, prefix_keys: bool) -> Self {
         let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
         Self {
             db,
-            prefix_keys,
             storage: vault,
             _marker: PhantomData,
         }
@@ -89,7 +83,6 @@ where
                     Some(hash.clone()),
                 ))
             } else {
-                log::warn!("No state found for block {:?}", hash);
                 None
             }
         }
@@ -105,7 +98,7 @@ where
             columns::HEADER,
             BlockId::Hash(hash),
         )
-        .expect("Header Metadata Lookup Failed");
+        .expect("Header metadata lookup failed");
         header.map(|h| *h.state_root())
     }
 

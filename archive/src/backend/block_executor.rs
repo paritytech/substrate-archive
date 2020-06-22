@@ -23,46 +23,45 @@ use crate::{
     error::Error as ArchiveError,
     types::*,
 };
-use crossbeam::deque::{Injector, /*Steal,*/ Stealer, Worker};
-use frame_system::Trait as System;
-use sc_client_api::backend;
-// use sc_client_db::Backend;
 use crossbeam::channel;
+use frame_system::Trait as System;
 use hashbrown::HashSet;
+use sc_client_api::backend;
 use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
     generic::BlockId,
-    traits::{Block as BlockT, HashFor, Header, NumberFor},
+    traits::{Block as BlockT, Header, NumberFor},
 };
 use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
-use std::{
-    iter::{self, FromIterator},
-    marker::PhantomData,
-    sync::{Arc, Mutex},
-};
-use threadpool::ThreadPool;
+use std::{sync::Arc, thread::JoinHandle};
 
 pub type StorageKey = Vec<u8>;
 pub type StorageValue = Vec<u8>;
 pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
-const POOL_NAME: &str = "block-executor-worker";
-
 pub enum BlockData<Block: BlockT> {
-    Batch(Vec<BlockOrNumber<Block>>),
-    Single(BlockOrNumber<Block>),
+    Batch(Vec<Block>),
+    Single(Block),
     Stop,
 }
 
-pub struct ExecutorContext<Block: BlockT> {
+/// A layer between ThreadedBlockExecutor and whatever else that contains
+/// channels for sending new work and receiving storage changes
+/// Works in it's own thread
+pub struct BlockBroker<Block: BlockT> {
+    /// channel for sending blocks to be executed on a threadpool
     pub work: channel::Sender<BlockData<Block>>,
+    /// results once execution is finished
     pub results: channel::Receiver<BlockChanges<Block>>,
-    handle: Option<std::thread::JoinHandle<()>>,
+    /// handle to join threadpool back to main thread
+    /// only one thread may own this handle
+    /// any clones will make the handle `None`
+    handle: Option<JoinHandle<()>>,
 }
 
-impl<Block: BlockT> Clone for ExecutorContext<Block> {
+impl<Block: BlockT> Clone for BlockBroker<Block> {
     fn clone(&self) -> Self {
         Self {
             work: self.work.clone(),
@@ -73,337 +72,24 @@ impl<Block: BlockT> Clone for ExecutorContext<Block> {
     }
 }
 
-impl<Block: BlockT> ExecutorContext<Block>
+impl<Block: BlockT> BlockBroker<Block>
 where
     NumberFor<Block>: Into<u32>,
 {
-    pub fn from_executor(executor: ThreadedBlockExecutor<Block>) -> Self {
-        let results = executor.receiver().clone();
-        let (work, handle) = Self::scheduler_loop(executor);
-
-        Self {
-            results,
-            work,
-            handle: Some(handle),
-        }
-    }
-
-    fn scheduler_loop(
-        mut executor: ThreadedBlockExecutor<Block>,
-    ) -> (
-        channel::Sender<BlockData<Block>>,
-        std::thread::JoinHandle<()>,
-    ) {
-        let (tx, rx) = channel::unbounded();
-        let handle = std::thread::spawn(move || loop {
-            let data = rx.recv();
-            match data.unwrap() {
-                BlockData::Batch(v) => executor.push_vec_to_queue(v).unwrap(),
-                BlockData::Single(v) => executor.push_to_queue(v).unwrap(),
-                Stop => {
-                    executor.join();
-                    break;
-                }
-            }
-        });
-        (tx, handle)
-    }
-
     pub fn stop(mut self) -> Result<(), ArchiveError> {
-        self.work.send(BlockData::Stop);
+        self.work.send(BlockData::Stop)?;
         std::thread::sleep(std::time::Duration::from_millis(250));
-        self.handle.take().map(std::thread::JoinHandle::join);
+        self.handle.take().map(JoinHandle::join);
         Ok(())
-    }
-}
-
-#[derive(Clone)]
-pub enum BlockOrNumber<Block: BlockT> {
-    Block(Block),
-    Number(u32),
-}
-
-impl<Block: BlockT> PartialEq for BlockOrNumber<Block>
-where
-    NumberFor<Block>: Into<u32>,
-{
-    fn eq(&self, other: &Self) -> bool {
-        match self {
-            BlockOrNumber::Block(b0) => match other {
-                BlockOrNumber::Block(b1) => b0.header().number() == b1.header().number(),
-                BlockOrNumber::Number(n) => {
-                    let num: u32 = (*b0.header().number()).into();
-                    num == *n
-                }
-            },
-            BlockOrNumber::Number(n0) => match other {
-                BlockOrNumber::Block(b) => {
-                    let num: u32 = (*b.header().number()).into();
-                    *n0 == num
-                }
-                BlockOrNumber::Number(n1) => n0 == n1,
-            },
-        }
-    }
-}
-
-impl<Block: BlockT> Eq for BlockOrNumber<Block> where NumberFor<Block>: Into<u32> {}
-
-impl<Block: BlockT> std::hash::Hash for BlockOrNumber<Block>
-where
-    NumberFor<Block>: Into<u32>,
-{
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        match self {
-            BlockOrNumber::Block(b) => b.header().number().hash(state),
-            BlockOrNumber::Number(n) => n.hash(state),
-        }
-    }
-}
-
-impl<Block: BlockT> BlockOrNumber<Block> {
-    pub fn from_block(block: Block) -> BlockOrNumber<Block> {
-        BlockOrNumber::Block(block)
-    }
-
-    pub fn from_num(num: u32) -> BlockOrNumber<Block> {
-        BlockOrNumber::Number(num)
-    }
-}
-
-/// A worker on the threadpool that has
-/// blocks on the queue to execute
-pub struct BlockWorker<Block, Runtime, ClientApi>
-where
-    Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, ClientApi>,
-    Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
-    ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
-{
-    /// Local queue of tasks
-    local: Worker<BlockOrNumber<Block>>,
-    /// Other threads we can steal work from
-    stealers: Arc<Vec<Stealer<BlockOrNumber<Block>>>>,
-    /// Global queue of tasks
-    global: Arc<Injector<BlockOrNumber<Block>>>,
-    /// The Substrate API Client
-    client: Arc<ClientApi>,
-    /// The Substrate Disk Backend (RocksDB)
-    backend: Arc<Backend<Block>>,
-    sender: channel::Sender<BlockChanges<Block>>,
-    _marker: PhantomData<Runtime>,
-}
-
-impl<Block, Runtime, ClientApi> BlockWorker<Block, Runtime, ClientApi>
-where
-    Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, ClientApi>,
-    Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
-    ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
-{
-    /// create a new worker
-    fn init_worker(
-        stealers: Arc<Vec<Stealer<BlockOrNumber<Block>>>>,
-        global: Arc<Injector<BlockOrNumber<Block>>>,
-        client: Arc<ClientApi>,
-        backend: Arc<Backend<Block>>,
-        sender: channel::Sender<BlockChanges<Block>>,
-    ) -> Self {
-        let worker = Worker::new_fifo();
-        Self {
-            local: worker,
-            stealers,
-            global,
-            client,
-            backend,
-            sender,
-            _marker: PhantomData,
-        }
-    }
-
-    /// Start the worker loop
-    fn start_worker(self) -> Result<(), ArchiveError> {
-        loop {
-            let block = if let Some(b) = self.find_work() {
-                b
-            } else {
-                std::thread::sleep(std::time::Duration::from_millis(5));
-                continue;
-            };
-
-            let block: Block = match block {
-                BlockOrNumber::Block(b) => b,
-                BlockOrNumber::Number(num) => {
-                    self.backend
-                        .block(&BlockId::Number(NumberFor::<Block>::from(num)))
-                        .ok_or(ArchiveError::from("Block Not Found"))?
-                        .block
-                }
-            };
-            let api = self.client.runtime_api();
-            let block =
-                BlockExecutor::new(api, self.backend.clone(), block)?.block_into_storage()?;
-            match self.sender.send(block) {
-                Ok(_) => (),
-                Err(e) => {
-                    log::error!("Could not send storage changes because {}", e);
-                }
-            }
-            // TODO: Park os thread
-            // currently the OS thread just sleeps
-            // we should park it and wait  for other work
-            // or just stop the thread, and spawn more workers when more work comes in
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
-        Ok(())
-    }
-
-    /// this will try to find work from the local queue first,
-    /// then from the global queue
-    /// then try to steal from other threads
-    /// On start, the worker should always find work from the global queue
-    fn find_work(&self) -> Option<BlockOrNumber<Block>> {
-        // Pop a task from the local queue, if not empty.
-        self.local.pop().or_else(|| {
-            // Otherwise, we need to look for a task elsewhere.
-            iter::repeat_with(|| {
-                // Try stealing a batch of tasks from the global queue.
-                self.global
-                    .steal_batch_and_pop(&self.local)
-                    // Or try stealing a task from one of the other threads.
-                    .or_else(|| self.stealers.iter().map(|s| s.steal()).collect())
-            })
-            // Loop while no task was stolen and any steal operation needs to be retried.
-            .find(|s| !s.is_retry())
-            // Extract the stolen task, if there is one.
-            .and_then(|s| s.success())
-        })
-    }
-
-    /// get the thief for this worker
-    fn own_stealer(&self) -> Stealer<BlockOrNumber<Block>> {
-        self.local.stealer()
-    }
-}
-
-/// Builder for the BlockWorker
-/// must have stealers, global queue, client, and backend specified
-///
-///# Examples
-///```
-/// let worker = BlockWorkerBuilder::<Block, Runtime, ClientApi>::default()
-///     .global(..)
-///     .client(..)
-///     .backend(..)
-///     .build()
-///```
-struct BlockWorkerBuilder<Block, Runtime, ClientApi>
-where
-    Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, ClientApi>,
-    Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
-    ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
-    NumberFor<Block>: Into<u32>,
-{
-    /// Local queue of tasks
-    pub local: Worker<BlockOrNumber<Block>>,
-    /// Other threads we can steal work from
-    stealers: Option<Arc<Vec<Stealer<BlockOrNumber<Block>>>>>,
-    /// Global queue of tasks
-    global: Option<Arc<Injector<BlockOrNumber<Block>>>>,
-    /// The Substrate API Client
-    client: Option<Arc<ClientApi>>,
-    /// The Substrate Disk Backend (RocksDB)
-    backend: Option<Arc<Backend<Block>>>,
-    sender: Option<channel::Sender<BlockChanges<Block>>>,
-    _marker: PhantomData<Runtime>,
-}
-
-impl<Block, Runtime, ClientApi> Default for BlockWorkerBuilder<Block, Runtime, ClientApi>
-where
-    Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, ClientApi>,
-    Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
-    ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
-    NumberFor<Block>: Into<u32>,
-{
-    fn default() -> Self {
-        Self {
-            local: Worker::new_fifo(),
-            stealers: None,
-            global: None,
-            client: None,
-            backend: None,
-            sender: None,
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<Block, Runtime, ClientApi> BlockWorkerBuilder<Block, Runtime, ClientApi>
-where
-    Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, ClientApi>,
-    Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
-    ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
-    NumberFor<Block>: Into<u32>,
-{
-    fn stealers(mut self, stealers: Arc<Vec<Stealer<BlockOrNumber<Block>>>>) -> Self {
-        self.stealers = Some(stealers);
-        self
-    }
-
-    fn global(mut self, injector: Arc<Injector<BlockOrNumber<Block>>>) -> Self {
-        self.global = Some(injector);
-        self
-    }
-
-    fn client(mut self, client: Arc<ClientApi>) -> Self {
-        self.client = Some(client);
-        self
-    }
-
-    fn backend(mut self, backend: Arc<Backend<Block>>) -> Self {
-        self.backend = Some(backend);
-        self
-    }
-
-    fn sender(mut self, sender: channel::Sender<BlockChanges<Block>>) -> Self {
-        self.sender = Some(sender);
-        self
-    }
-
-    fn build(self) -> BlockWorker<Block, Runtime, ClientApi> {
-        BlockWorker {
-            local: self.local,
-            stealers: self.stealers.expect("Stealers are required"),
-            global: self.global.expect("Global queue is required"),
-            client: self.client.expect("Runtime Api Client is required"),
-            backend: self.backend.expect("Disk Backend is required"),
-            sender: self.sender.expect("Sender is required"),
-            _marker: PhantomData,
-        }
     }
 }
 
 /// Executor that sends blocks to a thread pool for execution
 pub struct ThreadedBlockExecutor<Block: BlockT> {
-    /// the workers that execute blocks
-    worker_count: usize,
-    /// Other threads from which work can be stolen
-    stealers: Arc<Vec<Stealer<BlockOrNumber<Block>>>>,
-    /// global queue that keeps unexecuteed blocks
-    global_queue: Arc<Injector<BlockOrNumber<Block>>>,
     /// the threadpool
-    pool: Arc<Mutex<ThreadPool>>,
+    pool: rayon::ThreadPool,
     /// Entries that have been inserted (avoids inserting duplicates)
-    inserted: HashSet<BlockOrNumber<Block>>,
-    receiver: channel::Receiver<BlockChanges<Block>>,
+    inserted: HashSet<Block::Hash>,
 }
 
 impl<Block: BlockT> ThreadedBlockExecutor<Block>
@@ -416,125 +102,158 @@ where
         stack_size: Option<usize>,
         client: Arc<ClientApi>,
         backend: Arc<Backend<Block>>,
-    ) -> Self
+    ) -> Result<BlockBroker<Block>, ArchiveError>
     where
         Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
         Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
             + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
         ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
     {
-        let worker_count = num_cpus::get() * pool_multiplier;
-        let stack_size = stack_size.unwrap_or(8_000_000);
-        let pool = threadpool::Builder::new()
-            .num_threads(worker_count)
-            .thread_name(POOL_NAME.to_string())
-            .thread_stack_size(stack_size) // 8 MB
-            .build();
-        log::info!("Starting {} workers", worker_count);
-
-        let global_queue = Arc::new(Injector::<BlockOrNumber<Block>>::new());
-
-        let mut stealers = Vec::new();
-        let mut workers = Vec::new();
-
-        for _ in 0..worker_count {
-            workers.push(BlockWorkerBuilder::<Block, Runtime, ClientApi>::default())
-        }
-
-        for worker in workers.iter() {
-            stealers.push(worker.local.stealer())
-        }
-
-        let stealers = Arc::new(stealers);
+        let cpus = num_cpus::get() * pool_multiplier;
+        // sender sends block changes to receiver
         let (sender, receiver) = channel::unbounded();
 
-        let workers = workers
-            .into_iter()
-            .map(|w| {
-                w.stealers(stealers.clone())
-                    .global(global_queue.clone())
-                    .client(client.clone())
-                    .backend(backend.clone())
-                    .sender(sender.clone())
-                    .build()
-            })
-            .collect::<Vec<BlockWorker<Block, Runtime, ClientApi>>>();
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(cpus)
+            .stack_size(stack_size.unwrap_or(8_000_000))
+            .build()?;
 
-        // having more workers than max count will cause a deadlock
-        assert_eq!(workers.len(), pool.max_count());
-        for worker in workers.into_iter() {
-            pool.execute(move || match worker.start_worker() {
-                Ok(_) => log::info!("Worker Finished"),
-                Err(e) => {
-                    log::error!("{:?}", e);
-                    panic!("Worker should be able to find work");
-                }
-            });
+        let (tx, handle) = Self::scheduler_loop::<Runtime, ClientApi>(
+            Self {
+                pool,
+                inserted: HashSet::new(),
+            },
+            backend,
+            client,
+            sender,
+        )?;
+
+        Ok(BlockBroker {
+            work: tx,
+            results: receiver,
+            handle: Some(handle),
+        })
+    }
+
+    fn scheduler_loop<Runtime, ClientApi>(
+        mut exec: ThreadedBlockExecutor<Block>,
+        backend: Arc<Backend<Block>>,
+        client: Arc<ClientApi>,
+        sender: channel::Sender<BlockChanges<Block>>,
+    ) -> Result<(channel::Sender<BlockData<Block>>, JoinHandle<()>), ArchiveError>
+    where
+        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
+        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+            + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+        ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+    {
+        let (tx, rx) = channel::unbounded();
+        let handle = std::thread::spawn(move || loop {
+            let data = rx.recv();
+            match data.unwrap() {
+                BlockData::Batch(v) => exec
+                    .add_vec_task::<Runtime, _>(v, client.clone(), backend.clone(), sender.clone())
+                    .unwrap(),
+                BlockData::Single(v) => exec
+                    .add_task::<Runtime, _>(v, client.clone(), backend.clone(), sender.clone())
+                    .unwrap(),
+                BlockData::Stop => break,
+            }
+        });
+        Ok((tx, handle))
+    }
+
+    fn work<Runtime, ClientApi>(
+        block: Block,
+        client: Arc<ClientApi>,
+        backend: Arc<Backend<Block>>,
+        sender: channel::Sender<BlockChanges<Block>>,
+    ) -> Result<(), ArchiveError>
+    where
+        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
+        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+            + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+        ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+    {
+        let api = client.runtime_api();
+
+        // don't execute genesis block
+        if *block.header().parent_hash() == Default::default() {
+            return Ok(());
         }
-        let pool = Arc::new(Mutex::new(pool));
-        Self {
-            worker_count,
-            global_queue,
-            stealers,
-            pool,
-            receiver,
-            inserted: HashSet::new(),
-        }
+
+        log::trace!(
+            "Executing Block: {}:{:?}",
+            block.header().hash(),
+            block.header().number()
+        );
+
+        let block = BlockExecutor::new(api, backend, block)?.block_into_storage()?;
+
+        sender.send(block).map_err(Into::into)
     }
 
     /// push some work to the global pool
-    pub fn push_to_queue(&mut self, block_num: BlockOrNumber<Block>) -> Result<(), ArchiveError> {
-        if self.inserted.contains(&block_num) {
+    pub fn add_task<Runtime, ClientApi>(
+        &mut self,
+        block: Block,
+        client: Arc<ClientApi>,
+        backend: Arc<Backend<Block>>,
+        sender: channel::Sender<BlockChanges<Block>>,
+    ) -> Result<(), ArchiveError>
+    where
+        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
+        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+            + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+        ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+    {
+        if self.inserted.contains(&block.hash()) {
             return Ok(());
         } else {
-            self.inserted.insert(block_num.clone());
-            self.global_queue.push(block_num)
+            self.inserted.insert(block.hash());
+            self.pool.spawn(move || {
+                match Self::work::<Runtime, _>(block, client, backend, sender) {
+                    Ok(_) => (),
+                    Err(e) => log::error!("{:?}", e),
+                }
+            });
         }
         Ok(())
     }
 
-    pub fn push_vec_to_queue(
+    pub fn add_vec_task<Runtime, ClientApi>(
         &mut self,
-        blocks: Vec<BlockOrNumber<Block>>,
-    ) -> Result<(), ArchiveError> {
-        let other = HashSet::from_iter(blocks.iter());
-
-        let to_insert = other
-            .difference(&self.inserted.iter().collect::<HashSet<_>>())
-            .map(|v| *v)
-            .cloned()
-            .collect::<Vec<BlockOrNumber<Block>>>();
+        blocks: Vec<Block>,
+        client: Arc<ClientApi>,
+        backend: Arc<Backend<Block>>,
+        sender: channel::Sender<BlockChanges<Block>>,
+    ) -> Result<(), ArchiveError>
+    where
+        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
+        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+            + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+        ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
+    {
+        let to_insert = blocks
+            .into_iter()
+            .filter(|b| !self.inserted.contains(&b.hash()))
+            .collect::<Vec<_>>();
 
         if to_insert.len() > 0 {
             for block in to_insert.into_iter() {
-                self.inserted.insert(block.clone());
-                self.global_queue.push(block)
+                self.inserted.insert(block.hash());
+                let client = client.clone();
+                let backend = backend.clone();
+                let sender = sender.clone();
+                self.pool.spawn(move || {
+                    match Self::work::<Runtime, _>(block, client, backend, sender) {
+                        Ok(_) => (),
+                        Err(e) => log::error!("{:?}", e),
+                    }
+                });
             }
         }
         Ok(())
-    }
-
-    /// return how many workers are actively executing blocks
-    pub fn active(&self) -> Result<usize, ArchiveError> {
-        Ok(self
-            .pool
-            .lock()
-            .map_err(|_| ArchiveError::from("Could not obtain mutex"))?
-            .active_count())
-    }
-
-    /// wait for the workers to finish
-    pub fn join(&self) -> Result<(), ArchiveError> {
-        self.pool
-            .lock()
-            .map_err(|_| ArchiveError::from("Could not obtain mutex"))?
-            .join();
-        Ok(())
-    }
-
-    /// get the receiving end for this channel
-    pub fn receiver(&self) -> &channel::Receiver<BlockChanges<Block>> {
-        &self.receiver
     }
 }
 
@@ -708,13 +427,10 @@ mod tests {
         println!("Min: {:?}, Max: {:?}", blocks[0], blocks[blocks.len() - 1]);
 
         let backend = Arc::new(test_util::backend(DB_STR));
-        let blocks: Vec<u32> = (0..9999).collect();
         println!("Got {} blocks", blocks.len());
         // should push to global queue before starting execution
-        let executor = ThreadedBlockExecutor::new(1, Some(8_000_000), client, backend);
-        for block in blocks.into_iter() {
-            executor.push_to_queue(block);
-        }
+        let mut executor = ThreadedBlockExecutor::new(1, Some(8_000_000), client, backend);
+        executor.push_vec_to_queue(blocks).unwrap();
         executor.join();
     }
 }

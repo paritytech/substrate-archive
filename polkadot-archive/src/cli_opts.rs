@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use clap::{App, load_yaml};
+use clap::{load_yaml, App};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct CliOpts {
     pub file: PathBuf,
     pub log_level: log::LevelFilter,
+    pub chain: String,
 }
 
 impl CliOpts {
@@ -32,12 +33,20 @@ impl CliOpts {
             1 => log::LevelFilter::Warn,
             2 => log::LevelFilter::Info,
             3 => log::LevelFilter::Debug,
-            4|_ => log::LevelFilter::Trace,
+            4 | _ => log::LevelFilter::Trace,
         };
-        let file = matches.value_of("config").expect("Config is a required value");
+        let file = matches
+            .value_of("config")
+            .expect("Config is a required value");
+
+        let chain = matches
+            .value_of("chain")
+            .expect("Chain is a required value");
 
         CliOpts {
-            file: PathBuf::from(file), log_level
+            file: PathBuf::from(file),
+            log_level,
+            chain: chain.to_string(),
         }
     }
 }

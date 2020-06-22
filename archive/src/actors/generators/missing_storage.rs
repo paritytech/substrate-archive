@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2018-2019 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -21,9 +21,9 @@
 use crate::{
     actors::{
         scheduler::{Algorithm, Scheduler},
-        workers,
+        workers, ActorContext,
     },
-    backend::{BlockChanges, BlockData, BlockOrNumber, ExecutorContext, ThreadedBlockExecutor},
+    backend::{BlockBroker, BlockData},
     sql_block_builder::BlockBuilder,
 };
 use crate::{
@@ -32,29 +32,22 @@ use crate::{
     types::{NotSignedBlock, Storage, Substrate, System},
 };
 use bastion::prelude::*;
-use crossbeam::channel::{self, Sender};
-use sp_runtime::generic::BlockId;
-use std::sync::Arc;
 
-type BlockExecutor<T> = ExecutorContext<NotSignedBlock<T>>;
-
-pub fn actor<T>(executor: BlockExecutor<T>, pool: sqlx::PgPool) -> Result<ChildrenRef, ArchiveError>
+pub fn actor<T>(context: ActorContext<T>) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let workers = workers::transformers::<T>(pool.clone())?;
+    let workers = workers::transformers::<T>(context.pool())?;
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
-            let executor = executor.clone();
+            let context = context.clone();
             let workers = workers.clone();
-            let pool = pool.clone();
-
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                 sched.add_worker("transform", &workers);
-                match on_start::<T>(&executor, &pool, &mut sched).await {
+                match on_start::<T>(&context, &mut sched).await {
                     Ok(_) => (),
                     Err(e) => {
                         log::error!("{:?}", e);
@@ -65,7 +58,7 @@ where
                     if handle_shutdown(&ctx).await {
                         break;
                     }
-                    match entry::<T>(&executor, &pool, &mut sched).await {
+                    match entry::<T>(&context, &mut sched).await {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
@@ -78,24 +71,19 @@ where
     .map_err(|_| ArchiveError::from("Could not instantiate database generator"))
 }
 
-async fn entry<T>(
-    executor: &BlockExecutor<T>,
-    pool: &sqlx::PgPool,
-    sched: &mut Scheduler<'_>,
-) -> Result<(), ArchiveError>
+async fn entry<T>(context: &ActorContext<T>, sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
     timer::Delay::new(std::time::Duration::from_secs(1)).await;
-    let count = check_work::<T>(executor, sched)?;
+    let count = check_work::<T>(context.broker(), sched)?;
     log::info!("Syncing Storage {} bps", count);
     Ok(())
 }
 
 async fn on_start<T>(
-    executor: &BlockExecutor<T>,
-    pool: &sqlx::PgPool,
+    context: &ActorContext<T>,
     sched: &mut Scheduler<'_>,
 ) -> Result<(), ArchiveError>
 where
@@ -103,47 +91,41 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     loop {
-        let count = queries::blocks_storage_intersection_count(pool).await?;
-        // 100 is arbitrary, we just want the blocks table to begin
+        let count = queries::blocks_count(&context.pool()).await?;
+        //  we just want the blocks table to begin
         // being filled/ensure it's not empty before we crawl for missing entries
-        if count > 100 {
+        if count > 0 {
             break;
         } else {
-            let count = check_work::<T>(executor, sched)?;
+            let count = check_work::<T>(context.broker(), sched)?;
             log::info!("Syncing Storage {} bps", count);
             timer::Delay::new(std::time::Duration::from_secs(1)).await;
         }
     }
     let now = std::time::Instant::now();
-    let builder = BlockBuilder::new(pool.clone());
-    let blocks = builder.with_vec(queries::blocks_storage_intersection(pool).await?)?;
+    let blocks = BlockBuilder::new()
+        .with_vec(queries::blocks_storage_intersection(&context.pool()).await?)?;
     let elapsed = now.elapsed();
     log::info!(
-        "TOOK {} milli-seconds, {} micro-seconds to get and build blocks",
+        "TOOK {} seconds, {} milli-seconds to get and build blocks",
+        elapsed.as_secs(),
         elapsed.as_millis(),
-        elapsed.as_micros()
     );
-    executor
-        .work
-        .send(BlockData::Batch(
-            blocks
-                .into_iter()
-                .map(|b| BlockOrNumber::Block(b))
-                .collect::<Vec<BlockOrNumber<NotSignedBlock<T>>>>(),
-        ))
-        .unwrap();
+    context.broker().work.send(BlockData::Batch(blocks))?;
     Ok(())
 }
 
+/// Check the receiver end of the BlockExecution ThreadPool for any storage
+/// changes resulting from block execution.
 fn check_work<T>(
-    executor: &BlockExecutor<T>,
+    broker: &BlockBroker<NotSignedBlock<T>>,
     sched: &mut Scheduler<'_>,
 ) -> Result<usize, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let block_changes = executor
+    let block_changes = broker
         .results
         .try_iter()
         .map(|c| Storage::<T>::from(c))

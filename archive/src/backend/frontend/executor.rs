@@ -31,8 +31,7 @@ use sp_runtime::{
     traits::{Block as BlockT, HashFor, NumberFor},
 };
 use sp_state_machine::{
-    self, backend::Backend as _, ExecutionManager, ExecutionStrategy, Ext, OverlayedChanges,
-    StateMachine, StorageProof,
+    self, ExecutionManager, ExecutionStrategy, Ext, OverlayedChanges, StateMachine, StorageProof,
 };
 use std::{cell::RefCell, panic::UnwindSafe, result, sync::Arc};
 
@@ -130,7 +129,7 @@ where
         call_data: &[u8],
         changes: &RefCell<OverlayedChanges>,
         offchain_changes: &RefCell<OffchainOverlayedChanges>,
-        storage_transaction_cache: Option<
+        _storage_transaction_cache: Option<
             &RefCell<
                 StorageTransactionCache<Block, B::State>, // disabled
             >,
@@ -138,7 +137,7 @@ where
         initialize_block: InitializeBlock<'a, Block>,
         execution_manager: ExecutionManager<EM>,
         native_call: Option<NC>,
-        recorder: &Option<ProofRecorder<Block>>, // disabled
+        _recorder: &Option<ProofRecorder<Block>>, // disabled
         extensions: Option<Extensions>,
     ) -> Result<NativeOrEncoded<R>, sp_blockchain::Error>
     where
@@ -158,7 +157,7 @@ where
             _ => {}
         }
 
-        let mut state = self.backend.state_at(*at)?;
+        let state = self.backend.state_at(*at)?;
 
         let changes = &mut *changes.borrow_mut();
         let offchain_changes = &mut *offchain_changes.borrow_mut();
@@ -186,8 +185,6 @@ where
     fn runtime_version(&self, id: &BlockId<Block>) -> sp_blockchain::Result<RuntimeVersion> {
         let mut overlay = OverlayedChanges::default();
         let mut offchain_overlay = OffchainOverlayedChanges::default();
-        let changes_trie_state =
-            backend::changes_tries_state_at_block(id, self.backend.changes_trie_storage())?;
         let state = self.backend.state_at(*id)?;
         let mut cache = StorageTransactionCache::<Block, B::State>::default();
         let mut ext = Ext::new(
@@ -195,7 +192,7 @@ where
             &mut offchain_overlay,
             &mut cache,
             &state,
-            changes_trie_state,
+            None,
             None,
         );
         let state_runtime_code = sp_state_machine::backend::BackendRuntimeCode::new(&state);

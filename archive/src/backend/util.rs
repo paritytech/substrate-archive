@@ -24,12 +24,11 @@ use codec::Decode;
 use kvdb::DBValue;
 use kvdb_rocksdb::DatabaseConfig;
 // use sc_service::config::DatabaseConfig as DBConfig;
-use sp_database::Database as DatabaseTrait;
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, Header as HeaderT, UniqueSaturatedFrom, UniqueSaturatedInto, Zero},
 };
-use std::{convert::TryInto, path::Path, sync::Arc};
+use std::convert::TryInto;
 
 pub const NUM_COLUMNS: u32 = 11;
 
