@@ -17,7 +17,6 @@
 use crate::error::Error as ArchiveError;
 use refinery::config::{Config, ConfigDbType};
 use std::env;
-use std::str::FromStr;
 
 mod embedded {
     use refinery::embed_migrations;

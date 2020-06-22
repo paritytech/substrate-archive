@@ -31,7 +31,7 @@ use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sqlx::postgres::PgPool;
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 /// Context that every actor may use
 #[derive(Clone)]

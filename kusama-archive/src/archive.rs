@@ -17,10 +17,9 @@
 use super::config::Config;
 
 use anyhow::{anyhow, Context, Result};
-use polkadot_service::{kusama_runtime as ksm_runtime, Block};
+use polkadot_service::kusama_runtime as ksm_runtime;
 use sc_chain_spec::ChainSpec;
-use std::sync::Arc;
-use substrate_archive::{Archive, ArchiveConfig, ArchiveContext, Substrate};
+use substrate_archive::{Archive, ArchiveConfig, ArchiveContext};
 
 pub fn run_archive(config: Config) -> Result<ArchiveContext<ksm_runtime::Runtime>> {
     let mut db_path = config.polkadot_path();
@@ -36,9 +35,9 @@ pub fn run_archive(config: Config) -> Result<ArchiveContext<ksm_runtime::Runtime
     let spec = get_spec(config.cli().chain.as_str())?;
 
     match last_path_part {
-        "polkadot" => db_path.push(format!("chains/{}", spec.id())),
-        "chains" => db_path.push(spec.id()),
-        _ => return Err(anyhow!("invalid path {}", path.as_path().to_str())),
+        "polkadot" => db_path.push(format!("chains/{}/db", spec.id())),
+        "chains" => db_path.push(format!("{}/db", spec.id())),
+        _ => return Err(anyhow!("invalid path {}", path.as_path().display())),
     }
 
     let db_path = db_path

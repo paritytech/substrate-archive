@@ -20,16 +20,14 @@ mod queries;
 
 use anyhow::Result;
 use futures::future::FutureExt;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use polkadot_service::kusama_runtime as ksm_runtime;
+use indicatif::{ProgressBar, ProgressStyle};
 use sqlx::PgPool;
-use std::{thread, time::Duration};
+use std::time::Duration;
 
 pub fn main() -> Result<()> {
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Info);
 
-    //let handle = async_std::task::spawn(archive::run_archive(config.clone()));
     let archive = archive::run_archive(config.clone())?;
 
     let url = config.psql_conf().url();
@@ -50,36 +48,44 @@ pub fn main() -> Result<()> {
             .template("{spinner:.blue} {msg}"),
     );
 
-    async_std::task::spawn(async move {
-        loop {
-            let indexed_blocks: Option<u32> = queries::block_count(&pool).await.ok();
-            let indexed_storage = queries::get_max_storage(&pool).await.ok();
-            let indexed_ext = queries::extrinsic_count(&pool).await.ok();
-            let max = queries::max_block(&pool).await.ok();
-            let (in_blocks, in_storg, max, ext) =
-                match (indexed_blocks, indexed_storage, max, indexed_ext) {
-                    (Some(a), Some(b), Some(c), Some(d)) => (a, b, c, d),
+    let (tx, mut rx) = futures::channel::oneshot::channel();
+
+    // don't run ticker for higher levels
+    if config.cli().log_level == log::Level::Error || config.cli().log_level == log::Level::Warn {
+        async_std::task::spawn(async move {
+            loop {
+                let indexed_blocks: Option<u32> = queries::block_count(&pool).await.ok();
+                let max = queries::max_block(&pool).await.ok();
+                let (indexed_blocks, max) = match (indexed_blocks, max) {
+                    (Some(a), Some(b)) => (a, b),
                     _ => {
                         async_std::task::sleep(Duration::from_millis(160)).await;
                         continue;
                     }
                 };
-            let msg = format!(
-                "Indexed {}/{} blocks, {}/{} storage and {} extrinsics",
-                in_blocks,
-                max + 1,
-                in_storg.0,
-                max + 1,
-                ext
-            );
-            pb.set_message(msg.as_str());
-            async_std::task::sleep(Duration::from_millis(80)).await;
-        }
-    });
+                let msg = format!("Indexed {}/{} blocks", indexed_blocks, max + 1,);
+                pb.set_message(msg.as_str());
+                match rx.try_recv() {
+                    Ok(v) => {
+                        if v.is_some() {
+                            std::process::exit(1);
+                        }
+                    }
+                    Err(_) => {
+                        log::error!("Sender dropped, exiting!");
+                        std::process::exit(1);
+                    }
+                }
+                async_std::task::sleep(Duration::from_millis(80)).await;
+            }
+        });
+    }
 
     let ctrlc = async_ctrlc::CtrlC::new().expect("Couldn't create ctrlc handler");
-    println!("Waiting on ctrlc");
+    println!("Waiting on ctrlc...");
     async_std::task::block_on(ctrlc.then(|_| async {
+        // kill main loop
+        tx.send(1).unwrap();
         println!("\nShutting down ...");
         archive.shutdown().await.unwrap();
     }));

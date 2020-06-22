@@ -17,60 +17,26 @@
 use anyhow::Result;
 use sqlx::{postgres::PgQueryAs as _, PgConnection};
 
-pub(crate) async fn block_count(
-    pool: &sqlx::Pool<PgConnection>,
-) -> Result<u32> {
-    let row: (i64, ) = sqlx::query_as(
-        "SELECT COUNT(*) FROM blocks",
-    )
-    .fetch_one(pool)
-    .await?;
-    Ok(row.0 as u32)
-}
-
-pub(crate) async fn max_block(pool: &sqlx::Pool<PgConnection>,
-) -> Result<u32> {
-    let row: (i32, ) = sqlx::query_as(
-        "SELECT block_num FROM blocks WHERE block_num = (SELECT MAX(block_num) FROM blocks)"
-    )
-    .fetch_one(pool)
-    .await?;
-    Ok(row.0 as u32)
-}
-
-pub(crate) async fn extrinsic_count(
-    pool: &sqlx::Pool<PgConnection>,
-) -> Result<u32> {
-    let row: (i64, ) = sqlx::query_as(
-        "SELECT COUNT(*) FROM extrinsics"
-    )
-    .fetch_one(pool)
-    .await?;
-    Ok(row.0 as u32)
-}
-
-pub(crate) async fn storage_count(
-    pool: &sqlx::Pool<PgConnection>,
-) -> Result<u32> {
-    let row: (i32, ) = sqlx::query_as(
-        "SELECT COUNT(*) FROM storage"
-    )
-    .fetch_one(pool)
-    .await?;
-    Ok(row.0 as u32)
-}
-
-pub(crate) async fn get_max_storage(
-    pool: &sqlx::Pool<PgConnection>,
-) -> Result<(u32, Vec<u8>)> {
-    let row: (i32, Vec<u8>) =
-        sqlx::query_as(
-            "SELECT block_num, hash FROM storage WHERE block_num = (SELECT MAX(block_num) FROM storage)"
-        )
+pub(crate) async fn block_count(pool: &sqlx::Pool<PgConnection>) -> Result<u32> {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM blocks")
         .fetch_one(pool)
         .await?;
-    Ok((row.0 as u32, row.1))
+    Ok(row.0 as u32)
 }
 
+pub(crate) async fn max_block(pool: &sqlx::Pool<PgConnection>) -> Result<u32> {
+    let row: (i32,) = sqlx::query_as(
+        "SELECT block_num FROM blocks WHERE block_num = (SELECT MAX(block_num) FROM blocks)",
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0 as u32)
+}
 
-
+pub(crate) async fn storage_count(pool: &sqlx::Pool<PgConnection>) -> Result<u64> {
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM (SELECT DISTINCT block_num FROM storage) a")
+            .fetch_one(pool)
+            .await?;
+    Ok(row.0 as u64)
+}
