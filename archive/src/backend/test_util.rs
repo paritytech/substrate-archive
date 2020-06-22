@@ -17,7 +17,7 @@
 use crate::{
     backend,
     backend::{ApiAccess, ReadOnlyBackend},
-    Archive, ArchiveConfig, ArchiveContext, StorageKey,
+    Archive, ArchiveConfig, ArchiveContext, MigrationConfig,
 };
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
 use sp_api::ProvideRuntimeApi;
@@ -29,8 +29,14 @@ pub fn client(
     let conf = ArchiveConfig {
         db_url: db.into(),
         rpc_url: "ws://127.0.0.1:9944".into(),
-        psql_url: None,
         cache_size: 8192,
+        psql_conf: MigrationConfig {
+            host: None,
+            port: None,
+            user: Some("archive".to_string()),
+            pass: Some("default".to_string()),
+            name: Some("archive".to_string()),
+        },
     };
 
     // get spec/runtime from node library
@@ -52,7 +58,8 @@ pub fn backend(db: &str) -> ReadOnlyBackend<Block> {
         secondary: Some(secondary_db.to_str().unwrap().to_string()),
         ..DatabaseConfig::with_columns(NUM_COLUMNS)
     };
-    let db = ReadOnlyDatabase::open(&conf, db).expect("Couldn't open a secondary instance");
+    let db =
+        Arc::new(ReadOnlyDatabase::open(&conf, db).expect("Couldn't open a secondary instance"));
 
     ReadOnlyBackend::new(db, true)
 }

@@ -22,6 +22,7 @@ pub mod archive;
 pub mod backend;
 mod database;
 mod error;
+mod migrations;
 mod queries;
 mod rpc;
 #[cfg(test)]
@@ -33,6 +34,7 @@ mod util;
 pub use actors::ArchiveContext;
 pub use archive::{Archive, ArchiveConfig};
 pub use error::Error;
+pub use migrations::MigrationConfig;
 pub use types::{NotSignedBlock, Substrate};
 
 #[cfg(feature = "logging")]
@@ -42,11 +44,9 @@ pub use util::init_logger;
 
 pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
-pub use sp_core::twox_128;
-pub use sp_storage::StorageKey;
 pub mod chain_traits {
     //! Traits defining functions on the client needed for indexing
-    pub use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
+    pub use sc_client_api::client::BlockBackend;
     pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
     pub use sp_runtime::traits::{BlakeTwo256, Block};
 }

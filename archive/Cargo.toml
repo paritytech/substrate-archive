@@ -30,6 +30,8 @@ crossbeam = "0.7"
 parking_lot = "0.10"
 hashbrown = "0.8.0"
 thiserror = "1.0.20"
+# Sql migrations
+refinery = { version = "0.3.0", features = ["postgres"] }
 
 # Optional 
 fern = { version = "0.6", features = ["colored"], optional = true }

@@ -114,7 +114,7 @@ where
         client_api: Arc<ClientApi>,
         backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
         url: String,
-        psql_url: Option<&str>,
+        psql_url: &str,
     ) -> Result<Self, ArchiveError>
     where
         Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi> + Send + 'static,
@@ -135,14 +135,8 @@ where
         let broker = BlockBroker::from_executor(broker)?;
 
         Bastion::init();
-        let pool = if let Some(url) = psql_url {
-            run!(PgPool::builder().max_size(32).build(url))?
-        } else {
-            log::warn!("No url passed on initialization, using environment variable");
-            run!(PgPool::builder()
-                .max_size(10)
-                .build(&env::var("DATABASE_URL")?))?
-        };
+        let pool = run!(PgPool::builder().max_size(32).build(psql_url))?;
+
         let context = ActorContext::new(backend.clone(), broker, url, pool.clone());
 
         // create storage generator here

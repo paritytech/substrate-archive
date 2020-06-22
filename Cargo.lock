@@ -3056,6 +3056,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "md5"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
+
+[[package]]
 name = "memchr"
 version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4273,6 +4279,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "phf"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3dfb61232e34fcb633f43d12c58f83c1df82962dcdfa565a4e866ffc17dafe12"
+dependencies = [
+ "phf_shared",
+]
+
+[[package]]
+name = "phf_shared"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c00cf8b9eafe68dde5e9eaa2cef8ee84a9336a47d566ec55ca16589633b65af7"
+dependencies = [
+ "siphasher",
+]
+
+[[package]]
 name = "pin-project"
 version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4652,6 +4676,49 @@ dependencies = [
  "sp-trie",
  "substrate-prometheus-endpoint",
  "tokio 0.2.21",
+]
+
+[[package]]
+name = "postgres"
+version = "0.17.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a08e48317fe57088aa1ff4a84a88a8401aee565f4ae5c201aa18d11c573ce350"
+dependencies = [
+ "bytes 0.5.4",
+ "fallible-iterator",
+ "futures 0.3.5",
+ "log 0.4.8",
+ "tokio 0.2.21",
+ "tokio-postgres",
+]
+
+[[package]]
+name = "postgres-protocol"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f611afe4d1407ebe7f3ced1ffc66f730fac1b1c13085e230a8cdcb921e97710"
+dependencies = [
+ "base64 0.12.2",
+ "byteorder",
+ "bytes 0.5.4",
+ "fallible-iterator",
+ "hmac",
+ "md5",
+ "memchr",
+ "rand 0.7.3",
+ "sha2",
+ "stringprep",
+]
+
+[[package]]
+name = "postgres-types"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e634590e8812c500088d88db721195979223dabb05149f43cb50931d0ff5865d"
+dependencies = [
+ "bytes 0.5.4",
+ "fallible-iterator",
+ "postgres-protocol",
 ]
 
 [[package]]
@@ -5145,6 +5212,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "refinery"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "432021bd2eb60a8851757fdd145907be1a96c70961da167a3fb362001f2f397c"
+dependencies = [
+ "refinery-core",
+ "refinery-macros",
+]
+
+[[package]]
+name = "refinery-core"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9f670a4f4d6450ce53ecf0dd55324e0a3b684c24693e5cd68fdeca2294b875a"
+dependencies = [
+ "async-trait",
+ "cfg-if",
+ "chrono",
+ "lazy_static",
+ "log 0.4.8",
+ "postgres",
+ "regex",
+ "serde",
+ "siphasher",
+ "thiserror",
+ "toml",
+ "walkdir",
+]
+
+[[package]]
+name = "refinery-macros"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f397c4dfbcf0b298e8b10e5702d69852829636ee121215c42efe421dd16126e1"
+dependencies = [
+ "proc-macro2 1.0.18",
+ "quote 1.0.7",
+ "refinery-core",
+ "regex",
+ "syn 1.0.31",
+]
+
+[[package]]
 name = "regalloc"
 version = "0.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5353,6 +5463,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d3d055a2582e6b00ed7a31c1524040aa391092bf636328350813f3a0605215c"
 dependencies = [
  "rustc_version",
+]
+
+[[package]]
+name = "same-file"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
+dependencies = [
+ "winapi-util",
 ]
 
 [[package]]
@@ -6403,6 +6522,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
 
 [[package]]
+name = "siphasher"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa8f3741c7372e75519bd9346068370c9cdaabcc1f9599cbcf2a2719352286b7"
+
+[[package]]
 name = "slab"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7208,6 +7333,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "stringprep"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ee348cb74b87454fff4b551cbf727025810a004f88aeacae7f85b87f4e9a1c1"
+dependencies = [
+ "unicode-bidi",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "strsim"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7266,6 +7401,7 @@ dependencies = [
  "polkadot-service",
  "pretty_env_logger",
  "primitive-types",
+ "refinery",
  "sc-chain-spec",
  "sc-client-api",
  "sc-executor",
@@ -7798,6 +7934,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-postgres"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d56010a704311361b7c9e870aaa4ddffaf9f2db89cbcf3e14773ac8a14469c9c"
+dependencies = [
+ "async-trait",
+ "byteorder",
+ "bytes 0.5.4",
+ "fallible-iterator",
+ "futures 0.3.5",
+ "log 0.4.8",
+ "parking_lot 0.10.2",
+ "percent-encoding 2.1.0",
+ "phf",
+ "pin-project-lite",
+ "postgres-protocol",
+ "postgres-types",
+ "tokio 0.2.21",
+ "tokio-util",
+]
+
+[[package]]
 name = "tokio-reactor"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8178,6 +8336,17 @@ name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
+name = "walkdir"
+version = "2.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "777182bc735b6424e1a57516d35ed72cb8019d85c8c9bf536dccb3445c1a2f7d"
+dependencies = [
+ "same-file",
+ "winapi 0.3.8",
+ "winapi-util",
+]
 
 [[package]]
 name = "want"

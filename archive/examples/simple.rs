@@ -16,9 +16,7 @@
 
 //! A simple example
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
-use substrate_archive::{
-    backend, native_executor_instance, Archive, ArchiveConfig, ArchiveContext, StorageKey,
-};
+use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
@@ -26,8 +24,14 @@ pub fn main() {
     let conf = ArchiveConfig {
         db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
         rpc_url: "ws://127.0.0.1:9944".into(),
-        psql_url: None,
         cache_size: 1024,
+        psql_conf: MigrationConfig {
+            host: None,
+            port: None,
+            user: Some("archive".to_string()),
+            pass: Some("default".to_string()),
+            name: Some("archive".to_string()),
+        },
     };
 
     // get spec/runtime from node library

@@ -37,6 +37,8 @@ pub enum Error {
     RpcRequest(#[from] jsonrpsee::client::RequestError),
     #[error("DNS error")]
     Dns(#[from] jsonrpsee::transport::ws::WsNewDnsError),
+    #[error("couldn't run migrations")]
+    SqlMigration(#[from] refinery::Error),
 
     #[error("sending on disconnected channel")]
     Channel,
@@ -45,7 +47,7 @@ pub enum Error {
 
     #[cfg(test)]
     #[error("{0}")]
-    Bincode(#[from] bincode::ErrorKind),
+    Bincode(#[from] Box<bincode::ErrorKind>),
 }
 
 impl<T> From<crossbeam::SendError<T>> for Error {

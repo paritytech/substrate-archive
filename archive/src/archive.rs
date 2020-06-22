@@ -21,6 +21,7 @@ use crate::{
         RuntimeApiCollection,
     },
     error::Error as ArchiveError,
+    migrations::MigrationConfig,
     types::*,
 };
 use sc_chain_spec::ChainSpec;
@@ -33,7 +34,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 pub struct Archive<Block: BlockT + Send + Sync, Spec: ChainSpec + Clone + 'static> {
     rpc_url: String,
-    psql_url: Option<String>,
+    psql_url: String,
     cache_size: usize,
     #[allow(unused)]
     spec: Spec,
@@ -44,8 +45,8 @@ pub struct Archive<Block: BlockT + Send + Sync, Spec: ChainSpec + Clone + 'stati
 pub struct ArchiveConfig {
     pub db_url: String,
     pub rpc_url: String,
-    pub psql_url: Option<String>,
     pub cache_size: usize,
+    pub psql_conf: MigrationConfig,
 }
 
 impl<Block, Spec> Archive<Block, Spec>
@@ -54,7 +55,10 @@ where
     Spec: ChainSpec + Clone + 'static,
 {
     /// Create a new instance of the Archive DB
+    /// and run Postgres Migrations
     pub fn new(conf: ArchiveConfig, spec: Spec) -> Result<Self, ArchiveError> {
+        let psql_url = crate::migrations::migrate(conf.psql_conf)?;
+
         let db = Arc::new(backend::util::open_database(
             conf.db_url.as_str(),
             conf.cache_size,
@@ -64,8 +68,8 @@ where
         Ok(Self {
             spec,
             db,
+            psql_url,
             rpc_url: conf.rpc_url,
-            psql_url: conf.psql_url,
             cache_size: conf.cache_size,
             _marker: PhantomData,
         })
@@ -95,7 +99,8 @@ where
         Ok(Arc::new(backend))
     }
 
-    /// Returning context in which the archive is running
+    /// Constructs the Archive and returns the context
+    /// in which the archive is running.
     pub fn run_with<T, Runtime, ClientApi>(
         &self,
         client_api: Arc<ClientApi>,
@@ -123,7 +128,7 @@ where
             client_api,
             backend,
             self.rpc_url.clone(),
-            self.psql_url.as_deref(),
+            self.psql_url.as_str(),
         )
     }
 }

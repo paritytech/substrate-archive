@@ -28,6 +28,10 @@ pub fn run_archive(
 ) -> Result<(Arc<impl ChainAccess<Block>>, Archive)> {
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
 
+    let conf = ArchiveConfig {
+        db_url: config.db_path(),
+    };
+
     let db =
         backend::open_database::<Block>(config.db_path(), 8192, spec.name(), spec.id()).unwrap();
     let client =

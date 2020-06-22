@@ -1,20 +1,22 @@
-# Must be an absolute path to db (no ~/)
-db_path = "/home/insipx/.local/share/polkadot/chains/ksmcc3/db"
+# Must be an absolute path to where polkadot chain data is stored 
+polkadot_path = "/home/insipx/.local/share/polkadot/"
 
 # Can be set by exporting environment variable "DATABASE_URL" too
-psql_url = "postgres://archive:default@localhost/archive"
+# psql_url = "postgres://archive:default@localhost/archive"
 
-[[modules]]
-name = "System"
-keys = [
-	"Events",
-	"Account"
-]
 
-[[modules]]
-name = "Democracy"
-keys = [
-	"PublicPropCount",
-	"PublicProps"
-]
+db_host = "localhost"
+db_port = 5432
+db_user = "archive"
+# Can also be specified with DB_PASS environment variable
+db_pass = "default"
+
+# Names for the PostgreSQL databases for different chains
+# Each chain will get it's own PostgreSQL database if run with that chain
+# A fully synced Kusama PostgreSQL database (~2.8Million blocks) takes up around 70GB
+# These variables can also be exposed with DB_NAME environment variable
+westend_db = "westend-archive"
+kusama_db = "kusama-archive"
+polkadot-db = "polkadot-archive"
+
 
