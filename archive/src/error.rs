@@ -39,6 +39,8 @@ pub enum Error {
     Dns(#[from] jsonrpsee::transport::ws::WsNewDnsError),
     #[error("couldn't run migrations")]
     SqlMigration(#[from] refinery::Error),
+    #[error("could not build threadpool")]
+    ThreadPool(#[from] rayon::ThreadPoolBuildError),
 
     #[error("sending on disconnected channel")]
     Channel,

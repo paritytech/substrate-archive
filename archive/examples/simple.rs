@@ -36,7 +36,7 @@ pub fn main() {
 
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-    let archive = Archive::new(conf, spec).unwrap();
+    let archive = Archive::new(conf, Box::new(spec)).unwrap();
     let client_api = archive
         .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
         .unwrap();

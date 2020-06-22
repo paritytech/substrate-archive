@@ -131,8 +131,7 @@ where
     {
         let mut workers = std::collections::HashMap::new();
         let broker =
-            ThreadedBlockExecutor::new(1, Some(8_000_000), client_api.clone(), backend.clone());
-        let broker = BlockBroker::from_executor(broker)?;
+            ThreadedBlockExecutor::new(1, Some(8_000_000), client_api.clone(), backend.clone())?;
 
         Bastion::init();
         let pool = run!(PgPool::builder().max_size(32).build(psql_url))?;

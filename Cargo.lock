@@ -7112,6 +7112,7 @@ dependencies = [
  "polkadot-service",
  "pretty_env_logger",
  "primitive-types",
+ "rayon",
  "refinery",
  "sc-chain-spec",
  "sc-client-api",
@@ -7132,7 +7133,6 @@ dependencies = [
  "sqlx",
  "tempfile",
  "thiserror",
- "threadpool",
 ]
 
 [[package]]
