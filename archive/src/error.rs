@@ -32,7 +32,7 @@ pub enum Error {
     #[error("sqlx error")]
     Sql(#[from] sqlx::Error),
     #[error("blockchain error")]
-    Blockchain(#[from] sp_blockchain::Error),
+    Blockchain(String),
     #[error("JSONRPC request failed")]
     RpcRequest(#[from] jsonrpsee::client::RequestError),
     #[error("DNS error")]
@@ -65,5 +65,13 @@ impl From<&str> for Error {
 impl From<String> for Error {
     fn from(e: String) -> Error {
         Error::General(e)
+    }
+}
+
+// this conversion is required for our Error type to be
+// Send + Sync
+impl From<sp_blockchain::Error> for Error {
+    fn from(e: sp_blockchain::Error) -> Error {
+        Error::Blockchain(e.to_string())
     }
 }

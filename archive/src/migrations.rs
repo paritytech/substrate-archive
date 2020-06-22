@@ -60,7 +60,7 @@ pub struct MigrationConfig {
 }
 
 impl MigrationConfig {
-    fn url(&self) -> String {
+    pub fn url(&self) -> String {
         let parsed = parse(self.clone());
         parsed.build_url()
     }

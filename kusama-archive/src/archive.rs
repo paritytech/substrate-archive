@@ -14,36 +14,31 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use anyhow::{Context, Result};
+use super::config::Config;
+
+use anyhow::{anyhow, Context, Result};
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
 use sc_chain_spec::ChainSpec;
 use std::sync::Arc;
-use substrate_archive::{Archive, ArchiveConfig};
+use substrate_archive::{Archive, ArchiveConfig, ArchiveContext, Substrate};
 
-pub fn run_archive(config: super::config::Config) -> Result<Archive<Block>> {
+pub fn run_archive(config: Config) -> Result<ArchiveContext<ksm_runtime::Runtime>> {
     let mut db_path = config.polkadot_path();
 
-    let last_path_part = config
-        .polkadot_path()
+    let path = config.polkadot_path();
+
+    let last_path_part = path
         .file_name()
         .context("Polkadot path not valid")?
         .to_str()
         .context("could not convert path to string")?;
 
-    let spec_id: String = access_spec(|spec| spec.id().to_string());
+    let spec = get_spec(config.cli().chain.as_str())?;
 
     match last_path_part {
-        "polkadot" => db_path.push(format!("chains/{}", spec_id)),
-        "chains" => db_path.push(spec_id),
-        _ => panic!(format!(
-            "invalid polkadot path {}",
-            config
-                .polkadot_path()
-                .as_path()
-                .to_str()
-                .context("Path not valid")?
-        )
-        .as_str()),
+        "polkadot" => db_path.push(format!("chains/{}", spec.id())),
+        "chains" => db_path.push(spec.id()),
+        _ => return Err(anyhow!("invalid path {}", path.as_path().to_str())),
     }
 
     let db_path = db_path
@@ -58,27 +53,26 @@ pub fn run_archive(config: super::config::Config) -> Result<Archive<Block>> {
         cache_size: config.cache_size(),
         psql_conf: config.psql_conf(),
     };
-
-    access_spec(|spec| Ok(Archive::new(conf, spec)?))
+    let archive = Archive::new(conf, spec)?;
+    let client_api =
+        archive.api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()?;
+    Ok(archive.run_with::<ksm_runtime::Runtime, ksm_runtime::RuntimeApi, _>(client_api)?)
 }
 
-fn access_spec<T, F, Spec>(fun: F, chain: &str) -> T
-where
-    F: FnOnce(&Spec) -> T,
-    Spec: ChainSpec + Clone + 'static,
-{
-    match chain.to_ascii_lowercase() {
+fn get_spec(chain: &str) -> Result<Box<dyn ChainSpec>> {
+    match chain.to_ascii_lowercase().as_str() {
         "kusama" | "ksm" => {
             let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-            fun(spec)
+            Ok(Box::new(spec) as Box<dyn ChainSpec>)
         }
         "westend" => {
             let spec = polkadot_service::chain_spec::westend_config().unwrap();
-            fun(spec)
+            Ok(Box::new(spec) as Box<dyn ChainSpec>)
         }
         "polkadot" | "dot" => {
             let spec = polkadot_service::chain_spec::polkadot_config().unwrap();
-            fun(spec)
+            Ok(Box::new(spec) as Box<dyn ChainSpec>)
         }
+        c => Err(anyhow!("unknown chain {}", c)),
     }
 }

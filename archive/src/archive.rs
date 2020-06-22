@@ -45,8 +45,6 @@ pub struct ArchiveConfig {
     pub rpc_url: String,
     pub cache_size: usize,
     pub psql_conf: MigrationConfig,
-    pub spec_name: String,
-    pub spec_id: String,
 }
 
 impl<Block> Archive<Block>
@@ -55,10 +53,7 @@ where
 {
     /// Create a new instance of the Archive DB
     /// and run Postgres Migrations
-    pub fn new<Spec>(conf: ArchiveConfig, spec: Spec) -> Result<Self, ArchiveError>
-    where
-        Spec: ChainSpec + Clone + 'static,
-    {
+    pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self, ArchiveError> {
         let psql_url = crate::migrations::migrate(conf.psql_conf)?;
 
         let db = Arc::new(backend::util::open_database(

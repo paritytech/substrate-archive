@@ -46,7 +46,7 @@ impl CliOpts {
         CliOpts {
             file: PathBuf::from(file),
             log_level,
-            chain,
+            chain: chain.to_string(),
         }
     }
 }

@@ -36,7 +36,7 @@ struct TomlConfig {
 
 impl TomlConfig {
     pub fn migration_conf(&self, chain: &str) -> MigrationConfig {
-        let name = match chain.to_ascii_lowercase() {
+        let name = match chain.to_ascii_lowercase().as_str() {
             "kusama" | "ksm" => self.kusama_db.clone(),
             "westend" => self.westend_db.clone(),
             "polkadot" | "dot" => self.polkadot_db.clone(),
@@ -68,7 +68,7 @@ impl Config {
         let toml_conf = Self::parse_file(cli_opts.file.as_path())?;
         log::debug!("{:?}", toml_conf);
         Ok(Self {
-            polkadot_path: toml_conf.polkadot_path,
+            polkadot_path: toml_conf.polkadot_path.clone(),
             psql_conf: toml_conf.migration_conf(cli_opts.chain.as_str()),
             cli: cli_opts,
             cache_size: toml_conf.cache_size,

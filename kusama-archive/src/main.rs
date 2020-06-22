@@ -21,6 +21,7 @@ mod queries;
 use anyhow::Result;
 use futures::future::FutureExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use polkadot_service::kusama_runtime as ksm_runtime;
 use sqlx::PgPool;
 use std::{thread, time::Duration};
 
@@ -31,16 +32,8 @@ pub fn main() -> Result<()> {
     //let handle = async_std::task::spawn(archive::run_archive(config.clone()));
     let archive = archive::run_archive(config.clone())?;
 
-    let pool = if let Some(url) = config.psql_url() {
-        async_std::task::block_on(PgPool::builder().max_size(2).build(url))?
-    } else {
-        log::warn!("No url passed on initialization, using environment variable");
-        async_std::task::block_on(
-            PgPool::builder()
-                .max_size(2)
-                .build(&std::env::var("DATABASE_URL")?),
-        )?
-    };
+    let url = config.psql_conf().url();
+    let pool = async_std::task::block_on(PgPool::builder().max_size(2).build(url.as_str()))?;
 
     let pb = ProgressBar::new_spinner();
     pb.set_style(
