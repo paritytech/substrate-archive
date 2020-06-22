@@ -24,6 +24,32 @@ mod embedded {
     embed_migrations!("src/migrations");
 }
 
+/// Run all the migrations
+/// Returns the database URL
+///
+/// # Panics
+/// Panics if a required environment variable is not found
+/// or if the environment variable contains invalid unicode
+pub fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
+    let parsed = parse(conf);
+    let mut conn = Config::new(ConfigDbType::Postgres)
+        .set_db_host(parsed.host.as_str())
+        .set_db_port(parsed.port.as_str())
+        .set_db_name(parsed.name.as_str());
+
+    if let Some(u) = &parsed.user {
+        conn = conn.set_db_user(u.as_str());
+    }
+    if let Some(p) = &parsed.pass {
+        conn = conn.set_db_pass(p.as_str())
+    }
+
+    log::info!("Running migrations for database {}", parsed.name.as_str());
+
+    embedded::migrations::runner().run(&mut conn)?;
+    Ok(parsed.build_url())
+}
+
 #[derive(Debug, Clone)]
 pub struct MigrationConfig {
     pub host: Option<String>,
@@ -31,6 +57,13 @@ pub struct MigrationConfig {
     pub user: Option<String>,
     pub pass: Option<String>,
     pub name: Option<String>,
+}
+
+impl MigrationConfig {
+    fn url(&self) -> String {
+        let parsed = parse(self.clone());
+        parsed.build_url()
+    }
 }
 
 /// Internal struct
@@ -43,13 +76,30 @@ struct MigrateConfigParsed {
     name: String,
 }
 
-/// Run all the migrations
-/// Returns the database URL
-///
-/// # Panics
-/// Panics if a required environment variable is not found
-/// or if the environment variable contains invalid unicode
-pub fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
+impl MigrateConfigParsed {
+    /// build a database url
+    fn build_url(&self) -> String {
+        let mut url: String = "postgres".to_string() + "://";
+
+        if let Some(user) = &self.user {
+            url = url + &user;
+        }
+        if let Some(pass) = &self.pass {
+            url = url + ":" + &pass;
+        }
+
+        if self.user.is_some() {
+            url = url + "@" + &self.host;
+        } else {
+            url = url + &self.host;
+        }
+        url = url + ":" + &self.port;
+        url = url + "/" + &self.name;
+        url
+    }
+}
+
+fn parse(conf: MigrationConfig) -> MigrateConfigParsed {
     let host: String = conf
         .host
         .unwrap_or(process_var("DB_HOST").unwrap_or("localhost".to_string()));
@@ -58,71 +108,30 @@ pub fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
         .port
         .unwrap_or(process_var("DB_PORT").unwrap_or("5432".to_string()));
 
-    let mut conn = Config::new(ConfigDbType::Postgres)
-        .set_db_host(host.as_str())
-        .set_db_port(port.as_str());
-
     let user = if conf.user.is_some() {
         conf.user
     } else {
         process_var("DB_USER")
     };
-    if let Some(u) = &user {
-        conn = conn.set_db_user(u.as_str());
-    }
 
     let pass = if conf.pass.is_some() {
         conf.pass
     } else {
         process_var("DB_PASS")
     };
-    if let Some(p) = &pass {
-        conn = conn.set_db_pass(p.as_str());
-    }
 
     let name: String = conf
         .name
-        .unwrap_or_else(|| process_var_infallible("DB_NAME"));
-    conn = conn.set_db_name(name.as_str());
+        .unwrap_or_else(|| process_var("DB_NAME").expect("database name must be defined"));
 
     log::info!("Running migrations for database {}", name.as_str());
 
-    let conf = MigrateConfigParsed {
+    MigrateConfigParsed {
         host,
         port,
         user,
         pass,
         name,
-    };
-
-    embedded::migrations::runner().run(&mut conn)?;
-    Ok(build_url(&conf))
-}
-
-/// process an environment variable
-/// if config does not contain the variable
-/// we try to get the variable from the environment
-///
-/// # Panics
-/// panics if the environment variable is not found,
-/// or if it includes invalid unicode
-fn process_var_infallible(name: &str) -> String {
-    match env::var(name) {
-        Ok(v) => v,
-        Err(e) => match e {
-            env::VarError::NotPresent => {
-                log::error!("Environment Variable {} is not present", name);
-                panic!("Environment not found");
-            }
-            env::VarError::NotUnicode(data) => {
-                log::error!(
-                    "Environment Variable {} found, but contains invalid unicode data: {:?}",
-                    name,
-                    data
-                );
-                panic!("Environment contains invalid unicode data");
-            }
-        },
     }
 }
 
@@ -141,7 +150,7 @@ fn process_var(name: &str) -> Option<String> {
         Err(e) => match e {
             env::VarError::NotPresent => {
                 log::warn!(
-                    "Environment Variable {} is not present, constructing URL without {} ",
+                    "Environment Variable {} is not present, constructing URL with default {} ",
                     name,
                     name
                 );
@@ -157,27 +166,6 @@ fn process_var(name: &str) -> Option<String> {
             }
         },
     }
-}
-
-/// build a database url
-fn build_url(config: &MigrateConfigParsed) -> String {
-    let mut url: String = "postgres".to_string() + "://";
-
-    if let Some(user) = &config.user {
-        url = url + &user;
-    }
-    if let Some(pass) = &config.pass {
-        url = url + ":" + &pass;
-    }
-
-    if config.user.is_some() {
-        url = url + "@" + &config.host;
-    } else {
-        url = url + &config.host;
-    }
-    url = url + ":" + &config.port;
-    url = url + "/" + &config.name;
-    url
 }
 
 #[cfg(test)]

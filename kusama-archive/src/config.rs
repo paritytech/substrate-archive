@@ -18,17 +18,13 @@ use super::cli_opts::CliOpts;
 use anyhow::Result;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
-
-#[derive(Debug, Clone)]
-pub struct Config {
-    polkadot_path: PathBuf,
-    psql_url: Option<String>,
-    cli: CliOpts,
-}
+use substrate_archive::MigrationConfig;
 
 #[derive(Debug, Clone, Deserialize)]
 struct TomlConfig {
     polkadot_path: PathBuf,
+    rpc_url: String,
+    cache_size: usize,
     db_host: Option<String>,
     db_port: Option<String>,
     db_user: Option<String>,
@@ -38,37 +34,70 @@ struct TomlConfig {
     polkadot_db: Option<String>,
 }
 
+impl TomlConfig {
+    pub fn migration_conf(&self, chain: &str) -> MigrationConfig {
+        let name = match chain.to_ascii_lowercase() {
+            "kusama" | "ksm" => self.kusama_db.clone(),
+            "westend" => self.westend_db.clone(),
+            "polkadot" | "dot" => self.polkadot_db.clone(),
+            _ => panic!("Chain not specified"),
+        };
+
+        MigrationConfig {
+            host: self.db_host.clone(),
+            port: self.db_port.clone(),
+            user: self.db_user.clone(),
+            pass: self.db_pass.clone(),
+            name: name,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Config {
+    polkadot_path: PathBuf,
+    psql_conf: MigrationConfig,
+    cli: CliOpts,
+    rpc_url: String,
+    cache_size: usize,
+}
+
 impl Config {
     pub fn new() -> Result<Self> {
         let cli_opts = CliOpts::parse();
         let toml_conf = Self::parse_file(cli_opts.file.as_path())?;
         log::debug!("{:?}", toml_conf);
         Ok(Self {
-            db_path: toml_conf.db_path,
-            psql_url: toml_conf.psql_url,
+            polkadot_path: toml_conf.polkadot_path,
+            psql_conf: toml_conf.migration_conf(cli_opts.chain.as_str()),
             cli: cli_opts,
+            cache_size: toml_conf.cache_size,
+            rpc_url: toml_conf.rpc_url.clone(),
         })
     }
 
     fn parse_file(path: &Path) -> Result<TomlConfig> {
         let toml_str = std::fs::read_to_string(path)?;
-        let decoded: TomlConfig = toml::from_str(toml_str.as_str())?;
-
-        Ok(TomlConfig {
-            db_path: decoded.db_path,
-            psql_url: decoded.psql_url,
-        })
+        Ok(toml::from_str(toml_str.as_str())?)
     }
 
     pub fn cli(&self) -> &CliOpts {
         &self.cli
     }
 
-    pub fn psql_url(&self) -> Option<&str> {
-        self.psql_url.as_deref()
+    pub fn polkadot_path(&self) -> PathBuf {
+        self.polkadot_path.clone()
     }
 
-    pub fn db_path(&self) -> &Path {
-        self.db_path.as_path()
+    pub fn rpc_url(&self) -> &String {
+        &self.rpc_url
+    }
+
+    pub fn cache_size(&self) -> usize {
+        self.cache_size
+    }
+
+    pub fn psql_conf(&self) -> MigrationConfig {
+        self.psql_conf.clone()
     }
 }

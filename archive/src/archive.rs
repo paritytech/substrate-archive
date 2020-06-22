@@ -32,12 +32,10 @@ use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::{marker::PhantomData, sync::Arc};
 
-pub struct Archive<Block: BlockT + Send + Sync, Spec: ChainSpec + Clone + 'static> {
+pub struct Archive<Block: BlockT + Send + Sync> {
     rpc_url: String,
     psql_url: String,
     cache_size: usize,
-    #[allow(unused)]
-    spec: Spec,
     db: Arc<ReadOnlyDatabase>,
     _marker: PhantomData<Block>,
 }
@@ -47,16 +45,20 @@ pub struct ArchiveConfig {
     pub rpc_url: String,
     pub cache_size: usize,
     pub psql_conf: MigrationConfig,
+    pub spec_name: String,
+    pub spec_id: String,
 }
 
-impl<Block, Spec> Archive<Block, Spec>
+impl<Block> Archive<Block>
 where
     Block: BlockT + Send + Sync,
-    Spec: ChainSpec + Clone + 'static,
 {
     /// Create a new instance of the Archive DB
     /// and run Postgres Migrations
-    pub fn new(conf: ArchiveConfig, spec: Spec) -> Result<Self, ArchiveError> {
+    pub fn new<Spec>(conf: ArchiveConfig, spec: Spec) -> Result<Self, ArchiveError>
+    where
+        Spec: ChainSpec + Clone + 'static,
+    {
         let psql_url = crate::migrations::migrate(conf.psql_conf)?;
 
         let db = Arc::new(backend::util::open_database(
@@ -66,7 +68,6 @@ where
             spec.id(),
         )?);
         Ok(Self {
-            spec,
             db,
             psql_url,
             rpc_url: conf.rpc_url,

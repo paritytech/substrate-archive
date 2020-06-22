@@ -1,12 +1,12 @@
 # Must be an absolute path to where polkadot chain data is stored 
 polkadot_path = "/home/insipx/.local/share/polkadot/"
+rpc_url = "ws://127.0.0.1:9944"
 
-# Can be set by exporting environment variable "DATABASE_URL" too
-# psql_url = "postgres://archive:default@localhost/archive"
-
+# How much should the read-only database keep in cache (MB) (required)
+cache_size = 1024
 
 db_host = "localhost"
-db_port = 5432
+db_port = "5432"
 db_user = "archive"
 # Can also be specified with DB_PASS environment variable
 db_pass = "default"
