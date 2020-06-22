@@ -87,7 +87,7 @@ pub fn main() -> Result<()> {
         // kill main loop
         tx.send(1).unwrap();
         println!("\nShutting down ...");
-        archive.shutdown().await.unwrap();
+        archive.shutdown().await;
     }));
 
     Ok(())
