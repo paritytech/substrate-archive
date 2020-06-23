@@ -80,9 +80,10 @@ impl<T: Substrate + Send + Sync> ActorContext<T> {
 /// ```
 ///let archive = Actors::init::<ksm_runtime::Runtime, _>(
 ///     client,
+///     backend,
+///     None,
 ///     "ws://127.0.0.1:9944".to_string(),
-///     keys.as_slice(),
-///     None
+///     "postgres://archive:default@localhost:5432/archive"
 /// ).unwrap();
 ///
 /// Actors::block_until_stopped();
@@ -113,6 +114,7 @@ where
     pub fn init<Runtime, ClientApi>(
         client_api: Arc<ClientApi>,
         backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+        block_workers: Option<usize>,
         url: String,
         psql_url: &str,
     ) -> Result<Self, ArchiveError>
@@ -131,7 +133,7 @@ where
     {
         let mut workers = std::collections::HashMap::new();
         let broker =
-            ThreadedBlockExecutor::new(1, Some(8_000_000), client_api.clone(), backend.clone())?;
+            ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
 
         Bastion::init();
         let pool = run!(PgPool::builder().max_size(32).build(psql_url))?;

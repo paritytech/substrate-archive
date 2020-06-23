@@ -81,27 +81,27 @@ where
     let backend = context.backend().clone();
     let broker = context.broker().clone();
     let now = std::time::Instant::now();
-    let blocks: Vec<SubstrateBlock<T>> = blocking!((move || {
+    let blocks: Result<Vec<SubstrateBlock<T>>, ArchiveError> = blocking!((move || {
         let mut blocks = Vec::new();
         for block_num in block_nums.iter() {
             let num = block_num.generate_series as u32;
             let b = backend.block(&BlockId::Number(T::BlockNumber::from(num)));
 
             if b.is_none() {
-                log::warn!("Block does not exist!")
+                log::warn!("Block does not exist!");
             } else {
                 let b = b.expect("Checked for none; qed");
-                broker
-                    .work
-                    .send(BlockData::Single(b.block.clone()))
-                    .unwrap();
+                broker.work.send(BlockData::Single(b.block.clone()))?;
                 blocks.push(b);
             }
         }
-        blocks
+        Ok(blocks)
     })())
     .await
     .unwrap();
+
+    let blocks = blocks?;
+
     let elapsed = now.elapsed();
     log::info!(
         "Took {} seconds to crawl {} missing blocks",

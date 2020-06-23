@@ -35,8 +35,8 @@ use std::{marker::PhantomData, sync::Arc};
 pub struct Archive<Block: BlockT + Send + Sync> {
     rpc_url: String,
     psql_url: String,
-    // cache_size: usize,
     db: Arc<ReadOnlyDatabase>,
+    block_workers: Option<usize>,
     _marker: PhantomData<Block>,
 }
 
@@ -45,6 +45,7 @@ pub struct ArchiveConfig {
     pub rpc_url: String,
     pub cache_size: usize,
     pub psql_conf: MigrationConfig,
+    pub block_workers: Option<usize>,
 }
 
 impl<Block> Archive<Block>
@@ -66,7 +67,7 @@ where
             db,
             psql_url,
             rpc_url: conf.rpc_url,
-            // cache_size: conf.cache_size,
+            block_workers: conf.block_workers,
             _marker: PhantomData,
         })
     }
@@ -123,6 +124,7 @@ where
         ArchiveContext::init(
             client_api,
             backend,
+            self.block_workers,
             self.rpc_url.clone(),
             self.psql_url.as_str(),
         )

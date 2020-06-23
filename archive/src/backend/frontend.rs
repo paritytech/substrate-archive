@@ -81,14 +81,11 @@ pub struct TaskExecutor {
 
 impl TaskExecutor {
     fn new() -> Self {
-        //TODO: ?????
-        // let _pool = futures::executor::ThreadPool::builder()
-        //   .pool_size(8)
-        //    .create()
-        //    .unwrap();
-        Self {
-            pool: futures::executor::ThreadPool::new().expect("Failed to create executor"),
-        }
+        let pool = futures::executor::ThreadPool::builder()
+            .pool_size(1)
+            .create()
+            .unwrap();
+        Self { pool }
     }
 }
 

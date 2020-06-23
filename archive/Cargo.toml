@@ -24,7 +24,6 @@ bastion-executor = "0.3"
 lightproc = "0.3"
 #  (itertools) - only used in prepare_sql
 itertools = "0.9"
-num_cpus = "1.13"
 crossbeam = "0.7"
 parking_lot = "0.10"
 hashbrown = "0.8.0"

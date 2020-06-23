@@ -48,7 +48,7 @@ where
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                 sched.add_worker("transform", &workers);
-                match on_start::<T>(&context, &mut sched).await {
+                match on_start::<T>(&context).await {
                     Ok(_) => (),
                     Err(e) => {
                         log::error!("{:?}", e);
@@ -80,10 +80,7 @@ where
     Ok(())
 }
 
-async fn on_start<T>(
-    context: &ActorContext<T>,
-    sched: &mut Scheduler<'_>,
-) -> Result<(), ArchiveError>
+async fn on_start<T>(context: &ActorContext<T>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,

@@ -126,6 +126,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
 }
 
 #[cfg(feature = "logging")]
+#[allow(unused)]
 fn format_opt(file: Option<String>) -> String {
     match file {
         None => "".to_string(),

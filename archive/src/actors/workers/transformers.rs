@@ -26,7 +26,7 @@ use bastion::prelude::*;
 use sp_core::storage::StorageChangeSet;
 use sqlx::PgConnection;
 
-const REDUNDANCY: usize = 3;
+const REDUNDANCY: usize = 2;
 
 // actor that takes blocks and transforms them into different types
 pub fn actor<T>(pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ArchiveError>

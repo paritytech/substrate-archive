@@ -4327,9 +4327,9 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-ctrlc",
- "async-std",
  "clap",
  "futures 0.3.5",
+ "futures-timer 3.0.2",
  "indicatif",
  "log 0.4.8",
  "polkadot-service",
@@ -4338,6 +4338,7 @@ dependencies = [
  "serde",
  "sqlx",
  "substrate-archive",
+ "tokio 0.2.21",
  "toml",
 ]
 
@@ -7395,7 +7396,6 @@ dependencies = [
  "kvdb-rocksdb",
  "lightproc",
  "log 0.4.8",
- "num_cpus",
  "parity-scale-codec",
  "parity-util-mem",
  "parking_lot 0.10.2",
