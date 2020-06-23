@@ -26,7 +26,7 @@ use std::time::Duration;
 
 pub fn main() -> Result<()> {
     let config = config::Config::new()?;
-    substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Info);
+    substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
 
     let archive = archive::run_archive(config.clone())?;
 

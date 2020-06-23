@@ -182,10 +182,13 @@ where
             return Ok(());
         }
 
-        log::trace!(
-            "Executing Block: {}:{:?}",
+        log::debug!(
+            "Executing Block: {}:{}, version {}",
             block.header().hash(),
-            block.header().number()
+            block.header().number(),
+            client
+                .runtime_version_at(&BlockId::Hash(block.header().hash()))?
+                .spec_version,
         );
 
         let block = BlockExecutor::new(api, backend, block)?.block_into_storage()?;
@@ -211,7 +214,7 @@ where
             return Ok(());
         } else {
             self.inserted.insert(block.hash());
-            self.pool.spawn(move || {
+            self.pool.spawn_fifo(move || {
                 match Self::work::<Runtime, _>(block, client, backend, sender) {
                     Ok(_) => (),
                     Err(e) => log::error!("{:?}", e),
@@ -245,7 +248,7 @@ where
                 let client = client.clone();
                 let backend = backend.clone();
                 let sender = sender.clone();
-                self.pool.spawn(move || {
+                self.pool.spawn_fifo(move || {
                     match Self::work::<Runtime, _>(block, client, backend, sender) {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),

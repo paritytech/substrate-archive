@@ -25,7 +25,7 @@ use crate::actors::{
 use crate::{
     backend::BlockData,
     error::Error as ArchiveError,
-    queries,
+    print_on_err, queries,
     types::{NotSignedBlock, Substrate, SubstrateBlock, System},
 };
 use bastion::prelude::*;
@@ -51,10 +51,7 @@ where
                     if handle_shutdown(&ctx).await {
                         break;
                     }
-                    match entry::<T>(&context, &mut sched).await {
-                        Ok(_) => (),
-                        Err(e) => log::error!("{:?}", e),
-                    }
+                    print_on_err!(entry::<T>(&context, &mut sched).await);
                 }
                 Bastion::stop();
                 Ok(())
