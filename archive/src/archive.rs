@@ -31,9 +31,11 @@ use sc_executor::NativeExecutionDispatch;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
+    generic::BlockId,
     traits::{BlakeTwo256, Block as BlockT},
     RuntimeString,
 };
+use sp_version::RuntimeVersion;
 use std::{marker::PhantomData, sync::Arc};
 
 pub struct Archive<Block: BlockT + Send + Sync> {
@@ -139,7 +141,8 @@ where
         <T as System>::Header: serde::de::DeserializeOwned,
         <T as System>::BlockNumber: From<u32>,
     {
-        self.verify_same_chain::<T>()?;
+        let rt = client_api.runtime_version_at(&BlockId::Number(0.into()))?;
+        self.verify_same_chain::<T>(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
         ArchiveContext::init(
             client_api,
@@ -150,18 +153,22 @@ where
         )
     }
 
-    fn verify_same_chain<T>(&self) -> Result<(), ArchiveError>
+    fn verify_same_chain<T>(&self, rt: RuntimeVersion) -> Result<(), ArchiveError>
     where
         T: Substrate + Send + Sync,
     {
         let rpc = futures::executor::block_on(Rpc::<T>::connect(self.rpc_url.as_str()))?;
         let node_runtime = futures::executor::block_on(rpc.version(None))?;
-        let rstr = match node_runtime.spec_name {
-            RuntimeString::Borrowed(s) => s.to_string(),
-            RuntimeString::Owned(s) => s,
+        let (rpc_rstr, backend_rstr) = match (node_runtime.spec_name, rt.spec_name) {
+            (RuntimeString::Borrowed(s0), RuntimeString::Borrowed(s1)) => {
+                (s0.to_string(), s1.to_string())
+            }
+            (RuntimeString::Owned(s0), RuntimeString::Owned(s1)) => (s0, s1),
+            (RuntimeString::Borrowed(s0), RuntimeString::Owned(s1)) => (s0.to_string(), s1),
+            (RuntimeString::Owned(s0), RuntimeString::Borrowed(s1)) => (s0, s1.to_string()),
         };
-        if rstr.to_ascii_lowercase().as_str() != self.spec.name().to_ascii_lowercase().as_str() {
-            return Err(ArchiveError::MismatchedChains);
+        if rpc_rstr.to_ascii_lowercase().as_str() != backend_rstr.to_ascii_lowercase().as_str() {
+            return Err(ArchiveError::MismatchedChains(backend_rstr, rpc_rstr));
         } else {
             Ok(())
         }

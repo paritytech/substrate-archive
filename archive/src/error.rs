@@ -41,8 +41,8 @@ pub enum Error {
     SqlMigration(#[from] refinery::Error),
     #[error("could not build threadpool")]
     ThreadPool(#[from] rayon::ThreadPoolBuildError),
-    #[error("the chain given to substrate-archive is different then the running chain")]
-    MismatchedChains,
+    #[error("the chain given to substrate-archive is different then the running chain. Trying to run {0}, running {1}")]
+    MismatchedChains(String, String),
     #[error("sending on disconnected channel")]
     Channel,
     #[error("Unexpected Error {0}")]
