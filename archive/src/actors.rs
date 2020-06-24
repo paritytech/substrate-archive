@@ -132,9 +132,8 @@ where
             ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
     {
         let mut workers = std::collections::HashMap::new();
-        let broker =
-            ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
-
+        let broker = ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone());
+        let broker = BlockBroker::from_executor(broker)?;
         Bastion::init();
         let pool = run!(PgPool::builder().max_size(8).build(psql_url))?;
 
