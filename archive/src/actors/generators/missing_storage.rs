@@ -76,7 +76,9 @@ where
 {
     timer::Delay::new(std::time::Duration::from_secs(1)).await;
     let count = check_work::<T>(context.broker(), sched)?;
-    log::info!("Syncing Storage {} bps", count);
+    if count > 0 {
+        log::info!("Syncing Storage {} bps", count);
+    }
     Ok(())
 }
 
