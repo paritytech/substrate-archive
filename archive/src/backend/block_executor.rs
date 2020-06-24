@@ -213,7 +213,7 @@ where
         } else {
             self.inserted.insert(block.hash());
             self.pool.spawn_fifo(move || {
-                match Self::work::<Runtime, _>(block, client, backend, sender) {
+                match Self::work::<Runtime, _>(block.clone(), client, backend, sender) {
                     Ok(_) => (),
                     Err(e) => log::error!("{:?}", e),
                 }
@@ -247,7 +247,7 @@ where
                 let backend = backend.clone();
                 let sender = sender.clone();
                 self.pool.spawn_fifo(move || {
-                    match Self::work::<Runtime, _>(block, client, backend, sender) {
+                    match Self::work::<Runtime, _>(block.clone(), client, backend, sender) {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }

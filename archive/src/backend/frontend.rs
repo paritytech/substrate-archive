@@ -42,6 +42,8 @@ type TFullCallExecutor<TBl, TExecDisp> =
 
 pub fn runtime_api<Block, Runtime, Dispatch>(
     db: Arc<ReadOnlyDatabase>,
+    block_workers: usize,
+    wasm_pages: u64,
 ) -> Result<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>, ArchiveError>
 where
     Block: BlockT,
@@ -62,8 +64,12 @@ where
 
     let backend = Arc::new(ReadOnlyBackend::new(db, true));
 
-    let executor =
-        NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Interpreted, Some(4096), 16);
+    let executor = NativeExecutor::<Dispatch>::new(
+        WasmExecutionMethod::Interpreted,
+        Some(wasm_pages),
+        block_workers as usize,
+    );
+
     let executor = ArchiveExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()));
 
     let client = Client::new(

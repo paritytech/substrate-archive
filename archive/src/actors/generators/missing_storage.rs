@@ -99,6 +99,7 @@ where
         elapsed.as_millis(),
         blocks.len()
     );
+    log::info!("indexing {} blocks of storage ... ", blocks.len());
     context.broker().work.send(BlockData::Batch(blocks))?;
     Ok(())
 }

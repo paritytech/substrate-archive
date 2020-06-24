@@ -37,15 +37,23 @@ pub struct Archive<Block: BlockT + Send + Sync> {
     psql_url: String,
     db: Arc<ReadOnlyDatabase>,
     block_workers: Option<usize>,
+    wasm_pages: Option<u64>,
     _marker: PhantomData<Block>,
 }
 
 pub struct ArchiveConfig {
+    /// Path to the rocksdb database
     pub db_url: String,
+    /// websockets URL to the full node
     pub rpc_url: String,
+    /// how much cache should rocksdb keep
     pub cache_size: usize,
+    /// the Postgres database configuration
     pub psql_conf: MigrationConfig,
+    /// number of threads to spawn for block execution
     pub block_workers: Option<usize>,
+    /// Number of 64KB Heap pages to allocate for wasm execution
+    pub wasm_pages: Option<u64>,
 }
 
 impl<Block> Archive<Block>
@@ -68,6 +76,7 @@ where
             psql_url,
             rpc_url: conf.rpc_url,
             block_workers: conf.block_workers,
+            wasm_pages: conf.wasm_pages,
             _marker: PhantomData,
         })
     }
@@ -91,8 +100,13 @@ where
         <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend:
             sp_api::StateBackend<BlakeTwo256>,
     {
-        let backend = backend::runtime_api::<Block, Runtime, Dispatch>(self.db.clone())
-            .map_err(ArchiveError::from)?;
+        let cpus = num_cpus::get();
+        let backend = backend::runtime_api::<Block, Runtime, Dispatch>(
+            self.db.clone(),
+            self.block_workers.unwrap_or(cpus),
+            self.wasm_pages.unwrap_or(2048),
+        )
+        .map_err(ArchiveError::from)?;
         Ok(Arc::new(backend))
     }
 

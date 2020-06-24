@@ -136,7 +136,7 @@ where
             ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
 
         Bastion::init();
-        let pool = run!(PgPool::builder().max_size(32).build(psql_url))?;
+        let pool = run!(PgPool::builder().max_size(8).build(psql_url))?;
 
         let context = ActorContext::new(backend.clone(), broker, url, pool.clone());
 

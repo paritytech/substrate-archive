@@ -26,6 +26,7 @@ struct TomlConfig {
     rpc_url: String,
     cache_size: usize,
     block_workers: Option<usize>,
+    wasm_pages: Option<u64>,
     db_host: Option<String>,
     db_port: Option<String>,
     db_user: Option<String>,
@@ -62,6 +63,7 @@ pub struct Config {
     rpc_url: String,
     cache_size: usize,
     block_workers: Option<usize>,
+    wasm_pages: Option<u64>,
 }
 
 impl Config {
@@ -75,6 +77,7 @@ impl Config {
             cli: cli_opts,
             cache_size: toml_conf.cache_size,
             block_workers: toml_conf.block_workers,
+            wasm_pages: toml_conf.wasm_pages,
             rpc_url: toml_conf.rpc_url.clone(),
         })
     }
@@ -103,7 +106,12 @@ impl Config {
     pub fn psql_conf(&self) -> MigrationConfig {
         self.psql_conf.clone()
     }
+
     pub fn block_workers(&self) -> Option<usize> {
         self.block_workers
+    }
+
+    pub fn wasm_pages(&self) -> Option<u64> {
+        self.wasm_pages
     }
 }

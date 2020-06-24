@@ -69,6 +69,7 @@ pub fn run_archive(config: Config) -> Result<TripleContext> {
         rpc_url: config.rpc_url().into(),
         cache_size: config.cache_size(),
         block_workers: config.block_workers(),
+        wasm_pages: config.wasm_pages(),
         psql_conf: config.psql_conf(),
     };
     let archive = Archive::new(conf, spec)?;
