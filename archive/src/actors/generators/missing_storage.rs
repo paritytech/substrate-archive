@@ -24,6 +24,7 @@ use crate::{
         workers, ActorContext,
     },
     backend::{BlockBroker, BlockData},
+    print_on_err,
     sql_block_builder::BlockBuilder,
 };
 use crate::{
@@ -47,7 +48,7 @@ where
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                 sched.add_worker("transform", &workers);
-                match on_start::<T>(&context, &mut sched).await {
+                match on_start::<T>(&context).await {
                     Ok(_) => (),
                     Err(e) => {
                         log::error!("{:?}", e);
@@ -58,10 +59,7 @@ where
                     if handle_shutdown(&ctx).await {
                         break;
                     }
-                    match entry::<T>(&context, &mut sched).await {
-                        Ok(_) => (),
-                        Err(e) => log::error!("{:?}", e),
-                    }
+                    print_on_err!(entry::<T>(&context, &mut sched).await);
                 }
                 Bastion::stop();
                 Ok(())
@@ -82,35 +80,26 @@ where
     Ok(())
 }
 
-async fn on_start<T>(
-    context: &ActorContext<T>,
-    sched: &mut Scheduler<'_>,
-) -> Result<(), ArchiveError>
+async fn on_start<T>(context: &ActorContext<T>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    loop {
-        let count = queries::blocks_count(&context.pool()).await?;
-        //  we just want the blocks table to begin
-        // being filled/ensure it's not empty before we crawl for missing entries
-        if count > 0 {
-            break;
-        } else {
-            let count = check_work::<T>(context.broker(), sched)?;
-            log::info!("Syncing Storage {} bps", count);
-            timer::Delay::new(std::time::Duration::from_secs(1)).await;
-        }
+    if queries::blocks_count(&context.pool()).await? <= 0 {
+        // no blocks means we haven't indexed anything yet
+        return Ok(());
     }
     let now = std::time::Instant::now();
     let blocks = BlockBuilder::new()
         .with_vec(queries::blocks_storage_intersection(&context.pool()).await?)?;
     let elapsed = now.elapsed();
     log::info!(
-        "TOOK {} seconds, {} milli-seconds to get and build blocks",
+        "TOOK {} seconds, {} milli-seconds to get and build {} blocks",
         elapsed.as_secs(),
         elapsed.as_millis(),
+        blocks.len()
     );
+    log::info!("indexing {} blocks of storage ... ", blocks.len());
     context.broker().work.send(BlockData::Batch(blocks))?;
     Ok(())
 }

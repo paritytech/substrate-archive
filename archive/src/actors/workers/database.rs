@@ -21,7 +21,7 @@ use crate::queries;
 use crate::types::*;
 use bastion::prelude::*;
 
-pub const REDUNDANCY: usize = 8;
+pub const REDUNDANCY: usize = 4;
 
 pub fn actor<T>(db: Database) -> Result<ChildrenRef, ArchiveError>
 where

@@ -98,8 +98,7 @@ where
 {
     /// create a new instance of the executor
     pub fn new<Runtime, ClientApi>(
-        pool_multiplier: usize,
-        stack_size: Option<usize>,
+        num_threads: Option<usize>,
         client: Arc<ClientApi>,
         backend: Arc<Backend<Block>>,
     ) -> Result<BlockBroker<Block>, ArchiveError>
@@ -109,13 +108,12 @@ where
             + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
         ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
     {
-        let cpus = num_cpus::get() * pool_multiplier;
         // sender sends block changes to receiver
         let (sender, receiver) = channel::unbounded();
 
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(cpus)
-            .stack_size(stack_size.unwrap_or(8_000_000))
+            .num_threads(num_threads.unwrap_or(0))
+            .thread_name(|i| format!("block-executor-{}", i))
             .build()?;
 
         let (tx, handle) = Self::scheduler_loop::<Runtime, ClientApi>(
@@ -182,10 +180,13 @@ where
             return Ok(());
         }
 
-        log::trace!(
-            "Executing Block: {}:{:?}",
+        log::debug!(
+            "Executing Block: {}:{}, version {}",
             block.header().hash(),
-            block.header().number()
+            block.header().number(),
+            client
+                .runtime_version_at(&BlockId::Hash(block.header().hash()))?
+                .spec_version,
         );
 
         let block = BlockExecutor::new(api, backend, block)?.block_into_storage()?;
@@ -211,8 +212,8 @@ where
             return Ok(());
         } else {
             self.inserted.insert(block.hash());
-            self.pool.spawn(move || {
-                match Self::work::<Runtime, _>(block, client, backend, sender) {
+            self.pool.spawn_fifo(move || {
+                match Self::work::<Runtime, _>(block.clone(), client, backend, sender) {
                     Ok(_) => (),
                     Err(e) => log::error!("{:?}", e),
                 }
@@ -245,8 +246,8 @@ where
                 let client = client.clone();
                 let backend = backend.clone();
                 let sender = sender.clone();
-                self.pool.spawn(move || {
-                    match Self::work::<Runtime, _>(block, client, backend, sender) {
+                self.pool.spawn_fifo(move || {
+                    match Self::work::<Runtime, _>(block.clone(), client, backend, sender) {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }

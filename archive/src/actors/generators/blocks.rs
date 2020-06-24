@@ -81,7 +81,7 @@ where
         if let Some(b) = block {
             log::trace!("{:?}", b);
             let block = b.block.clone();
-            context.broker.work.send(BlockData::Single(block)).unwrap();
+            context.broker.work.send(BlockData::Single(block))?;
             sched.tell_next("meta", b)?
         } else {
             log::warn!("Block does not exist!");

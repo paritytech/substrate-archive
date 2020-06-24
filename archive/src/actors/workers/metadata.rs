@@ -25,7 +25,7 @@ use bastion::prelude::*;
 use serde::de::DeserializeOwned;
 use sp_runtime::traits::{Block as _, Header as _};
 
-const REDUNDANCY: usize = 5;
+const REDUNDANCY: usize = 2;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
