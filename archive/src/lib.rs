@@ -51,9 +51,10 @@ pub use util::init_logger;
 
 pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
+pub use sp_runtime::MultiSignature;
 pub mod chain_traits {
     //! Traits defining functions on the client needed for indexing
     pub use sc_client_api::client::BlockBackend;
     pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
-    pub use sp_runtime::traits::{BlakeTwo256, Block};
+    pub use sp_runtime::traits::{BlakeTwo256, Block, IdentifyAccount, Verify};
 }

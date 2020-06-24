@@ -14,14 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use clap::{load_yaml, App};
+use clap::{App, load_yaml};
 use std::path::PathBuf;
+use crate::chain_spec;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CliOpts {
     pub file: PathBuf,
     pub log_level: log::LevelFilter,
-    pub chain: String,
+    pub chain_spec: chain_spec::ChainSpec
 }
 
 impl CliOpts {
@@ -33,21 +34,30 @@ impl CliOpts {
             1 => log::LevelFilter::Warn,
             2 => log::LevelFilter::Info,
             3 => log::LevelFilter::Debug,
-            4 | _ => log::LevelFilter::Trace,
+            4|_ => log::LevelFilter::Trace,
         };
-        let file = matches
-            .value_of("config")
-            .expect("Config is a required value");
-
-        let chain = matches
-            .value_of("chain")
-            .expect("Chain is a required value");
-
-
+        let file = matches.value_of("config").expect("Config is a required value");
+        let chain_spec;
+        let spec = matches.value_of("spec");
+        if spec.is_some() {
+            match spec {
+                Some("dev") => {
+                    chain_spec = crate::chain_spec::development_config();
+                },
+                Some("") | Some("local") => {
+                    chain_spec = crate::chain_spec::local_testnet_config();
+                },
+                path => {
+                    chain_spec = chain_spec::ChainSpec::from_json_file(
+                        std::path::PathBuf::from(path.expect("checked for existance; qed"))
+                    ).expect("Couldn't load spec from file")
+                }
+            }
+        } else {
+            panic!("Chain spec could not be loaded; is the path correct?")
+        }
         CliOpts {
-            file: PathBuf::from(file),
-            log_level,
-            chain: chain.to_string(),
+            file: PathBuf::from(file), log_level, chain_spec,
         }
     }
 }
