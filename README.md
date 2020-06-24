@@ -37,7 +37,8 @@ The CLI is an easier way to get started with substrate-archive. It provides a ba
 `cargo build --release`
 
 startup your polkadot, kusama or westend node `./polkadot --chain=polkadot --pruning=archive`
-run with `./../target/release/polkadot-archive --config "your-config-file.toml" --chain=polkadot` where 'chain' is one of polkadot, kusama or westend, depending on which chain you are running
+
+run the archive with `./../target/release/polkadot-archive --config "your-config-file.toml" --chain=polkadot` where 'chain' is one of polkadot, kusama or westend, depending on which chain you are running
 
 You can copy the binary file `polkadot-archive` anywhere you want ie `~/.local/share/bin/`. Or, instead of `cargo build --release` just run `cargo install --path .`
 
