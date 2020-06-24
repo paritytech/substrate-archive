@@ -18,7 +18,8 @@ Examples for how to use substrate-archive are in the [`examples/`](https://githu
 
 # Prerequisites 
 Extended requirements list found in the [wiki](https://github.com/paritytech/substrate-archive/wiki/)
-- PostgreSQL with the required schema: `schema/archive.sql`
+- depending on the chain you want to index, ~60GB free space
+- PostgreSQL with a database ready for lots of new data
 - Substrate-based Blockchain running with RocksDB as the backend
 - Substrate-based Blockchain running under `--pruning=archive`
 
@@ -31,13 +32,13 @@ The CLI is an easier way to get started with substrate-archive. It provides a ba
 
 `git clone https://github.com/paritytech/substrate-archive.git`
 
-`cd substrate-archive/kusama-archive/`
+`cd substrate-archive/polkadot-archive/`
 
 `cargo build --release`
 
-run with `./../target/release/kusama-archive`
+run with `./../target/release/polkadot-archive`
 
-You can copy the binary file `kusama-archive` anywhere you want ie `~/.local/share/bin/`. Or, instead of `cargo build --release` just run `cargo install --path .`
+You can copy the binary file `polkadot-archive` anywhere you want ie `~/.local/share/bin/`. Or, instead of `cargo build --release` just run `cargo install --path .`
 
 # Contributing
 Contributors are welcome!
