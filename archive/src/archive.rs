@@ -160,7 +160,7 @@ where
             RuntimeString::Borrowed(s) => s.to_string(),
             RuntimeString::Owned(s) => s,
         };
-        if rstr != self.spec.name().to_ascii_lowercase().as_str() {
+        if rstr.to_ascii_lowercase().as_str() != self.spec.name().to_ascii_lowercase().as_str() {
             return Err(ArchiveError::MismatchedChains);
         } else {
             Ok(())
