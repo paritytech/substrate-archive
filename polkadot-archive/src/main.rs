@@ -24,7 +24,17 @@ use indicatif::{ProgressBar, ProgressStyle};
 use sqlx::PgPool;
 use std::time::Duration;
 
-pub fn main() -> Result<()> {
+pub fn main() {
+    match run() {
+        Ok(_) => (),
+        Err(e) => {
+            log::error!("{}", e.to_string());
+            std::process::exit(1);
+        }
+    }
+}
+
+pub fn run() -> Result<()> {
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Info);
 

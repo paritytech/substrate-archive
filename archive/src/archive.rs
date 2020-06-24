@@ -22,6 +22,7 @@ use crate::{
     },
     error::Error as ArchiveError,
     migrations::MigrationConfig,
+    rpc::Rpc,
     types::*,
 };
 use sc_chain_spec::ChainSpec;
@@ -29,13 +30,17 @@ use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
+use sp_runtime::{
+    traits::{BlakeTwo256, Block as BlockT},
+    RuntimeString,
+};
 use std::{marker::PhantomData, sync::Arc};
 
 pub struct Archive<Block: BlockT + Send + Sync> {
     rpc_url: String,
     psql_url: String,
     db: Arc<ReadOnlyDatabase>,
+    spec: Box<dyn ChainSpec>,
     block_workers: Option<usize>,
     wasm_pages: Option<u64>,
     _marker: PhantomData<Block>,
@@ -64,7 +69,6 @@ where
     /// and run Postgres Migrations
     pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self, ArchiveError> {
         let psql_url = crate::migrations::migrate(conf.psql_conf)?;
-
         let db = Arc::new(backend::util::open_database(
             conf.db_url.as_str(),
             conf.cache_size,
@@ -74,6 +78,7 @@ where
         Ok(Self {
             db,
             psql_url,
+            spec,
             rpc_url: conf.rpc_url,
             block_workers: conf.block_workers,
             wasm_pages: conf.wasm_pages,
@@ -134,6 +139,7 @@ where
         <T as System>::Header: serde::de::DeserializeOwned,
         <T as System>::BlockNumber: From<u32>,
     {
+        self.verify_same_chain::<T>()?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
         ArchiveContext::init(
             client_api,
@@ -142,5 +148,22 @@ where
             self.rpc_url.clone(),
             self.psql_url.as_str(),
         )
+    }
+
+    fn verify_same_chain<T>(&self) -> Result<(), ArchiveError>
+    where
+        T: Substrate + Send + Sync,
+    {
+        let rpc = futures::executor::block_on(Rpc::<T>::connect(self.rpc_url.as_str()))?;
+        let node_runtime = futures::executor::block_on(rpc.version(None))?;
+        let rstr = match node_runtime.spec_name {
+            RuntimeString::Borrowed(s) => s.to_string(),
+            RuntimeString::Owned(s) => s,
+        };
+        if rstr != self.spec.name().to_ascii_lowercase().as_str() {
+            return Err(ArchiveError::MismatchedChains);
+        } else {
+            Ok(())
+        }
     }
 }
