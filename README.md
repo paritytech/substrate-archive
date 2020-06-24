@@ -49,6 +49,7 @@ More Docs [here]( https://github.com/paritytech/substrate-archive/wiki)
 
 # Branches
 the `master` branch always contains the latest stable release
+
 the `next` branch contains the development towards the next stable release
 
 # Contact
