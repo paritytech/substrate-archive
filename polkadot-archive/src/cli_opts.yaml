@@ -1,7 +1,7 @@
-name: kusama-archive 
-version: "0.1"
+name: polkadot-archive 
+version: "0.2"
 author: Andrew P. <andrew.plaza@parity.io>
-about: Indexes the Kusama Canary Network 
+about: Indexes the Polkadot, Kusama and Westend Networks
 args:
     - config:
         short: c
