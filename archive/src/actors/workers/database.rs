@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::database::Database;
+use crate::database::{models::*, Database};
 use crate::error::Error as ArchiveError;
 use crate::print_on_err;
 use crate::queries;
 use crate::types::*;
 use bastion::prelude::*;
 
-pub const REDUNDANCY: usize = 8;
+pub const REDUNDANCY: usize = 4;
 
 pub fn actor<T>(db: Database) -> Result<ChildrenRef, ArchiveError>
 where
@@ -54,22 +54,20 @@ where
                 process_block(&db, block).await?;
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
-            blocks: Vec<Block<T>> =!> {
-                log::info!("Inserting {} blocks", blocks.len());
+            blocks: BatchBlock<T> =!> {
                 process_blocks(&db, blocks).await?;
-                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
-            };
-            extrinsics: Vec<Extrinsic<T>> =!> {
-                db.insert(extrinsics).await.map(|_| ())?;
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
             metadata: Metadata =!> {
                 db.insert(metadata).await.map(|_| ())?;
                 crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
-            storage: Vec<Storage<T>> => {
-                log::info!("Inserting {} storage entries", storage.len());
-                db.insert(storage).await.map(|_| ())?;
+            storage: Storage<T> => {
+                process_storage(&db, storage).await?;
+            };
+            storage: Storage<T> =!> {
+                process_storage(&db, storage).await?;
+                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
             };
             ref broadcast: super::Broadcast => {
                 match broadcast {
@@ -84,6 +82,18 @@ where
     Ok(())
 }
 
+async fn process_storage<T>(db: &Database, storage: Storage<T>) -> Result<(), ArchiveError>
+where
+    T: Substrate + Send + Sync,
+{
+    while !queries::check_if_block_exists(storage.hash().as_ref(), db.pool()).await? {
+        timer::Delay::new(std::time::Duration::from_millis(10)).await;
+    }
+    db.insert(Vec::<StorageModel<T>>::from(storage))
+        .await
+        .map(|_| ())
+}
+
 async fn process_block<T>(db: &Database, block: Block<T>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
@@ -95,13 +105,12 @@ where
     db.insert(block).await.map(|_| ())
 }
 
-async fn process_blocks<T>(db: &Database, blocks: Vec<Block<T>>) -> Result<(), ArchiveError>
+async fn process_blocks<T>(db: &Database, blocks: BatchBlock<T>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    log::info!("Got {} blocks", blocks.len());
-    let mut specs = blocks.clone();
+    let mut specs = blocks.inner().clone();
     specs.as_mut_slice().sort_by_key(|b| b.spec);
     let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
     specs.dedup();
@@ -110,12 +119,14 @@ where
         if db_contains_metadata(specs.as_slice(), versions) {
             break;
         }
-        timer::Delay::new(std::time::Duration::from_millis(20)).await;
+        timer::Delay::new(std::time::Duration::from_millis(50)).await;
     }
 
-    db.insert(BatchBlock::new(blocks)).await.map(|_| ())
+    db.insert(blocks).await.map(|_| ())
 }
 
+// Returns true if all versions are in database
+// false if versions are missing
 fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -> bool {
     let versions = versions
         .into_iter()

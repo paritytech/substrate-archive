@@ -1,0 +1,21 @@
+name: polkadot-archive 
+version: "0.2"
+author: Andrew P. <andrew.plaza@parity.io>
+about: Indexes the Polkadot, Kusama and Westend Networks
+args:
+    - config:
+        short: c
+        long: config
+        value_name: FILE
+        help: Sets a custom config file
+        takes_value: true
+        required: true
+    - chain:
+        long: chain
+        help: The chain to run substrate-archive for. One of kusama, westend, polkadot
+        takes_value: true
+        required: true
+    - verbose:
+        short: v
+        multiple: true
+        help: Sets the level of verbosity

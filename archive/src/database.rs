@@ -17,14 +17,19 @@
 //! IO for the PostgreSQL database connected to Substrate Archive Node
 //! Handles inserting of data into the database
 
+pub mod models;
 mod prepare_sql;
 
 use async_trait::async_trait;
+use codec::Encode;
 use futures::future;
 use sp_runtime::traits::Header as _;
 use sqlx::{PgConnection, Postgres};
 
-use self::prepare_sql::{BindAll, PrepareBatchSql as _, PrepareSql as _};
+use self::{
+    models::*,
+    prepare_sql::{BindAll, PrepareBatchSql as _, PrepareSql as _},
+};
 use crate::{
     error::{ArchiveResult, Error as ArchiveError},
     types::*,
@@ -75,7 +80,7 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
-        log::info!(
+        log::trace!(
             "block_num = {:?}, hash = {:X?}",
             self.inner.block.header.number(),
             hex::encode(self.inner.block.header.hash().as_ref())
@@ -98,6 +103,8 @@ where
         let block_num: u32 = (*self.inner.block.header.number()).into();
         let state_root = self.inner.block.header.state_root().as_ref();
         let extrinsics_root = self.inner.block.header.extrinsics_root().as_ref();
+        let digest = self.inner.block.header.digest().encode();
+        let extrinsics = self.inner.block.extrinsics.encode();
 
         Ok(query
             .bind(parent_hash)
@@ -105,12 +112,14 @@ where
             .bind(block_num)
             .bind(state_root)
             .bind(extrinsics_root)
+            .bind(digest.as_slice())
+            .bind(extrinsics.as_slice())
             .bind(self.spec))
     }
 }
 
 #[async_trait]
-impl<T> Insert for Storage<T>
+impl<T> Insert for StorageModel<T>
 where
     T: Substrate + Send + Sync,
 {
@@ -120,13 +129,11 @@ where
 }
 
 #[async_trait]
-impl<T> Insert for Vec<Storage<T>>
+impl<T> Insert for Vec<StorageModel<T>>
 where
     T: Substrate + Send + Sync,
 {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
-        log::info!("Inserting {} storage entries", self.len());
-
         let mut sizes = Vec::new();
         let chunks = self.chunks(12_000);
 
@@ -158,7 +165,7 @@ where
     }
 }
 
-impl<'a, T> BindAll<'a> for Storage<T>
+impl<'a, T> BindAll<'a> for StorageModel<T>
 where
     T: Substrate + Send + Sync,
 {
@@ -192,51 +199,20 @@ impl<'a> BindAll<'a> for Metadata {
 }
 
 #[async_trait]
-impl<T> Insert for Vec<Extrinsic<T>>
-where
-    T: Substrate + Send + Sync,
-{
-    async fn insert(mut self, db: DbConnection) -> DbReturn {
-        let mut rows_changed = 0;
-        for ext in self.chunks(15_000) {
-            let ext = ext.to_vec();
-            let sql = ext.build_sql(None);
-            rows_changed += ext.batch_insert(&sql)?.execute(&db).await?;
-        }
-        Ok(rows_changed)
-    }
-}
-
-impl<'a, T> BindAll<'a> for Extrinsic<T>
-where
-    T: Substrate + Send + Sync,
-{
-    fn bind_all_arguments(
-        &self,
-        query: sqlx::Query<'a, Postgres>,
-    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(query
-            .bind(self.hash.as_slice())
-            .bind(self.spec)
-            .bind(self.index)
-            .bind(self.inner.as_slice()))
-    }
-}
-
-#[async_trait]
 impl<T> Insert for BatchBlock<T>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
-        log::info!("Batch inserting {} blocks into DB", self.inner().len());
-        let sql = self.inner().build_sql(None);
-        self.inner()
-            .batch_insert(&sql)?
-            .execute(&db)
-            .await
-            .map_err(Into::into)
+        log::trace!("Batch inserting {} blocks into DB", self.inner().len());
+        let mut rows_changed = 0;
+        for blocks in self.inner().chunks(8_000) {
+            let blocks = blocks.to_vec();
+            let sql = blocks.build_sql(None);
+            rows_changed += blocks.batch_insert(&sql)?.execute(&db).await?;
+        }
+        Ok(rows_changed)
     }
 }
 

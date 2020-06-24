@@ -16,24 +16,13 @@
 
 use super::cli_opts::CliOpts;
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use substrate_archive::MigrationConfig;
 
-#[derive(Clone)]
-pub struct Config {
-    db_path: PathBuf,
-    psql_conf: MigrationConfig,
-    cli: CliOpts,
-    rpc_url: String,
-    cache_size: usize,
-    block_workers: Option<usize>,
-    wasm_pages: Option<u64>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 struct TomlConfig {
-    db_path: PathBuf,
+    polkadot_path: PathBuf,
     rpc_url: String,
     cache_size: usize,
     block_workers: Option<usize>,
@@ -42,7 +31,39 @@ struct TomlConfig {
     db_port: Option<String>,
     db_user: Option<String>,
     db_pass: Option<String>,
-    db_name: Option<String>,
+    westend_db: Option<String>,
+    kusama_db: Option<String>,
+    polkadot_db: Option<String>,
+}
+
+impl TomlConfig {
+    pub fn migration_conf(&self, chain: &str) -> MigrationConfig {
+        let name = match chain.to_ascii_lowercase().as_str() {
+            "kusama" | "ksm" => self.kusama_db.clone(),
+            "westend" => self.westend_db.clone(),
+            "polkadot" | "dot" => self.polkadot_db.clone(),
+            _ => panic!("Chain not specified"),
+        };
+
+        MigrationConfig {
+            host: self.db_host.clone(),
+            port: self.db_port.clone(),
+            user: self.db_user.clone(),
+            pass: self.db_pass.clone(),
+            name: name,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Config {
+    polkadot_path: PathBuf,
+    psql_conf: MigrationConfig,
+    cli: CliOpts,
+    rpc_url: String,
+    cache_size: usize,
+    block_workers: Option<usize>,
+    wasm_pages: Option<u64>,
 }
 
 impl Config {
@@ -50,23 +71,14 @@ impl Config {
         let cli_opts = CliOpts::parse();
         let toml_conf = Self::parse_file(cli_opts.file.as_path())?;
         log::debug!("{:?}", toml_conf);
-
-        let psql_conf = MigrationConfig {
-            host: toml_conf.db_host.clone(),
-            port: toml_conf.db_port.clone(),
-            user: toml_conf.db_user.clone(),
-            pass: toml_conf.db_pass.clone(),
-            name: toml_conf.db_name.clone(),
-        };
-
         Ok(Self {
-            db_path: toml_conf.db_path,
-            psql_conf,
+            polkadot_path: toml_conf.polkadot_path.clone(),
+            psql_conf: toml_conf.migration_conf(cli_opts.chain.as_str()),
             cli: cli_opts,
-            rpc_url: toml_conf.rpc_url.clone(),
             cache_size: toml_conf.cache_size,
             block_workers: toml_conf.block_workers,
             wasm_pages: toml_conf.wasm_pages,
+            rpc_url: toml_conf.rpc_url.clone(),
         })
     }
 
@@ -77,6 +89,10 @@ impl Config {
 
     pub fn cli(&self) -> &CliOpts {
         &self.cli
+    }
+
+    pub fn polkadot_path(&self) -> PathBuf {
+        self.polkadot_path.clone()
     }
 
     pub fn rpc_url(&self) -> &String {
@@ -95,11 +111,7 @@ impl Config {
         self.block_workers
     }
 
-    pub fn db_path(&self) -> &Path {
-        self.db_path.as_path()
-    }
-
     pub fn wasm_pages(&self) -> Option<u64> {
-        self.wasm_pages.clone()
+        self.wasm_pages
     }
 }

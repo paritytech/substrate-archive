@@ -13,106 +13,68 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use bincode::ErrorKind as BincodeError;
-use codec::Error as CodecError;
-use failure::Fail;
-use jsonrpsee::client::RequestError as JsonrpseeRequest;
-use jsonrpsee::transport::ws::WsNewDnsError;
-use serde_json::Error as SerdeError;
-use sp_blockchain::Error as BlockchainError;
-use sqlx::Error as SqlError;
-use std::env::VarError as EnvironmentError;
-use std::io::Error as IoError;
+use std::{env, io};
+use thiserror::Error;
 
 pub type ArchiveResult<T> = Result<T, Error>;
 
 /// Substrate Archive Error Enum
-#[derive(Debug, Fail)]
+#[derive(Error, Debug)]
 pub enum Error {
-    #[fail(display = "Io: {}", _0)]
-    Io(#[fail(cause)] IoError),
-    #[fail(display = "Environment: {}", _0)]
-    Environment(#[fail(cause)] EnvironmentError),
-    #[fail(display = "Codec: {:?}", _0)]
-    Codec(#[fail(cause)] CodecError),
-    #[fail(display = "Serialization: {}", _0)]
-    Serialize(#[fail(cause)] SerdeError),
-    #[fail(display = "Sql {}", _0)]
-    Sql(#[fail(cause)] SqlError),
-    #[fail(display = "Blockchain {}", _0)]
+    #[error("Io Error")]
+    Io(#[from] io::Error),
+    #[error("environment variable for `DATABASE_URL` not found")]
+    Env(#[from] env::VarError),
+    #[error("decode")]
+    Codec(#[from] codec::Error),
+    #[error("serialization error")]
+    Serialization(#[from] serde_json::Error),
+    #[error("sqlx error")]
+    Sql(#[from] sqlx::Error),
+    #[error("blockchain error")]
     Blockchain(String),
-    #[fail(display = "Invalid Block Range from {} to {}. {}", _0, _1, _2)]
-    InvalidBlockRange {
-        from: String,
-        to: String,
-        details: String,
-    },
-    #[fail(display = "Bincode encoding {}", _0)]
-    Bincode(#[fail(cause)] Box<BincodeError>),
-    #[fail(display = "Rpc Request {}", _0)]
-    JsonrpseeRequest(#[fail(cause)] JsonrpseeRequest),
-    #[fail(display = "Ws DNS Failure {}", _0)]
-    WsDns(#[fail(cause)] WsNewDnsError),
-    #[fail(display = "Unexpected Error Occurred: {}", _0)]
+    #[error("JSONRPC request failed")]
+    RpcRequest(#[from] jsonrpsee::client::RequestError),
+    #[error("DNS error")]
+    Dns(#[from] jsonrpsee::transport::ws::WsNewDnsError),
+    #[error("couldn't run migrations")]
+    SqlMigration(#[from] refinery::Error),
+    #[error("could not build threadpool")]
+    ThreadPool(#[from] rayon::ThreadPoolBuildError),
+    #[error("the chain given to substrate-archive is different then the running chain")]
+    MismatchedChains,
+    #[error("sending on disconnected channel")]
+    Channel,
+    #[error("Unexpected Error {0}")]
     General(String),
+
+    #[cfg(test)]
+    #[error("{0}")]
+    Bincode(#[from] Box<bincode::ErrorKind>),
 }
 
-impl From<WsNewDnsError> for Error {
-    fn from(err: WsNewDnsError) -> Error {
-        Error::WsDns(err)
-    }
-}
-
-impl From<JsonrpseeRequest> for Error {
-    fn from(err: JsonrpseeRequest) -> Error {
-        Error::JsonrpseeRequest(err)
-    }
-}
-
-impl From<Box<BincodeError>> for Error {
-    fn from(err: Box<BincodeError>) -> Error {
-        Error::Bincode(err)
-    }
-}
-
-impl From<BlockchainError> for Error {
-    fn from(err: BlockchainError) -> Error {
-        Error::Blockchain(format!("{:?}", err))
-    }
-}
-
-impl From<SqlError> for Error {
-    fn from(err: SqlError) -> Error {
-        Error::Sql(err)
+impl<T> From<crossbeam::SendError<T>> for Error {
+    fn from(_: crossbeam::SendError<T>) -> Error {
+        Error::Channel
     }
 }
 
 impl From<&str> for Error {
-    fn from(err: &str) -> Error {
-        Error::General(err.to_string())
+    fn from(e: &str) -> Error {
+        Error::General(e.to_string())
     }
 }
 
-impl From<SerdeError> for Error {
-    fn from(err: SerdeError) -> Error {
-        Error::Serialize(err)
+impl From<String> for Error {
+    fn from(e: String) -> Error {
+        Error::General(e)
     }
 }
 
-impl From<CodecError> for Error {
-    fn from(err: CodecError) -> Error {
-        Error::Codec(err)
-    }
-}
-
-impl From<EnvironmentError> for Error {
-    fn from(err: EnvironmentError) -> Error {
-        Error::Environment(err)
-    }
-}
-
-impl From<IoError> for Error {
-    fn from(err: IoError) -> Error {
-        Error::Io(err)
+// this conversion is required for our Error type to be
+// Send + Sync
+impl From<sp_blockchain::Error> for Error {
+    fn from(e: sp_blockchain::Error) -> Error {
+        Error::Blockchain(e.to_string())
     }
 }

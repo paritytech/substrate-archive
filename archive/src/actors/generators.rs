@@ -14,13 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-mod collect_storage;
-mod db_generators;
-mod network;
-mod storage;
+mod blocks;
+mod missing_blocks;
+mod missing_storage;
 
-pub use self::db_generators::actor as db;
-pub use self::network::actor as network;
-pub use self::storage::actor as storage;
+pub use self::blocks::actor as blocks;
+pub use self::missing_blocks::actor as missing_blocks;
+pub use self::missing_storage::actor as missing_storage;
 
-pub use super::Broadcast;
+use super::Broadcast;

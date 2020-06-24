@@ -1,6 +1,6 @@
 [package]
 name = "substrate-archive"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
 edition = "2018"
 
@@ -11,65 +11,73 @@ path = "src/lib.rs"
 # external
 log = "0.4"
 futures = { version = "0.3" }
-failure = "0.1"
 timer = { version = "3.0", package = "futures-timer" }
-serde = { version = "1.0.105", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
 # enabling arbitrary_precision for serde_json may cause rpc requests to fail
-fern = { version = "0.6", features = ["colored"], optional = true }
-chrono = { version = "0.4", optional = true }
-serde_json = "1.0.50"
+serde_json = "1.0"
 dirs = { version = "2", package = "directories" }
 bastion = "0.3"
-tempdir = "0.3.7"
 sqlx = { version = "0.3.5", features = ["postgres"] }
-async-trait = "0.1.31"
-hex = "0.4.2"
-flate2 = "1.0.14"
-bincode = "1.2.1"
-bastion-executor = "0.3.4"
-lightproc = "0.3.4"
-itertools = "0.9.0"
+async-trait = "0.1.35"
+hex = "0.4"
+bastion-executor = "0.3"
+lightproc = "0.3"
+#  (itertools) - only used in prepare_sql
+itertools = "0.9"
+crossbeam = "0.7"
+parking_lot = "0.10"
+hashbrown = "0.8.0"
+thiserror = "1.0.20"
+rayon = "1.3.1"
+num_cpus = "1"
+# Sql migrations
+refinery = { version = "0.3.0", features = ["postgres"] }
+
+# Optional 
+fern = { version = "0.6", features = ["colored"], optional = true }
+chrono = { version = "0.4", optional = true }
 
 # Parity
 primitive-types = "0.7"
 jsonrpsee = "0.1.0"
 kvdb = "0.6"
 kvdb-rocksdb = "0.8"
-parity-util-mem = "0.6.1"
+parity-util-mem = { version = "*", default-features = false, features = ["std"] }
 codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
+hash-db = "0.15"
 
 
 # Substrate
-sp-database = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master", version = "2.0.0-rc2", package = "sp-database" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", version = "0.8.0-rc2", package = "sc-service" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master", version = "0.8.0-rc2", package = "sc-client-db" }
-sp-storage = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master", version = "2.0.0-rc2", package = "sp-storage" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master", version = "2.0.0-rc2", package = "sp-runtime" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", version = "2.0.0-rc2", package = "sc-client-api" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master", version = "2.0.0-rc2", package = "sp-blockchain" }
+sp-database = { git = "https://github.com/paritytech/substrate", branch = "master", package="sp-database" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-storage" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-externalities" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-runtime" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-client-api" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-blockchain" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-api" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-block-builder" }
+sp-version = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-version" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-executor", features = ["wasmtime"] }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-system" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" } 
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
 
-substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "2.0.0-rc2", package = "sp-rpc" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "2.0.0-rc2", package = "sp-core" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "2.0.0-rc2", package = "sp-api" }
-runtime-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "2.0.0-rc2", package = "sp-version" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "0.8.0-rc2", package = "sc-executor" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, version = "2.0.0-rc2", package = "frame-system" }
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+jemallocator = "0.3.2"
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
-pretty_env_logger = "0.4.0"
+polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master" }
 
+pretty_env_logger = "0.4.0"
+# used in tests for storing test data on disk
+flate2 = "1.0.14"
+bincode = "1.2.1"
+tempfile = "3.1"
 
 [features]
-default = ["std"]
-std = [
-    "sp-storage/std",
-    "sp-runtime/std",
-    "sp-core/std",
-    "sp-api/std",
-    "runtime-version/std",
-    "sc-executor/std",
-    "frame-system/std"
-]
+default = []
 logging = ["chrono", "fern"]
+test_rocksdb = []

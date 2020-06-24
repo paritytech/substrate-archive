@@ -1,6 +1,7 @@
 <div align="center">
 
 # Substrate Archive
+### Blockchain Indexing Engine
 
 [Install the CLI](#install-the-cli) • [Documentation](#documentation) • [Contributing](#contributing) 
 

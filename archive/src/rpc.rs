@@ -3,7 +3,7 @@
 
 // substrate-archive is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
+// the Free Software Foundation, either vdebugersion 3 of the License, or
 // (at your option) any later version.
 
 // substrate-archive is distributed in the hope that it will be useful,
@@ -14,15 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! substrate RPC
+//! Substrate RPC
 
 use jsonrpsee::{
     client::Subscription,
     common::{to_value as to_json_value, Params},
     Client,
 };
-use runtime_version::RuntimeVersion;
 use sp_core::Bytes;
+use sp_version::RuntimeVersion;
 use std::marker::PhantomData;
 
 use crate::{error::Error as ArchiveError, types::Substrate};

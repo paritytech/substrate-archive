@@ -1,6 +1,6 @@
 [workspace]
 members = [
     "archive",
-    "kusama-archive",
+    "polkadot-archive",
     "node-template-archive",
 ]

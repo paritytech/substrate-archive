@@ -30,11 +30,44 @@ pub struct ReadOnlyDatabase {
     inner: Database,
 }
 
+impl std::fmt::Debug for ReadOnlyDatabase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let stats = self.io_stats(kvdb::IoStatsKind::Overall);
+        f.write_fmt(format_args!("Read Only Database Stats: {:?}", stats))
+    }
+}
+
 impl ReadOnlyDatabase {
     pub fn open(config: &DatabaseConfig, path: &str) -> io::Result<Self> {
         let inner = Database::open(config, path)?;
-        log::info!("Returning inner");
         Ok(Self { inner })
+    }
+
+    pub fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
+        let val = match self.inner.get(col, key) {
+            Ok(v) => v,
+            Err(e) => {
+                log::warn!("{:?}, Catching up with primary and trying again...", e);
+                None
+            }
+        };
+        if val.is_none() {
+            self.try_catch_up_with_primary()?;
+            match self.inner.get(col, key) {
+                Ok(v) => v,
+                Err(e) => {
+                    log::error!("{:?}", e);
+                    None
+                }
+            }
+        } else {
+            val
+        }
+    }
+
+    pub fn try_catch_up_with_primary(&self) -> Option<()> {
+        self.inner.try_catch_up_with_primary().ok()?;
+        Some(())
     }
 }
 

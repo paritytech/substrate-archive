@@ -16,6 +16,7 @@
 
 //! prepared statements for sqlx
 
+use super::models::*;
 use crate::error::ArchiveResult;
 use crate::types::*;
 use sqlx::Postgres;
@@ -50,8 +51,8 @@ where
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         let query = sqlx::query(
             r#"
-    INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, spec)
-    VALUES($1, $2, $3, $4, $5, $6)
+    INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
+    VALUES($1, $2, $3, $4, $5, $6, $7, $8)
     ON CONFLICT DO NOTHING
     "#,
         );
@@ -69,11 +70,11 @@ where
     fn build_sql(&self, _rows: Option<u32>) -> String {
         let stmt = format!(
             r#"
-INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, spec)
+INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
 VALUES {}
 ON CONFLICT DO NOTHING
 "#,
-            build_batch_insert(self.len(), 6)
+            build_batch_insert(self.len(), 8)
         );
         stmt
     }
@@ -98,44 +99,7 @@ ON CONFLICT DO NOTHING
     }
 }
 
-impl<'a, T> PrepareSql<'a> for Extrinsic<T>
-where
-    T: Substrate + Send + Sync,
-{
-    fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        let query = sqlx::query(
-            r#"
-INSERT INTO extrinsics (hash, spec, index, ext)
-VALUES($1, $2, $3, $4)
-"#,
-        );
-        self.bind_all_arguments(query)
-    }
-}
-
-impl<'a, T> PrepareBatchSql<'a> for Vec<Extrinsic<T>>
-where
-    T: Substrate + Send + Sync,
-{
-    fn build_sql(&self, _rows: Option<u32>) -> String {
-        format!(
-            r#"
-INSERT INTO extrinsics (hash, spec, index, ext)
-VALUES {}
-"#,
-            build_batch_insert(self.len(), 4)
-        )
-    }
-
-    fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(self.iter().fold(sqlx::query(sql), |q, ext| {
-            // let arguments = ext.get_arguments().unwrap();
-            ext.bind_all_arguments(q).unwrap()
-        }))
-    }
-}
-
-impl<'a, T> PrepareSql<'a> for Storage<T>
+impl<'a, T> PrepareSql<'a> for StorageModel<T>
 where
     T: Substrate + Send + Sync,
 {
@@ -155,7 +119,7 @@ is_full = EXCLUDED.is_full
     }
 }
 
-impl<'a, T> PrepareBatchSql<'a> for Vec<Storage<T>>
+impl<'a, T> PrepareBatchSql<'a> for Vec<StorageModel<T>>
 where
     T: Substrate + Send + Sync,
 {

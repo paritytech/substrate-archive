@@ -20,7 +20,9 @@ use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
 use std::path::{Path, PathBuf};
 
-// panics if it fails because of anything other than the directory already exists
+/// create an arbitrary directory on disk
+/// panics if it fails because of anything other than the directory already exists
+#[allow(unused)]
 pub fn create_dir(path: &Path) {
     match std::fs::create_dir_all(path) {
         Err(e) => match e.kind() {
@@ -34,6 +36,8 @@ pub fn create_dir(path: &Path) {
     }
 }
 
+/// get the path to a local substrate directory where we can save data
+#[allow(unused)]
 pub fn substrate_dir() -> PathBuf {
     if let Some(base_dirs) = dirs::BaseDirs::new() {
         let mut path = base_dirs.data_local_dir().to_path_buf();
@@ -42,6 +46,23 @@ pub fn substrate_dir() -> PathBuf {
     } else {
         panic!("Couldn't establish substrate data local path");
     }
+}
+
+/// Create rocksdb secondary directory if it doesn't exist yet
+/// Return path to that directory
+pub fn create_secondary_db_dir(chain: &str, id: &str) -> PathBuf {
+    let path = if let Some(base_dirs) = dirs::BaseDirs::new() {
+        let mut path = base_dirs.data_local_dir().to_path_buf();
+        path.push("substrate_archive");
+        path.push("rocksdb_secondary");
+        path.push(chain);
+        path.push(id);
+        path
+    } else {
+        panic!("Couldn't establish substrate adata local path");
+    };
+    std::fs::create_dir_all(path.as_path()).expect("Unable to create rocksdb secondary directory");
+    path
 }
 
 #[cfg(feature = "logging")]
@@ -59,36 +80,55 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
     create_dir(log_dir.as_path());
     log_dir.push("archive.logs");
 
-    fern::Dispatch::new()
+    let stdout_dispatcher = fern::Dispatch::new()
+        .level_for("substrate_archive", std)
+        .level_for("cranelift_wasm", log::LevelFilter::Error)
+        .level_for("bastion", log::LevelFilter::Warn)
+        .level_for("sqlx", log::LevelFilter::Warn)
+        .level_for("staking", log::LevelFilter::Warn)
         .format(move |out, message, record| {
             out.finish(format_args!(
-                "{} [{}][{}] {} ::{};{}",
-                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
-                record.target(),
+                "{} {} {}",
+                chrono::Local::now().format("[%H:%M]"),
                 colors.color(record.level()),
                 message,
-                format_opt(record.file().map(|s| s.to_string())),
-                format_opt(record.line().map(|n| n.to_string()))
+                // format_opt(record.file().map(|s| s.to_string())),
+                // format_opt(record.line().map(|n| n.to_string()))
             ))
         })
-        .chain(
-            fern::Dispatch::new()
-                .level(file)
-                .level_for("substrate_archive", file)
-                // .level_for("desub_core", log::LevelFilter::Debug)
-                // .level_for("bastion", log::LevelFilter::Trace)
-                // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
-                // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
-                .chain(
-                    fern::log_file(log_dir).expect("Failed to create substrate_archive.logs file"),
-                ),
-        )
-        .chain(fern::Dispatch::new().level(std).chain(std::io::stdout()))
+        .chain(fern::Dispatch::new().level(std).chain(std::io::stdout()));
+
+    let file_dispatcher = fern::Dispatch::new()
+        .level(file)
+        .level_for("substrate_archive", file)
+        .level_for("cranelift_wasm", log::LevelFilter::Error)
+        .level_for("bastion", log::LevelFilter::Warn)
+        .level_for("sqlx", log::LevelFilter::Warn)
+        .level_for("staking", log::LevelFilter::Warn)
+        // .level_for("desub_core", log::LevelFilter::Debug)
+        // .level_for("bastion", log::LevelFilter::Trace)
+        // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
+        // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
+        .format(move |out, message, record| {
+            out.finish(format_args!(
+                "{} [{}][{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                record.level(),
+                message,
+            ))
+        })
+        .chain(fern::log_file(log_dir).expect("Failed to create substrate_archive.logs file"));
+
+    fern::Dispatch::new()
+        .chain(stdout_dispatcher)
+        .chain(file_dispatcher)
         .apply()
         .expect("Could not init logging");
 }
 
 #[cfg(feature = "logging")]
+#[allow(unused)]
 fn format_opt(file: Option<String>) -> String {
     match file {
         None => "".to_string(),
@@ -96,6 +136,7 @@ fn format_opt(file: Option<String>) -> String {
     }
 }
 
+/// log an error without doing anything else
 #[macro_export]
 macro_rules! print_on_err {
     ($e: expr) => {

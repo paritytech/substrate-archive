@@ -14,16 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Actors which do work by decoding data before it's inserted into the database
-//! these actors may do highly parallelized work
+//! Actors which do work by transforming data before it's inserted into the database
 //! These actors do not make any external connections to a Database or Network
-use crate::actors::scheduler::{Algorithm, Scheduler};
-use crate::print_on_err;
-use crate::{error::Error as ArchiveError, types::*};
+use crate::{
+    actors::scheduler::{Algorithm, Scheduler},
+    error::Error as ArchiveError,
+    print_on_err,
+    types::*,
+};
 use bastion::prelude::*;
+use sp_core::storage::StorageChangeSet;
 use sqlx::PgConnection;
 
-const REDUNDANCY: usize = 3;
+const REDUNDANCY: usize = 2;
 
 // actor that takes blocks and transforms them into different types
 pub fn actor<T>(pool: sqlx::Pool<PgConnection>) -> Result<ChildrenRef, ArchiveError>
@@ -39,7 +42,6 @@ where
             .with_exec(move |ctx: BastionContext| {
                 let workers = db_workers.clone();
                 async move {
-                    log::info!("Transformer started");
                     let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
                     sched.add_worker("db", &workers);
                     print_on_err!(handle_msg::<T>(&mut sched).await);
@@ -59,16 +61,29 @@ where
         msg! {
             sched.context().recv().await.expect("Could not receive"),
             block: Block<T> =!> {
-                process_block(block.clone(), sched).await?;
+                process_block(block, sched).await?;
                 crate::archive_answer!(sched.context(), super::ArchiveAnswer::Success)?;
             };
             blocks: Vec<Block<T>> =!> {
-                process_blocks(blocks.clone(), sched).await?;
+                process_blocks(blocks, sched).await?;
                 crate::archive_answer!(sched.context(), super::ArchiveAnswer::Success)?;
             };
             meta: Metadata =!> {
+                // we ask here because metadata needs to be inserted
+                // before blocks. This gives the caller the opportunity to wait for
+                // that event as well
                 let v = sched.ask_next("db", meta)?.await;
                 log::debug!("{:?}", v);
+            };
+            storage: (<T as System>::BlockNumber, StorageChangeSet<<T as System>::Hash>) => {
+                let (num, changes) = storage;
+                process_storage::<T>(num, changes, sched).await?;
+            };
+            bulk_storage: Vec<Storage<T>> => {
+                for s in bulk_storage.into_iter() {
+                    let v = sched.ask_next("db", s)?.await;
+                    log::debug!("{:?}", v);
+                }
             };
             ref _broadcast: super::Broadcast => {
                 ()
@@ -76,6 +91,23 @@ where
             e: _ => log::warn!("Received unknown data {:?}", e);
         }
     }
+}
+
+pub async fn process_storage<T>(
+    num: <T as System>::BlockNumber,
+    changes: StorageChangeSet<<T as System>::Hash>,
+    sched: &mut Scheduler<'_>,
+) -> Result<(), ArchiveError>
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    let hash = changes.block;
+    let num: u32 = num.into();
+    let storage = Storage::<T>::new(hash, num, false, changes.changes);
+    let v = sched.ask_next("db", storage)?.await;
+    log::debug!("{:?}", v);
+    Ok(())
 }
 
 pub async fn process_block<T>(
@@ -86,11 +118,8 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let ext: Vec<Extrinsic<T>> = (&block).into();
     // blocks need to be inserted before extrinsics, so that extrinsics may reference block hash in postgres
     let v = sched.ask_next("db", block)?.await;
-    log::debug!("{:?}", v);
-    let v = sched.ask_next("db", ext)?.await;
     log::debug!("{:?}", v);
     Ok(())
 }
@@ -104,15 +133,11 @@ where
     <T as System>::BlockNumber: Into<u32>,
 {
     log::info!("Got {} blocks", blocks.len());
-    
-    let batch_blocks = BatchBlock::new(blocks.clone());
-    let ext: Vec<Extrinsic<T>> = batch_blocks.into();
 
+    let batch_blocks = BatchBlock::new(blocks);
     // blocks need to be inserted before extrinsics, so that extrinsics may reference block hash in postgres
     log::info!("Processing blocks");
-    let v = sched.ask_next("db", blocks)?.await;
-    log::debug!("{:?}", v);
-    let v = sched.ask_next("db", ext)?.await;
+    let v = sched.ask_next("db", batch_blocks)?.await;
     log::debug!("{:?}", v);
     Ok(())
 }

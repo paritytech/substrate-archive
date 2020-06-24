@@ -16,44 +16,54 @@
 
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
-mod client;
+mod block_executor;
 mod database;
-mod storage_backend;
-mod util;
+pub mod frontend;
+mod read_only_backend;
+#[cfg(test)]
+pub mod test_util;
+pub mod util;
 
-pub use self::storage_backend::StorageBackend;
-pub use self::{client::client, util::open_database};
-use sc_client_api::{backend::StorageProvider, client::BlockBackend, UsageProvider};
-use sp_blockchain::{Error as BlockchainError, HeaderBackend, HeaderMetadata};
+// re-exports
+pub use self::block_executor::{
+    BlockBroker, BlockChanges, BlockData, BlockExecutor, ThreadedBlockExecutor,
+};
+pub use self::read_only_backend::{ReadOnlyBackend, TrieState};
+pub use self::{database::ReadOnlyDatabase, frontend::runtime_api, util::open_database};
+
+use sc_client_api::Backend as BackendT;
+use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
-// Could make this supertrait accept a Executor and a RuntimeAPI generic arguments
-// however, that would clutter the API when using ChainAccess everywhere within substrate-archive
-// relying on the RPC for this is OK (for now)
-/// Super trait defining what access the archive node needs to siphon data from running chains
-pub trait ChainAccess<Block: BlockT>:
-    StorageProvider<Block, sc_client_db::Backend<Block>>
-    + BlockBackend<Block>
-    + HeaderBackend<Block>
-    + HeaderMetadata<Block, Error = BlockchainError>
-    + UsageProvider<Block>
+/// supertrait for accessing methods that rely on internal runtime api
+pub trait ApiAccess<Block, Backend, Runtime>:
+    ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
+    + Sized
+    + Send
+    + Sync
+    + CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
+where
+    Block: BlockT,
+    Backend: BackendT<Block>,
+    Runtime: ConstructRuntimeApi<Block, Self>,
 {
 }
 
-impl<T, Block> ChainAccess<Block> for T
+impl<Client, Block, Backend, Runtime> ApiAccess<Block, Backend, Runtime> for Client
 where
     Block: BlockT,
-    T: StorageProvider<Block, sc_client_db::Backend<Block>>
-        + BlockBackend<Block>
-        + HeaderBackend<Block>
-        + HeaderMetadata<Block, Error = BlockchainError>
-        + UsageProvider<Block>,
+    Runtime: ConstructRuntimeApi<Block, Self>,
+    Backend: BackendT<Block>,
+    Client: ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
+        + CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
+        + Sized
+        + Send
+        + Sync,
 {
 }
 
 /// A set of APIs that runtimes must implement in order to be compatible with substrate-archive.
-pub trait RuntimeApiCollection<Block>:
-    sp_api::ApiExt<Block, Error = sp_blockchain::Error> + sp_api::Metadata<Block>
+pub trait RuntimeApiCollection<Block>: sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 where
     Block: BlockT,
     <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
@@ -63,11 +73,7 @@ where
 impl<Api, Block> RuntimeApiCollection<Block> for Api
 where
     Block: BlockT,
-    Api: sp_api::ApiExt<Block, Error = sp_blockchain::Error> + sp_api::Metadata<Block>,
+    Api: sp_api::ApiExt<Block, Error = sp_blockchain::Error>,
     <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }
-
-// pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
-
-// impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}

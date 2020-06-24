@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-
-//! Main entrypoint for substrate-archive. `init` will start all actors and begin indexing the 
+//! Main entrypoint for substrate-archive. `init` will start all actors and begin indexing the
 //! chain defined with the passed-in Client and URL.
 
 mod generators;
@@ -23,36 +22,86 @@ mod scheduler;
 mod workers;
 
 use super::{
-    backend::ChainAccess,
+    backend::{ApiAccess, BlockBroker, ReadOnlyBackend, ThreadedBlockExecutor},
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
 use bastion::prelude::*;
-use sp_storage::StorageKey;
+use sc_client_api::backend;
+use sp_api::{ApiExt, ConstructRuntimeApi};
+use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sqlx::postgres::PgPool;
-use std::{env, sync::Arc};
+use std::sync::Arc;
+
+/// Context that every actor may use
+#[derive(Clone)]
+pub struct ActorContext<T: Substrate + Send + Sync> {
+    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+    broker: BlockBroker<NotSignedBlock<T>>,
+    rpc_url: String,
+    pool: sqlx::PgPool,
+}
+
+impl<T: Substrate + Send + Sync> ActorContext<T> {
+    pub fn new(
+        backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+        broker: BlockBroker<NotSignedBlock<T>>,
+        rpc_url: String,
+        pool: sqlx::PgPool,
+    ) -> Self {
+        Self {
+            backend,
+            broker,
+            rpc_url,
+            pool,
+        }
+    }
+
+    pub fn backend(&self) -> &Arc<ReadOnlyBackend<NotSignedBlock<T>>> {
+        &self.backend
+    }
+
+    pub fn rpc_url(&self) -> &str {
+        self.rpc_url.as_str()
+    }
+
+    pub fn pool(&self) -> sqlx::PgPool {
+        self.pool.clone()
+    }
+
+    pub fn broker(&self) -> &BlockBroker<NotSignedBlock<T>> {
+        &self.broker
+    }
+}
 
 /// Main entrypoint for substrate-archive.
 /// Deals with starting and stopping the Archive Runtime
 /// # Examples
 /// ```
-///let archive = Archive::init::<ksm_runtime::Runtime, _>(
+///let archive = Actors::init::<ksm_runtime::Runtime, _>(
 ///     client,
+///     backend,
+///     None,
 ///     "ws://127.0.0.1:9944".to_string(),
-///     keys.as_slice(),
-///     None
+///     "postgres://archive:default@localhost:5432/archive"
 /// ).unwrap();
 ///
-/// Archive::block_until_stopped();
-/// 
+/// Actors::block_until_stopped();
+///
 ///
 /// ```
-pub struct Archive {
+pub struct ArchiveContext<T: Substrate + Send + Sync> {
     workers: std::collections::HashMap<String, ChildrenRef>,
+    actor_context: ActorContext<T>,
 }
 
-impl Archive {
-
+impl<T: Substrate + Send + Sync> ArchiveContext<T>
+where
+    <T as System>::BlockNumber: Into<u32>,
+    <T as System>::Hash: From<primitive_types::H256>,
+    <T as System>::Header: serde::de::DeserializeOwned,
+    <T as System>::BlockNumber: From<u32>,
+{
     // TODO: Return a reference to the Db pool.
     // just expose a 'shutdown' fn that must be called in order to avoid missing data.
     // or just return an archive object for general telemetry/ops.
@@ -60,143 +109,90 @@ impl Archive {
     // to make configuring this easier.
     /// Initialize substrate archive.
     /// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
-    /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the 
+    /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the
     /// environment variable `DATABASE_URL` instead.
-    pub fn init<T, C>(
-        client: Arc<C>,
+    pub fn init<Runtime, ClientApi>(
+        client_api: Arc<ClientApi>,
+        backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+        block_workers: Option<usize>,
         url: String,
-        keys: &[StorageKey],
-        psql_url: Option<&str>
+        psql_url: &str,
     ) -> Result<Self, ArchiveError>
     where
-        T: Substrate + Send + Sync,
-        C: ChainAccess<NotSignedBlock<T>> + 'static,
-        <T as System>::BlockNumber: Into<u32>,
-        <T as System>::Hash: From<primitive_types::H256>,
-        <T as System>::Header: serde::de::DeserializeOwned,
+        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi> + Send + 'static,
+        Runtime::RuntimeApi: BlockBuilderApi<NotSignedBlock<T>, Error = sp_blockchain::Error>
+            + ApiExt<
+                NotSignedBlock<T>,
+                StateBackend = backend::StateBackendFor<
+                    ReadOnlyBackend<NotSignedBlock<T>>,
+                    NotSignedBlock<T>,
+                >,
+            >,
+        ClientApi:
+            ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
     {
-        let mut workers = std::collections::HashMap::new(); 
-        
+        let mut workers = std::collections::HashMap::new();
+        let broker =
+            ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
+
         Bastion::init();
-        let pool = if let Some(url) = psql_url {
-            run!(PgPool::builder()
-                .max_size(10)
-                .build(url))?
-        } else {
-            log::warn!("No url passed on initialization, using environment variable");
-            run!(
-                PgPool::builder()
-                    .max_size(10)
-                    .build(&env::var("DATABASE_URL")?)
-            )?
-        };
+        let pool = run!(PgPool::builder().max_size(8).build(psql_url))?;
 
-        // Normally workers aren't started on the top-level
-        // however we want access to this in order to send messages on program shutdown
-        let defer_workers = workers::defer_storage::<T>(pool.clone())?;
-        let storage = self::generators::storage::<T, _>(
-            client.clone(),
-            pool.clone(),
-            keys.to_vec(),
-            defer_workers.clone(),
-        )?;
+        let context = ActorContext::new(backend.clone(), broker, url, pool.clone());
 
-        workers.insert("defer".into(), defer_workers);
-        workers.insert("storage".into(), storage);
+        // create storage generator here
+        // workers.insert("storage".into(), storage.clone());
 
         // network generator. Gets headers from network but uses client to fetch block bodies
-        let network = self::generators::network::<T, _>(client.clone(), pool.clone(), url.clone())?;
-        workers.insert("network".into(), network);
+        let blocks = self::generators::blocks::<T>(context.clone())?;
+        workers.insert("blocks".into(), blocks);
+
+        let missing_storage = self::generators::missing_storage::<T>(context.clone())?;
+        workers.insert("missing_storage".into(), missing_storage);
+
         // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
         // uses client to get those blocks
-        let missing = self::generators::db::<T, _>(client, pool, url)?;
+        let missing = self::generators::missing_blocks::<T>(context.clone())?;
         workers.insert("missing".into(), missing);
 
         Bastion::start();
-        
-        Ok (Self {
+
+        Ok(Self {
             workers,
+            actor_context: context,
         })
     }
 
     /// Run indefinitely
     /// If the application is shut down during execution, this will leave progress unsaved.
     /// It is recommended to wait for some other event (IE: Ctrl-C) and run `shutdown` instead.
-    pub fn block_until_stopped() -> Result<(), ArchiveError> {
+    pub fn block_until_stopped(self) -> Result<(), ArchiveError> {
         Bastion::block_until_stopped();
+        self.actor_context.broker.stop()?;
         Ok(())
     }
 
     /// Shutdown Gracefully.
     /// This makes sure any data we have is saved for the next time substrate-archive is run.
-    pub async fn shutdown(&self) -> Result<(), ArchiveError> {
+    pub async fn shutdown(self) -> Result<(), ArchiveError> {
         log::info!("Shutting down");
         Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send messsage");
         for (name, worker) in self.workers.iter() {
-            if name != "defer" {
-                worker.stop().expect(format!("Couldn't stop worker {}", name).as_str());
-            }
+            worker
+                .stop()
+                .expect(format!("Couldn't stop worker {}", name).as_str());
         }
-        finish_work(self.workers.get("defer").expect("Defer workers must exist")).await;
         Bastion::kill();
+        self.actor_context.broker.stop()?;
         log::info!("Shut down succesfully");
         Ok(())
     }
 }
 
-/// Finish working on storage that can't be inserted into db yet.
-/// We send a message to every defer_storage worker in order to 
-/// ask if they are done putting away defered storage, and then return.
-async fn finish_work(defer_workers: &ChildrenRef) {
-    loop {
-        let mut answers_needed = defer_workers.elems().len();
-        let mut answers = Vec::new();
-        for worker in defer_workers.elems() {
-            let ans = worker
-                .ask_anonymously(ArchiveQuestion::IsStorageDone)
-                .expect("Couldn't send shutdown message to defer storage");
-            answers.push(ans);
-        }
-        let answers = futures::future::join_all(answers).await;
-        for answer in answers.into_iter() {
-            msg! {
-                answer.expect("Could not receive answer"),
-                msg: ArchiveAnswer => {
-                    match msg {
-                        ArchiveAnswer::StorageIsDone => {
-                            answers_needed -= 1;
-                        },
-                        ArchiveAnswer::StorageNotDone => {
-                            timer::Delay::new(std::time::Duration::from_millis(10)).await;
-                            continue;
-                        }
-                        e @ _ => log::warn!("Unexpected Answer {:?}", e)
-                    };
-                };
-                e: _ => log::warn!("Unexpected message {:?}", e);
-            }
-        }
-        if answers_needed == 0 {
-            break;
-        } else {
-            timer::Delay::new(std::time::Duration::from_millis(10)).await;
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ArchiveQuestion {
-    /// as storage actors if the storage is finished being deferred
-    IsStorageDone,
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum ArchiveAnswer {
+    /// Default answer; will be returned when an 'ask' message is sent to an actor
     Success,
-    /// Storage actor response that Storage is Done
-    StorageIsDone,
-    /// Storage actor response that storage is not finished saving progress
-    StorageNotDone,
 }
 
 /// Messages that are sent to every actor if something happens that must be handled globally

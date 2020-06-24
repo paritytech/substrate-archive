@@ -19,17 +19,17 @@ use crate::{
     error::Error as ArchiveError,
     queries,
     rpc::Rpc,
-    types::{Block, DbPool, Metadata, Substrate, SubstrateBlock, System},
+    types::{Block, Metadata, Substrate, SubstrateBlock, System},
 };
 use bastion::prelude::*;
 use serde::de::DeserializeOwned;
 use sp_runtime::traits::{Block as _, Header as _};
 
-const REDUNDANCY: usize = 5;
+const REDUNDANCY: usize = 2;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub fn actor<T>(url: String, pool: DbPool) -> Result<ChildrenRef, ArchiveError>
+pub fn actor<T>(url: String, pool: sqlx::PgPool) -> Result<ChildrenRef, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -59,7 +59,7 @@ where
 
 async fn handle_msg<T>(
     sched: &mut Scheduler<'_>,
-    pool: &DbPool,
+    pool: &sqlx::PgPool,
     url: &str,
 ) -> Result<(), ArchiveError>
 where
@@ -89,7 +89,7 @@ where
 async fn meta_process_block<T>(
     block: SubstrateBlock<T>,
     rpc: Rpc<T>,
-    pool: &DbPool,
+    pool: &sqlx::PgPool,
     sched: &mut Scheduler<'_>,
 ) -> Result<(), ArchiveError>
 where
@@ -107,7 +107,7 @@ where
 async fn meta_process_blocks<T>(
     blocks: Vec<SubstrateBlock<T>>,
     rpc: Rpc<T>,
-    pool: &DbPool,
+    pool: &sqlx::PgPool,
     sched: &mut Scheduler<'_>,
 ) -> Result<(), ArchiveError>
 where
@@ -119,7 +119,7 @@ where
     let now = std::time::Instant::now();
     let first = rpc.version(Some(&blocks[0].block.header().hash())).await?;
     let elapsed = now.elapsed();
-    log::info!(
+    log::debug!(
         "Rpc request for version took {} milli-seconds",
         elapsed.as_millis()
     );
@@ -131,6 +131,7 @@ where
         first.spec_version,
         last.spec_version
     );
+    // if first and last versions of metadata are the same, we only need to do one check
     if first == last {
         meta_checker(
             first.spec_version,
@@ -157,11 +158,13 @@ where
     Ok(())
 }
 
+// checks if the metadata exists in the database
+// if it doesn't exist yet, fetch metadata and insert it
 async fn meta_checker<T>(
     ver: u32,
     hash: Option<T::Hash>,
     rpc: &Rpc<T>,
-    pool: &DbPool,
+    pool: &sqlx::PgPool,
     sched: &mut Scheduler<'_>,
 ) -> Result<(), ArchiveError>
 where
