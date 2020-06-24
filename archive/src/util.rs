@@ -85,6 +85,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("cranelift_wasm", log::LevelFilter::Error)
         .level_for("bastion", log::LevelFilter::Warn)
         .level_for("sqlx", log::LevelFilter::Warn)
+        .level_for("staking", log::LevelFilter::Warn)
         .format(move |out, message, record| {
             out.finish(format_args!(
                 "{} {} {}",
@@ -103,6 +104,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("cranelift_wasm", log::LevelFilter::Error)
         .level_for("bastion", log::LevelFilter::Warn)
         .level_for("sqlx", log::LevelFilter::Warn)
+        .level_for("staking", log::LevelFilter::Warn)
         // .level_for("desub_core", log::LevelFilter::Debug)
         // .level_for("bastion", log::LevelFilter::Trace)
         // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)

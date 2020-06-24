@@ -14,75 +14,18 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod archive;
-mod chain_spec;
 mod cli_opts;
 mod config;
-mod queries;
 
 use anyhow::Result;
 use futures::future::FutureExt;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use sqlx::PgPool;
 use std::{thread, time::Duration};
-use substrate_archive::chain_traits::UsageProvider as _;
 
 pub fn main() -> Result<()> {
     let config = config::Config::new()?;
-    substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Info);
+    substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
 
-    //let handle = async_std::task::spawn(archive::run_archive(config.clone()));
-    let (client, archive) = archive::run_archive(config.clone())?;
-
-    let pool = if let Some(url) = config.psql_url() {
-        async_std::task::block_on(PgPool::builder().max_size(2).build(url))?
-    } else {
-        log::warn!("No url passed on initialization, using environment variable");
-        async_std::task::block_on(
-            PgPool::builder()
-                .max_size(2)
-                .build(&std::env::var("DATABASE_URL")?),
-        )?
-    };
-
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .tick_strings(&[
-                "▹▹▹▹▹",
-                "▸▹▹▹▹",
-                "▹▸▹▹▹",
-                "▹▹▸▹▹",
-                "▹▹▹▸▹",
-                "▹▹▹▹▸",
-                "▪▪▪▪▪",
-            ])
-            .template("{spinner:.blue} {msg}"),
-    );
-
-    async_std::task::spawn(async move {
-        loop {
-            let indexed_blocks: Option<u32> = queries::block_count(&pool).await.ok();
-            let max = queries::max_block(&pool).await.ok();
-            let indexed_ext = queries::extrinsic_count(&pool).await.ok();
-            let (in_blocks, max, ext) =
-                match (indexed_blocks, max, indexed_ext) {
-                    (Some(a), Some(b), Some(d)) => (a, b, d),
-                    _ => {
-                        async_std::task::sleep(Duration::from_millis(160)).await;
-                        continue;
-                    }
-                };
-            // we add one to max because postgres returns -1
-            let msg = format!(
-                "Indexed {}/{} blocks, and {} extrinsics",
-                in_blocks,
-                max + 1,
-                ext
-            );
-            pb.set_message(msg.as_str());
-            async_std::task::sleep(Duration::from_millis(80)).await;
-        }
-    });
+    let archive = archive::run_archive(config.clone())?;
 
     let ctrlc = async_ctrlc::CtrlC::new().expect("Couldn't create ctrlc handler");
     println!("Waiting on ctrlc");
