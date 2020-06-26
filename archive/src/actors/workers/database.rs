@@ -20,28 +20,24 @@ use crate::queries;
 use crate::types::*;
 use xtra::prelude::*;
 
-pub struct DatabaseActor {
-    db: Database,
-}
-
-impl Actor for DatabaseActor {}
+impl Actor for Database {}
 
 #[async_trait::async_trait]
-impl<T> Handler<Block<T>> for DatabaseActor
+impl<T> Handler<Block<T>> for Database
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
     async fn handle(&mut self, blk: Block<T>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        while !queries::check_if_meta_exists(blk.spec, self.db.pool()).await? {
+        while !queries::check_if_meta_exists(blk.spec, self.pool()).await? {
             timer::Delay::new(std::time::Duration::from_millis(20)).await;
         }
-        self.db.insert(blk).await.map(|_| ())
+        self.insert(blk).await.map(|_| ())
     }
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<BatchBlock<T>> for DatabaseActor
+impl<T> Handler<BatchBlock<T>> for Database
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -52,32 +48,31 @@ where
         let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
         specs.dedup();
         loop {
-            let versions = queries::get_versions(self.db.pool()).await?;
+            let versions = queries::get_versions(self.pool()).await?;
             if db_contains_metadata(specs.as_slice(), versions) {
                 break;
             }
             timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
 
-        self.db.insert(blks).await.map(|_| ())
+        self.insert(blks).await.map(|_| ())
     }
 }
 
 #[async_trait::async_trait]
-impl Handler<Metadata> for DatabaseActor {
+impl Handler<Metadata> for Database {
     async fn handle(&mut self, meta: Metadata, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        self.db.insert(meta).await.map(|_| ())
+        self.insert(meta).await.map(|_| ())
     }
 }
 
 #[async_trait::async_trait]
-impl<T: Substrate> Handler<Storage<T>> for DatabaseActor {
+impl<T: Substrate> Handler<Storage<T>> for Database {
     async fn handle(&mut self, storage: Storage<T>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        while !queries::check_if_block_exists(storage.hash().as_ref(), self.db.pool()).await? {
+        while !queries::check_if_block_exists(storage.hash().as_ref(), self.pool()).await? {
             timer::Delay::new(std::time::Duration::from_millis(10)).await;
         }
-        self.db
-            .insert(Vec::<StorageModel<T>>::from(storage))
+        self.insert(Vec::<StorageModel<T>>::from(storage))
             .await
             .map(|_| ())
     }

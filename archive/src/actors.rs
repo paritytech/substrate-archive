@@ -30,6 +30,7 @@ use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sqlx::postgres::PgPool;
 use std::sync::Arc;
+use xtra::prelude::*;
 
 /// Context that every actor may use
 #[derive(Clone)]
@@ -88,8 +89,9 @@ impl<T: Substrate + Send + Sync> ActorContext<T> {
 ///
 /// ```
 pub struct ArchiveContext<T: Substrate + Send + Sync> {
-    workers: std::collections::HashMap<String, String>,
     actor_context: ActorContext<T>,
+    rt: tokio::runtime::Runtime,
+    missing_blocks: std::thread::JoinHandle<()>,
 }
 
 impl<T: Substrate + Send + Sync> ArchiveContext<T>
@@ -127,56 +129,40 @@ where
             >,
         ClientApi: ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
     {
-        let mut workers = std::collections::HashMap::new();
         let broker = ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
-
         let pool = futures::executor::block_on(PgPool::builder().max_size(8).build(psql_url))?;
-
         let context = ActorContext::new(backend.clone(), broker, url, pool.clone());
+        let rt = tokio::runtime::Runtime::new()?;
 
-        // create storage generator here
-        // workers.insert("storage".into(), storage.clone());
-
-        // network generator. Gets headers from network but uses client to fetch block bodies
-        // let blocks = self::generators::blocks::<T>(context.clone())?;
-        // workers.insert("blocks".into(), blocks);
-
-        // let missing_storage = self::generators::missing_storage::<T>(context.clone())?;
-        // workers.insert("missing_storage".into(), missing_storage);
-
-        // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
-        // uses client to get those blocks
-        // let missing = self::generators::missing_blocks::<T>(context.clone())?;
-        // workers.insert("missing".into(), missing);
+        let context0 = context.clone();
+        rt.enter(move || {
+            // need to loop through subscription
+            generators::BlocksActor::new(context0.clone()).spawn();
+            let storage = generators::MissingStorage::new(context0);
+            tokio::spawn(storage.storage_loop());
+        });
+        let join = generators::block_loop(context.clone(), rt.handle().clone());
 
         Ok(Self {
-            workers,
+            rt,
             actor_context: context,
+            missing_blocks: join,
         })
     }
 
-    /// Run indefinitely
-    /// If the application is shut down during execution, this will leave progress unsaved.
-    /// It is recommended to wait for some other event (IE: Ctrl-C) and run `shutdown` instead.
+    #[deprecated]
     pub fn block_until_stopped(self) -> Result<(), ArchiveError> {
-        // Bastion::block_until_stopped();
-        self.actor_context.broker.stop()?;
-        Ok(())
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
     }
 
     /// Shutdown Gracefully.
     /// This makes sure any data we have is saved for the next time substrate-archive is run.
-    pub async fn shutdown(self) -> Result<(), ArchiveError> {
+    pub fn shutdown(self) -> Result<(), ArchiveError> {
         log::info!("Shutting down");
-        // Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send messsage");
-        /*
-        for (name, worker) in self.workers.iter() {
-            worker
-                .stop()
-                .expect(format!("Couldn't stop worker {}", name).as_str());
-        }
-        */
-        // Bastion::kill();
+        self.missing_blocks.join().expect("Could not join");
+        self.rt.shutdown_timeout(std::time::Duration::from_secs(5));
         self.actor_context.broker.stop()?;
         log::info!("Shut down succesfully");
         Ok(())

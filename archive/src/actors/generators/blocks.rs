@@ -17,20 +17,31 @@
 //! Block actor
 //! Gets new finalized blocks from substrate RPC
 
-use crate::actors::{self, workers, ActorContext};
-use crate::{
-    backend::BlockData,
-    error::Error as ArchiveError,
-    types::{Substrate, System},
+use crate::actors::{
+    workers::{self, msg::BlockMsg},
+    ActorContext,
 };
+use crate::{backend::BlockData, error::Error as ArchiveError, types::Substrate};
 use async_trait::async_trait;
 // use jsonrpsee::client::Subscription;
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Header as _;
 use xtra::prelude::*;
 
-struct BlocksActor<T: Substrate + Send + Sync> {
+pub struct BlocksActor<T: Substrate> {
     context: ActorContext<T>,
+    metadata: Address<workers::Metadata>,
+}
+impl<T: Substrate> Actor for BlocksActor<T> {}
+
+impl<T: Substrate> BlocksActor<T> {
+    pub fn new(context: ActorContext<T>) -> Self {
+        let addr = workers::Metadata::new(context.rpc_url().to_string(), context.pool()).spawn();
+        Self {
+            context,
+            metadata: addr,
+        }
+    }
 }
 
 struct Head<T: Substrate + Send + Sync>(T::Header);
@@ -42,8 +53,6 @@ where
     type Result = Result<(), ArchiveError>;
 }
 
-impl<T> Actor for BlocksActor<T> where T: Substrate + Send + Sync {}
-
 #[async_trait]
 impl<T> Handler<Head<T>> for BlocksActor<T>
 where
@@ -53,9 +62,11 @@ where
         let block = self.context.backend().block(&BlockId::Number(*head.0.number()));
         if let Some(b) = block {
             log::trace!("{:?}", b);
-            let block = b.block.clone();
-            self.context.broker.work.send(BlockData::Single(block))?;
-        // sched.tell_next("meta", b)?
+            self.context
+                .broker
+                .work
+                .send(BlockData::Single(b.block.clone()))?;
+            self.metadata.send(BlockMsg::<T>::from(b));
         } else {
             log::warn!("Block does not exist");
         }

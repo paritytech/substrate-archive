@@ -18,7 +18,10 @@
 //! IE: Missing Blocks/Storage/Inherents/Transactions
 //! Gathers Missing blocks -> passes to metadata -> passes to extractors -> passes to decode -> passes to insert
 
-use crate::actors::{workers, ActorContext};
+use crate::actors::{
+    workers::{self, msg::BlocksMsg},
+    ActorContext,
+};
 use crate::{
     backend::BlockData,
     error::Error as ArchiveError,
@@ -26,13 +29,17 @@ use crate::{
     types::{NotSignedBlock, Substrate, SubstrateBlock, System},
 };
 use sp_runtime::generic::BlockId;
+use xtra::prelude::*;
 
-pub fn block_loop<T>(context: ActorContext<T>) -> std::thread::JoinHandle<()>
+pub fn block_loop<T>(context: ActorContext<T>, handle: tokio::runtime::Handle) -> std::thread::JoinHandle<()>
 where
     T: Substrate + Send + Sync,
 {
     std::thread::spawn(move || loop {
-        match generator(context.clone()) {
+        let addr =
+            handle.enter(|| workers::Metadata::new(context.rpc_url().to_string(), context.pool()).spawn());
+
+        match generator(context.clone(), addr) {
             Ok(_) => (),
             Err(e) => {
                 log::error!("{:?}", e);
@@ -41,7 +48,7 @@ where
     })
 }
 
-fn generator<T>(context: ActorContext<T>) -> Result<(), ArchiveError>
+fn generator<T>(context: ActorContext<T>, addr: Address<workers::Metadata>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
 {
@@ -78,8 +85,8 @@ where
         elapsed.as_secs(),
         blocks.len()
     );
-    // create metadata actors
-    // let answer = sched.ask_next("meta", blocks)?.await;
-    // log::debug!("{:?}", answer);
+    let res = addr.send(BlocksMsg::<T>::from(blocks));
+    let answer = futures::executor::block_on(res);
+    log::debug!("{:?}", answer);
     Ok(())
 }

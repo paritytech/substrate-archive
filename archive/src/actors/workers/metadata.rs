@@ -18,26 +18,43 @@ use crate::{
     error::Error as ArchiveError,
     queries,
     rpc::Rpc,
-    types::{Block, Metadata, Substrate, SubstrateBlock},
+    types::{Block, Metadata as MetadataT, NotSignedBlock, Substrate, SubstrateBlock},
 };
-use serde::de::DeserializeOwned;
 use sp_runtime::traits::{Block as _, Header as _};
 use xtra::prelude::*;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-struct MetadataActor {
+pub struct Metadata {
     url: String,
     pool: sqlx::PgPool,
 }
 
-impl Actor for MetadataActor {}
+impl Metadata {
+    pub fn new(url: String, pool: sqlx::PgPool) -> Self {
+        Self { url, pool }
+    }
+}
+
+impl Actor for Metadata {}
 
 #[derive(Debug)]
-struct BlockMsg<T: Substrate>(SubstrateBlock<T>);
+pub struct BlockMsg<T: Substrate>(SubstrateBlock<T>);
+
+impl<T: Substrate> From<SubstrateBlock<T>> for BlockMsg<T> {
+    fn from(block: SubstrateBlock<T>) -> BlockMsg<T> {
+        BlockMsg(block)
+    }
+}
 
 #[derive(Debug)]
-struct BlocksMsg<T: Substrate>(Vec<SubstrateBlock<T>>);
+pub struct BlocksMsg<T: Substrate>(Vec<SubstrateBlock<T>>);
+
+impl<T: Substrate> From<Vec<SubstrateBlock<T>>> for BlocksMsg<T> {
+    fn from(blocks: Vec<SubstrateBlock<T>>) -> BlocksMsg<T> {
+        BlocksMsg(blocks)
+    }
+}
 
 impl<T: Substrate> Message for BlockMsg<T> {
     type Result = Result<(), ArchiveError>;
@@ -48,7 +65,7 @@ impl<T: Substrate> Message for BlocksMsg<T> {
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<BlockMsg<T>> for MetadataActor
+impl<T> Handler<BlockMsg<T>> for Metadata
 where
     T: Substrate,
 {
@@ -60,7 +77,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<BlocksMsg<T>> for MetadataActor
+impl<T> Handler<BlocksMsg<T>> for Metadata
 where
     T: Substrate,
 {
@@ -154,7 +171,7 @@ where
 {
     if !queries::check_if_meta_exists(ver, pool).await? {
         let meta = rpc.metadata(hash).await?;
-        let meta = Metadata::new(ver, meta);
+        let meta = MetadataT::new(ver, meta);
         // let v = sched.ask_next("transform", meta)?.await;
         // log::debug!("{:?}", v);
     }

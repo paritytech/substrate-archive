@@ -15,12 +15,17 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod database;
-// mod full_storage;
 mod metadata;
 mod transformers;
 
-// pub use self::database::actor as db;
-// pub use self::full_storage::actor as full_storage;
-// pub use self::metadata::actor as metadata;
-// pub use self::transformers::actor as transformers;
+pub use self::metadata::Metadata;
+pub use self::transformers::Transform;
+pub use crate::database::Database;
+
 use super::connect;
+
+/// any messages defined in the workers
+pub mod msg {
+    pub use super::metadata::{BlockMsg, BlocksMsg};
+    pub use super::transformers::{StorageWrap, VecStorageWrap};
+}

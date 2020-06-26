@@ -22,13 +22,28 @@ use xtra::prelude::*;
 
 // FIXME: This actor is sort of useless. We're not decoding anything.
 
-struct Transformer;
+#[derive(Default)]
+pub struct Transform;
 
-impl Actor for Transformer {}
+impl Actor for Transform {}
 
-struct StorageWrap<T: Substrate>(<T as System>::BlockNumber, StorageChangeSet<<T as System>::Hash>);
+pub struct StorageWrap<T: Substrate>(<T as System>::BlockNumber, StorageChangeSet<<T as System>::Hash>);
 
-struct VecStorageWrap<T: Substrate>(Vec<Storage<T>>);
+impl<T: Substrate> From<(<T as System>::BlockNumber, StorageChangeSet<<T as System>::Hash>)>
+    for StorageWrap<T>
+{
+    fn from(v: (<T as System>::BlockNumber, StorageChangeSet<<T as System>::Hash>)) -> StorageWrap<T> {
+        StorageWrap(v.0, v.1)
+    }
+}
+
+pub struct VecStorageWrap<T: Substrate>(Vec<Storage<T>>);
+
+impl<T: Substrate> From<Vec<Storage<T>>> for VecStorageWrap<T> {
+    fn from(v: Vec<Storage<T>>) -> VecStorageWrap<T> {
+        VecStorageWrap(v)
+    }
+}
 
 impl<T: Substrate> Message for StorageWrap<T> {
     type Result = Result<(), ArchiveError>;
@@ -39,7 +54,7 @@ impl<T: Substrate> Message for VecStorageWrap<T> {
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<Block<T>> for Transformer
+impl<T> Handler<Block<T>> for Transform
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -51,7 +66,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<BatchBlock<T>> for Transformer
+impl<T> Handler<BatchBlock<T>> for Transform
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -63,7 +78,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<StorageWrap<T>> for Transformer
+impl<T> Handler<StorageWrap<T>> for Transform
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -76,7 +91,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<VecStorageWrap<T>> for Transformer
+impl<T> Handler<VecStorageWrap<T>> for Transform
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
