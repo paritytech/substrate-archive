@@ -19,12 +19,8 @@
 //! Gets storage changes based on those missing entries
 
 use crate::{
-    actors::{
-        scheduler::{Algorithm, Scheduler},
-        workers, ActorContext,
-    },
+    actors::ActorContext,
     backend::{BlockBroker, BlockData},
-    print_on_err,
     sql_block_builder::BlockBuilder,
 };
 use crate::{
@@ -32,68 +28,28 @@ use crate::{
     queries,
     types::{NotSignedBlock, Storage, Substrate, System},
 };
-use bastion::prelude::*;
 
-pub fn actor<T>(context: ActorContext<T>) -> Result<ChildrenRef, ArchiveError>
+pub async fn storage_loop<T>(context: ActorContext<T>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    // let workers = workers::transformers::<T>(context.pool())?;
-    // generate work from missing blocks
-    Bastion::children(|children| {
-        children.with_exec(move |ctx: BastionContext| {
-            let context = context.clone();
-            // let workers = workers.clone();
-            async move {
-                let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
-                // sched.add_worker("transform", &workers);
-                match on_start::<T>(&context).await {
-                    Ok(_) => (),
-                    Err(e) => {
-                        log::error!("{:?}", e);
-                        panic!("Missing storage not started properly");
-                    }
-                }
-                loop {
-                    if handle_shutdown(&ctx).await {
-                        break;
-                    }
-                    print_on_err!(entry::<T>(&context, &mut sched).await);
-                }
-                Bastion::stop();
-                Ok(())
-            }
-        })
-    })
-    .map_err(|_| ArchiveError::from("Could not instantiate database generator"))
-}
-
-async fn entry<T>(context: &ActorContext<T>, sched: &mut Scheduler<'_>) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
-{
-    timer::Delay::new(std::time::Duration::from_secs(1)).await;
-    let count = check_work::<T>(context.broker(), sched)?;
-    if count > 0 {
-        log::info!("Syncing Storage {} bps", count);
-    }
+    on_start(&context).await?;
+    main_loop(context).await?;
     Ok(())
 }
 
 async fn on_start<T>(context: &ActorContext<T>) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
 {
     if queries::blocks_count(&context.pool()).await? <= 0 {
         // no blocks means we haven't indexed anything yet
         return Ok(());
     }
     let now = std::time::Instant::now();
-    let blocks = BlockBuilder::new()
-        .with_vec(queries::blocks_storage_intersection(&context.pool()).await?)?;
+    let blocks = queries::blocks_storage_intersection(&context.pool()).await?;
+    let blocks = BlockBuilder::new().with_vec(blocks)?;
     let elapsed = now.elapsed();
     log::info!(
         "TOOK {} seconds, {} milli-seconds to get and build {} blocks",
@@ -102,16 +58,28 @@ where
         blocks.len()
     );
     log::info!("indexing {} blocks of storage ... ", blocks.len());
-    context.broker().work.send(BlockData::Batch(blocks))?;
+    context.broker().work.send(BlockData::Batch(blocks)).unwrap();
+    Ok(())
+}
+
+async fn main_loop<T>(context: ActorContext<T>) -> Result<(), ArchiveError>
+where
+    T: Substrate + Send + Sync,
+    <T as System>::BlockNumber: Into<u32>,
+{
+    loop {
+        timer::Delay::new(std::time::Duration::from_secs(1)).await;
+        let count = check_work::<T>(context.broker())?;
+        if count > 0 {
+            log::info!("Syncing Storage {} bps", count);
+        }
+    }
     Ok(())
 }
 
 /// Check the receiver end of the BlockExecution ThreadPool for any storage
 /// changes resulting from block execution.
-fn check_work<T>(
-    broker: &BlockBroker<NotSignedBlock<T>>,
-    sched: &mut Scheduler<'_>,
-) -> Result<usize, ArchiveError>
+fn check_work<T>(broker: &BlockBroker<NotSignedBlock<T>>) -> Result<usize, ArchiveError>
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
@@ -124,27 +92,9 @@ where
 
     if block_changes.len() > 0 {
         let count = block_changes.len();
-        sched.tell_next("transform", block_changes)?;
+        // sched.tell_next("transform", block_changes)?;
         Ok(count)
     } else {
         Ok(0)
     }
-}
-
-// Handle a shutdown
-async fn handle_shutdown(ctx: &BastionContext) -> bool {
-    if let Some(msg) = ctx.try_recv().await {
-        msg! {
-            msg,
-            broadcast: super::Broadcast => {
-                match broadcast {
-                    super::Broadcast::Shutdown => {
-                        return true;
-                    }
-                }
-            };
-            e: _ => log::warn!("Received unknown message: {:?}", e);
-        };
-    }
-    false
 }

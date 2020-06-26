@@ -18,7 +18,6 @@
 //! chain defined with the passed-in Client and URL.
 
 mod generators;
-mod scheduler;
 mod workers;
 
 use super::{
@@ -26,7 +25,6 @@ use super::{
     error::Error as ArchiveError,
     types::{NotSignedBlock, Substrate, System},
 };
-use bastion::prelude::*;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
@@ -68,7 +66,6 @@ impl<T: Substrate + Send + Sync> ActorContext<T> {
     pub fn pool(&self) -> sqlx::PgPool {
         self.pool.clone()
     }
-
     pub fn broker(&self) -> &BlockBroker<NotSignedBlock<T>> {
         &self.broker
     }
@@ -91,7 +88,7 @@ impl<T: Substrate + Send + Sync> ActorContext<T> {
 ///
 /// ```
 pub struct ArchiveContext<T: Substrate + Send + Sync> {
-    workers: std::collections::HashMap<String, ChildrenRef>,
+    workers: std::collections::HashMap<String, String>,
     actor_context: ActorContext<T>,
 }
 
@@ -128,15 +125,12 @@ where
                     NotSignedBlock<T>,
                 >,
             >,
-        ClientApi:
-            ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
+        ClientApi: ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
     {
         let mut workers = std::collections::HashMap::new();
-        let broker =
-            ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
+        let broker = ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
 
-        // Bastion::init();
-        let pool = run!(PgPool::builder().max_size(8).build(psql_url))?;
+        let pool = futures::executor::block_on(PgPool::builder().max_size(8).build(psql_url))?;
 
         let context = ActorContext::new(backend.clone(), broker, url, pool.clone());
 
@@ -155,8 +149,6 @@ where
         // let missing = self::generators::missing_blocks::<T>(context.clone())?;
         // workers.insert("missing".into(), missing);
 
-        // Bastion::start();
-
         Ok(Self {
             workers,
             actor_context: context,
@@ -167,7 +159,7 @@ where
     /// If the application is shut down during execution, this will leave progress unsaved.
     /// It is recommended to wait for some other event (IE: Ctrl-C) and run `shutdown` instead.
     pub fn block_until_stopped(self) -> Result<(), ArchiveError> {
-        Bastion::block_until_stopped();
+        // Bastion::block_until_stopped();
         self.actor_context.broker.stop()?;
         Ok(())
     }
@@ -176,31 +168,19 @@ where
     /// This makes sure any data we have is saved for the next time substrate-archive is run.
     pub async fn shutdown(self) -> Result<(), ArchiveError> {
         log::info!("Shutting down");
-        Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send messsage");
+        // Bastion::broadcast(Broadcast::Shutdown).expect("Couldn't send messsage");
+        /*
         for (name, worker) in self.workers.iter() {
             worker
                 .stop()
                 .expect(format!("Couldn't stop worker {}", name).as_str());
         }
-        Bastion::kill();
+        */
+        // Bastion::kill();
         self.actor_context.broker.stop()?;
         log::info!("Shut down succesfully");
         Ok(())
     }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ArchiveAnswer {
-    /// Default answer; will be returned when an 'ask' message is sent to an actor
-    Success,
-}
-
-/// Messages that are sent to every actor if something happens that must be handled globally
-/// like a CTRL-C signal
-#[derive(Debug, PartialEq, Clone)]
-pub enum Broadcast {
-    /// We need to shutdown for one reason or the other
-    Shutdown,
 }
 
 /// connect to the substrate RPC

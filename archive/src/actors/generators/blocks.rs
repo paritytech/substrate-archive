@@ -49,15 +49,8 @@ impl<T> Handler<Head<T>> for BlocksActor<T>
 where
     T: Substrate + Send + Sync,
 {
-    async fn handle(
-        &mut self,
-        head: Head<T>,
-        _ctx: &mut Context<Self>,
-    ) -> Result<(), ArchiveError> {
-        let block = self
-            .context
-            .backend()
-            .block(&BlockId::Number(*head.0.number()));
+    async fn handle(&mut self, head: Head<T>, _ctx: &mut Context<Self>) -> Result<(), ArchiveError> {
+        let block = self.context.backend().block(&BlockId::Number(*head.0.number()));
         if let Some(b) = block {
             log::trace!("{:?}", b);
             let block = b.block.clone();

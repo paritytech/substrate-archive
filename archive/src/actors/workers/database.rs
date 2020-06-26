@@ -15,114 +15,72 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::database::{models::*, Database};
-use crate::error::Error as ArchiveError;
-use crate::print_on_err;
+use crate::error::ArchiveResult;
 use crate::queries;
 use crate::types::*;
-use bastion::prelude::*;
+use xtra::prelude::*;
 
-pub const REDUNDANCY: usize = 4;
-
-pub fn actor<T>(db: Database) -> Result<ChildrenRef, ArchiveError>
-where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
-{
-    Bastion::children(|children: Children| {
-        children
-            .with_redundancy(REDUNDANCY)
-            .with_exec(move |ctx: BastionContext| {
-                let db = db.clone();
-                async move {
-                    print_on_err!(handle_msg::<T>(&ctx, &db).await);
-                    Ok(())
-                }
-            })
-    })
-    .map_err(|_| ArchiveError::from("Could not instantiate database actor"))
+pub struct DatabaseActor {
+    db: Database,
 }
 
-async fn handle_msg<T>(ctx: &BastionContext, db: &Database) -> Result<(), ArchiveError>
+impl Actor for DatabaseActor {}
+
+#[async_trait::async_trait]
+impl<T> Handler<Block<T>> for DatabaseActor
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    loop {
-        msg! {
-            ctx.recv().await.expect("Could not receive"),
-            block: Block<T> =!> {
-                process_block(&db, block).await?;
-                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
-            };
-            blocks: BatchBlock<T> =!> {
-                process_blocks(&db, blocks).await?;
-                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
-            };
-            metadata: Metadata =!> {
-                db.insert(metadata).await.map(|_| ())?;
-                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
-            };
-            storage: Storage<T> => {
-                process_storage(&db, storage).await?;
-            };
-            storage: Storage<T> =!> {
-                process_storage(&db, storage).await?;
-                crate::archive_answer!(ctx, super::ArchiveAnswer::Success)?;
-            };
-            ref broadcast: super::Broadcast => {
-                match broadcast {
-                    super::Broadcast::Shutdown => {
-                        break;
-                    }
-                }
-            };
-            e: _ => log::warn!("Received unknown data {:?}", e);
+    async fn handle(&mut self, blk: Block<T>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+        while !queries::check_if_meta_exists(blk.spec, self.db.pool()).await? {
+            timer::Delay::new(std::time::Duration::from_millis(20)).await;
         }
+        self.db.insert(blk).await.map(|_| ())
     }
-    Ok(())
 }
 
-async fn process_storage<T>(db: &Database, storage: Storage<T>) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-{
-    while !queries::check_if_block_exists(storage.hash().as_ref(), db.pool()).await? {
-        timer::Delay::new(std::time::Duration::from_millis(10)).await;
-    }
-    db.insert(Vec::<StorageModel<T>>::from(storage))
-        .await
-        .map(|_| ())
-}
-
-async fn process_block<T>(db: &Database, block: Block<T>) -> Result<(), ArchiveError>
+#[async_trait::async_trait]
+impl<T> Handler<BatchBlock<T>> for DatabaseActor
 where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    while !queries::check_if_meta_exists(block.spec, db.pool()).await? {
-        timer::Delay::new(std::time::Duration::from_millis(20)).await;
-    }
-    db.insert(block).await.map(|_| ())
-}
-
-async fn process_blocks<T>(db: &Database, blocks: BatchBlock<T>) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
-{
-    let mut specs = blocks.inner().clone();
-    specs.as_mut_slice().sort_by_key(|b| b.spec);
-    let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
-    specs.dedup();
-    loop {
-        let versions = queries::get_versions(db.pool()).await?;
-        if db_contains_metadata(specs.as_slice(), versions) {
-            break;
+    async fn handle(&mut self, blks: BatchBlock<T>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+        let mut specs = blks.inner().clone();
+        specs.as_mut_slice().sort_by_key(|b| b.spec);
+        let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
+        specs.dedup();
+        loop {
+            let versions = queries::get_versions(self.db.pool()).await?;
+            if db_contains_metadata(specs.as_slice(), versions) {
+                break;
+            }
+            timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
-        timer::Delay::new(std::time::Duration::from_millis(50)).await;
-    }
 
-    db.insert(blocks).await.map(|_| ())
+        self.db.insert(blks).await.map(|_| ())
+    }
+}
+
+#[async_trait::async_trait]
+impl Handler<Metadata> for DatabaseActor {
+    async fn handle(&mut self, meta: Metadata, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+        self.db.insert(meta).await.map(|_| ())
+    }
+}
+
+#[async_trait::async_trait]
+impl<T: Substrate> Handler<Storage<T>> for DatabaseActor {
+    async fn handle(&mut self, storage: Storage<T>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+        while !queries::check_if_block_exists(storage.hash().as_ref(), self.db.pool()).await? {
+            timer::Delay::new(std::time::Duration::from_millis(10)).await;
+        }
+        self.db
+            .insert(Vec::<StorageModel<T>>::from(storage))
+            .await
+            .map(|_| ())
+    }
 }
 
 // Returns true if all versions are in database

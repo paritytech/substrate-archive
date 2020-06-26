@@ -103,7 +103,10 @@ where
     let now = std::time::Instant::now();
     let first = rpc.version(Some(&blocks[0].block.header().hash())).await?;
     let elapsed = now.elapsed();
-    log::debug!("Rpc request for version took {} milli-seconds", elapsed.as_millis());
+    log::debug!(
+        "Rpc request for version took {} milli-seconds",
+        elapsed.as_millis()
+    );
     let last = rpc
         .version(Some(blocks[blocks.len() - 1].block.header().hash()).as_ref())
         .await?;
@@ -114,7 +117,13 @@ where
     );
     // if first and last versions of metadata are the same, we only need to do one check
     if first == last {
-        meta_checker(first.spec_version, Some(blocks[0].block.header().hash()), &rpc, pool).await?;
+        meta_checker(
+            first.spec_version,
+            Some(blocks[0].block.header().hash()),
+            &rpc,
+            pool,
+        )
+        .await?;
         blocks
             .into_iter()
             .for_each(|b| batch_items.push(Block::<T>::new(b, first.spec_version)));
@@ -134,7 +143,12 @@ where
 
 // checks if the metadata exists in the database
 // if it doesn't exist yet, fetch metadata and insert it
-async fn meta_checker<T>(ver: u32, hash: Option<T::Hash>, rpc: &Rpc<T>, pool: &sqlx::PgPool) -> Result<(), ArchiveError>
+async fn meta_checker<T>(
+    ver: u32,
+    hash: Option<T::Hash>,
+    rpc: &Rpc<T>,
+    pool: &sqlx::PgPool,
+) -> Result<(), ArchiveError>
 where
     T: Substrate + Send + Sync,
 {

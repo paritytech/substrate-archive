@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::error::Error as ArchiveError;
 pub use frame_system::Trait as System;
 use serde::{Deserialize, Serialize};
 use sp_runtime::{
@@ -21,6 +22,7 @@ use sp_runtime::{
     OpaqueExtrinsic,
 };
 use sp_storage::{StorageData, StorageKey};
+use xtra::prelude::*;
 
 /// Consolidation of substrate traits representing fundamental types
 pub trait Substrate: System + Send + Sync + std::fmt::Debug {}
@@ -39,6 +41,10 @@ pub type NotSignedBlock<T> = BlockT<<T as System>::Header, OpaqueExtrinsic>;
 pub struct Metadata {
     version: u32,
     meta: Vec<u8>,
+}
+
+impl Message for Metadata {
+    type Result = Result<(), ArchiveError>;
 }
 
 impl Metadata {
@@ -61,6 +67,10 @@ pub struct Block<T: Substrate + Send + Sync> {
     pub spec: u32,
 }
 
+impl<T: Substrate> Message for Block<T> {
+    type Result = Result<(), ArchiveError>;
+}
+
 // TODO: Possibly split block into extrinsics / digest / etc so that it can be sent in seperate parts to decode threads
 impl<T> Block<T>
 where
@@ -80,6 +90,10 @@ where
     inner: Vec<Block<T>>,
 }
 
+impl<T: Substrate> Message for BatchBlock<T> {
+    type Result = Result<(), ArchiveError>;
+}
+
 impl<T> BatchBlock<T>
 where
     T: Substrate + Send + Sync,
@@ -91,6 +105,10 @@ where
     pub fn inner(&self) -> &Vec<Block<T>> {
         &self.inner
     }
+
+    pub fn consume(self) -> Vec<Block<T>> {
+        self.inner
+    }
 }
 
 /// NewType for Storage Data
@@ -100,6 +118,10 @@ pub struct Storage<T: Substrate + Send + Sync> {
     block_num: u32,
     full_storage: bool,
     pub changes: Vec<(StorageKey, Option<StorageData>)>,
+}
+
+impl<T: Substrate> Message for Storage<T> {
+    type Result = Result<(), ArchiveError>;
 }
 
 impl<T: Substrate + Send + Sync> Storage<T> {
