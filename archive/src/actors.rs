@@ -135,7 +135,7 @@ where
         let broker =
             ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
 
-        Bastion::init();
+        // Bastion::init();
         let pool = run!(PgPool::builder().max_size(8).build(psql_url))?;
 
         let context = ActorContext::new(backend.clone(), broker, url, pool.clone());
@@ -144,18 +144,18 @@ where
         // workers.insert("storage".into(), storage.clone());
 
         // network generator. Gets headers from network but uses client to fetch block bodies
-        let blocks = self::generators::blocks::<T>(context.clone())?;
-        workers.insert("blocks".into(), blocks);
+        // let blocks = self::generators::blocks::<T>(context.clone())?;
+        // workers.insert("blocks".into(), blocks);
 
-        let missing_storage = self::generators::missing_storage::<T>(context.clone())?;
-        workers.insert("missing_storage".into(), missing_storage);
+        // let missing_storage = self::generators::missing_storage::<T>(context.clone())?;
+        // workers.insert("missing_storage".into(), missing_storage);
 
         // IO/kvdb generator (missing blocks). Queries the database to get missing blocks
         // uses client to get those blocks
-        let missing = self::generators::missing_blocks::<T>(context.clone())?;
-        workers.insert("missing".into(), missing);
+        // let missing = self::generators::missing_blocks::<T>(context.clone())?;
+        // workers.insert("missing".into(), missing);
 
-        Bastion::start();
+        // Bastion::start();
 
         Ok(Self {
             workers,

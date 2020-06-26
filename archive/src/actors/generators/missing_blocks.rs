@@ -37,16 +37,15 @@ where
     <T as System>::BlockNumber: Into<u32>,
     <T as System>::Header: serde::de::DeserializeOwned,
 {
-    let meta_workers =
-        workers::metadata::<T>(context.rpc_url().to_string(), context.pool().clone())?;
+    // let meta_workers = workers::metadata::<T>(context.rpc_url().to_string(), context.pool().clone())?;
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let context = context.clone();
-            let workers = meta_workers.clone();
+            // let workers = meta_workers.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
-                sched.add_worker("meta", &workers);
+                // sched.add_worker("meta", &workers);
                 loop {
                     if handle_shutdown(&ctx).await {
                         break;

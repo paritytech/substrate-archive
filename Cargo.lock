@@ -7829,7 +7829,7 @@ dependencies = [
 
 [[package]]
 name = "substrate-archive"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "async-trait",
  "bastion",
@@ -7880,6 +7880,7 @@ dependencies = [
  "sqlx",
  "tempfile",
  "thiserror",
+ "xtra",
 ]
 
 [[package]]
@@ -9264,6 +9265,15 @@ dependencies = [
  "curve25519-dalek",
  "rand_core 0.5.1",
  "zeroize",
+]
+
+[[package]]
+name = "xtra"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34642ed56e27b2167ebd252e1bb121cd45fe86f54685d8f1ed7337df2d40059f"
+dependencies = [
+ "futures 0.3.5",
 ]
 
 [[package]]

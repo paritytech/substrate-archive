@@ -19,8 +19,8 @@ mod database;
 mod metadata;
 mod transformers;
 
-pub use self::database::actor as db;
+// pub use self::database::actor as db;
 // pub use self::full_storage::actor as full_storage;
-pub use self::metadata::actor as metadata;
-pub use self::transformers::actor as transformers;
+// pub use self::metadata::actor as metadata;
+// pub use self::transformers::actor as transformers;
 use super::{connect, ArchiveAnswer, Broadcast};

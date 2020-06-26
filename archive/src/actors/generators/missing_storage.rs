@@ -39,15 +39,15 @@ where
     T: Substrate + Send + Sync,
     <T as System>::BlockNumber: Into<u32>,
 {
-    let workers = workers::transformers::<T>(context.pool())?;
+    // let workers = workers::transformers::<T>(context.pool())?;
     // generate work from missing blocks
     Bastion::children(|children| {
         children.with_exec(move |ctx: BastionContext| {
             let context = context.clone();
-            let workers = workers.clone();
+            // let workers = workers.clone();
             async move {
                 let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
-                sched.add_worker("transform", &workers);
+                // sched.add_worker("transform", &workers);
                 match on_start::<T>(&context).await {
                     Ok(_) => (),
                     Err(e) => {

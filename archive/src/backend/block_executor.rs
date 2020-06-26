@@ -108,7 +108,7 @@ where
             + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
         ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
     {
-        // sender sends block changes to receiver
+        // channel pair for sending and receiving BlockChanges
         let (sender, receiver) = channel::unbounded();
 
         let pool = rayon::ThreadPoolBuilder::new()

@@ -17,97 +17,55 @@
 //! Block actor
 //! Gets new finalized blocks from substrate RPC
 
-use crate::actors::{
-    self,
-    scheduler::{Algorithm, Scheduler},
-    workers, ActorContext,
-};
+use crate::actors::{self, workers, ActorContext};
 use crate::{
     backend::BlockData,
     error::Error as ArchiveError,
     types::{Substrate, System},
 };
-use bastion::prelude::*;
-use jsonrpsee::client::Subscription;
+use async_trait::async_trait;
+// use jsonrpsee::client::Subscription;
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Header as _;
+use xtra::prelude::*;
 
-/// Subscribe to new blocks via RPC
-/// this is a worker that never stops
-pub fn actor<T>(context: ActorContext<T>) -> Result<ChildrenRef, ArchiveError>
-where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
-    <T as System>::Header: serde::de::DeserializeOwned,
-{
-    let meta_workers = workers::metadata::<T>(context.rpc_url().to_string(), context.pool())?;
-    // actor which produces work in the form of collecting blocks
-    Bastion::children(|children| {
-        children.with_exec(move |ctx: BastionContext| {
-            let meta_workers = meta_workers.clone();
-            let context = context.clone();
-            async move {
-                let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
-                sched.add_worker("meta", &meta_workers);
-                match entry::<T>(&mut sched, context).await {
-                    Ok(_) => (),
-                    Err(e) => log::error!("{:?}", e),
-                };
-                Bastion::stop();
-                Ok(())
-            }
-        })
-    })
-    .map_err(|_| ArchiveError::from("Could not instantiate network generator"))
+struct BlocksActor<T: Substrate + Send + Sync> {
+    context: ActorContext<T>,
 }
 
-async fn entry<T>(sched: &mut Scheduler<'_>, context: ActorContext<T>) -> Result<(), ArchiveError>
+struct Head<T: Substrate + Send + Sync>(T::Header);
+
+impl<T> Message for Head<T>
 where
     T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
-    <T as System>::Header: serde::de::DeserializeOwned,
 {
-    let rpc = actors::connect::<T>(context.rpc_url()).await;
-    let mut subscription = rpc
-        .subscribe_finalized_heads()
-        .await
-        .map_err(ArchiveError::from)?;
-    loop {
-        if handle_shutdown::<T, _>(sched.context(), &mut subscription).await {
-            break;
-        }
-        let head = subscription.next().await;
-        let block = context.backend().block(&BlockId::Number(*head.number()));
+    type Result = Result<(), ArchiveError>;
+}
+
+impl<T> Actor for BlocksActor<T> where T: Substrate + Send + Sync {}
+
+#[async_trait]
+impl<T> Handler<Head<T>> for BlocksActor<T>
+where
+    T: Substrate + Send + Sync,
+{
+    async fn handle(
+        &mut self,
+        head: Head<T>,
+        _ctx: &mut Context<Self>,
+    ) -> Result<(), ArchiveError> {
+        let block = self
+            .context
+            .backend()
+            .block(&BlockId::Number(*head.0.number()));
         if let Some(b) = block {
             log::trace!("{:?}", b);
             let block = b.block.clone();
-            context.broker.work.send(BlockData::Single(block))?;
-            sched.tell_next("meta", b)?
+            self.context.broker.work.send(BlockData::Single(block))?;
+        // sched.tell_next("meta", b)?
         } else {
-            log::warn!("Block does not exist!");
+            log::warn!("Block does not exist");
         }
+        Ok(())
     }
-    Ok(())
-}
-
-async fn handle_shutdown<T, N>(ctx: &BastionContext, subscription: &mut Subscription<N>) -> bool
-where
-    T: Substrate + Send + Sync,
-{
-    if let Some(msg) = ctx.try_recv().await {
-        msg! {
-            msg,
-            ref broadcast: super::Broadcast => {
-                match broadcast {
-                    super::Broadcast::Shutdown => {
-                        // dropping a jsonrpsee::Subscription unsubscribes
-                        std::mem::drop(subscription);
-                        return true;
-                    }
-                }
-            };
-            e: _ => log::warn!("Received unknown message: {:?}", e);
-        };
-    }
-    false
 }
