@@ -16,8 +16,9 @@
 
 //! Actors which do work by transforming data before it's inserted into the database
 //! These actors do not make any external connections to a Database or Network
-use crate::{error::Error as ArchiveError, types::*};
+use crate::{error::ArchiveResult, types::*};
 use sp_core::storage::StorageChangeSet;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use xtra::prelude::*;
 
 // FIXME: This actor is sort of useless. We're not decoding anything.
@@ -27,76 +28,83 @@ pub struct Transform;
 
 impl Actor for Transform {}
 
-pub struct StorageWrap<T: Substrate>(<T as System>::BlockNumber, StorageChangeSet<<T as System>::Hash>);
+pub struct StorageWrap<B: BlockT>(NumberFor<B>, StorageChangeSet<B::Hash>);
 
-impl<T: Substrate> From<(<T as System>::BlockNumber, StorageChangeSet<<T as System>::Hash>)>
-    for StorageWrap<T>
-{
-    fn from(v: (<T as System>::BlockNumber, StorageChangeSet<<T as System>::Hash>)) -> StorageWrap<T> {
+impl<B: BlockT> From<(NumberFor<B>, StorageChangeSet<B::Hash>)> for StorageWrap<B> {
+    fn from(v: (NumberFor<B>, StorageChangeSet<B::Hash>)) -> StorageWrap<B> {
         StorageWrap(v.0, v.1)
     }
 }
 
-pub struct VecStorageWrap<T: Substrate>(Vec<Storage<T>>);
+pub struct VecStorageWrap<B: BlockT>(Vec<Storage<B>>);
 
-impl<T: Substrate> From<Vec<Storage<T>>> for VecStorageWrap<T> {
-    fn from(v: Vec<Storage<T>>) -> VecStorageWrap<T> {
+impl<B: BlockT> From<Vec<Storage<B>>> for VecStorageWrap<B> {
+    fn from(v: Vec<Storage<B>>) -> VecStorageWrap<B> {
         VecStorageWrap(v)
     }
 }
 
-impl<T: Substrate> Message for StorageWrap<T> {
-    type Result = Result<(), ArchiveError>;
+impl<B: BlockT> Message for StorageWrap<B> {
+    type Result = ArchiveResult<()>;
 }
 
-impl<T: Substrate> Message for VecStorageWrap<T> {
-    type Result = Result<(), ArchiveError>;
+impl<B: BlockT> Message for VecStorageWrap<B> {
+    type Result = ArchiveResult<()>;
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<Block<T>> for Transform
+impl<B> Handler<Block<B>> for Transform
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blk: Block<T>, _ctx: &mut Context<Self>) -> Result<(), ArchiveError> {
-        process_block::<T>(blk).await?;
+    async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+        // blocks need to be inserted before extrinsics, so that extrinsics may reference block hash in postgres
+        // let v = sched.ask_next("db", block)?.await;
+        // log::debug!("{:?}", v);
+        println!("Should insert now!");
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<BatchBlock<T>> for Transform
+impl<B> Handler<BatchBlock<B>> for Transform
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blks: BatchBlock<T>, _ctx: &mut Context<Self>) -> Result<(), ArchiveError> {
-        process_blocks::<T>(blks).await?;
+    async fn handle(&mut self, blks: BatchBlock<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+        log::info!("Got {} blocks", blks.inner().len());
+
+        // let batch_blocks = BatchBlock::new(blocks);
+        // blocks need to be inserted before extrinsics, so that extrinsics may reference block hash in postgres
+        log::info!("Processing blocks");
+        // let v = sched.ask_next("db", batch_blocks)?.await;
+        // log::debug!("{:?}", v);
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<StorageWrap<T>> for Transform
+impl<B> Handler<StorageWrap<B>> for Transform
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, stg: StorageWrap<T>, _ctx: &mut Context<Self>) -> Result<(), ArchiveError> {
+    async fn handle(&mut self, stg: StorageWrap<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let (num, changes) = (stg.0, stg.1);
-        process_storage::<T>(num, changes).await?;
+        process_storage::<B>(num, changes).await?;
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<VecStorageWrap<T>> for Transform
+impl<B> Handler<VecStorageWrap<B>> for Transform
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, stg: VecStorageWrap<T>, _ctx: &mut Context<Self>) -> Result<(), ArchiveError> {
+    async fn handle(&mut self, stg: VecStorageWrap<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         for s in stg.0.into_iter() {
             // send to database
             // debug
@@ -105,45 +113,15 @@ where
     }
 }
 
-pub async fn process_storage<T>(
-    num: <T as System>::BlockNumber,
-    changes: StorageChangeSet<<T as System>::Hash>,
-) -> Result<(), ArchiveError>
+pub async fn process_storage<B>(num: NumberFor<B>, changes: StorageChangeSet<B::Hash>) -> ArchiveResult<()>
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
 {
     let hash = changes.block;
     let num: u32 = num.into();
-    let storage = Storage::<T>::new(hash, num, false, changes.changes);
+    let storage = Storage::<B>::new(hash, num, false, changes.changes);
     // let v = sched.ask_next("db", storage)?.await;
-    // log::debug!("{:?}", v);
-    Ok(())
-}
-
-pub async fn process_block<T>(block: Block<T>) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
-{
-    // blocks need to be inserted before extrinsics, so that extrinsics may reference block hash in postgres
-    // let v = sched.ask_next("db", block)?.await;
-    // log::debug!("{:?}", v);
-    println!("Should insert now!");
-    Ok(())
-}
-
-pub async fn process_blocks<T>(blocks: BatchBlock<T>) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
-{
-    log::info!("Got {} blocks", blocks.inner().len());
-
-    // let batch_blocks = BatchBlock::new(blocks);
-    // blocks need to be inserted before extrinsics, so that extrinsics may reference block hash in postgres
-    log::info!("Processing blocks");
-    // let v = sched.ask_next("db", batch_blocks)?.await;
     // log::debug!("{:?}", v);
     Ok(())
 }

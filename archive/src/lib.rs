@@ -35,7 +35,6 @@ pub use actors::ArchiveContext;
 pub use archive::{Archive, ArchiveConfig};
 pub use error::Error;
 pub use migrations::MigrationConfig;
-pub use types::Substrate;
 
 #[cfg(feature = "logging")]
 pub use util::init_logger;

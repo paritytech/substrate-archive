@@ -18,26 +18,22 @@
 //! Gets new finalized blocks from substrate RPC
 
 use crate::actors::{workers, ActorContext};
-use crate::{
-    backend::BlockData,
-    error::ArchiveResult,
-    types::{Substrate, System},
-};
+use crate::{backend::BlockData, error::ArchiveResult};
 use async_trait::async_trait;
 use jsonrpsee::client::Subscription;
 use serde::de::DeserializeOwned;
 use sp_runtime::generic::BlockId;
-use sp_runtime::traits::Header as _;
+use sp_runtime::traits::{Block as BlockT, Header as _};
 use xtra::prelude::*;
 
-pub struct BlocksActor<T: Substrate> {
-    context: ActorContext<T>,
+pub struct BlocksActor<Block: BlockT> {
+    context: ActorContext<Block>,
     metadata: Address<workers::Metadata>,
 }
-impl<T: Substrate> Actor for BlocksActor<T> {}
+impl<Block: BlockT> Actor for BlocksActor<Block> {}
 
-impl<T: Substrate> BlocksActor<T> {
-    pub fn new(context: ActorContext<T>) -> Self {
+impl<Block: BlockT> BlocksActor<Block> {
+    pub fn new(context: ActorContext<Block>) -> Self {
         let addr = workers::Metadata::new(context.rpc_url().to_string(), context.pool()).spawn();
         Self {
             context,
@@ -46,21 +42,15 @@ impl<T: Substrate> BlocksActor<T> {
     }
 }
 
-pub struct Head<T: Substrate + Send + Sync>(pub T::Header);
+pub struct Head<Block: BlockT>(pub Block::Header);
 
-impl<T> Message for Head<T>
-where
-    T: Substrate + Send + Sync,
-{
+impl<Block: BlockT> Message for Head<Block> {
     type Result = ArchiveResult<()>;
 }
 
 #[async_trait]
-impl<T> Handler<Head<T>> for BlocksActor<T>
-where
-    T: Substrate + Send + Sync,
-{
-    async fn handle(&mut self, head: Head<T>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+impl<Block: BlockT> Handler<Head<Block>> for BlocksActor<Block> {
+    async fn handle(&mut self, head: Head<Block>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let block = self.context.backend().block(&BlockId::Number(*head.0.number()));
         if let Some(b) = block {
             log::trace!("{:?}", b);
@@ -77,16 +67,16 @@ where
 }
 
 // TODO: can be spawned in 'actor started' method
-pub async fn blocks_stream<T>(context: ActorContext<T>) -> ArchiveResult<()>
+pub async fn blocks_stream<Block>(context: ActorContext<Block>) -> ArchiveResult<()>
 where
-    T: Substrate,
-    <T as System>::Header: DeserializeOwned,
+    Block: BlockT,
+    Block::Header: DeserializeOwned,
 {
     let addr = BlocksActor::new(context.clone()).spawn();
-    let rpc = crate::rpc::Rpc::<T>::connect(context.rpc_url()).await?;
+    let rpc = crate::rpc::Rpc::<Block>::connect(context.rpc_url()).await?;
     let mut subscription = rpc.subscribe_finalized_heads().await?;
     loop {
         let head = subscription.next().await;
-        addr.send(Head::<T>(head));
+        addr.send(Head::<Block>(head));
     }
 }

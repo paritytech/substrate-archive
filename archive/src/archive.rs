@@ -17,10 +17,9 @@
 use crate::{
     actors::ArchiveContext,
     backend::{
-        self, frontend::TArchiveClient, ApiAccess, ReadOnlyBackend, ReadOnlyDatabase,
-        RuntimeApiCollection,
+        self, frontend::TArchiveClient, ApiAccess, ReadOnlyBackend, ReadOnlyDatabase, RuntimeApiCollection,
     },
-    error::Error as ArchiveError,
+    error::{ArchiveResult, Error as ArchiveError},
     migrations::MigrationConfig,
     rpc::Rpc,
     types::*,
@@ -32,7 +31,7 @@ use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
     generic::BlockId,
-    traits::{BlakeTwo256, Block as BlockT},
+    traits::{BlakeTwo256, Block as BlockT, NumberFor},
     RuntimeString,
 };
 use sp_version::RuntimeVersion;
@@ -93,10 +92,7 @@ where
         &self,
     ) -> Result<Arc<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>>, ArchiveError>
     where
-        Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>>
-            + Send
-            + Sync
-            + 'static,
+        Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
         Runtime::RuntimeApi: RuntimeApiCollection<
                 Block,
                 StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block>, Block>,
@@ -104,8 +100,7 @@ where
             + Sync
             + 'static,
         Dispatch: NativeExecutionDispatch + 'static,
-        <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend:
-            sp_api::StateBackend<BlakeTwo256>,
+        <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
     {
         let cpus = num_cpus::get();
         let backend = backend::runtime_api::<Block, Runtime, Dispatch>(
@@ -119,30 +114,22 @@ where
 
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
-    pub fn run_with<T, Runtime, ClientApi>(
+    pub fn run_with<Runtime, ClientApi>(
         &self,
         client_api: Arc<ClientApi>,
-    ) -> Result<ArchiveContext<T>, ArchiveError>
+    ) -> Result<ArchiveContext<Block>, ArchiveError>
     where
-        T: Substrate + Send + Sync,
-        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi> + Send + 'static,
-        Runtime::RuntimeApi: BlockBuilderApi<NotSignedBlock<T>, Error = sp_blockchain::Error>
-            + ApiExt<
-                NotSignedBlock<T>,
-                StateBackend = api_backend::StateBackendFor<
-                    ReadOnlyBackend<NotSignedBlock<T>>,
-                    NotSignedBlock<T>,
-                >,
-            >,
-        ClientApi:
-            ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
-        <T as System>::BlockNumber: Into<u32>,
-        <T as System>::Hash: From<primitive_types::H256>,
-        <T as System>::Header: serde::de::DeserializeOwned,
-        <T as System>::BlockNumber: From<u32>,
+        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
+        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+            + ApiExt<Block, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<Block>, Block>>,
+        ClientApi: ApiAccess<Block, ReadOnlyBackend<Block>, Runtime> + 'static,
+        NumberFor<Block>: Into<u32>,
+        NumberFor<Block>: From<u32>,
+        Block::Hash: From<primitive_types::H256>,
+        Block::Header: serde::de::DeserializeOwned,
     {
         let rt = client_api.runtime_version_at(&BlockId::Number(0.into()))?;
-        self.verify_same_chain::<T>(rt)?;
+        self.verify_same_chain(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
         ArchiveContext::init(
             client_api,
@@ -153,16 +140,11 @@ where
         )
     }
 
-    fn verify_same_chain<T>(&self, rt: RuntimeVersion) -> Result<(), ArchiveError>
-    where
-        T: Substrate + Send + Sync,
-    {
-        let rpc = futures::executor::block_on(Rpc::<T>::connect(self.rpc_url.as_str()))?;
+    fn verify_same_chain(&self, rt: RuntimeVersion) -> ArchiveResult<()> {
+        let rpc = futures::executor::block_on(Rpc::<Block>::connect(self.rpc_url.as_str()))?;
         let node_runtime = futures::executor::block_on(rpc.version(None))?;
         let (rpc_rstr, backend_rstr) = match (node_runtime.spec_name, rt.spec_name) {
-            (RuntimeString::Borrowed(s0), RuntimeString::Borrowed(s1)) => {
-                (s0.to_string(), s1.to_string())
-            }
+            (RuntimeString::Borrowed(s0), RuntimeString::Borrowed(s1)) => (s0.to_string(), s1.to_string()),
             (RuntimeString::Owned(s0), RuntimeString::Owned(s1)) => (s0, s1),
             (RuntimeString::Borrowed(s0), RuntimeString::Owned(s1)) => (s0.to_string(), s1),
             (RuntimeString::Owned(s0), RuntimeString::Borrowed(s1)) => (s0, s1.to_string()),

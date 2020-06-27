@@ -15,25 +15,17 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::error::Error as ArchiveError;
-pub use frame_system::Trait as System;
 use serde::{Deserialize, Serialize};
 use sp_runtime::{
-    generic::{Block as BlockT, SignedBlock},
+    generic::{Block as NotSignedBlock, SignedBlock},
+    traits::Block as BlockT,
     OpaqueExtrinsic,
 };
 use sp_storage::{StorageData, StorageKey};
 use xtra::prelude::*;
 
-/// Consolidation of substrate traits representing fundamental types
-pub trait Substrate: System + Send + Sync + std::fmt::Debug {}
-
-impl<T> Substrate for T where T: System + Send + Sync + std::fmt::Debug {}
-
-/// A generic signed substrate block
-pub type SubstrateBlock<T> = SignedBlock<NotSignedBlock<T>>;
-
-/// Generic, unsigned block type
-pub type NotSignedBlock<T> = BlockT<<T as System>::Header, OpaqueExtrinsic>;
+// /// Generic, unsigned block type
+// pub type AbstractBlock<B: BlockT> = NotSignedBlock<B::Header, OpaqueExtrinsic>;
 
 // pub type Runtime<T, Run, Dis> = crate::backend::Runtime<T, Run, Dis>;
 
@@ -62,67 +54,58 @@ impl Metadata {
 }
 
 #[derive(Debug, Clone)]
-pub struct Block<T: Substrate + Send + Sync> {
-    pub inner: SubstrateBlock<T>,
+pub struct Block<B: BlockT> {
+    pub inner: SignedBlock<B>,
     pub spec: u32,
 }
 
-impl<T: Substrate> Message for Block<T> {
+impl<B: BlockT> Message for Block<B> {
     type Result = Result<(), ArchiveError>;
 }
 
 // TODO: Possibly split block into extrinsics / digest / etc so that it can be sent in seperate parts to decode threads
-impl<T> Block<T>
-where
-    T: Substrate + Send + Sync,
-{
-    pub fn new(block: SubstrateBlock<T>, spec: u32) -> Self {
+impl<B: BlockT> Block<B> {
+    pub fn new(block: SignedBlock<B>, spec: u32) -> Self {
         Self { inner: block, spec }
     }
 }
 
 /// NewType for committing many blocks to the database at once
 #[derive(Debug)]
-pub struct BatchBlock<T>
-where
-    T: Substrate + Send + Sync,
-{
-    inner: Vec<Block<T>>,
+pub struct BatchBlock<B: BlockT> {
+    inner: Vec<Block<B>>,
 }
 
-impl<T: Substrate> Message for BatchBlock<T> {
+impl<B: BlockT> Message for BatchBlock<B> {
     type Result = Result<(), ArchiveError>;
 }
 
-impl<T> BatchBlock<T>
-where
-    T: Substrate + Send + Sync,
-{
-    pub fn new(blocks: Vec<Block<T>>) -> Self {
+impl<B: BlockT> BatchBlock<B> {
+    pub fn new(blocks: Vec<Block<B>>) -> Self {
         Self { inner: blocks }
     }
 
-    pub fn inner(&self) -> &Vec<Block<T>> {
+    pub fn inner(&self) -> &Vec<Block<B>> {
         &self.inner
     }
 }
 
 /// NewType for Storage Data
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct Storage<T: Substrate + Send + Sync> {
-    hash: T::Hash,
+pub struct Storage<Block: BlockT> {
+    hash: Block::Hash,
     block_num: u32,
     full_storage: bool,
     pub changes: Vec<(StorageKey, Option<StorageData>)>,
 }
 
-impl<T: Substrate> Message for Storage<T> {
+impl<Block: BlockT> Message for Storage<Block> {
     type Result = Result<(), ArchiveError>;
 }
 
-impl<T: Substrate + Send + Sync> Storage<T> {
+impl<Block: BlockT> Storage<Block> {
     pub fn new(
-        hash: T::Hash,
+        hash: Block::Hash,
         block_num: u32,
         full_storage: bool,
         changes: Vec<(StorageKey, Option<StorageData>)>,
@@ -143,7 +126,7 @@ impl<T: Substrate + Send + Sync> Storage<T> {
         self.block_num
     }
 
-    pub fn hash(&self) -> &T::Hash {
+    pub fn hash(&self) -> &Block::Hash {
         &self.hash
     }
 

@@ -43,7 +43,7 @@ pub fn runtime_api<Block, Runtime, Dispatch>(
     db: Arc<ReadOnlyDatabase>,
     block_workers: usize,
     wasm_pages: u64,
-) -> Result<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>, ArchiveError>
+) -> Result<TArchiveClient<Block, Runtime, Dispatch>, ArchiveError>
 where
     Block: BlockT,
     Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,

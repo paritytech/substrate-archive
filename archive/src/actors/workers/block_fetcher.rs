@@ -29,23 +29,23 @@ use sp_runtime::{
 use std::sync::Arc;
 use xtra::prelude::*;
 
-struct BlockFetcher<T: Substrate> {
+struct BlockFetcher<Block: BlockT> {
     pool: rayon::ThreadPool,
-    broker: BlockBroker<NotSignedBlock<T>>,
-    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
-    rt_fetch: Arc<dyn GetRuntimeVersion<NotSignedBlock<T>>>,
+    broker: BlockBroker<Block>,
+    backend: Arc<ReadOnlyBackend<Block>>,
+    rt_fetch: Arc<dyn GetRuntimeVersion<Block>>,
     addr: Address<workers::Metadata>,
 }
 
-impl<T: Substrate> BlockFetcher<T> {
+impl<Block: BlockT> BlockFetcher<Block> {
     /// create a new BlockFetcher
     /// Must be ran within the context of a executor
     pub fn new(
         url: &str,
         pool: sqlx::PgPool,
-        backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
-        broker: BlockBroker<NotSignedBlock<T>>,
-        rt_fetch: Arc<dyn GetRuntimeVersion<NotSignedBlock<T>>>,
+        backend: Arc<ReadOnlyBackend<Block>>,
+        broker: BlockBroker<Block>,
+        rt_fetch: Arc<dyn GetRuntimeVersion<Block>>,
         num_threads: Option<usize>,
     ) -> ArchiveResult<Self> {
         let addr = workers::Metadata::new(url.to_string(), pool).spawn();
@@ -63,7 +63,7 @@ impl<T: Substrate> BlockFetcher<T> {
     }
 }
 
-impl<T: Substrate> Actor for BlockFetcher<T> {}
+impl<Block: BlockT> Actor for BlockFetcher<Block> {}
 
 pub struct BlockRange(Vec<u32>);
 impl Message for BlockRange {
@@ -73,7 +73,7 @@ impl Message for BlockRange {
 // should probably make this a real threadpool with `block_worker` num threads
 // the reason we dont split up work here is because we don't want to block the `blocks` actor
 // from inserting the most-recent blocks into the database
-impl<T: Substrate> SyncHandler<BlockRange> for BlockFetcher<T> {
+impl<B: BlockT> SyncHandler<BlockRange> for BlockFetcher<B> {
     fn handle(&mut self, block_nums: BlockRange, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let backend = self.backend.clone();
         let broker = self.broker.clone();
@@ -83,7 +83,7 @@ impl<T: Substrate> SyncHandler<BlockRange> for BlockFetcher<T> {
         // but if we want to keep the number of threads down, it doesn't matter
         self.pool.spawn_fifo(move || {
             for block_num in block_nums.0.into_iter() {
-                let num = NumberFor::<NotSignedBlock<T>>::from(block_num);
+                let num = NumberFor::<B>::from(block_num);
                 let b = backend.block(&BlockId::Number(num));
                 if b.is_none() {
                     log::warn!("Block {} not found!", block_num);
@@ -92,7 +92,7 @@ impl<T: Substrate> SyncHandler<BlockRange> for BlockFetcher<T> {
                     broker.work.send(BlockData::Single(b.block.clone())).unwrap();
                     // TODO: fix unwrap
                     let version = rt_fetch.runtime_version(&BlockId::Hash(b.block.hash())).unwrap();
-                    let block = Block::<T>::new(b, version.spec_version);
+                    let block = Block::<B>::new(b, version.spec_version);
                     addr.do_send(block).expect("Actor disconnected");
                 }
             }
@@ -101,8 +101,8 @@ impl<T: Substrate> SyncHandler<BlockRange> for BlockFetcher<T> {
     }
 }
 
-impl<T: Substrate> SyncHandler<msg::Head<T>> for BlockFetcher<T> {
-    fn handle(&mut self, head: msg::Head<T>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+impl<B: BlockT> SyncHandler<msg::Head<B>> for BlockFetcher<B> {
+    fn handle(&mut self, head: msg::Head<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let head = head.0;
         let backend = self.backend.clone();
         let broker = self.broker.clone();
@@ -119,7 +119,7 @@ impl<T: Substrate> SyncHandler<msg::Head<T>> for BlockFetcher<T> {
             let version = rt_fetch
                 .runtime_version(&BlockId::Hash(block.block.hash()))
                 .unwrap();
-            let block = Block::<T>::new(block, version.spec_version);
+            let block = Block::<B>::new(block, version.spec_version);
             addr.do_send(block).expect("Actor Disconnected");
         });
         Ok(())

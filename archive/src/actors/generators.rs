@@ -15,11 +15,11 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod blocks;
-mod missing_blocks;
+// mod missing_blocks;
 mod missing_storage;
 
 pub use self::blocks::blocks_stream;
-pub use self::missing_blocks::block_loop;
+//pub use self::missing_blocks::block_loop;
 pub use self::missing_storage::MissingStorage;
 
 pub mod msg {

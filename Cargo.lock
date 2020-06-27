@@ -7723,7 +7723,6 @@ dependencies = [
  "directories",
  "fern",
  "flate2",
- "frame-system",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "hash-db",

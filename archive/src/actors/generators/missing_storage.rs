@@ -30,23 +30,24 @@ use crate::{
     error::ArchiveResult,
     queries,
     sql_block_builder::BlockBuilder,
-    types::{NotSignedBlock, Storage, Substrate, System},
+    types::Storage,
 };
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use xtra::prelude::*;
 
-pub struct MissingStorage<T: Substrate> {
-    context: ActorContext<T>,
+pub struct MissingStorage<Block: BlockT> {
+    context: ActorContext<Block>,
     addr: Address<workers::Transform>,
 }
 
-impl<T: Substrate> MissingStorage<T>
+impl<Block> MissingStorage<Block>
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    Block: BlockT,
+    NumberFor<Block>: Into<u32>,
 {
     /// create a new MissingStorage Indexer
     /// Must be run within the context of an executor
-    pub fn new(context: ActorContext<T>) -> Self {
+    pub fn new(context: ActorContext<Block>) -> Self {
         let addr = workers::Transform::default().spawn();
         Self { context, addr }
     }
@@ -97,8 +98,8 @@ where
             .broker
             .results
             .try_iter()
-            .map(|c| Storage::<T>::from(c))
-            .collect::<Vec<Storage<T>>>();
+            .map(|c| Storage::<Block>::from(c))
+            .collect::<Vec<Storage<Block>>>();
 
         if block_changes.len() > 0 {
             let count = block_changes.len();

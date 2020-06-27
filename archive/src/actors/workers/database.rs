@@ -14,21 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::database::{models::*, Database};
+use crate::database::{models::StorageModel, Database};
 use crate::error::ArchiveResult;
 use crate::queries;
 use crate::types::*;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use xtra::prelude::*;
 
 impl Actor for Database {}
 
 #[async_trait::async_trait]
-impl<T> Handler<Block<T>> for Database
+impl<B> Handler<Block<B>> for Database
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blk: Block<T>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+    async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         while !queries::check_if_meta_exists(blk.spec, self.pool()).await? {
             timer::Delay::new(std::time::Duration::from_millis(20)).await;
         }
@@ -37,12 +38,12 @@ where
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<BatchBlock<T>> for Database
+impl<B> Handler<BatchBlock<B>> for Database
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blks: BatchBlock<T>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+    async fn handle(&mut self, blks: BatchBlock<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let mut specs = blks.inner().clone();
         specs.as_mut_slice().sort_by_key(|b| b.spec);
         let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
@@ -67,12 +68,12 @@ impl Handler<Metadata> for Database {
 }
 
 #[async_trait::async_trait]
-impl<T: Substrate> Handler<Storage<T>> for Database {
-    async fn handle(&mut self, storage: Storage<T>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+impl<B: BlockT> Handler<Storage<B>> for Database {
+    async fn handle(&mut self, storage: Storage<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         while !queries::check_if_block_exists(storage.hash().as_ref(), self.pool()).await? {
             timer::Delay::new(std::time::Duration::from_millis(10)).await;
         }
-        self.insert(Vec::<StorageModel<T>>::from(storage))
+        self.insert(Vec::<StorageModel<B>>::from(storage))
             .await
             .map(|_| ())
     }

@@ -24,7 +24,6 @@ use crate::{
     types::*,
 };
 use crossbeam::channel;
-use frame_system::Trait as System;
 use hashbrown::HashSet;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
@@ -270,12 +269,12 @@ pub struct BlockChanges<Block: BlockT> {
     pub block_num: NumberFor<Block>,
 }
 
-impl<T> From<BlockChanges<NotSignedBlock<T>>> for Storage<T>
+impl<Block> From<BlockChanges<Block>> for Storage<Block>
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    Block: BlockT,
+    NumberFor<Block>: Into<u32>,
 {
-    fn from(changes: BlockChanges<NotSignedBlock<T>>) -> Storage<T> {
+    fn from(changes: BlockChanges<Block>) -> Storage<Block> {
         let hash = changes.block_hash;
         let num: u32 = changes.block_num.into();
 

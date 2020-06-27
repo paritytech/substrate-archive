@@ -22,23 +22,21 @@ use jsonrpsee::{
     Client,
 };
 use sp_core::Bytes;
+use sp_runtime::traits::{Block as BlockT, HashFor};
 use sp_version::RuntimeVersion;
 use std::marker::PhantomData;
 
-use crate::{error::Error as ArchiveError, types::Substrate};
+use crate::error::Error as ArchiveError;
 
 /// Communicate with Substrate node via RPC
 #[derive(Clone)]
-pub struct Rpc<T: Substrate + Send + Sync> {
+pub struct Rpc<Block: BlockT> {
     client: Client,
-    _marker: PhantomData<T>,
+    _marker: PhantomData<Block>,
 }
 // version/metadata subscribe blocks
 /// Methods that return fetched value directly
-impl<T> Rpc<T>
-where
-    T: Substrate + Send + Sync,
-{
+impl<Block: BlockT> Rpc<Block> {
     pub(crate) async fn connect(url: &str) -> Result<Self, ArchiveError> {
         let client = jsonrpsee::ws_client(&url).await?;
         Ok(Rpc {
@@ -49,13 +47,10 @@ where
 
     pub(crate) async fn version(
         &self,
-        hash: Option<&T::Hash>,
+        hash: Option<&HashFor<Block>>,
     ) -> Result<RuntimeVersion, ArchiveError> {
         let params = Params::Array(vec![to_json_value(hash)?]);
-        let version = self
-            .client
-            .request("state_getRuntimeVersion", params)
-            .await?;
+        let version = self.client.request("state_getRuntimeVersion", params).await?;
         Ok(version)
     }
 
@@ -69,7 +64,7 @@ where
         Ok(version)
     }
 
-    pub(crate) async fn metadata(&self, hash: Option<T::Hash>) -> Result<Vec<u8>, ArchiveError> {
+    pub(crate) async fn metadata(&self, hash: Option<Block::Hash>) -> Result<Vec<u8>, ArchiveError> {
         let params = Params::Array(vec![to_json_value(hash)?]);
         let bytes: Bytes = self.client.request("state_getMetadata", params).await?;
         Ok(bytes.0)
@@ -77,7 +72,7 @@ where
 
     pub(crate) async fn subscribe_finalized_heads(
         &self,
-    ) -> Result<Subscription<T::Header>, ArchiveError> {
+    ) -> Result<Subscription<Block::Header>, ArchiveError> {
         let subscription = self
             .client
             .subscribe(

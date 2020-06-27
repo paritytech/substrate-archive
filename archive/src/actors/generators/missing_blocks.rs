@@ -19,22 +19,17 @@
 //! Gathers Missing blocks -> passes to metadata -> passes to extractors -> passes to decode -> passes to insert
 
 use crate::actors::{workers, ActorContext};
-use crate::{
-    backend::BlockData,
-    error::Error as ArchiveError,
-    queries,
-    types::{Substrate, System},
-};
-use sp_runtime::generic::BlockId;
+use crate::{backend::BlockData, error::Error as ArchiveError, queries};
+use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use xtra::prelude::*;
 
 struct MissingBlocks;
 
 impl Actor for MissingBlocks {}
 
-pub fn block_loop<T>(context: ActorContext<T>, handle: tokio::runtime::Handle) -> std::thread::JoinHandle<()>
+pub fn block_loop<B>(context: ActorContext<B>, handle: tokio::runtime::Handle) -> std::thread::JoinHandle<()>
 where
-    T: Substrate + Send + Sync,
+    B: BlockT,
 {
     std::thread::spawn(move || loop {
         let addr =
@@ -49,9 +44,9 @@ where
     })
 }
 
-fn generator<T>(context: ActorContext<T>, addr: Address<workers::Metadata>) -> Result<(), ArchiveError>
+fn generator<B>(context: ActorContext<B>, addr: Address<workers::Metadata>) -> Result<(), ArchiveError>
 where
-    T: Substrate + Send + Sync,
+    B: BlockT,
 {
     let block_nums = futures::executor::block_on(queries::missing_blocks(&context.pool()))?;
     log::info!("missing {} blocks", block_nums.len());

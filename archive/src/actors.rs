@@ -23,28 +23,28 @@ mod workers;
 use super::{
     backend::{ApiAccess, BlockBroker, ReadOnlyBackend, ThreadedBlockExecutor},
     error::Error as ArchiveError,
-    types::{NotSignedBlock, Substrate, System},
 };
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sqlx::postgres::PgPool;
 use std::sync::Arc;
 use xtra::prelude::*;
 
 /// Context that every actor may use
 #[derive(Clone)]
-pub struct ActorContext<T: Substrate + Send + Sync> {
-    backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
-    broker: BlockBroker<NotSignedBlock<T>>,
+pub struct ActorContext<Block: BlockT> {
+    backend: Arc<ReadOnlyBackend<Block>>,
+    broker: BlockBroker<Block>,
     rpc_url: String,
     pool: sqlx::PgPool,
 }
 
-impl<T: Substrate + Send + Sync> ActorContext<T> {
+impl<Block: BlockT> ActorContext<Block> {
     pub fn new(
-        backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
-        broker: BlockBroker<NotSignedBlock<T>>,
+        backend: Arc<ReadOnlyBackend<Block>>,
+        broker: BlockBroker<Block>,
         rpc_url: String,
         pool: sqlx::PgPool,
     ) -> Self {
@@ -56,7 +56,7 @@ impl<T: Substrate + Send + Sync> ActorContext<T> {
         }
     }
 
-    pub fn backend(&self) -> &Arc<ReadOnlyBackend<NotSignedBlock<T>>> {
+    pub fn backend(&self) -> &Arc<ReadOnlyBackend<Block>> {
         &self.backend
     }
 
@@ -67,7 +67,7 @@ impl<T: Substrate + Send + Sync> ActorContext<T> {
     pub fn pool(&self) -> sqlx::PgPool {
         self.pool.clone()
     }
-    pub fn broker(&self) -> &BlockBroker<NotSignedBlock<T>> {
+    pub fn broker(&self) -> &BlockBroker<Block> {
         &self.broker
     }
 }
@@ -88,18 +88,19 @@ impl<T: Substrate + Send + Sync> ActorContext<T> {
 ///
 ///
 /// ```
-pub struct ArchiveContext<T: Substrate + Send + Sync> {
-    actor_context: ActorContext<T>,
+pub struct ArchiveContext<Block: BlockT> {
+    actor_context: ActorContext<Block>,
     rt: tokio::runtime::Runtime,
-    missing_blocks: std::thread::JoinHandle<()>,
+    // missing_blocks: std::thread::JoinHandle<()>,
 }
 
-impl<T: Substrate + Send + Sync> ArchiveContext<T>
+impl<Block> ArchiveContext<Block>
 where
-    <T as System>::BlockNumber: Into<u32>,
-    <T as System>::Hash: From<primitive_types::H256>,
-    <T as System>::Header: serde::de::DeserializeOwned,
-    <T as System>::BlockNumber: From<u32>,
+    Block: BlockT,
+    NumberFor<Block>: Into<u32>,
+    NumberFor<Block>: From<u32>,
+    Block::Hash: From<primitive_types::H256>,
+    Block::Header: serde::de::DeserializeOwned,
 {
     // TODO: Return a reference to the Db pool.
     // just expose a 'shutdown' fn that must be called in order to avoid missing data.
@@ -112,22 +113,16 @@ where
     /// environment variable `DATABASE_URL` instead.
     pub fn init<Runtime, ClientApi>(
         client_api: Arc<ClientApi>,
-        backend: Arc<ReadOnlyBackend<NotSignedBlock<T>>>,
+        backend: Arc<ReadOnlyBackend<Block>>,
         block_workers: Option<usize>,
         url: String,
         psql_url: &str,
     ) -> Result<Self, ArchiveError>
     where
-        Runtime: ConstructRuntimeApi<NotSignedBlock<T>, ClientApi> + Send + 'static,
-        Runtime::RuntimeApi: BlockBuilderApi<NotSignedBlock<T>, Error = sp_blockchain::Error>
-            + ApiExt<
-                NotSignedBlock<T>,
-                StateBackend = backend::StateBackendFor<
-                    ReadOnlyBackend<NotSignedBlock<T>>,
-                    NotSignedBlock<T>,
-                >,
-            >,
-        ClientApi: ApiAccess<NotSignedBlock<T>, ReadOnlyBackend<NotSignedBlock<T>>, Runtime> + 'static,
+        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
+        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+            + ApiExt<Block, StateBackend = backend::StateBackendFor<ReadOnlyBackend<Block>, Block>>,
+        ClientApi: ApiAccess<Block, ReadOnlyBackend<Block>, Runtime> + 'static,
     {
         let broker = ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
         let pool = futures::executor::block_on(PgPool::builder().max_size(8).build(psql_url))?;
@@ -141,12 +136,12 @@ where
             let storage = generators::MissingStorage::new(context0);
             tokio::spawn(storage.storage_loop());
         });
-        let join = generators::block_loop(context.clone(), rt.handle().clone());
+        // let join = generators::block_loop(context.clone(), rt.handle().clone());
 
         Ok(Self {
             rt,
             actor_context: context,
-            missing_blocks: join,
+            // missing_blocks: join,
         })
     }
 
@@ -161,7 +156,7 @@ where
     /// This makes sure any data we have is saved for the next time substrate-archive is run.
     pub fn shutdown(self) -> Result<(), ArchiveError> {
         log::info!("Shutting down");
-        self.missing_blocks.join().expect("Could not join");
+        // self.missing_blocks.join().expect("Could not join");
         self.rt.shutdown_timeout(std::time::Duration::from_secs(5));
         self.actor_context.broker.stop()?;
         log::info!("Shut down succesfully");
@@ -171,7 +166,7 @@ where
 
 /// connect to the substrate RPC
 /// each actor may potentially have their own RPC connections
-async fn connect<T: Substrate + Send + Sync>(url: &str) -> crate::rpc::Rpc<T> {
+async fn connect<Block: BlockT>(url: &str) -> crate::rpc::Rpc<Block> {
     crate::rpc::Rpc::connect(url)
         .await
         .expect("Couldn't connect to rpc")

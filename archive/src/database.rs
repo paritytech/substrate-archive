@@ -23,7 +23,7 @@ mod prepare_sql;
 use async_trait::async_trait;
 use codec::Encode;
 use futures::future;
-use sp_runtime::traits::Header as _;
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::{PgConnection, Postgres};
 
 use self::{
@@ -74,37 +74,37 @@ impl Database {
 }
 
 #[async_trait]
-impl<T> Insert for Block<T>
+impl<B> Insert for Block<B>
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
 {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
         log::trace!(
             "block_num = {:?}, hash = {:X?}",
-            self.inner.block.header.number(),
-            hex::encode(self.inner.block.header.hash().as_ref())
+            self.inner.block.header().number(),
+            hex::encode(self.inner.block.header().hash().as_ref())
         );
         self.single_insert()?.execute(&db).await.map_err(Into::into)
     }
 }
 
-impl<'a, T> BindAll<'a> for Block<T>
+impl<'a, B> BindAll<'a> for Block<B>
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
 {
     fn bind_all_arguments(
         &self,
         query: sqlx::Query<'a, Postgres>,
     ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        let parent_hash = self.inner.block.header.parent_hash().as_ref();
-        let hash = self.inner.block.header.hash();
-        let block_num: u32 = (*self.inner.block.header.number()).into();
-        let state_root = self.inner.block.header.state_root().as_ref();
-        let extrinsics_root = self.inner.block.header.extrinsics_root().as_ref();
-        let digest = self.inner.block.header.digest().encode();
-        let extrinsics = self.inner.block.extrinsics.encode();
+        let parent_hash = self.inner.block.header().parent_hash().as_ref();
+        let hash = self.inner.block.header().hash();
+        let block_num: u32 = (*self.inner.block.header().number()).into();
+        let state_root = self.inner.block.header().state_root().as_ref();
+        let extrinsics_root = self.inner.block.header().extrinsics_root().as_ref();
+        let digest = self.inner.block.header().digest().encode();
+        let extrinsics = self.inner.block.extrinsics().encode();
 
         Ok(query
             .bind(parent_hash)
@@ -119,20 +119,14 @@ where
 }
 
 #[async_trait]
-impl<T> Insert for StorageModel<T>
-where
-    T: Substrate + Send + Sync,
-{
+impl<B: BlockT> Insert for StorageModel<B> {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
         self.single_insert()?.execute(&db).await.map_err(Into::into)
     }
 }
 
 #[async_trait]
-impl<T> Insert for Vec<StorageModel<T>>
-where
-    T: Substrate + Send + Sync,
-{
+impl<B: BlockT> Insert for Vec<StorageModel<B>> {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
         let mut sizes = Vec::new();
         let chunks = self.chunks(12_000);
@@ -162,10 +156,7 @@ where
     }
 }
 
-impl<'a, T> BindAll<'a> for StorageModel<T>
-where
-    T: Substrate + Send + Sync,
-{
+impl<'a, B: BlockT> BindAll<'a> for StorageModel<B> {
     fn bind_all_arguments(
         &self,
         query: sqlx::Query<'a, Postgres>,
@@ -196,10 +187,10 @@ impl<'a> BindAll<'a> for Metadata {
 }
 
 #[async_trait]
-impl<T> Insert for BatchBlock<T>
+impl<B> Insert for BatchBlock<B>
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
 {
     async fn insert(mut self, db: DbConnection) -> DbReturn {
         log::trace!("Batch inserting {} blocks into DB", self.inner().len());
