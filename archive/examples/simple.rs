@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A simple example
-use polkadot_service::{kusama_runtime as ksm_runtime, Block};
+use polkadot_service::{kusama_runtime::RuntimeApi as RApi, Block, KusamaExecutor as KExec};
 use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
 
 pub fn main() {
@@ -38,10 +38,10 @@ pub fn main() {
 
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-    let archive = Archive::<Block>::new(conf, Box::new(spec)).unwrap();
-    let context = archive
-        .run::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
-        .unwrap();
+
+    let archive = Archive::<Block, RApi, KExec>::new(conf, Box::new(spec)).unwrap();
+
+    let context = archive.run().unwrap();
 
     // run indefinitely
     context.block_until_stopped().unwrap();

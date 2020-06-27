@@ -21,7 +21,7 @@ mod generators;
 mod workers;
 
 use super::{
-    backend::{ApiAccess, BlockBroker, ReadOnlyBackend, ThreadedBlockExecutor},
+    backend::{ApiAccess, BlockBroker, GetRuntimeVersion, ReadOnlyBackend, ThreadedBlockExecutor},
     error::Error as ArchiveError,
 };
 use sc_client_api::backend;
@@ -125,7 +125,7 @@ where
             + Send
             + Sync
             + 'static,
-        ClientApi: ApiAccess<Block, ReadOnlyBackend<Block>, Runtime> + 'static,
+        ClientApi: ApiAccess<Block, ReadOnlyBackend<Block>, Runtime> + GetRuntimeVersion<Block> + 'static,
     {
         let broker = ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
         let pool = futures::executor::block_on(PgPool::builder().max_size(8).build(psql_url))?;

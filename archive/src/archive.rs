@@ -16,13 +16,10 @@
 
 use crate::{
     actors::ArchiveContext,
-    backend::{
-        self, frontend::TArchiveClient, ApiAccess, ReadOnlyBackend, ReadOnlyDatabase, RuntimeApiCollection,
-    },
+    backend::{self, frontend::TArchiveClient, ApiAccess, ReadOnlyBackend, ReadOnlyDatabase},
     error::{ArchiveResult, Error as ArchiveError},
     migrations::MigrationConfig,
     rpc::Rpc,
-    types::*,
 };
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
@@ -134,6 +131,8 @@ where
         )
     }
 
+    /// Internal function to verify the running chain and the Runtime that was passed to us
+    /// are the same
     fn verify_same_chain(&self, rt: RuntimeVersion) -> ArchiveResult<()> {
         let rpc = futures::executor::block_on(Rpc::<B>::connect(self.rpc_url.as_str()))?;
         let node_runtime = futures::executor::block_on(rpc.version(None))?;
