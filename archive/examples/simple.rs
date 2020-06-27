@@ -26,6 +26,7 @@ pub fn main() {
         rpc_url: "ws://127.0.0.1:9944".into(),
         cache_size: 1024,
         block_workers: None,
+        wasm_pages: None,
         psql_conf: MigrationConfig {
             host: None,
             port: None,
@@ -37,12 +38,9 @@ pub fn main() {
 
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-    let archive = Archive::new(conf, Box::new(spec)).unwrap();
-    let client_api = archive
-        .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
-        .unwrap();
+    let archive = Archive::<Block>::new(conf, Box::new(spec)).unwrap();
     let context = archive
-        .run_with::<ksm_runtime::Runtime, ksm_runtime::RuntimeApi, _>(client_api)
+        .run::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
         .unwrap();
 
     // run indefinitely

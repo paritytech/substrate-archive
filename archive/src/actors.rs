@@ -119,9 +119,12 @@ where
         psql_url: &str,
     ) -> Result<Self, ArchiveError>
     where
-        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
+        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + Sync + 'static,
         Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-            + ApiExt<Block, StateBackend = backend::StateBackendFor<ReadOnlyBackend<Block>, Block>>,
+            + ApiExt<Block, StateBackend = backend::StateBackendFor<ReadOnlyBackend<Block>, Block>>
+            + Send
+            + Sync
+            + 'static,
         ClientApi: ApiAccess<Block, ReadOnlyBackend<Block>, Runtime> + 'static,
     {
         let broker = ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
