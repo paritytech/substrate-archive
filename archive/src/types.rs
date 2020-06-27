@@ -105,10 +105,6 @@ where
     pub fn inner(&self) -> &Vec<Block<T>> {
         &self.inner
     }
-
-    pub fn consume(self) -> Vec<Block<T>> {
-        self.inner
-    }
 }
 
 /// NewType for Storage Data

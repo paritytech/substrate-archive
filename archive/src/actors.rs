@@ -137,7 +137,7 @@ where
         let context0 = context.clone();
         rt.enter(move || {
             // need to loop through subscription
-            generators::BlocksActor::new(context0.clone()).spawn();
+            tokio::spawn(generators::blocks_stream(context0.clone()));
             let storage = generators::MissingStorage::new(context0);
             tokio::spawn(storage.storage_loop());
         });
@@ -150,7 +150,7 @@ where
         })
     }
 
-    #[deprecated]
+    #[deprecated(since = "0.4.1", note = "use the shutdown method instead")]
     pub fn block_until_stopped(self) -> Result<(), ArchiveError> {
         loop {
             std::thread::sleep(std::time::Duration::from_secs(1));

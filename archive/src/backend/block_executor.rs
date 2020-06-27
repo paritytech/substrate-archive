@@ -113,7 +113,7 @@ where
 
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads.unwrap_or(0))
-            .thread_name(|i| format!("block-executor-{}", i))
+            .thread_name(|i| format!("blk-exec-{}", i))
             .build()?;
 
         let (tx, handle) = Self::scheduler_loop::<Runtime, ClientApi>(

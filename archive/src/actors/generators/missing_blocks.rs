@@ -18,18 +18,19 @@
 //! IE: Missing Blocks/Storage/Inherents/Transactions
 //! Gathers Missing blocks -> passes to metadata -> passes to extractors -> passes to decode -> passes to insert
 
-use crate::actors::{
-    workers::{self, msg::BlocksMsg},
-    ActorContext,
-};
+use crate::actors::{workers, ActorContext};
 use crate::{
     backend::BlockData,
     error::Error as ArchiveError,
     queries,
-    types::{NotSignedBlock, Substrate, SubstrateBlock, System},
+    types::{Substrate, System},
 };
 use sp_runtime::generic::BlockId;
 use xtra::prelude::*;
+
+struct MissingBlocks;
+
+impl Actor for MissingBlocks {}
 
 pub fn block_loop<T>(context: ActorContext<T>, handle: tokio::runtime::Handle) -> std::thread::JoinHandle<()>
 where
@@ -85,8 +86,8 @@ where
         elapsed.as_secs(),
         blocks.len()
     );
-    let res = addr.send(BlocksMsg::<T>::from(blocks));
-    let answer = futures::executor::block_on(res);
-    log::debug!("{:?}", answer);
+    // let res = addr.send(BlocksMsg::<T>::from(blocks));
+    // let answer = futures::executor::block_on(res);
+    // log::debug!("{:?}", answer);
     Ok(())
 }

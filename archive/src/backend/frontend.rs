@@ -16,7 +16,7 @@
 
 mod client;
 mod executor;
-pub use self::client::Client;
+pub use self::client::{Client, GetRuntimeVersion};
 use sc_client_api::{
     execution_extensions::{ExecutionExtensions, ExecutionStrategies},
     ExecutionStrategy,
@@ -33,8 +33,7 @@ use std::sync::Arc;
 use super::{ApiAccess, ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
-pub type TArchiveClient<TBl, TRtApi, TExecDisp> =
-    Client<TFullCallExecutor<TBl, TExecDisp>, TBl, TRtApi>;
+pub type TArchiveClient<TBl, TRtApi, TExecDisp> = Client<TFullCallExecutor<TBl, TExecDisp>, TBl, TRtApi>;
 
 /// Full client call executor type.
 type TFullCallExecutor<TBl, TExecDisp> =
@@ -47,10 +46,7 @@ pub fn runtime_api<Block, Runtime, Dispatch>(
 ) -> Result<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>, ArchiveError>
 where
     Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>>
-        + Send
-        + Sync
-        + 'static,
+    Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
     Runtime::RuntimeApi: RuntimeApiCollection<
             Block,
             StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block>, Block>,

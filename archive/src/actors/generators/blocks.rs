@@ -17,13 +17,15 @@
 //! Block actor
 //! Gets new finalized blocks from substrate RPC
 
-use crate::actors::{
-    workers::{self, msg::BlockMsg},
-    ActorContext,
+use crate::actors::{workers, ActorContext};
+use crate::{
+    backend::BlockData,
+    error::ArchiveResult,
+    types::{Substrate, System},
 };
-use crate::{backend::BlockData, error::Error as ArchiveError, types::Substrate};
 use async_trait::async_trait;
-// use jsonrpsee::client::Subscription;
+use jsonrpsee::client::Subscription;
+use serde::de::DeserializeOwned;
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Header as _;
 use xtra::prelude::*;
@@ -44,13 +46,13 @@ impl<T: Substrate> BlocksActor<T> {
     }
 }
 
-struct Head<T: Substrate + Send + Sync>(T::Header);
+pub struct Head<T: Substrate + Send + Sync>(pub T::Header);
 
 impl<T> Message for Head<T>
 where
     T: Substrate + Send + Sync,
 {
-    type Result = Result<(), ArchiveError>;
+    type Result = ArchiveResult<()>;
 }
 
 #[async_trait]
@@ -58,7 +60,7 @@ impl<T> Handler<Head<T>> for BlocksActor<T>
 where
     T: Substrate + Send + Sync,
 {
-    async fn handle(&mut self, head: Head<T>, _ctx: &mut Context<Self>) -> Result<(), ArchiveError> {
+    async fn handle(&mut self, head: Head<T>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let block = self.context.backend().block(&BlockId::Number(*head.0.number()));
         if let Some(b) = block {
             log::trace!("{:?}", b);
@@ -66,10 +68,25 @@ where
                 .broker
                 .work
                 .send(BlockData::Single(b.block.clone()))?;
-            self.metadata.send(BlockMsg::<T>::from(b));
+        // self.metadata.send(BlockMsg::<T>::from(b));
         } else {
             log::warn!("Block does not exist");
         }
         Ok(())
+    }
+}
+
+// TODO: can be spawned in 'actor started' method
+pub async fn blocks_stream<T>(context: ActorContext<T>) -> ArchiveResult<()>
+where
+    T: Substrate,
+    <T as System>::Header: DeserializeOwned,
+{
+    let addr = BlocksActor::new(context.clone()).spawn();
+    let rpc = crate::rpc::Rpc::<T>::connect(context.rpc_url()).await?;
+    let mut subscription = rpc.subscribe_finalized_heads().await?;
+    loop {
+        let head = subscription.next().await;
+        addr.send(Head::<T>(head));
     }
 }

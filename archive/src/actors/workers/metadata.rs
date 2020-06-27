@@ -18,8 +18,9 @@ use crate::{
     error::Error as ArchiveError,
     queries,
     rpc::Rpc,
-    types::{Block, Metadata as MetadataT, NotSignedBlock, Substrate, SubstrateBlock},
+    types::{BatchBlock, Block, Metadata as MetadataT, Substrate},
 };
+use itertools::Itertools;
 use sp_runtime::traits::{Block as _, Header as _};
 use xtra::prelude::*;
 
@@ -38,124 +39,42 @@ impl Metadata {
 
 impl Actor for Metadata {}
 
-#[derive(Debug)]
-pub struct BlockMsg<T: Substrate>(SubstrateBlock<T>);
-
-impl<T: Substrate> From<SubstrateBlock<T>> for BlockMsg<T> {
-    fn from(block: SubstrateBlock<T>) -> BlockMsg<T> {
-        BlockMsg(block)
-    }
-}
-
-#[derive(Debug)]
-pub struct BlocksMsg<T: Substrate>(Vec<SubstrateBlock<T>>);
-
-impl<T: Substrate> From<Vec<SubstrateBlock<T>>> for BlocksMsg<T> {
-    fn from(blocks: Vec<SubstrateBlock<T>>) -> BlocksMsg<T> {
-        BlocksMsg(blocks)
-    }
-}
-
-impl<T: Substrate> Message for BlockMsg<T> {
-    type Result = Result<(), ArchiveError>;
-}
-
-impl<T: Substrate> Message for BlocksMsg<T> {
-    type Result = Result<(), ArchiveError>;
-}
-
 #[async_trait::async_trait]
-impl<T> Handler<BlockMsg<T>> for Metadata
+impl<T> Handler<Block<T>> for Metadata
 where
     T: Substrate,
 {
-    async fn handle(&mut self, blk: BlockMsg<T>, _ctx: &mut Context<Self>) -> Result<(), ArchiveError> {
+    async fn handle(&mut self, blk: Block<T>, _ctx: &mut Context<Self>) -> Result<(), ArchiveError> {
         let rpc = super::connect::<T>(self.url.as_str()).await;
-        meta_process_block::<T>(blk.0, rpc, &self.pool).await?;
+        let hash = blk.inner.block.header().hash();
+        meta_checker(blk.spec, Some(hash), &rpc, &self.pool).await?;
+        // let v = sched.ask_next("transform", block)?.await;
+        // log::debug!("{:?}", v);
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl<T> Handler<BlocksMsg<T>> for Metadata
+impl<T> Handler<BatchBlock<T>> for Metadata
 where
     T: Substrate,
 {
-    async fn handle(&mut self, blk: BlocksMsg<T>, _ctx: &mut Context<Self>) -> Result<(), ArchiveError> {
+    async fn handle(&mut self, blks: BatchBlock<T>, _ctx: &mut Context<Self>) -> Result<(), ArchiveError> {
         let rpc = super::connect::<T>(self.url.as_str()).await;
-        meta_process_blocks::<T>(blk.0, rpc, &self.pool).await?;
-        Ok(())
-    }
-}
 
-async fn meta_process_block<T>(
-    block: SubstrateBlock<T>,
-    rpc: Rpc<T>,
-    pool: &sqlx::PgPool,
-    // sched: &mut Scheduler<'_>,
-) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-{
-    let hash = block.block.header().hash();
-    let ver = rpc.version(Some(hash).as_ref()).await?;
-    meta_checker(ver.spec_version, Some(hash), &rpc, pool).await?;
-    let block = Block::<T>::new(block, ver.spec_version);
-    // let v = sched.ask_next("transform", block)?.await;
-    // log::debug!("{:?}", v);
-    Ok(())
-}
+        let versions = blks
+            .inner()
+            .iter()
+            .unique_by(|b| b.spec)
+            .collect::<Vec<&Block<T>>>();
 
-async fn meta_process_blocks<T>(
-    blocks: Vec<SubstrateBlock<T>>,
-    rpc: Rpc<T>,
-    pool: &sqlx::PgPool,
-) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-{
-    log::info!("Got {} blocks", blocks.len());
-    let mut batch_items = Vec::new();
-
-    let now = std::time::Instant::now();
-    let first = rpc.version(Some(&blocks[0].block.header().hash())).await?;
-    let elapsed = now.elapsed();
-    log::debug!(
-        "Rpc request for version took {} milli-seconds",
-        elapsed.as_millis()
-    );
-    let last = rpc
-        .version(Some(blocks[blocks.len() - 1].block.header().hash()).as_ref())
-        .await?;
-    log::info!(
-        "First Version: {}, Last Version: {}",
-        first.spec_version,
-        last.spec_version
-    );
-    // if first and last versions of metadata are the same, we only need to do one check
-    if first == last {
-        meta_checker(
-            first.spec_version,
-            Some(blocks[0].block.header().hash()),
-            &rpc,
-            pool,
-        )
-        .await?;
-        blocks
-            .into_iter()
-            .for_each(|b| batch_items.push(Block::<T>::new(b, first.spec_version)));
-    } else {
-        for b in blocks.into_iter() {
-            let hash = b.block.header().hash();
-            let ver = rpc.version(Some(hash).as_ref()).await?;
-            meta_checker(ver.spec_version, Some(hash), &rpc, pool).await?;
-            batch_items.push(Block::<T>::new(b, ver.spec_version))
+        for b in versions.iter() {
+            meta_checker(b.spec, Some(b.inner.block.hash()), &rpc, &self.pool).await?;
         }
+        // let v = sched.ask_next("transform", batch_items)?.await;
+        // log::debug!("{:?}", v);
+        Ok(())
     }
-
-    // let v = sched.ask_next("transform", batch_items)?.await;
-    // log::debug!("{:?}", v);
-    Ok(())
 }
 
 // checks if the metadata exists in the database
@@ -167,7 +86,7 @@ async fn meta_checker<T>(
     pool: &sqlx::PgPool,
 ) -> Result<(), ArchiveError>
 where
-    T: Substrate + Send + Sync,
+    T: Substrate,
 {
     if !queries::check_if_meta_exists(ver, pool).await? {
         let meta = rpc.metadata(hash).await?;

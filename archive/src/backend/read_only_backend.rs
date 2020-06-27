@@ -40,14 +40,11 @@ use sp_runtime::{
     generic::{BlockId, SignedBlock},
     traits::{Block as BlockT, HashFor, Header},
 };
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 
 pub struct ReadOnlyBackend<Block: BlockT> {
     db: Arc<ReadOnlyDatabase>,
     storage: Arc<StateVault<Block>>,
-    // FIXME: I don't think we need this here
-    // because it's specified in StateVault
-    _marker: PhantomData<Block>,
 }
 
 impl<Block> ReadOnlyBackend<Block>
@@ -56,11 +53,7 @@ where
 {
     pub fn new(db: Arc<ReadOnlyDatabase>, prefix_keys: bool) -> Self {
         let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
-        Self {
-            db,
-            storage: vault,
-            _marker: PhantomData,
-        }
+        Self { db, storage: vault }
     }
 
     fn state_at(&self, hash: Block::Hash) -> Option<TrieState<Block>> {
@@ -184,8 +177,7 @@ mod tests {
         let key2 = "c2261276cc9d1f8598ea4b6a74b15c2f6482b9ade7bc6657aaca787ba1add3b4fe8ec31f36f7c3c4a4372f738bb7809d3aa5f533f46b3637458a630746b304a8";
         let key2 = hex::decode(key2).unwrap();
 
-        let hash = hex::decode("ae327b35880aa9d028370f063e4c4d666f6bad89800dd979ca8b9dbf064393d0")
-            .unwrap();
+        let hash = hex::decode("ae327b35880aa9d028370f063e4c4d666f6bad89800dd979ca8b9dbf064393d0").unwrap();
         let hash = H256::from_slice(hash.as_slice());
 
         harness(DB, |db| {
@@ -209,8 +201,7 @@ mod tests {
 
     #[test]
     fn should_get_keys() {
-        let hash = hex::decode("ae327b35880aa9d028370f063e4c4d666f6bad89800dd979ca8b9dbf064393d0")
-            .unwrap();
+        let hash = hex::decode("ae327b35880aa9d028370f063e4c4d666f6bad89800dd979ca8b9dbf064393d0").unwrap();
         let hash = H256::from_slice(hash.as_slice());
         let key = balances_freebalance_key();
 

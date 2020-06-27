@@ -27,13 +27,9 @@ use crate::{
     Error as ArchiveError,
 };
 use codec::{Decode, Encode};
-use sc_client_api::{
-    backend::Backend as _, execution_extensions::ExecutionExtensions, CallExecutor,
-};
+use sc_client_api::{backend::Backend as _, execution_extensions::ExecutionExtensions, CallExecutor};
 use sc_executor::RuntimeVersion;
-use sp_api::{
-    ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi,
-};
+use sp_api::{ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend as _;
 use sp_core::NativeOrEncoded;
 use sp_runtime::{
@@ -41,6 +37,12 @@ use sp_runtime::{
     traits::{Block as BlockT, Header as HeaderT, One},
 };
 use std::{marker::PhantomData, panic::UnwindSafe, sync::Arc};
+
+// FIXME: should use the trait sp_version::GetRuntimeVersion
+// but that returns a String for an error
+pub trait GetRuntimeVersion<Block: BlockT>: Send + Sync {
+    fn runtime_version(&self, at: &BlockId<Block>) -> ArchiveResult<sp_version::RuntimeVersion>;
+}
 
 /// Archive Client
 pub struct Client<Exec, Block: BlockT, RA> {
@@ -73,26 +75,29 @@ where
     }
 
     pub fn runtime_version_at(&self, id: &BlockId<Block>) -> ArchiveResult<RuntimeVersion> {
-        self.executor
-            .runtime_version(id)
-            .map_err(ArchiveError::from)
+        self.executor.runtime_version(id).map_err(ArchiveError::from)
     }
 
-    fn prepare_environment_block(
-        &self,
-        parent: &BlockId<Block>,
-    ) -> sp_blockchain::Result<Block::Header> {
+    fn prepare_environment_block(&self, parent: &BlockId<Block>) -> sp_blockchain::Result<Block::Header> {
         let parent_header = self.backend.blockchain().expect_header(*parent)?;
         Ok(<<Block as BlockT>::Header as HeaderT>::new(
-            self.backend
-                .blockchain()
-                .expect_block_number_from_id(parent)?
-                + One::one(),
+            self.backend.blockchain().expect_block_number_from_id(parent)? + One::one(),
             Default::default(),
             Default::default(),
             parent_header.hash(),
             Default::default(),
         ))
+    }
+}
+
+impl<Exec, Block, RA> GetRuntimeVersion<Block> for Client<Exec, Block, RA>
+where
+    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block>> + Send + Sync,
+    Block: BlockT,
+    RA: Send + Sync,
+{
+    fn runtime_version(&self, at: &BlockId<Block>) -> ArchiveResult<sp_version::RuntimeVersion> {
+        self.runtime_version_at(at)
     }
 }
 

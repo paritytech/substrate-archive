@@ -18,6 +18,10 @@ mod blocks;
 mod missing_blocks;
 mod missing_storage;
 
-pub use self::blocks::BlocksActor;
+pub use self::blocks::blocks_stream;
 pub use self::missing_blocks::block_loop;
 pub use self::missing_storage::MissingStorage;
+
+pub mod msg {
+    pub use super::blocks::Head;
+}

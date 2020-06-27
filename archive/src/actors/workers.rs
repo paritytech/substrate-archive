@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+mod block_fetcher;
 mod database;
 mod metadata;
 mod transformers;
@@ -26,6 +27,5 @@ use super::connect;
 
 /// any messages defined in the workers
 pub mod msg {
-    pub use super::metadata::{BlockMsg, BlocksMsg};
     pub use super::transformers::{StorageWrap, VecStorageWrap};
 }
