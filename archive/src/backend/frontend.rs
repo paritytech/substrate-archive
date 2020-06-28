@@ -63,7 +63,7 @@ where
     let executor = NativeExecutor::<Dispatch>::new(
         WasmExecutionMethod::Interpreted,
         Some(wasm_pages),
-        block_workers as usize,
+        (block_workers as usize) + 3,
     );
 
     let executor = ArchiveExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()));

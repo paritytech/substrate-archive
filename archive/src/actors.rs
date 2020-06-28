@@ -24,6 +24,7 @@ use super::{
     backend::{ApiAccess, BlockBroker, GetRuntimeVersion, ReadOnlyBackend, ThreadedBlockExecutor},
     error::{ArchiveResult, Error as ArchiveError},
 };
+use generators::{BlocksActor, MissingStorage};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
@@ -73,25 +74,40 @@ impl<Block: BlockT> ActorContext<Block> {
 }
 
 /// Main entrypoint for substrate-archive.
-/// Deals with starting and stopping the Archive Runtime
+/// Deals with starting, stopping and manipulating the Archive Runtime
+///
 /// # Examples
+///
 /// ```
-///let archive = Actors::init::<ksm_runtime::Runtime, _>(
-///     client,
-///     backend,
-///     None,
-///     "ws://127.0.0.1:9944".to_string(),
-///     "postgres://archive:default@localhost:5432/archive"
-/// ).unwrap();
+/// use polkadot_service::{kusama_runtime::RuntimeApi as RApi, Block, KusamaExecutor as KExec};
+/// use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
+/// let conf = ArchiveConfig {
+///     db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
+///     rpc_url: "ws://127.0.0.1:9944".into(),
+///     cache_size: 1024,
+///     block_workers: None,
+///     wasm_pages: None,
+///     psql_conf: MigrationConfig {
+///         host: None,
+///         port: None,
+///         user: Some("archive".to_string()),
+///         pass: Some("default".to_string()),
+///         name: Some("kusama-archive".to_string()),
+///     },
+/// };
 ///
-/// Actors::block_until_stopped();
+/// let spec = polkadot_service::chain_spec::kusama_config().unwrap();
+/// let archive = Archive::<Block, RApi, KExec>::new(conf, Box::new(spec)).unwrap();
+/// let archive = archive.run().unwrap();
 ///
+/// archive.block_until_stopped();
 ///
 /// ```
 pub struct ArchiveContext<Block: BlockT> {
     actor_context: ActorContext<Block>,
     rt: tokio::runtime::Runtime,
-    // missing_blocks: std::thread::JoinHandle<()>,
+    blocks: BlocksActor<Block>,
+    storage: MissingStorage<Block>,
 }
 
 impl<Block> ArchiveContext<Block>
@@ -128,32 +144,37 @@ where
         ClientApi: ApiAccess<Block, ReadOnlyBackend<Block>, Runtime> + GetRuntimeVersion<Block> + 'static,
     {
         let broker = ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
-        let pool = futures::executor::block_on(PgPool::builder().max_size(8).build(psql_url))?;
+        let mut rt = tokio::runtime::Runtime::new()?;
+        let pool = rt.block_on(PgPool::builder().max_size(8).build(psql_url))?;
         let context = ActorContext::new(backend.clone(), broker, url, pool.clone());
-        let rt = tokio::runtime::Runtime::new()?;
 
         let context0 = context.clone();
-        rt.enter::<_, ArchiveResult<()>>(move || {
+        let main = || -> ArchiveResult<(BlocksActor<Block>, MissingStorage<Block>)> {
             let url = context0.rpc_url().to_string();
-            let addr = workers::BlockFetcher::new(&context0, client_api.clone(), None)?.spawn();
-
-            generators::BlocksActor::new(url, addr.clone()).spawn();
-            generators::MissingStorage::new(context0.clone())?.spawn();
+            let addr = workers::BlockFetcher::new(&context0, client_api.clone(), Some(3))?.spawn();
+            let blocks = BlocksActor::new(url, addr.clone());
+            let storage = MissingStorage::new(context0.clone())?;
             tokio::spawn(generators::missing_blocks(context0.clone(), addr));
-            Ok(())
-        })?;
+            Ok((blocks, storage))
+        };
+        let (blocks, storage) = rt.enter(main)?;
 
         Ok(Self {
             rt,
+            blocks,
+            storage,
             actor_context: context,
         })
     }
 
     #[deprecated(since = "0.4.1", note = "use the shutdown method instead")]
-    pub fn block_until_stopped(self) -> Result<(), ArchiveError> {
-        loop {
-            std::thread::sleep(std::time::Duration::from_secs(1));
-        }
+    pub fn block_until_stopped(mut self) -> Result<(), ArchiveError> {
+        self.rt.block_on(async {
+            loop {
+                timer::Delay::new(std::time::Duration::from_secs(1)).await;
+            }
+        });
+        Ok(())
     }
 
     /// Shutdown Gracefully.

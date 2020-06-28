@@ -31,42 +31,34 @@ pub struct BlocksActor<Block: BlockT> {
     /// Url to the JSONRPC interface of a running substrate node
     url: String,
     fetch: Address<BlockFetcher<Block>>,
-    stream_handle: Option<tokio::task::JoinHandle<ArchiveResult<()>>>,
-    tx: Option<Sender<()>>,
+    stream_handle: tokio::task::JoinHandle<ArchiveResult<()>>,
+    tx: Sender<()>,
 }
 
-impl<Block> Actor for BlocksActor<Block>
-where
-    Block: BlockT,
-    Block::Header: DeserializeOwned,
-    NumberFor<Block>: Into<u32>,
-{
-    fn started(&mut self, ctx: &mut Context<Self>) {
-        let (tx, rx) = crossbeam::channel::bounded(0);
-        let stream_handle = tokio::spawn(blocks_stream(self.url.clone(), self.fetch.clone(), rx));
-
-        self.stream_handle = Some(stream_handle);
-        self.tx = Some(tx);
-    }
-
-    fn stopped(&mut self, ctx: &mut Context<Self>) {
-        self.tx.as_ref().map(|t| t.send(()).expect("Send is infallible"));
-        self.stream_handle.as_ref().map(|h| std::mem::drop(h));
-    }
-}
+impl<Block: BlockT> Actor for BlocksActor<Block> {}
 
 impl<Block> BlocksActor<Block>
 where
     Block: BlockT,
     Block::Header: DeserializeOwned,
+    NumberFor<Block>: Into<u32>,
 {
     pub fn new(url: String, addr: Address<BlockFetcher<Block>>) -> Self {
+        let (tx, rx) = crossbeam::channel::bounded(0);
+        let stream_handle = tokio::spawn(blocks_stream(url.clone(), addr.clone(), rx));
+
         Self {
             url,
             fetch: addr,
-            stream_handle: None,
-            tx: None,
+            stream_handle,
+            tx,
         }
+    }
+
+    pub async fn stop(self) -> ArchiveResult<()> {
+        self.tx.send(())?;
+        self.stream_handle.await.expect("Join should be infallible");
+        Ok(())
     }
 }
 

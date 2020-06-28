@@ -41,6 +41,17 @@ impl Metadata {
             addr,
         }
     }
+
+    // checks if the metadata exists in the database
+    // if it doesn't exist yet, fetch metadata and insert it
+    async fn meta_checker<B: BlockT>(&self, ver: u32, hash: B::Hash, rpc: &Rpc<B>) -> ArchiveResult<()> {
+        if !queries::check_if_meta_exists(ver, &self.pool).await? {
+            let meta = rpc.metadata(Some(hash)).await?;
+            let meta = MetadataT::new(ver, meta);
+            self.addr.do_send(meta);
+        }
+        Ok(())
+    }
 }
 
 impl Actor for Metadata {}
@@ -54,7 +65,7 @@ where
     async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let rpc = super::connect::<B>(self.url.as_str()).await;
         let hash = blk.inner.block.header().hash();
-        meta_checker(blk.spec, Some(hash), &rpc, &self.pool).await?;
+        self.meta_checker(blk.spec, hash, &rpc).await?;
         self.addr.do_send(blk);
         Ok(())
     }
@@ -76,26 +87,9 @@ where
             .collect::<Vec<&Block<B>>>();
 
         for b in versions.iter() {
-            meta_checker(b.spec, Some(b.inner.block.hash()), &rpc, &self.pool).await?;
+            self.meta_checker(b.spec, b.inner.block.hash(), &rpc).await?;
         }
         self.addr.do_send(blks);
         Ok(())
     }
-}
-
-// checks if the metadata exists in the database
-// if it doesn't exist yet, fetch metadata and insert it
-async fn meta_checker<B: BlockT>(
-    ver: u32,
-    hash: Option<B::Hash>,
-    rpc: &Rpc<B>,
-    pool: &sqlx::PgPool,
-) -> ArchiveResult<()> {
-    if !queries::check_if_meta_exists(ver, pool).await? {
-        let meta = rpc.metadata(hash).await?;
-        let meta = MetadataT::new(ver, meta);
-        // let v = sched.ask_next("transform", meta)?.await;
-        // log::debug!("{:?}", v);
-    }
-    Ok(())
 }

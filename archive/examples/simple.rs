@@ -19,20 +19,20 @@ use polkadot_service::{kusama_runtime::RuntimeApi as RApi, Block, KusamaExecutor
 use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
 
 pub fn main() {
-    substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
+    substrate_archive::init_logger(log::LevelFilter::Info, log::LevelFilter::Debug);
 
     let conf = ArchiveConfig {
         db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
         rpc_url: "ws://127.0.0.1:9944".into(),
-        cache_size: 1024,
-        block_workers: None,
+        cache_size: 128,
+        block_workers: Some(4),
         wasm_pages: None,
         psql_conf: MigrationConfig {
             host: None,
             port: None,
             user: Some("archive".to_string()),
             pass: Some("default".to_string()),
-            name: Some("archive".to_string()),
+            name: Some("kusama-archive".to_string()),
         },
     };
 

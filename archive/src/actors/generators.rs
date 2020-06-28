@@ -18,6 +18,7 @@ use super::workers::msg::BlockRange;
 use super::{workers::BlockFetcher, ActorContext};
 use crate::{error::ArchiveResult, queries};
 use futures::future::Future;
+use hashbrown::HashSet;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use xtra::prelude::*;
 mod blocks;
@@ -36,8 +37,9 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
+    let mut added = HashSet::new();
     loop {
-        match main_l(&context.pool(), &addr).await {
+        match main_l(&context.pool(), &addr, &mut added).await {
             Ok(_) => (),
             Err(e) => log::error!("{}", e),
         }
@@ -45,27 +47,38 @@ where
 }
 
 // TODO: once async closures are stabilized this could be a closure apart of the missing_blocks fn
-async fn main_l<B>(pool: &sqlx::PgPool, addr: &Address<BlockFetcher<B>>) -> ArchiveResult<()>
+async fn main_l<B>(
+    pool: &sqlx::PgPool,
+    addr: &Address<BlockFetcher<B>>,
+    added: &mut HashSet<u32>,
+) -> ArchiveResult<()>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
     let block_nums = queries::missing_blocks(pool).await?;
-    log::info!("missing {} blocks", block_nums.len());
     if block_nums.len() <= 0 {
         timer::Delay::new(std::time::Duration::from_secs(1)).await;
         return Ok(());
     }
-    log::info!(
-        "Indexing {} missing blocks, from {} to {} ...",
-        block_nums.len(),
-        block_nums[0].generate_series,
-        block_nums[block_nums.len() - 1].generate_series
-    );
     let block_nums = block_nums
         .into_iter()
         .map(|b| b.generate_series as u32)
-        .collect::<Vec<u32>>();
-    addr.do_send(BlockRange(block_nums));
+        .collect::<HashSet<u32>>();
+
+    let block_nums = block_nums.difference(&added).map(|b| *b).collect::<Vec<u32>>();
+    if block_nums.len() > 0 {
+        log::info!(
+            "Indexing {} missing blocks, from {} to {} ...",
+            block_nums.len(),
+            block_nums[0],
+            block_nums[block_nums.len() - 1]
+        );
+        added.extend(block_nums.iter());
+        addr.do_send(BlockRange(block_nums));
+        timer::Delay::new(std::time::Duration::from_secs(1)).await;
+    } else {
+        timer::Delay::new(std::time::Duration::from_secs(5)).await;
+    }
     Ok(())
 }

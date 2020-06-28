@@ -30,6 +30,7 @@ num_cpus = "1"
 xtra = { version = "0.4.2", features = ["with-tokio-0_2"] }
 # Sql migrations
 refinery = { version = "0.3.0", features = ["postgres"] }
+tokio = { version = "0.2.21" }
 
 # Optional 
 fern = { version = "0.6", features = ["colored"], optional = true }
@@ -60,7 +61,6 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" } 
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
-tokio = "0.2.21"
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }

@@ -39,30 +39,12 @@ use xtra::prelude::*;
 
 pub struct MissingStorage<Block: BlockT> {
     context: ActorContext<Block>,
-    addr: Option<Address<Database>>,
-    tx: Option<Sender<()>>,
-    handle: Option<tokio::task::JoinHandle<ArchiveResult<()>>>,
+    addr: Address<Database>,
+    tx: Sender<()>,
+    handle: tokio::task::JoinHandle<ArchiveResult<()>>,
 }
 
-impl<Block> Actor for MissingStorage<Block>
-where
-    Block: BlockT,
-    NumberFor<Block>: Into<u32>,
-{
-    fn started(&mut self, ctx: &mut Context<Self>) {
-        let (tx, rx) = crossbeam::channel::bounded(0);
-        let addr = Database::new(&self.context.pool()).spawn();
-        let handle = tokio::spawn(Self::storage_loop(self.context.clone(), addr.clone(), rx));
-        self.addr = Some(addr);
-        self.tx = Some(tx);
-        self.handle = Some(handle);
-    }
-
-    fn stopped(&mut self, ctx: &mut Context<Self>) {
-        self.tx.as_ref().map(|t| t.send(())).expect("Send is infallible");
-        self.handle.as_ref().map(|h| std::mem::drop(h));
-    }
-}
+impl<Block: BlockT> Actor for MissingStorage<Block> {}
 
 impl<Block> MissingStorage<Block>
 where
@@ -72,15 +54,25 @@ where
     /// create a new MissingStorage Indexer
     /// Must be run within the context of an executor
     pub fn new(context: ActorContext<Block>) -> ArchiveResult<Self> {
+        let (tx, rx) = crossbeam::channel::bounded(0);
+        let addr = Database::new(&context.pool()).spawn();
+        let handle = tokio::spawn(Self::storage_loop(context.clone(), addr.clone(), rx));
+
         Ok(Self {
             context,
-            addr: None,
-            tx: None,
-            handle: None,
+            addr,
+            tx,
+            handle,
         })
     }
 
-    pub async fn storage_loop(
+    pub async fn stop(self) -> ArchiveResult<()> {
+        self.tx.send(()).expect("Send is infallible");
+        self.handle.await.expect("Should not fail");
+        Ok(())
+    }
+
+    async fn storage_loop(
         context: ActorContext<Block>,
         addr: Address<Database>,
         rx: Receiver<()>,
