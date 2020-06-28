@@ -29,7 +29,7 @@ use sp_runtime::{
 use std::sync::Arc;
 use xtra::prelude::*;
 
-struct BlockFetcher<Block: BlockT> {
+pub struct BlockFetcher<Block: BlockT> {
     pool: rayon::ThreadPool,
     broker: BlockBroker<Block>,
     backend: Arc<ReadOnlyBackend<Block>>,
@@ -65,7 +65,7 @@ impl<Block: BlockT> BlockFetcher<Block> {
 
 impl<Block: BlockT> Actor for BlockFetcher<Block> {}
 
-pub struct BlockRange(Vec<u32>);
+pub struct BlockRange(pub Vec<u32>);
 impl Message for BlockRange {
     type Result = ArchiveResult<()>;
 }
@@ -75,14 +75,13 @@ impl Message for BlockRange {
 // from inserting the most-recent blocks into the database
 impl<B: BlockT> SyncHandler<BlockRange> for BlockFetcher<B> {
     fn handle(&mut self, block_nums: BlockRange, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        let backend = self.backend.clone();
-        let broker = self.broker.clone();
-        let addr = self.addr.clone();
-        let rt_fetch = self.rt_fetch.clone();
-        // could just use the pool to execute one block at a time in work-stealing
-        // but if we want to keep the number of threads down, it doesn't matter
-        self.pool.spawn_fifo(move || {
-            for block_num in block_nums.0.into_iter() {
+        for block_num in block_nums.0.into_iter() {
+            let backend = self.backend.clone();
+            let broker = self.broker.clone();
+            let addr = self.addr.clone();
+            let rt_fetch = self.rt_fetch.clone();
+
+            self.pool.spawn_fifo(move || {
                 let num = NumberFor::<B>::from(block_num);
                 let b = backend.block(&BlockId::Number(num));
                 if b.is_none() {
@@ -95,8 +94,8 @@ impl<B: BlockT> SyncHandler<BlockRange> for BlockFetcher<B> {
                     let block = Block::<B>::new(b, version.spec_version);
                     addr.do_send(block).expect("Actor disconnected");
                 }
-            }
-        });
+            });
+        }
         Ok(())
     }
 }

@@ -20,13 +20,11 @@
 
 use crate::{
     actors::{
-        workers::{
-            self,
-            msg::{StorageWrap, VecStorageWrap},
-        },
+        workers::{self, msg::VecStorageWrap},
         ActorContext,
     },
     backend::{BlockBroker, BlockData},
+    database::Database,
     error::ArchiveResult,
     queries,
     sql_block_builder::BlockBuilder,
@@ -37,7 +35,7 @@ use xtra::prelude::*;
 
 pub struct MissingStorage<Block: BlockT> {
     context: ActorContext<Block>,
-    addr: Address<workers::Transform>,
+    addr: Address<Database>,
 }
 
 impl<Block> MissingStorage<Block>
@@ -47,13 +45,12 @@ where
 {
     /// create a new MissingStorage Indexer
     /// Must be run within the context of an executor
-    pub fn new(context: ActorContext<Block>) -> Self {
-        let addr = workers::Transform::default().spawn();
-        Self { context, addr }
+    pub fn new(context: ActorContext<Block>) -> ArchiveResult<Self> {
+        let addr = Database::new(&context.pool())?.spawn();
+        Ok(Self { context, addr })
     }
 
     pub async fn storage_loop(self) -> ArchiveResult<()> {
-        let addr = workers::Transform::default().spawn();
         self.on_start().await?;
         self.main_loop().await?;
         Ok(())
@@ -103,7 +100,7 @@ where
 
         if block_changes.len() > 0 {
             let count = block_changes.len();
-            self.addr.send(VecStorageWrap::from(block_changes));
+            self.addr.do_send(VecStorageWrap::from(block_changes)).unwrap();
             Ok(count)
         } else {
             Ok(0)

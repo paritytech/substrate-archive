@@ -17,15 +17,14 @@
 mod block_fetcher;
 mod database;
 mod metadata;
-mod transformers;
 
+pub use self::block_fetcher::BlockFetcher;
 pub use self::metadata::Metadata;
-pub use self::transformers::Transform;
-pub use crate::database::Database;
-
 use super::connect;
+pub use crate::database::Database;
 
 /// any messages defined in the workers
 pub mod msg {
-    pub use super::transformers::{StorageWrap, VecStorageWrap};
+    pub use super::block_fetcher::BlockRange;
+    pub use super::database::VecStorageWrap;
 }

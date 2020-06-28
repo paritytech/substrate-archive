@@ -135,9 +135,9 @@ where
         let context0 = context.clone();
         rt.enter(move || {
             // need to loop through subscription
-            tokio::spawn(generators::blocks_stream(context0.clone()));
-            let storage = generators::MissingStorage::new(context0);
-            tokio::spawn(storage.storage_loop());
+            // tokio::spawn(generators::blocks_stream(context0.clone()));
+            // let storage = generators::MissingStorage::new(context0);
+            // tokio::spawn(storage.storage_loop());
         });
         // let join = generators::block_loop(context.clone(), rt.handle().clone());
 

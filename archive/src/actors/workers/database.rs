@@ -79,6 +79,37 @@ impl<B: BlockT> Handler<Storage<B>> for Database {
     }
 }
 
+pub struct VecStorageWrap<B: BlockT>(Vec<Storage<B>>);
+
+impl<B: BlockT> From<Vec<Storage<B>>> for VecStorageWrap<B> {
+    fn from(v: Vec<Storage<B>>) -> VecStorageWrap<B> {
+        VecStorageWrap(v)
+    }
+}
+
+impl<B: BlockT> Message for VecStorageWrap<B> {
+    type Result = ArchiveResult<()>;
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT> Handler<VecStorageWrap<B>> for Database {
+    async fn handle(&mut self, storage: VecStorageWrap<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+        let mut futures = Vec::new();
+        for s in storage.0.into_iter() {
+            futures.push(async {
+                while !queries::check_if_block_exists(s.hash().as_ref(), self.pool()).await? {
+                    timer::Delay::new(std::time::Duration::from_millis(10)).await;
+                }
+                self.insert(Vec::<StorageModel<B>>::from(s)).await.map(|_| ())
+            });
+        }
+        futures::future::join_all(futures)
+            .await
+            .into_iter()
+            .collect::<ArchiveResult<()>>()
+    }
+}
+
 // Returns true if all versions are in database
 // false if versions are missing
 fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -> bool {
