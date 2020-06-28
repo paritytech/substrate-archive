@@ -79,13 +79,7 @@ impl<B: BlockT> Handler<Storage<B>> for Database {
     }
 }
 
-pub struct VecStorageWrap<B: BlockT>(Vec<Storage<B>>);
-
-impl<B: BlockT> From<Vec<Storage<B>>> for VecStorageWrap<B> {
-    fn from(v: Vec<Storage<B>>) -> VecStorageWrap<B> {
-        VecStorageWrap(v)
-    }
-}
+pub struct VecStorageWrap<B: BlockT>(pub Vec<Storage<B>>);
 
 impl<B: BlockT> Message for VecStorageWrap<B> {
     type Result = ArchiveResult<()>;

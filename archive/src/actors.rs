@@ -22,7 +22,7 @@ mod workers;
 
 use super::{
     backend::{ApiAccess, BlockBroker, GetRuntimeVersion, ReadOnlyBackend, ThreadedBlockExecutor},
-    error::Error as ArchiveError,
+    error::{ArchiveResult, Error as ArchiveError},
 };
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
@@ -133,18 +133,19 @@ where
         let rt = tokio::runtime::Runtime::new()?;
 
         let context0 = context.clone();
-        rt.enter(move || {
-            // need to loop through subscription
-            // tokio::spawn(generators::blocks_stream(context0.clone()));
-            // let storage = generators::MissingStorage::new(context0);
-            // tokio::spawn(storage.storage_loop());
-        });
-        // let join = generators::block_loop(context.clone(), rt.handle().clone());
+        rt.enter::<_, ArchiveResult<()>>(move || {
+            let url = context0.rpc_url().to_string();
+            let addr = workers::BlockFetcher::new(&context0, client_api.clone(), None)?.spawn();
+
+            generators::BlocksActor::new(url, addr.clone()).spawn();
+            generators::MissingStorage::new(context0.clone())?.spawn();
+            tokio::spawn(generators::missing_blocks(context0.clone(), addr));
+            Ok(())
+        })?;
 
         Ok(Self {
             rt,
             actor_context: context,
-            // missing_blocks: join,
         })
     }
 

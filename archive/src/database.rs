@@ -60,8 +60,8 @@ impl Clone for Database {
 
 impl Database {
     /// Connect to the database
-    pub fn new(pool: &DbConnection) -> ArchiveResult<Self> {
-        Ok(Self { pool: pool.clone() })
+    pub fn new(pool: &DbConnection) -> Self {
+        Self { pool: pool.clone() }
     }
 
     pub fn pool(&self) -> &sqlx::Pool<PgConnection> {

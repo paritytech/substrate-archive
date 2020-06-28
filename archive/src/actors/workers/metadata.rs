@@ -21,7 +21,7 @@ use crate::{
     types::{BatchBlock, Block, Metadata as MetadataT},
 };
 use itertools::Itertools;
-use sp_runtime::traits::{Block as BlockT, Header as _};
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use xtra::prelude::*;
 
 /// Actor to fetch metadata about a block/blocks from RPC
@@ -29,30 +29,43 @@ use xtra::prelude::*;
 pub struct Metadata {
     url: String,
     pool: sqlx::PgPool,
+    addr: Address<super::Database>,
 }
 
 impl Metadata {
-    pub fn new(url: String, pool: sqlx::PgPool) -> Self {
-        Self { url, pool }
+    pub fn new(url: String, pool: &sqlx::PgPool) -> Self {
+        let addr = super::Database::new(pool).spawn();
+        Self {
+            url,
+            pool: pool.clone(),
+            addr,
+        }
     }
 }
 
 impl Actor for Metadata {}
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<Block<B>> for Metadata {
+impl<B> Handler<Block<B>> for Metadata
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
     async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let rpc = super::connect::<B>(self.url.as_str()).await;
         let hash = blk.inner.block.header().hash();
         meta_checker(blk.spec, Some(hash), &rpc, &self.pool).await?;
-        // let v = sched.ask_next("transform", block)?.await;
-        // log::debug!("{:?}", v);
+        self.addr.do_send(blk);
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<BatchBlock<B>> for Metadata {
+impl<B> Handler<BatchBlock<B>> for Metadata
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
     async fn handle(&mut self, blks: BatchBlock<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let rpc = super::connect::<B>(self.url.as_str()).await;
 
@@ -65,8 +78,7 @@ impl<B: BlockT> Handler<BatchBlock<B>> for Metadata {
         for b in versions.iter() {
             meta_checker(b.spec, Some(b.inner.block.hash()), &rpc, &self.pool).await?;
         }
-        // let v = sched.ask_next("transform", batch_items)?.await;
-        // log::debug!("{:?}", v);
+        self.addr.do_send(blks);
         Ok(())
     }
 }

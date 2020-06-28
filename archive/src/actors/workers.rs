@@ -20,7 +20,8 @@ mod metadata;
 
 pub use self::block_fetcher::BlockFetcher;
 pub use self::metadata::Metadata;
-use super::connect;
+
+use super::{connect, ActorContext};
 pub use crate::database::Database;
 
 /// any messages defined in the workers

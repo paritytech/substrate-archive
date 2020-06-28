@@ -15,26 +15,27 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::workers::msg::BlockRange;
-use super::{workers, ActorContext};
+use super::{workers::BlockFetcher, ActorContext};
 use crate::{error::ArchiveResult, queries};
 use futures::future::Future;
-use sp_runtime::traits::Block as BlockT;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use xtra::prelude::*;
 mod blocks;
-// mod missing_blocks;
 mod missing_storage;
 
 //pub use self::missing_blocks::block_loop;
+pub use blocks::BlocksActor;
 pub use missing_storage::MissingStorage;
 pub mod msg {
     pub use super::blocks::Head;
 }
 
 /// Gets missing blocks from the SQL database
-pub async fn missing_blocks<B: BlockT>(
-    context: ActorContext<B>,
-    addr: Address<workers::BlockFetcher<B>>,
-) -> ArchiveResult<()> {
+pub async fn missing_blocks<B>(context: ActorContext<B>, addr: Address<BlockFetcher<B>>) -> ArchiveResult<()>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
     loop {
         match main_l(&context.pool(), &addr).await {
             Ok(_) => (),
@@ -44,10 +45,11 @@ pub async fn missing_blocks<B: BlockT>(
 }
 
 // TODO: once async closures are stabilized this could be a closure apart of the missing_blocks fn
-async fn main_l<B: BlockT>(
-    pool: &sqlx::PgPool,
-    addr: &Address<workers::BlockFetcher<B>>,
-) -> ArchiveResult<()> {
+async fn main_l<B>(pool: &sqlx::PgPool, addr: &Address<BlockFetcher<B>>) -> ArchiveResult<()>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
     let block_nums = queries::missing_blocks(pool).await?;
     log::info!("missing {} blocks", block_nums.len());
     if block_nums.len() <= 0 {

@@ -18,7 +18,7 @@
 
 use crate::types::*;
 use crate::{
-    actors::{generators::msg, workers},
+    actors::{generators::msg, workers, ActorContext},
     backend::{BlockBroker, BlockData, GetRuntimeVersion, ReadOnlyBackend},
     error::ArchiveResult,
 };
@@ -41,23 +41,22 @@ impl<Block: BlockT> BlockFetcher<Block> {
     /// create a new BlockFetcher
     /// Must be ran within the context of a executor
     pub fn new(
-        url: &str,
-        pool: sqlx::PgPool,
-        backend: Arc<ReadOnlyBackend<Block>>,
-        broker: BlockBroker<Block>,
+        context: &ActorContext<Block>,
         rt_fetch: Arc<dyn GetRuntimeVersion<Block>>,
         num_threads: Option<usize>,
     ) -> ArchiveResult<Self> {
-        let addr = workers::Metadata::new(url.to_string(), pool).spawn();
+        let pool = context.pool();
+        let url = context.rpc_url().to_string();
+        let addr = workers::Metadata::new(url, &pool).spawn();
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads.unwrap_or(0))
             .thread_name(|i| format!("blk-fetch-{}", i))
             .build()?;
         Ok(Self {
             addr,
-            backend,
-            pool,
-            broker,
+            backend: context.backend().clone(),
+            pool: pool,
+            broker: context.broker().clone(),
             rt_fetch,
         })
     }
@@ -73,7 +72,11 @@ impl Message for BlockRange {
 // should probably make this a real threadpool with `block_worker` num threads
 // the reason we dont split up work here is because we don't want to block the `blocks` actor
 // from inserting the most-recent blocks into the database
-impl<B: BlockT> SyncHandler<BlockRange> for BlockFetcher<B> {
+impl<B> SyncHandler<BlockRange> for BlockFetcher<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
     fn handle(&mut self, block_nums: BlockRange, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         for block_num in block_nums.0.into_iter() {
             let backend = self.backend.clone();
@@ -100,7 +103,11 @@ impl<B: BlockT> SyncHandler<BlockRange> for BlockFetcher<B> {
     }
 }
 
-impl<B: BlockT> SyncHandler<msg::Head<B>> for BlockFetcher<B> {
+impl<B> SyncHandler<msg::Head<B>> for BlockFetcher<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
     fn handle(&mut self, head: msg::Head<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let head = head.0;
         let backend = self.backend.clone();

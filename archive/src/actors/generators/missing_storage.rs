@@ -18,6 +18,9 @@
 //! Crawls for missing entires in the storage table
 //! Gets storage changes based on those missing entries
 
+// TODO: Can create a trait "ExtraAddressExt" that allows attaching a crossbeam stream, or a jsonrpsee
+// Subscription
+
 use crate::{
     actors::{
         workers::{self, msg::VecStorageWrap},
@@ -30,12 +33,35 @@ use crate::{
     sql_block_builder::BlockBuilder,
     types::Storage,
 };
+use crossbeam::channel::{Receiver, Sender};
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use xtra::prelude::*;
 
 pub struct MissingStorage<Block: BlockT> {
     context: ActorContext<Block>,
-    addr: Address<Database>,
+    addr: Option<Address<Database>>,
+    tx: Option<Sender<()>>,
+    handle: Option<tokio::task::JoinHandle<ArchiveResult<()>>>,
+}
+
+impl<Block> Actor for MissingStorage<Block>
+where
+    Block: BlockT,
+    NumberFor<Block>: Into<u32>,
+{
+    fn started(&mut self, ctx: &mut Context<Self>) {
+        let (tx, rx) = crossbeam::channel::bounded(0);
+        let addr = Database::new(&self.context.pool()).spawn();
+        let handle = tokio::spawn(Self::storage_loop(self.context.clone(), addr.clone(), rx));
+        self.addr = Some(addr);
+        self.tx = Some(tx);
+        self.handle = Some(handle);
+    }
+
+    fn stopped(&mut self, ctx: &mut Context<Self>) {
+        self.tx.as_ref().map(|t| t.send(())).expect("Send is infallible");
+        self.handle.as_ref().map(|h| std::mem::drop(h));
+    }
 }
 
 impl<Block> MissingStorage<Block>
@@ -46,23 +72,31 @@ where
     /// create a new MissingStorage Indexer
     /// Must be run within the context of an executor
     pub fn new(context: ActorContext<Block>) -> ArchiveResult<Self> {
-        let addr = Database::new(&context.pool())?.spawn();
-        Ok(Self { context, addr })
+        Ok(Self {
+            context,
+            addr: None,
+            tx: None,
+            handle: None,
+        })
     }
 
-    pub async fn storage_loop(self) -> ArchiveResult<()> {
-        self.on_start().await?;
-        self.main_loop().await?;
+    pub async fn storage_loop(
+        context: ActorContext<Block>,
+        addr: Address<Database>,
+        rx: Receiver<()>,
+    ) -> ArchiveResult<()> {
+        Self::on_start(&context).await?;
+        Self::main_loop(context, addr, rx).await?;
         Ok(())
     }
 
-    async fn on_start(&self) -> ArchiveResult<()> {
-        if queries::blocks_count(&self.context.pool()).await? <= 0 {
+    async fn on_start(context: &ActorContext<Block>) -> ArchiveResult<()> {
+        if queries::blocks_count(&context.pool()).await? <= 0 {
             // no blocks means we haven't indexed anything yet
             return Ok(());
         }
         let now = std::time::Instant::now();
-        let blocks = queries::blocks_storage_intersection(&self.context.pool()).await?;
+        let blocks = queries::blocks_storage_intersection(&context.pool()).await?;
         let blocks = BlockBuilder::new().with_vec(blocks)?;
         let elapsed = now.elapsed();
         log::info!(
@@ -72,16 +106,24 @@ where
             blocks.len()
         );
         log::info!("indexing {} blocks of storage ... ", blocks.len());
-        self.context.broker().work.send(BlockData::Batch(blocks)).unwrap();
+        context.broker().work.send(BlockData::Batch(blocks)).unwrap();
         Ok(())
     }
 
-    async fn main_loop(&self) -> ArchiveResult<()> {
+    async fn main_loop(
+        context: ActorContext<Block>,
+        addr: Address<Database>,
+        rx: Receiver<()>,
+    ) -> ArchiveResult<()> {
         loop {
             timer::Delay::new(std::time::Duration::from_secs(1)).await;
-            let count = self.check_work()?;
+            let count = Self::check_work(&context, &addr)?;
             if count > 0 {
                 log::info!("Syncing Storage {} bps", count);
+            }
+            match rx.try_recv() {
+                Ok(_) => break,
+                Err(_) => continue,
             }
         }
         Ok(())
@@ -89,18 +131,17 @@ where
 
     /// Check the receiver end of the BlockExecution ThreadPool for any storage
     /// changes resulting from block execution.
-    fn check_work(&self) -> ArchiveResult<usize> {
-        let block_changes = self
-            .context
+    fn check_work(context: &ActorContext<Block>, addr: &Address<Database>) -> ArchiveResult<usize> {
+        let changes = context
             .broker
             .results
             .try_iter()
             .map(|c| Storage::<Block>::from(c))
             .collect::<Vec<Storage<Block>>>();
 
-        if block_changes.len() > 0 {
-            let count = block_changes.len();
-            self.addr.do_send(VecStorageWrap::from(block_changes)).unwrap();
+        if changes.len() > 0 {
+            let count = changes.len();
+            addr.do_send(VecStorageWrap(changes)).unwrap();
             Ok(count)
         } else {
             Ok(0)
