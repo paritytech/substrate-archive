@@ -200,7 +200,7 @@ where
             self.pool.spawn_fifo(move || {
                 match Self::work(block.clone(), client, backend, sender) {
                     Ok(_) => (),
-                    Err(e) => log::error!("{:?}", e),
+                    Err(e) => log::error!("{}", e),
                 }
             });
         }
