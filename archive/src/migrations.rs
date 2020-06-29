@@ -178,7 +178,7 @@ mod test {
             pass: Some("default".to_string()),
             name: "archive".to_string(),
         };
-        let url = build_url(&conf);
+        let url = conf.build_url(&conf);
         assert_eq!(url, "postgres://archive:default@localhost:5432/archive");
     }
 }

@@ -40,14 +40,11 @@ use sp_runtime::{
     generic::{BlockId, SignedBlock},
     traits::{Block as BlockT, HashFor, Header},
 };
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 
 pub struct ReadOnlyBackend<Block: BlockT> {
     db: Arc<ReadOnlyDatabase>,
     storage: Arc<StateVault<Block>>,
-    // FIXME: I don't think we need this here
-    // because it's specified in StateVault
-    _marker: PhantomData<Block>,
 }
 
 impl<Block> ReadOnlyBackend<Block>
@@ -56,11 +53,7 @@ where
 {
     pub fn new(db: Arc<ReadOnlyDatabase>, prefix_keys: bool) -> Self {
         let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
-        Self {
-            db,
-            storage: vault,
-            _marker: PhantomData,
-        }
+        Self { db, storage: vault }
     }
 
     fn state_at(&self, hash: Block::Hash) -> Option<TrieState<Block>> {
@@ -190,7 +183,7 @@ mod tests {
 
         harness(DB, |db| {
             let db = ReadOnlyBackend::<Block>::new(db, true);
-            let time = Instant::now(); // FIXME: bootleg benchmark. #[bench] not stabilized yet
+            let time = Instant::now(); // FIXME: bootleg benchmark.
             let val = db.storage(hash, key1.as_slice()).unwrap();
             let elapsed = time.elapsed();
             println!(

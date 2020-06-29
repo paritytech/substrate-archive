@@ -20,20 +20,21 @@
 
 use crate::types::*;
 use serde::{Deserialize, Serialize};
+use sp_runtime::traits::Block as BlockT;
 use sp_storage::{StorageData, StorageKey};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct StorageModel<T: Substrate + Send + Sync> {
-    hash: T::Hash,
+pub struct StorageModel<Block: BlockT> {
+    hash: Block::Hash,
     block_num: u32,
     full_storage: bool,
     key: StorageKey,
     data: Option<StorageData>,
 }
 
-impl<T: Substrate + Send + Sync> StorageModel<T> {
+impl<Block: BlockT> StorageModel<Block> {
     pub fn new(
-        hash: T::Hash,
+        hash: Block::Hash,
         block_num: u32,
         full_storage: bool,
         key: StorageKey,
@@ -56,7 +57,7 @@ impl<T: Substrate + Send + Sync> StorageModel<T> {
         self.block_num
     }
 
-    pub fn hash(&self) -> &T::Hash {
+    pub fn hash(&self) -> &Block::Hash {
         &self.hash
     }
 
@@ -69,8 +70,8 @@ impl<T: Substrate + Send + Sync> StorageModel<T> {
     }
 }
 
-impl<T: Substrate + Send + Sync> From<Storage<T>> for Vec<StorageModel<T>> {
-    fn from(original: Storage<T>) -> Vec<StorageModel<T>> {
+impl<Block: BlockT> From<Storage<Block>> for Vec<StorageModel<Block>> {
+    fn from(original: Storage<Block>) -> Vec<StorageModel<Block>> {
         let hash = original.hash().clone();
         let block_num = original.block_num();
         let full_storage = original.is_full();
@@ -80,6 +81,6 @@ impl<T: Substrate + Send + Sync> From<Storage<T>> for Vec<StorageModel<T>> {
             .map(|changes| {
                 StorageModel::new(hash.clone(), block_num, full_storage, changes.0, changes.1)
             })
-            .collect::<Vec<StorageModel<T>>>()
+            .collect::<Vec<StorageModel<Block>>>()
     }
 }

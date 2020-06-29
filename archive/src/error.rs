@@ -29,9 +29,9 @@ pub enum Error {
     Codec(#[from] codec::Error),
     #[error("serialization error")]
     Serialization(#[from] serde_json::Error),
-    #[error("sqlx error")]
+    #[error("sqlx error: {0}")]
     Sql(#[from] sqlx::Error),
-    #[error("blockchain error")]
+    #[error("blockchain error: {0}")]
     Blockchain(String),
     #[error("JSONRPC request failed")]
     RpcRequest(#[from] jsonrpsee::client::RequestError),
@@ -41,7 +41,9 @@ pub enum Error {
     SqlMigration(#[from] refinery::Error),
     #[error("could not build threadpool")]
     ThreadPool(#[from] rayon::ThreadPoolBuildError),
-    #[error("the chain given to substrate-archive is different then the running chain. Trying to run {0}, running {1}")]
+    #[error(
+        "the chain given to substrate-archive is different then the running chain. Trying to run {0}, running {1}"
+    )]
     MismatchedChains(String, String),
     #[error("sending on disconnected channel")]
     Channel,
@@ -55,6 +57,12 @@ pub enum Error {
 
 impl<T> From<crossbeam::SendError<T>> for Error {
     fn from(_: crossbeam::SendError<T>) -> Error {
+        Error::Channel
+    }
+}
+
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for Error {
+    fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Error {
         Error::Channel
     }
 }

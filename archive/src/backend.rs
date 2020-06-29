@@ -28,6 +28,7 @@ pub mod util;
 pub use self::block_executor::{
     BlockBroker, BlockChanges, BlockData, BlockExecutor, ThreadedBlockExecutor,
 };
+pub use self::frontend::{GetRuntimeVersion, TArchiveClient};
 pub use self::read_only_backend::{ReadOnlyBackend, TrieState};
 pub use self::{database::ReadOnlyDatabase, frontend::runtime_api, util::open_database};
 

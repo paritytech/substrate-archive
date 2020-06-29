@@ -42,6 +42,12 @@ use sp_runtime::{
 };
 use std::{marker::PhantomData, panic::UnwindSafe, sync::Arc};
 
+// FIXME: should use the trait sp_version::GetRuntimeVersion
+// but that returns a String for an error
+pub trait GetRuntimeVersion<Block: BlockT>: Send + Sync {
+    fn runtime_version(&self, at: &BlockId<Block>) -> ArchiveResult<sp_version::RuntimeVersion>;
+}
+
 /// Archive Client
 pub struct Client<Exec, Block: BlockT, RA> {
     backend: Arc<ReadOnlyBackend<Block>>,
@@ -78,6 +84,11 @@ where
             .map_err(ArchiveError::from)
     }
 
+    /// get the backend for this client instance
+    pub fn backend(&self) -> Arc<ReadOnlyBackend<Block>> {
+        self.backend()
+    }
+
     fn prepare_environment_block(
         &self,
         parent: &BlockId<Block>,
@@ -93,6 +104,17 @@ where
             parent_header.hash(),
             Default::default(),
         ))
+    }
+}
+
+impl<Exec, Block, RA> GetRuntimeVersion<Block> for Client<Exec, Block, RA>
+where
+    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block>> + Send + Sync,
+    Block: BlockT,
+    RA: Send + Sync,
+{
+    fn runtime_version(&self, at: &BlockId<Block>) -> ArchiveResult<sp_version::RuntimeVersion> {
+        self.runtime_version_at(at)
     }
 }
 

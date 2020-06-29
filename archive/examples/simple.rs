@@ -15,35 +15,33 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A simple example
-use polkadot_service::{kusama_runtime as ksm_runtime, Block};
+use polkadot_service::{kusama_runtime::RuntimeApi as RApi, Block, KusamaExecutor as KExec};
 use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
 
 pub fn main() {
-    substrate_archive::init_logger(log::LevelFilter::Warn, log::LevelFilter::Info);
+    substrate_archive::init_logger(log::LevelFilter::Info, log::LevelFilter::Info);
 
     let conf = ArchiveConfig {
         db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
         rpc_url: "ws://127.0.0.1:9944".into(),
-        cache_size: 1024,
-        block_workers: None,
+        cache_size: 128,
+        block_workers: Some(8),
+        wasm_pages: None,
         psql_conf: MigrationConfig {
             host: None,
             port: None,
             user: Some("archive".to_string()),
             pass: Some("default".to_string()),
-            name: Some("archive".to_string()),
+            name: Some("kusama-archive".to_string()),
         },
     };
 
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-    let archive = Archive::new(conf, Box::new(spec)).unwrap();
-    let client_api = archive
-        .api_client::<ksm_runtime::RuntimeApi, polkadot_service::KusamaExecutor>()
-        .unwrap();
-    let context = archive
-        .run_with::<ksm_runtime::Runtime, ksm_runtime::RuntimeApi, _>(client_api)
-        .unwrap();
+
+    let archive = Archive::<Block, RApi, KExec>::new(conf, Box::new(spec)).unwrap();
+
+    let context = archive.run().unwrap();
 
     // run indefinitely
     context.block_until_stopped().unwrap();
