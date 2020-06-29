@@ -23,8 +23,8 @@ use crate::{
     error::Error as ArchiveError,
     types::*,
 };
-use crossbeam::channel;
 use hashbrown::HashSet;
+use itertools::Itertools;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
@@ -33,7 +33,8 @@ use sp_runtime::{
     traits::{Block as BlockT, Header, NumberFor},
 };
 use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
-use std::{sync::Arc, thread::JoinHandle};
+use std::{marker::PhantomData, sync::Arc, thread::JoinHandle};
+use tokio::sync::mpsc;
 
 pub type StorageKey = Vec<u8>;
 pub type StorageValue = Vec<u8>;
@@ -51,9 +52,9 @@ pub enum BlockData<Block: BlockT> {
 /// Works in it's own thread
 pub struct BlockBroker<Block: BlockT> {
     /// channel for sending blocks to be executed on a threadpool
-    pub work: channel::Sender<BlockData<Block>>,
+    pub work: mpsc::UnboundedSender<BlockData<Block>>,
     /// results once execution is finished
-    pub results: channel::Receiver<BlockChanges<Block>>,
+    pub results: Option<mpsc::UnboundedReceiver<BlockChanges<Block>>>,
     /// handle to join threadpool back to main thread
     /// only one thread may own this handle
     /// any clones will make the handle `None`
@@ -64,7 +65,8 @@ impl<Block: BlockT> Clone for BlockBroker<Block> {
     fn clone(&self) -> Self {
         Self {
             work: self.work.clone(),
-            results: self.results.clone(),
+            // only one thread may own the receiver
+            results: None,
             // only one thread may own a handle
             handle: None,
         }
@@ -84,41 +86,42 @@ where
 }
 
 /// Executor that sends blocks to a thread pool for execution
-pub struct ThreadedBlockExecutor<Block: BlockT> {
+pub struct ThreadedBlockExecutor<Block: BlockT, RA, Api> {
     /// the threadpool
     pool: rayon::ThreadPool,
     /// Entries that have been inserted (avoids inserting duplicates)
     inserted: HashSet<Block::Hash>,
+    _marker: PhantomData<(RA, Api)>,
 }
 
-impl<Block: BlockT> ThreadedBlockExecutor<Block>
+impl<Block, RA, Api> ThreadedBlockExecutor<Block, RA, Api>
 where
+    Block: BlockT,
     NumberFor<Block>: Into<u32>,
+    RA: ConstructRuntimeApi<Block, Api> + Send + 'static,
+    RA::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+    Api: ApiAccess<Block, Backend<Block>, RA> + 'static,
 {
     /// create a new instance of the executor
-    pub fn new<Runtime, ClientApi>(
+    pub fn new(
         num_threads: Option<usize>,
-        client: Arc<ClientApi>,
+        client: Arc<Api>,
         backend: Arc<Backend<Block>>,
-    ) -> Result<BlockBroker<Block>, ArchiveError>
-    where
-        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
-        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-            + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
-        ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
-    {
+    ) -> Result<BlockBroker<Block>, ArchiveError> {
         // channel pair for sending and receiving BlockChanges
-        let (sender, receiver) = channel::unbounded();
+        let (sender, receiver) = mpsc::unbounded_channel();
 
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads.unwrap_or(0))
             .thread_name(|i| format!("blk-exec-{}", i))
             .build()?;
 
-        let (tx, handle) = Self::scheduler_loop::<Runtime, ClientApi>(
+        let (tx, handle) = Self::scheduler_loop(
             Self {
                 pool,
                 inserted: HashSet::new(),
+                _marker: PhantomData,
             },
             backend,
             client,
@@ -127,32 +130,26 @@ where
 
         Ok(BlockBroker {
             work: tx,
-            results: receiver,
+            results: Some(receiver),
             handle: Some(handle),
         })
     }
 
-    fn scheduler_loop<Runtime, ClientApi>(
-        mut exec: ThreadedBlockExecutor<Block>,
+    fn scheduler_loop(
+        mut exec: ThreadedBlockExecutor<Block, RA, Api>,
         backend: Arc<Backend<Block>>,
-        client: Arc<ClientApi>,
-        sender: channel::Sender<BlockChanges<Block>>,
-    ) -> Result<(channel::Sender<BlockData<Block>>, JoinHandle<()>), ArchiveError>
-    where
-        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
-        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-            + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
-        ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
-    {
-        let (tx, rx) = channel::unbounded();
+        client: Arc<Api>,
+        sender: mpsc::UnboundedSender<BlockChanges<Block>>,
+    ) -> Result<(mpsc::UnboundedSender<BlockData<Block>>, JoinHandle<()>), ArchiveError> {
+        let (tx, mut rx) = mpsc::unbounded_channel();
         let handle = std::thread::spawn(move || loop {
-            let data = rx.recv();
+            let data = futures::executor::block_on(rx.recv());
             match data.unwrap() {
                 BlockData::Batch(v) => exec
-                    .add_vec_task::<Runtime, _>(v, client.clone(), backend.clone(), sender.clone())
+                    .add_vec_task(v, client.clone(), backend.clone(), sender.clone())
                     .unwrap(),
                 BlockData::Single(v) => exec
-                    .add_task::<Runtime, _>(v, client.clone(), backend.clone(), sender.clone())
+                    .add_task(v, client.clone(), backend.clone(), sender.clone())
                     .unwrap(),
                 BlockData::Stop => break,
             }
@@ -160,18 +157,12 @@ where
         Ok((tx, handle))
     }
 
-    fn work<Runtime, ClientApi>(
+    fn work(
         block: Block,
-        client: Arc<ClientApi>,
+        client: Arc<Api>,
         backend: Arc<Backend<Block>>,
-        sender: channel::Sender<BlockChanges<Block>>,
-    ) -> Result<(), ArchiveError>
-    where
-        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
-        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-            + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
-        ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
-    {
+        sender: mpsc::UnboundedSender<BlockChanges<Block>>,
+    ) -> Result<(), ArchiveError> {
         let api = client.runtime_api();
 
         // don't execute genesis block
@@ -194,25 +185,19 @@ where
     }
 
     /// push some work to the global pool
-    pub fn add_task<Runtime, ClientApi>(
+    pub fn add_task(
         &mut self,
         block: Block,
-        client: Arc<ClientApi>,
+        client: Arc<Api>,
         backend: Arc<Backend<Block>>,
-        sender: channel::Sender<BlockChanges<Block>>,
-    ) -> Result<(), ArchiveError>
-    where
-        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
-        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-            + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
-        ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
-    {
+        sender: mpsc::UnboundedSender<BlockChanges<Block>>,
+    ) -> Result<(), ArchiveError> {
         if self.inserted.contains(&block.hash()) {
             return Ok(());
         } else {
             self.inserted.insert(block.hash());
             self.pool.spawn_fifo(move || {
-                match Self::work::<Runtime, _>(block.clone(), client, backend, sender) {
+                match Self::work(block.clone(), client, backend, sender) {
                     Ok(_) => (),
                     Err(e) => log::error!("{:?}", e),
                 }
@@ -221,34 +206,37 @@ where
         Ok(())
     }
 
-    pub fn add_vec_task<Runtime, ClientApi>(
+    pub fn add_vec_task(
         &mut self,
         blocks: Vec<Block>,
-        client: Arc<ClientApi>,
+        client: Arc<Api>,
         backend: Arc<Backend<Block>>,
-        sender: channel::Sender<BlockChanges<Block>>,
-    ) -> Result<(), ArchiveError>
-    where
-        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + 'static,
-        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-            + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
-        ClientApi: ApiAccess<Block, Backend<Block>, Runtime> + 'static,
-    {
+        sender: mpsc::UnboundedSender<BlockChanges<Block>>,
+    ) -> Result<(), ArchiveError> {
         let to_insert = blocks
             .into_iter()
             .filter(|b| !self.inserted.contains(&b.hash()))
             .collect::<Vec<_>>();
 
         if to_insert.len() > 0 {
-            for block in to_insert.into_iter() {
-                self.inserted.insert(block.hash());
+            // we try to execute at least 5 blocks at once, this lets rayon
+            // avoid looking for work too much and using up CPU time
+            for blocks in to_insert.chunks(5) {
+                self.inserted.extend(blocks.iter().map(|b| b.hash()));
+                let blocks = blocks.to_vec();
                 let client = client.clone();
                 let backend = backend.clone();
                 let sender = sender.clone();
                 self.pool.spawn_fifo(move || {
-                    match Self::work::<Runtime, _>(block.clone(), client, backend, sender) {
-                        Ok(_) => (),
-                        Err(e) => log::error!("{:?}", e),
+                    for block in blocks.into_iter() {
+                        let client = client.clone();
+                        let backend = backend.clone();
+                        let sender = sender.clone();
+                        // FIXME: re-consider cloning
+                        match Self::work(block, client, backend, sender) {
+                            Ok(_) => (),
+                            Err(e) => log::error!("{:?}", e),
+                        }
                     }
                 });
             }

@@ -50,11 +50,17 @@ impl<Block: BlockT> Rpc<Block> {
         hash: Option<&HashFor<Block>>,
     ) -> Result<RuntimeVersion, ArchiveError> {
         let params = Params::Array(vec![to_json_value(hash)?]);
-        let version = self.client.request("state_getRuntimeVersion", params).await?;
+        let version = self
+            .client
+            .request("state_getRuntimeVersion", params)
+            .await?;
         Ok(version)
     }
 
-    pub(crate) async fn metadata(&self, hash: Option<Block::Hash>) -> Result<Vec<u8>, ArchiveError> {
+    pub(crate) async fn metadata(
+        &self,
+        hash: Option<Block::Hash>,
+    ) -> Result<Vec<u8>, ArchiveError> {
         let params = Params::Array(vec![to_json_value(hash)?]);
         let bytes: Bytes = self.client.request("state_getMetadata", params).await?;
         Ok(bytes.0)

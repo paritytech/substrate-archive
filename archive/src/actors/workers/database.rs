@@ -87,14 +87,20 @@ impl<B: BlockT> Message for VecStorageWrap<B> {
 
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<VecStorageWrap<B>> for Database {
-    async fn handle(&mut self, storage: VecStorageWrap<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+    async fn handle(
+        &mut self,
+        storage: VecStorageWrap<B>,
+        _ctx: &mut Context<Self>,
+    ) -> ArchiveResult<()> {
         let mut futures = Vec::new();
         for s in storage.0.into_iter() {
             futures.push(async {
                 while !queries::check_if_block_exists(s.hash().as_ref(), self.pool()).await? {
                     timer::Delay::new(std::time::Duration::from_millis(10)).await;
                 }
-                self.insert(Vec::<StorageModel<B>>::from(s)).await.map(|_| ())
+                self.insert(Vec::<StorageModel<B>>::from(s))
+                    .await
+                    .map(|_| ())
             });
         }
         futures::future::join_all(futures)

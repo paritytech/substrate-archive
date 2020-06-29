@@ -148,10 +148,13 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
             counter += 1;
         }
         let mut rows_changed = 0;
-        future::join_all(futures).await.iter().for_each(|r| match r {
-            Ok(v) => rows_changed += v,
-            Err(e) => log::error!("{:?}", e),
-        });
+        future::join_all(futures)
+            .await
+            .iter()
+            .for_each(|r| match r {
+                Ok(v) => rows_changed += v,
+                Err(e) => log::error!("{:?}", e),
+            });
         Ok(rows_changed)
     }
 }

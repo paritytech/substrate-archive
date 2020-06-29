@@ -30,7 +30,7 @@ num_cpus = "1"
 xtra = { version = "0.4.2", features = ["with-tokio-0_2"] }
 # Sql migrations
 refinery = { version = "0.3.0", features = ["postgres"] }
-tokio = { version = "0.2.21" }
+tokio = { version = "0.2.21", features = ["sync"] }
 
 # Optional 
 fern = { version = "0.6", features = ["colored"], optional = true }
@@ -38,7 +38,7 @@ chrono = { version = "0.4", optional = true }
 
 # Parity
 primitive-types = "0.7"
-jsonrpsee = "0.1.0"
+jsonrpsee = { git = "https://github.com/dt665m/jsonrpsee", branch = "feature/client-error-handling" }
 kvdb = "0.6"
 kvdb-rocksdb = "0.8"
 parity-util-mem = { version = "*", default-features = false, features = ["std"] }

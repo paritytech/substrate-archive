@@ -27,9 +27,13 @@ use crate::{
     Error as ArchiveError,
 };
 use codec::{Decode, Encode};
-use sc_client_api::{backend::Backend as _, execution_extensions::ExecutionExtensions, CallExecutor};
+use sc_client_api::{
+    backend::Backend as _, execution_extensions::ExecutionExtensions, CallExecutor,
+};
 use sc_executor::RuntimeVersion;
-use sp_api::{ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi};
+use sp_api::{
+    ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi,
+};
 use sp_blockchain::HeaderBackend as _;
 use sp_core::NativeOrEncoded;
 use sp_runtime::{
@@ -75,13 +79,26 @@ where
     }
 
     pub fn runtime_version_at(&self, id: &BlockId<Block>) -> ArchiveResult<RuntimeVersion> {
-        self.executor.runtime_version(id).map_err(ArchiveError::from)
+        self.executor
+            .runtime_version(id)
+            .map_err(ArchiveError::from)
     }
 
-    fn prepare_environment_block(&self, parent: &BlockId<Block>) -> sp_blockchain::Result<Block::Header> {
+    /// get the backend for this client instance
+    pub fn backend(&self) -> Arc<ReadOnlyBackend<Block>> {
+        self.backend()
+    }
+
+    fn prepare_environment_block(
+        &self,
+        parent: &BlockId<Block>,
+    ) -> sp_blockchain::Result<Block::Header> {
         let parent_header = self.backend.blockchain().expect_header(*parent)?;
         Ok(<<Block as BlockT>::Header as HeaderT>::new(
-            self.backend.blockchain().expect_block_number_from_id(parent)? + One::one(),
+            self.backend
+                .blockchain()
+                .expect_block_number_from_id(parent)?
+                + One::one(),
             Default::default(),
             Default::default(),
             parent_header.hash(),

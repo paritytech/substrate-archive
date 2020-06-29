@@ -81,9 +81,9 @@ ON CONFLICT DO NOTHING
     }
 
     fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(self
-            .iter()
-            .fold(sqlx::query(sql), |q, block| block.bind_all_arguments(q).unwrap()))
+        Ok(self.iter().fold(sqlx::query(sql), |q, block| {
+            block.bind_all_arguments(q).unwrap()
+        }))
     }
 }
 

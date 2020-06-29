@@ -78,7 +78,9 @@ impl<Block: BlockT> From<Storage<Block>> for Vec<StorageModel<Block>> {
         original
             .changes
             .into_iter()
-            .map(|changes| StorageModel::new(hash.clone(), block_num, full_storage, changes.0, changes.1))
+            .map(|changes| {
+                StorageModel::new(hash.clone(), block_num, full_storage, changes.0, changes.1)
+            })
             .collect::<Vec<StorageModel<Block>>>()
     }
 }

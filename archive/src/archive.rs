@@ -97,7 +97,9 @@ where
     }
 
     /// returns an Archive Client with a ReadOnlyBackend
-    pub fn api_client(&self) -> Result<Arc<impl ApiAccess<B, ReadOnlyBackend<B>, R>>, ArchiveError> {
+    pub fn api_client(
+        &self,
+    ) -> Result<Arc<impl ApiAccess<B, ReadOnlyBackend<B>, R>>, ArchiveError> {
         let cpus = num_cpus::get();
         let backend = backend::runtime_api::<B, R, D>(
             self.db.clone(),
@@ -137,7 +139,9 @@ where
         let rpc = futures::executor::block_on(Rpc::<B>::connect(self.rpc_url.as_str()))?;
         let node_runtime = futures::executor::block_on(rpc.version(None))?;
         let (rpc_rstr, backend_rstr) = match (node_runtime.spec_name, rt.spec_name) {
-            (RuntimeString::Borrowed(s0), RuntimeString::Borrowed(s1)) => (s0.to_string(), s1.to_string()),
+            (RuntimeString::Borrowed(s0), RuntimeString::Borrowed(s1)) => {
+                (s0.to_string(), s1.to_string())
+            }
             (RuntimeString::Owned(s0), RuntimeString::Owned(s1)) => (s0, s1),
             (RuntimeString::Borrowed(s0), RuntimeString::Owned(s1)) => (s0.to_string(), s1),
             (RuntimeString::Owned(s0), RuntimeString::Borrowed(s1)) => (s0, s1.to_string()),

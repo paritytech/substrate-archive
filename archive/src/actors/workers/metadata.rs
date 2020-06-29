@@ -44,7 +44,12 @@ impl Metadata {
 
     // checks if the metadata exists in the database
     // if it doesn't exist yet, fetch metadata and insert it
-    async fn meta_checker<B: BlockT>(&self, ver: u32, hash: B::Hash, rpc: &Rpc<B>) -> ArchiveResult<()> {
+    async fn meta_checker<B: BlockT>(
+        &self,
+        ver: u32,
+        hash: B::Hash,
+        rpc: &Rpc<B>,
+    ) -> ArchiveResult<()> {
         if !queries::check_if_meta_exists(ver, &self.pool).await? {
             let meta = rpc.metadata(Some(hash)).await?;
             let meta = MetadataT::new(ver, meta);
@@ -87,7 +92,8 @@ where
             .collect::<Vec<&Block<B>>>();
 
         for b in versions.iter() {
-            self.meta_checker(b.spec, b.inner.block.hash(), &rpc).await?;
+            self.meta_checker(b.spec, b.inner.block.hash(), &rpc)
+                .await?;
         }
         self.addr.do_send(blks);
         Ok(())

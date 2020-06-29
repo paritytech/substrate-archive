@@ -24,19 +24,21 @@ use super::{
     backend::{ApiAccess, BlockBroker, GetRuntimeVersion, ReadOnlyBackend, ThreadedBlockExecutor},
     error::{ArchiveResult, Error as ArchiveError},
 };
-use generators::{BlocksActor, MissingStorage};
+use futures::stream::StreamExt;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sqlx::postgres::PgPool;
 use std::sync::Arc;
+use workers::msg;
 use xtra::prelude::*;
 
 /// Context that every actor may use
 #[derive(Clone)]
 pub struct ActorContext<Block: BlockT> {
     backend: Arc<ReadOnlyBackend<Block>>,
+    api: Arc<dyn GetRuntimeVersion<Block>>,
     broker: BlockBroker<Block>,
     rpc_url: String,
     pool: sqlx::PgPool,
@@ -48,12 +50,14 @@ impl<Block: BlockT> ActorContext<Block> {
         broker: BlockBroker<Block>,
         rpc_url: String,
         pool: sqlx::PgPool,
+        api: Arc<dyn GetRuntimeVersion<Block>>,
     ) -> Self {
         Self {
             backend,
             broker,
             rpc_url,
             pool,
+            api,
         }
     }
 
@@ -68,8 +72,13 @@ impl<Block: BlockT> ActorContext<Block> {
     pub fn pool(&self) -> sqlx::PgPool {
         self.pool.clone()
     }
-    pub fn broker(&self) -> &BlockBroker<Block> {
-        &self.broker
+
+    pub fn broker(&self) -> BlockBroker<Block> {
+        self.broker.clone()
+    }
+
+    pub fn api(&self) -> Arc<dyn GetRuntimeVersion<Block>> {
+        self.api.clone()
     }
 }
 
@@ -106,8 +115,6 @@ impl<Block: BlockT> ActorContext<Block> {
 pub struct ArchiveContext<Block: BlockT> {
     actor_context: ActorContext<Block>,
     rt: tokio::runtime::Runtime,
-    blocks: BlocksActor<Block>,
-    storage: MissingStorage<Block>,
 }
 
 impl<Block> ArchiveContext<Block>
@@ -130,7 +137,7 @@ where
     pub fn init<Runtime, ClientApi>(
         client_api: Arc<ClientApi>,
         backend: Arc<ReadOnlyBackend<Block>>,
-        block_workers: Option<usize>,
+        workers: Option<usize>,
         url: String,
         psql_url: &str,
     ) -> Result<Self, ArchiveError>
@@ -141,28 +148,37 @@ where
             + Send
             + Sync
             + 'static,
-        ClientApi: ApiAccess<Block, ReadOnlyBackend<Block>, Runtime> + GetRuntimeVersion<Block> + 'static,
+        ClientApi:
+            ApiAccess<Block, ReadOnlyBackend<Block>, Runtime> + GetRuntimeVersion<Block> + 'static,
     {
-        let broker = ThreadedBlockExecutor::new(block_workers, client_api.clone(), backend.clone())?;
+        let mut broker = ThreadedBlockExecutor::new(workers, client_api.clone(), backend.clone())?;
+        let results = broker.results.take().expect("Value just instantiated; qed");
         let mut rt = tokio::runtime::Runtime::new()?;
         let pool = rt.block_on(PgPool::builder().max_size(8).build(psql_url))?;
-        let context = ActorContext::new(backend.clone(), broker, url, pool.clone());
+        let context = ActorContext::new(
+            backend.clone(),
+            broker,
+            url,
+            pool.clone(),
+            client_api.clone(),
+        );
 
         let context0 = context.clone();
-        let main = || -> ArchiveResult<(BlocksActor<Block>, MissingStorage<Block>)> {
-            let url = context0.rpc_url().to_string();
-            let addr = workers::BlockFetcher::new(&context0, client_api.clone(), Some(3))?.spawn();
-            let blocks = BlocksActor::new(url, addr.clone());
-            let storage = MissingStorage::new(context0.clone())?;
-            tokio::spawn(generators::missing_blocks(context0.clone(), addr));
-            Ok((blocks, storage))
+        let handle = rt.handle();
+        let main = || -> ArchiveResult<()> {
+            let subscription = handle.block_on(async {
+                let rpc = crate::rpc::Rpc::<Block>::connect(context0.rpc_url()).await?;
+                rpc.subscribe_finalized_heads().await
+            })?;
+            let ag = workers::Aggregator::new(context0.clone(), handle.clone()).spawn();
+            ag.clone().attach_stream(subscription.map(|h| msg::Head(h)));
+            ag.attach_stream(results);
+            Ok(())
         };
-        let (blocks, storage) = rt.enter(main)?;
+        rt.enter(main)?;
 
         Ok(Self {
             rt,
-            blocks,
-            storage,
             actor_context: context,
         })
     }

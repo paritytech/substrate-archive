@@ -25,7 +25,9 @@ pub struct BlockNumSeries {
 }
 
 /// get missing blocks from relational database
-pub(crate) async fn missing_blocks(pool: &sqlx::PgPool) -> Result<Vec<BlockNumSeries>, ArchiveError> {
+pub(crate) async fn missing_blocks(
+    pool: &sqlx::PgPool,
+) -> Result<Vec<BlockNumSeries>, ArchiveError> {
     sqlx::query_as(
         "SELECT generate_series
         FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
@@ -39,7 +41,9 @@ pub(crate) async fn missing_blocks(pool: &sqlx::PgPool) -> Result<Vec<BlockNumSe
 
 /// Will get blocks such that they exist in the `blocks` table but they
 /// do not exist in the `storage` table
-pub(crate) async fn blocks_storage_intersection(pool: &sqlx::PgPool) -> Result<Vec<SqlBlock>, ArchiveError> {
+pub(crate) async fn blocks_storage_intersection(
+    pool: &sqlx::PgPool,
+) -> Result<Vec<SqlBlock>, ArchiveError> {
     sqlx::query_as(
         "SELECT *
         FROM blocks
@@ -51,7 +55,10 @@ pub(crate) async fn blocks_storage_intersection(pool: &sqlx::PgPool) -> Result<V
 }
 
 #[cfg(test)]
-pub(crate) async fn get_full_block(pool: &sqlx::PgPool, block_num: u32) -> Result<SqlBlock, ArchiveError> {
+pub(crate) async fn get_full_block(
+    pool: &sqlx::PgPool,
+    block_num: u32,
+) -> Result<SqlBlock, ArchiveError> {
     sqlx::query_as(
         "
         SELECT parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
@@ -74,7 +81,10 @@ pub(crate) async fn blocks_count(pool: &sqlx::PgPool) -> Result<u64, ArchiveErro
 }
 
 /// check if a runtime versioned metadata exists in the database
-pub(crate) async fn check_if_meta_exists(spec: u32, pool: &sqlx::PgPool) -> Result<bool, ArchiveError> {
+pub(crate) async fn check_if_meta_exists(
+    spec: u32,
+    pool: &sqlx::PgPool,
+) -> Result<bool, ArchiveError> {
     let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM metadata WHERE version=$1)"#)
         .bind(spec)
         .fetch_one(pool)
@@ -82,7 +92,10 @@ pub(crate) async fn check_if_meta_exists(spec: u32, pool: &sqlx::PgPool) -> Resu
     Ok(row.0)
 }
 
-pub(crate) async fn check_if_block_exists(hash: &[u8], pool: &sqlx::PgPool) -> Result<bool, ArchiveError> {
+pub(crate) async fn check_if_block_exists(
+    hash: &[u8],
+    pool: &sqlx::PgPool,
+) -> Result<bool, ArchiveError> {
     let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash=$1)"#)
         .bind(hash)
         .fetch_one(pool)

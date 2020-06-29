@@ -33,7 +33,8 @@ use std::sync::Arc;
 use super::{ApiAccess, ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
-pub type TArchiveClient<TBl, TRtApi, TExecDisp> = Client<TFullCallExecutor<TBl, TExecDisp>, TBl, TRtApi>;
+pub type TArchiveClient<TBl, TRtApi, TExecDisp> =
+    Client<TFullCallExecutor<TBl, TExecDisp>, TBl, TRtApi>;
 
 /// Full client call executor type.
 type TFullCallExecutor<TBl, TExecDisp> =
@@ -46,7 +47,10 @@ pub fn runtime_api<Block, Runtime, Dispatch>(
 ) -> Result<TArchiveClient<Block, Runtime, Dispatch>, ArchiveError>
 where
     Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
+    Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>>
+        + Send
+        + Sync
+        + 'static,
     Runtime::RuntimeApi: RuntimeApiCollection<
             Block,
             StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block>, Block>,
@@ -56,8 +60,6 @@ where
     Dispatch: NativeExecutionDispatch + 'static,
     <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
-    // FIXME: prefix keys
-
     let backend = Arc::new(ReadOnlyBackend::new(db, true));
 
     let executor = NativeExecutor::<Dispatch>::new(

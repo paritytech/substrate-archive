@@ -18,7 +18,7 @@
 
 use crate::types::*;
 use crate::{
-    actors::{generators::msg, workers, ActorContext},
+    actors::{workers, workers::msg, ActorContext},
     backend::{BlockBroker, BlockData, GetRuntimeVersion, ReadOnlyBackend},
     error::ArchiveResult,
 };
@@ -29,47 +29,59 @@ use sp_runtime::{
 use std::sync::Arc;
 use xtra::prelude::*;
 
-pub struct BlockFetcher<Block: BlockT> {
+pub struct BlockFetcher<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
     pool: rayon::ThreadPool,
-    broker: BlockBroker<Block>,
-    backend: Arc<ReadOnlyBackend<Block>>,
-    rt_fetch: Arc<dyn GetRuntimeVersion<Block>>,
-    addr: Address<workers::Metadata>,
+    broker: BlockBroker<B>,
+    backend: Arc<ReadOnlyBackend<B>>,
+    rt_fetch: Arc<dyn GetRuntimeVersion<B>>,
+    addr: Address<workers::Aggregator<B>>,
 }
 
-impl<Block: BlockT> BlockFetcher<Block> {
+impl<B> BlockFetcher<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
     /// create a new BlockFetcher
     /// Must be ran within the context of a executor
     pub fn new(
-        context: &ActorContext<Block>,
-        rt_fetch: Arc<dyn GetRuntimeVersion<Block>>,
+        context: ActorContext<B>,
+        addr: Address<workers::Aggregator<B>>,
         num_threads: Option<usize>,
     ) -> ArchiveResult<Self> {
-        let pool = context.pool();
         let url = context.rpc_url().to_string();
-        let addr = workers::Metadata::new(url, &pool).spawn();
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads.unwrap_or(0))
             .thread_name(|i| format!("blk-fetch-{}", i))
             .build()?;
+        let rt_fetch = context.api();
         Ok(Self {
             addr,
-            backend: context.backend().clone(),
-            pool: pool,
-            broker: context.broker().clone(),
+            pool,
             rt_fetch,
+            backend: context.backend().clone(),
+            broker: context.broker().clone(),
         })
     }
 }
 
-impl<Block: BlockT> Actor for BlockFetcher<Block> {}
+impl<B> Actor for BlockFetcher<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
+}
 
 pub struct BlockRange(pub Vec<u32>);
 impl Message for BlockRange {
     type Result = ArchiveResult<()>;
 }
 
-// should probably make this a real threadpool with `block_worker` num threads
+// TODO: should probably make this a real threadpool with `block_worker` num threads
 // the reason we dont split up work here is because we don't want to block the `blocks` actor
 // from inserting the most-recent blocks into the database
 impl<B> SyncHandler<BlockRange> for BlockFetcher<B>
@@ -78,24 +90,29 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, block_nums: BlockRange, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        for block_num in block_nums.0.into_iter() {
+        for block_nums in block_nums.0.chunks(10) {
             let backend = self.backend.clone();
             let broker = self.broker.clone();
             let addr = self.addr.clone();
             let rt_fetch = self.rt_fetch.clone();
 
+            let block_nums = block_nums.to_vec();
             self.pool.spawn_fifo(move || {
-                let num = NumberFor::<B>::from(block_num);
-                let b = backend.block(&BlockId::Number(num));
-                if b.is_none() {
-                    log::warn!("Block {} not found!", block_num);
-                } else {
-                    let b = b.expect("Checked for none; qed");
-                    broker.work.send(BlockData::Single(b.block.clone())).unwrap();
-                    // TODO: fix unwrap
-                    let version = rt_fetch.runtime_version(&BlockId::Hash(b.block.hash())).unwrap();
-                    let block = Block::<B>::new(b, version.spec_version);
-                    addr.do_send(block).expect("Actor disconnected");
+                for block_num in block_nums.into_iter() {
+                    let num = NumberFor::<B>::from(block_num);
+                    let b = backend.block(&BlockId::Number(num));
+                    if b.is_none() {
+                        log::warn!("Block {} not found!", block_num);
+                    } else {
+                        let b = b.expect("Checked for none; qed");
+                        broker.work.send(BlockData::Single(b.block.clone()));
+                        // TODO: fix unwrap
+                        let version = rt_fetch
+                            .runtime_version(&BlockId::Hash(b.block.hash()))
+                            .unwrap();
+                        let block = Block::<B>::new(b, version.spec_version);
+                        addr.do_send(block).expect("Actor disconnected");
+                    }
                 }
             });
         }
@@ -121,7 +138,7 @@ where
                 return;
             }
             let block = block.expect("Checked for none; qed");
-            broker.work.send(BlockData::Single(block.block.clone())).unwrap();
+            broker.work.send(BlockData::Single(block.block.clone()));
             let version = rt_fetch
                 .runtime_version(&BlockId::Hash(block.block.hash()))
                 .unwrap();

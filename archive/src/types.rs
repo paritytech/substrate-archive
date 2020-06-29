@@ -18,7 +18,7 @@ use crate::error::Error as ArchiveError;
 use serde::{Deserialize, Serialize};
 use sp_runtime::{
     generic::{Block as NotSignedBlock, SignedBlock},
-    traits::Block as BlockT,
+    traits::{Block as BlockT, NumberFor},
     OpaqueExtrinsic,
 };
 use sp_storage::{StorageData, StorageKey};
@@ -63,7 +63,6 @@ impl<B: BlockT> Message for Block<B> {
     type Result = Result<(), ArchiveError>;
 }
 
-// TODO: Possibly split block into extrinsics / digest / etc so that it can be sent in seperate parts to decode threads
 impl<B: BlockT> Block<B> {
     pub fn new(block: SignedBlock<B>, spec: u32) -> Self {
         Self { inner: block, spec }
