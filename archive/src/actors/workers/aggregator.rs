@@ -168,7 +168,7 @@ where
         db: Address<super::Database>,
     ) -> ArchiveResult<()> {
         loop {
-            let (blocks, storage) = Self::check_work(&queues, &meta, &db)?;
+            let (storage, blocks) = Self::check_work(&queues, &meta, &db)?;
             match (blocks, storage) {
                 (0, 0) => (),
                 (b, 0) => log::info!("Indexing Blocks {} bps", b),
