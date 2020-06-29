@@ -144,14 +144,15 @@ where
         let (tx, mut rx) = mpsc::unbounded_channel();
         let handle = std::thread::spawn(move || loop {
             let data = futures::executor::block_on(rx.recv());
-            match data.unwrap() {
-                BlockData::Batch(v) => exec
+            match data {
+                Some(BlockData::Batch(v)) => exec
                     .add_vec_task(v, client.clone(), backend.clone(), sender.clone())
                     .unwrap(),
-                BlockData::Single(v) => exec
+                Some(BlockData::Single(v)) => exec
                     .add_task(v, client.clone(), backend.clone(), sender.clone())
                     .unwrap(),
-                BlockData::Stop => break,
+                Some(BlockData::Stop) => break,
+                None => break,
             }
         });
         Ok((tx, handle))

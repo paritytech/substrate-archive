@@ -124,6 +124,7 @@ where
         let rt = client.runtime_version_at(&BlockId::Number(0.into()))?;
         self.verify_same_chain(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
+
         ArchiveContext::init::<R, _>(
             client,
             backend,

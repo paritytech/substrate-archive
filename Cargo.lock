@@ -4467,7 +4467,7 @@ checksum = "feb3b2b1033b8a60b4da6ee470325f887758c95d5320f52f9ce0df055a55940e"
 
 [[package]]
 name = "polkadot-archive"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "async-ctrlc",

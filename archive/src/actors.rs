@@ -24,6 +24,7 @@ use super::{
     backend::{ApiAccess, BlockBroker, GetRuntimeVersion, ReadOnlyBackend, ThreadedBlockExecutor},
     error::{ArchiveResult, Error as ArchiveError},
 };
+use crossbeam::channel;
 use futures::stream::StreamExt;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
@@ -114,7 +115,9 @@ impl<Block: BlockT> ActorContext<Block> {
 /// ```
 pub struct ArchiveContext<Block: BlockT> {
     actor_context: ActorContext<Block>,
-    rt: tokio::runtime::Runtime,
+    /// Sender for the shutdown signal
+    tx: channel::Sender<()>,
+    handle: std::thread::JoinHandle<ArchiveResult<()>>,
 }
 
 impl<Block> ArchiveContext<Block>
@@ -153,8 +156,10 @@ where
     {
         let mut broker = ThreadedBlockExecutor::new(workers, client_api.clone(), backend.clone())?;
         let results = broker.results.take().expect("Value just instantiated; qed");
-        let mut rt = tokio::runtime::Runtime::new()?;
-        let pool = rt.block_on(PgPool::builder().max_size(8).build(psql_url))?;
+        // shutdown signals
+
+        let pool = futures::executor::block_on(PgPool::builder().max_size(8).build(psql_url))?;
+        let (tx, rx) = channel::bounded(0);
         let context = ActorContext::new(
             backend.clone(),
             broker,
@@ -164,32 +169,51 @@ where
         );
 
         let context0 = context.clone();
-        let handle = rt.handle();
-        let main = || -> ArchiveResult<()> {
-            let subscription = handle.block_on(async {
-                let rpc = crate::rpc::Rpc::<Block>::connect(context0.rpc_url()).await?;
-                rpc.subscribe_finalized_heads().await
-            })?;
-            let ag = workers::Aggregator::new(context0.clone(), handle.clone()).spawn();
-            ag.clone().attach_stream(subscription.map(|h| msg::Head(h)));
-            ag.attach_stream(results);
+        let handle = std::thread::spawn(move || -> ArchiveResult<()> {
+            let mut rt = tokio::runtime::Runtime::new()?;
+            let handle = rt.handle();
+            let main = || -> ArchiveResult<()> {
+                let subscription = handle.block_on(async {
+                    let rpc = crate::rpc::Rpc::<Block>::connect(context0.rpc_url()).await?;
+                    rpc.subscribe_finalized_heads().await
+                })?;
+                let ag = workers::Aggregator::new(context0.clone(), handle.clone()).spawn();
+                ag.clone().attach_stream(subscription.map(|h| msg::Head(h)));
+                ag.attach_stream(results);
+                Ok(())
+            };
+            rt.enter(main)?;
+            rt.block_on(async move {
+                loop {
+                    match rx.try_recv() {
+                        Ok(_) => break,
+                        Err(_) => (),
+                    }
+                    timer::Delay::new(std::time::Duration::from_secs(1)).await;
+                }
+            });
+            rt.shutdown_timeout(std::time::Duration::from_secs(5));
             Ok(())
-        };
-        rt.enter(main)?;
+        });
 
         Ok(Self {
-            rt,
             actor_context: context,
+            tx,
+            handle,
         })
     }
 
-    #[deprecated(since = "0.4.1", note = "use the shutdown method instead")]
+    /// Block the current thread with a single-threaded runtime
+    /// until shutdown
     pub fn block_until_stopped(mut self) -> Result<(), ArchiveError> {
-        self.rt.block_on(async {
+        let mut rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(async {
             loop {
                 timer::Delay::new(std::time::Duration::from_secs(1)).await;
             }
         });
+        self.tx.send(())?;
+        self.handle.join().unwrap();
         Ok(())
     }
 
@@ -197,8 +221,8 @@ where
     /// This makes sure any data we have is saved for the next time substrate-archive is run.
     pub fn shutdown(self) -> Result<(), ArchiveError> {
         log::info!("Shutting down");
-        // self.missing_blocks.join().expect("Could not join");
-        self.rt.shutdown_timeout(std::time::Duration::from_secs(5));
+        self.tx.send(());
+        self.handle.join().unwrap();
         self.actor_context.broker.stop()?;
         log::info!("Shut down succesfully");
         Ok(())

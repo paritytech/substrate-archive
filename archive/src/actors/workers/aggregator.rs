@@ -242,7 +242,6 @@ where
                 panic!("Could not start Block Fetcher ThreadPool. Exiting.")
             }
         };
-
         self.handle
             .spawn(fill_storage(pool.clone(), broker.clone()));
         self.handle.spawn(missing_blocks(pool, fetch.clone()));

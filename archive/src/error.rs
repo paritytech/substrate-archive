@@ -29,9 +29,9 @@ pub enum Error {
     Codec(#[from] codec::Error),
     #[error("serialization error")]
     Serialization(#[from] serde_json::Error),
-    #[error("sqlx error")]
+    #[error("sqlx error: {0}")]
     Sql(#[from] sqlx::Error),
-    #[error("blockchain error")]
+    #[error("blockchain error: {0}")]
     Blockchain(String),
     #[error("JSONRPC request failed")]
     RpcRequest(#[from] jsonrpsee::client::RequestError),
