@@ -218,6 +218,7 @@ dependencies = [
  "async-std",
  "native-tls",
  "thiserror",
+ "tokio 0.2.21",
  "url 2.1.1",
 ]
 
@@ -7594,10 +7595,12 @@ dependencies = [
  "dotenv",
  "futures 0.3.5",
  "heck",
+ "lazy_static",
  "proc-macro2 1.0.18",
  "quote 1.0.7",
  "sqlx-core",
  "syn 1.0.33",
+ "tokio 0.2.21",
  "url 2.1.1",
 ]
 

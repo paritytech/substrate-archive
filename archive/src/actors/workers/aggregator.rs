@@ -21,7 +21,7 @@ use crate::{
         ActorContext,
     },
     backend::BlockChanges,
-    error::ArchiveResult,
+    error::{self, ArchiveResult},
     types::{BatchBlock, Block, Storage},
 };
 use crossbeam::channel;
@@ -192,8 +192,7 @@ where
 
         let s_count = if changes.len() > 0 {
             let count = changes.len();
-            // FIXME: unwrap
-            db.do_send(super::msg::VecStorageWrap(changes)).unwrap();
+            db.do_send(super::msg::VecStorageWrap(changes))?;
             count
         } else {
             0
@@ -201,8 +200,7 @@ where
 
         let b_count = if blocks.len() > 0 {
             let count = blocks.len();
-            // FIXME unwrap
-            meta.do_send(BatchBlock::new(blocks)).unwrap();
+            meta.do_send(BatchBlock::new(blocks))?;
             count
         } else {
             0
@@ -288,7 +286,10 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, head: Head<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
-        self.fetch.as_ref().map(|f| f.do_send(head));
+        self.fetch
+            .as_ref()
+            .map(|f| f.do_send(head))
+            .ok_or(error::Error::Disconnected)?;
         Ok(())
     }
 }

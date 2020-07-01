@@ -47,6 +47,8 @@ pub enum Error {
     MismatchedChains(String, String),
     #[error("sending on disconnected channel")]
     Channel,
+    #[error("Trying to send to disconnected actor")]
+    Disconnected,
     #[error("Unexpected Error {0}")]
     General(String),
 
@@ -84,5 +86,11 @@ impl From<String> for Error {
 impl From<sp_blockchain::Error> for Error {
     fn from(e: sp_blockchain::Error) -> Error {
         Error::Blockchain(e.to_string())
+    }
+}
+
+impl From<xtra::Disconnected> for Error {
+    fn from(e: xtra::Disconnected) -> Error {
+        Error::Disconnected
     }
 }

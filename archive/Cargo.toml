@@ -16,10 +16,9 @@ serde = { version = "1.0", features = ["derive"] }
 # enabling arbitrary_precision for serde_json may cause rpc requests to fail
 serde_json = "1.0"
 dirs = { version = "2", package = "directories" }
-sqlx = { version = "0.3.5", features = ["postgres"] }
+sqlx = { version = "0.3.5", default-features = false, features = ["postgres", "runtime-tokio", "tls", "macros"] }
 async-trait = "0.1.35"
 hex = "0.4"
-#  (itertools) - only used in prepare_sql
 itertools = "0.9"
 crossbeam = "0.7"
 parking_lot = "0.10"
@@ -30,7 +29,7 @@ num_cpus = "1"
 xtra = { version = "0.4.2", features = ["with-tokio-0_2"] }
 # Sql migrations
 refinery = { version = "0.3.0", features = ["postgres"] }
-tokio = { version = "0.2.21", features = ["sync"] }
+tokio = { version = "0.2", features = ["sync"] }
 
 # Optional 
 fern = { version = "0.6", features = ["colored"], optional = true }
@@ -44,7 +43,6 @@ kvdb-rocksdb = "0.8"
 parity-util-mem = { version = "*", default-features = false, features = ["std"] }
 codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = ["derive", "full"] }
 hash-db = "0.15"
-
 
 # Substrate
 sp-database = { git = "https://github.com/paritytech/substrate", branch = "master", package="sp-database" }
