@@ -18,7 +18,7 @@
 
 use crate::types::*;
 use crate::{
-    actors::{workers, workers::msg, ActorContext},
+    actors::{workers, ActorContext},
     backend::{BlockBroker, BlockData, GetRuntimeVersion, ReadOnlyBackend},
     error::ArchiveResult,
 };
@@ -120,12 +120,18 @@ where
     }
 }
 
-impl<B> SyncHandler<msg::Head<B>> for BlockFetcher<B>
+pub struct Head<B: BlockT>(pub B::Header);
+
+impl<B: BlockT> Message for Head<B> {
+    type Result = ArchiveResult<()>;
+}
+
+impl<B> SyncHandler<Head<B>> for BlockFetcher<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, head: msg::Head<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+    fn handle(&mut self, head: Head<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let head = head.0;
         let backend = self.backend.clone();
         let broker = self.broker.clone();

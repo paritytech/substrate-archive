@@ -21,6 +21,7 @@ use std::path::PathBuf;
 pub struct CliOpts {
     pub file: PathBuf,
     pub log_level: log::LevelFilter,
+    pub log_num: u64,
     pub chain: String,
 }
 
@@ -35,6 +36,7 @@ impl CliOpts {
             3 => log::LevelFilter::Debug,
             4 | _ => log::LevelFilter::Trace,
         };
+        let log_num = matches.occurrences_of("verbose");
         let file = matches
             .value_of("config")
             .expect("Config is a required value");
@@ -43,10 +45,10 @@ impl CliOpts {
             .value_of("chain")
             .expect("Chain is a required value");
 
-
         CliOpts {
             file: PathBuf::from(file),
             log_level,
+            log_num,
             chain: chain.to_string(),
         }
     }

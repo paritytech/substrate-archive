@@ -23,26 +23,22 @@ use futures::future::FutureExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use sqlx::PgPool;
 use std::time::Duration;
+use tokio::prelude::*;
 
-pub fn main() {
-    match run() {
+#[tokio::main]
+pub async fn main() -> Result<()> {
+    match run().await {
         Ok(_) => (),
-        Err(e) => {
-            log::error!("{}", e.to_string());
-            std::process::exit(1);
-        }
-    }
+        Err(e) => log::error!("{}", e.to_string()),
+    };
+    Ok(())
 }
 
-pub fn run() -> Result<()> {
+async fn run() -> Result<()> {
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Info);
 
     let archive = archive::run_archive(config.clone())?;
-
-    let url = config.psql_conf().url();
-    let mut runtime = tokio::runtime::Builder::new().basic_scheduler().build()?;
-    let pool = runtime.block_on(PgPool::builder().max_size(2).build(url.as_str()))?;
 
     let pb = ProgressBar::new_spinner();
     pb.set_style(
@@ -59,11 +55,12 @@ pub fn run() -> Result<()> {
             .template("{spinner:.blue} {msg}"),
     );
 
-    let (tx, mut rx) = futures::channel::oneshot::channel();
-
     // don't run ticker for higher levels
-    if config.cli().log_level == log::Level::Error || config.cli().log_level == log::Level::Warn {
-        runtime.spawn(async move {
+    if config.cli().log_num < 1 {
+        let url = config.psql_conf().url();
+        let pool = PgPool::builder().max_size(2).build(url.as_str()).await?;
+
+        let main = async move {
             loop {
                 let indexed_blocks: Option<u32> = queries::block_count(&pool).await.ok();
                 let max = queries::max_block(&pool).await.ok();
@@ -76,30 +73,26 @@ pub fn run() -> Result<()> {
                 };
                 let msg = format!("Indexed {}/{} blocks", indexed_blocks, max + 1,);
                 pb.set_message(msg.as_str());
-                match rx.try_recv() {
-                    Ok(v) => {
-                        if v.is_some() {
-                            std::process::exit(1);
-                        }
-                    }
-                    Err(_) => {
-                        log::error!("Sender dropped, exiting!");
-                        std::process::exit(1);
-                    }
-                }
                 timer::Delay::new(Duration::from_millis(80)).await;
             }
-        });
-    }
+        };
 
-    let ctrlc = async_ctrlc::CtrlC::new().expect("Couldn't create ctrlc handler");
-    println!("Waiting on ctrlc...");
-    runtime.block_on(ctrlc.then(|_| async {
-        // kill main loop
-        tx.send(1).unwrap();
-        println!("\nShutting down ...");
-        archive.shutdown().await;
-    }));
-    runtime.shutdown_timeout(Duration::from_millis(125));
+        let ctrlc = async_ctrlc::CtrlC::new().expect("Couldn't create ctrlc handler");
+        let ctrlc = ctrlc.then(|_| async {
+            // kill main loop
+            println!("\nShutting down ...");
+            archive.shutdown();
+        });
+        futures::future::join(main, ctrlc).await;
+    } else {
+        let ctrlc = async_ctrlc::CtrlC::new().expect("Couldn't create ctrlc handler");
+        println!("Waiting on ctrlc...");
+        ctrlc
+            .then(|_| async {
+                println!("\nShutting down ...");
+                archive.shutdown();
+            })
+            .await;
+    }
     Ok(())
 }

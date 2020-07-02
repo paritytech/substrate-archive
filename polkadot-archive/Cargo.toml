@@ -17,8 +17,8 @@ log = "0.4.8"
 pretty_env_logger = "0.4.0"
 anyhow = "1.0.31"
 serde = "1.0.110"
-sqlx = { version = "0.3.5", default-features = false, features = ["postgres", "runtime-tokio", "macros"] }
-tokio = "0.2"
+sqlx = { version = "0.3.5", features = ["postgres", "macros"] }
+tokio = { version = "0.2", features = ["full"] }
 async-ctrlc = "1.1.0"
 indicatif = "0.14.0"
 timer = { version = "3.0", package = "futures-timer" }

@@ -77,8 +77,12 @@ where
 {
     /// Create a new instance of the Archive DB
     /// and run Postgres Migrations
+    /// Should not be run within a futures runtime
     pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self, ArchiveError> {
-        let psql_url = crate::migrations::migrate(conf.psql_conf)?;
+        let pconf = conf.psql_conf.clone();
+        // refinery creates a current-thread tokio runtime that calls 'block_on', so we need to run possibly in its own thread
+        // in case the user creates another runtime with tokio
+        let psql_url = crate::migrations::migrate(pconf)?;
         let db = Arc::new(backend::util::open_database(
             conf.db_url.as_str(),
             conf.cache_size,
@@ -112,7 +116,7 @@ where
 
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
-    pub fn run(&self) -> Result<ArchiveContext<B>, ArchiveError> {
+    pub async fn run(&self) -> Result<ArchiveContext<B>, ArchiveError> {
         let cpus = num_cpus::get();
         let client = backend::runtime_api::<B, R, D>(
             self.db.clone(),
@@ -125,13 +129,15 @@ where
         self.verify_same_chain(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
 
-        ArchiveContext::init::<R, _>(
+        let ctx = ArchiveContext::new::<R, _>(
             client,
             backend,
             self.block_workers,
             self.rpc_url.clone(),
             self.psql_url.as_str(),
-        )
+        )?;
+        ctx.drive().await;
+        Ok(ctx)
     }
 
     /// Internal function to verify the running chain and the Runtime that was passed to us

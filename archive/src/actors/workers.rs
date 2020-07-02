@@ -15,6 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod aggregator;
+mod block_executor;
 mod block_fetcher;
 mod database;
 mod metadata;
@@ -28,7 +29,6 @@ pub use crate::database::Database;
 
 /// any messages defined in the workers
 pub mod msg {
-    pub use super::aggregator::Head;
-    pub use super::block_fetcher::BlockRange;
+    pub use super::block_fetcher::{BlockRange, Head};
     pub use super::database::VecStorageWrap;
 }

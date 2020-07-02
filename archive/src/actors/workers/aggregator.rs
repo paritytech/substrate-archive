@@ -15,11 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-    actors::{
-        generators::{fill_storage, missing_blocks},
-        workers::BlockFetcher,
-        ActorContext,
-    },
+    actors::{generators::fill_storage, workers::BlockFetcher, ActorContext},
     backend::BlockChanges,
     error::{self, ArchiveResult},
     types::{BatchBlock, Block, Storage},
@@ -38,6 +34,7 @@ pub const SYSTEM_TICK: u64 = 1000;
 /// results in batch inserts into the database (better perf)
 /// also easier telemetry/logging
 /// Handles sending and receiving messages from threadpools
+#[derive(Clone)]
 pub struct Aggregator<B>
 where
     B: BlockT,
@@ -49,15 +46,10 @@ where
     /// Actor which manages getting the runtime metadata for blocks
     /// and sending them to the database actor
     meta_addr: Address<super::Metadata>,
-    /// the Actor which manages sending blocks to be fetched by the RocksDB backend
-    /// in a threadpool
-    fetch: Option<Address<BlockFetcher<B>>>,
     /// General Context containing global shared state useful in Actors
     context: ActorContext<B>,
-    /// the tokio context this actor is running in
-    handle: runtime::Handle,
-    /// the handle to the core system loop
-    core_loop: task::JoinHandle<ArchiveResult<()>>,
+    /// Pooled Postgres Database Connections
+    pool: sqlx::PgPool,
 }
 
 /// Internal struct representing a queue built around message-passing
@@ -140,59 +132,27 @@ where
     NumberFor<B>: Into<u32>,
     NumberFor<B>: From<u32>,
 {
-    pub fn new(context: ActorContext<B>, handle: runtime::Handle) -> Self {
+    pub fn new(context: ActorContext<B>, pool: &sqlx::PgPool) -> Self {
         let url = context.rpc_url();
-        let pool = context.pool();
         let db_addr = super::Database::new(&pool).spawn();
         let meta_addr = super::Metadata::new(url.to_string(), &pool).spawn();
         let queues = Queues::new();
-        let core_loop = handle.spawn(Self::aggregate(
-            queues.clone(),
-            meta_addr.clone(),
-            db_addr.clone(),
-        ));
+
         Self {
             queues,
-            fetch: None,
             context,
             db_addr,
             meta_addr,
-            handle,
-            core_loop,
+            pool: pool.clone(),
         }
     }
 
-    async fn aggregate(
-        queues: Queues<B>,
-        meta: Address<super::Metadata>,
-        db: Address<super::Database>,
-    ) -> ArchiveResult<()> {
-        loop {
-            let (storage, blocks) = Self::check_work(&queues, &meta, &db)?;
-            match (blocks, storage) {
-                (0, 0) => (),
-                (b, 0) => log::info!("Indexing Blocks {} bps", b),
-                (0, s) => log::info!("Indexing Storage {} bps", s),
-                (b, s) => log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s),
-            }
-            timer::Delay::new(std::time::Duration::from_millis(SYSTEM_TICK)).await;
-            if queues.should_shutdown() {
-                break;
-            }
-        }
-        Ok(())
-    }
-
-    fn check_work(
-        queues: &Queues<B>,
-        meta: &Address<super::Metadata>,
-        db: &Address<super::Database>,
-    ) -> ArchiveResult<(usize, usize)> {
-        let (changes, blocks) = queues.pop_iter();
+    fn check_work(&self) -> ArchiveResult<Count> {
+        let (changes, blocks) = self.queues.pop_iter();
 
         let s_count = if changes.len() > 0 {
             let count = changes.len();
-            db.do_send(super::msg::VecStorageWrap(changes))?;
+            self.db_addr.do_send(super::msg::VecStorageWrap(changes))?;
             count
         } else {
             0
@@ -200,21 +160,17 @@ where
 
         let b_count = if blocks.len() > 0 {
             let count = blocks.len();
-            meta.do_send(BatchBlock::new(blocks))?;
+            self.meta_addr.do_send(BatchBlock::new(blocks))?;
             count
         } else {
             0
         };
 
-        Ok((s_count, b_count))
+        Ok(Count(s_count, b_count))
     }
 
     async fn kill(self) -> ArchiveResult<()> {
         self.queues.shutdown()?;
-        // FIXME error
-        self.core_loop
-            .await
-            .expect("Core loop failed to execute to completion");
         Ok(())
     }
 }
@@ -223,34 +179,33 @@ impl<B: BlockT> Message for BlockChanges<B> {
     type Result = ArchiveResult<()>;
 }
 
+struct Count(usize, usize);
+
+impl Message for Count {
+    type Result = ();
+}
+
 impl<B> Actor for Aggregator<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
     fn started(&mut self, ctx: &mut Context<Self>) {
-        let (broker, pool) = (self.context.broker(), self.context.pool());
+        let (broker, pool) = (self.context.broker(), self.pool.clone());
 
-        let this_addr = ctx.address().expect("Actor just started");
-        let (fetch, mgr) = match super::BlockFetcher::new(self.context.clone(), this_addr, Some(3))
-        {
-            Ok(v) => v.create(),
-            Err(e) => {
-                log::error!("{}", e);
-                panic!("Could not start Block Fetcher ThreadPool. Exiting.")
+        crate::util::spawn(fill_storage(pool.clone(), broker.clone()));
+
+        let this = self.clone();
+        let addr = ctx.address().expect("Just instantiated; qed").clone();
+        crate::util::spawn(async move {
+            loop {
+                timer::Delay::new(std::time::Duration::from_millis(SYSTEM_TICK)).await;
+                if let Err(_) = addr.do_send(this.check_work()?) {
+                    break;
+                }
             }
-        };
-        self.handle
-            .spawn(fill_storage(pool.clone(), broker.clone()));
-        self.handle.spawn(missing_blocks(pool, fetch.clone()));
-
-        self.handle.spawn(mgr.manage());
-        self.fetch = Some(fetch);
-    }
-
-    fn stopped(&mut self, ctx: &mut Context<Self>) {
-        // drop the fblock fetcher actor
-        self.fetch = None;
+            Ok(())
+        });
     }
 }
 
@@ -274,22 +229,18 @@ where
     }
 }
 
-pub struct Head<B: BlockT>(pub B::Header);
-
-impl<B: BlockT> Message for Head<B> {
-    type Result = ArchiveResult<()>;
-}
-
-impl<B> SyncHandler<Head<B>> for Aggregator<B>
+impl<B> SyncHandler<Count> for Aggregator<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, head: Head<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
-        self.fetch
-            .as_ref()
-            .map(|f| f.do_send(head))
-            .ok_or(error::Error::Disconnected)?;
-        Ok(())
+    fn handle(&mut self, counts: Count, _: &mut Context<Self>) -> () {
+        let (blocks, storage) = (counts.0, counts.1);
+        match (blocks, storage) {
+            (0, 0) => (),
+            (b, 0) => log::info!("Indexing Blocks {} bps", b),
+            (0, s) => log::info!("Indexing Storage {} bps", s),
+            (b, s) => log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s),
+        }
     }
 }

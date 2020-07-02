@@ -38,49 +38,32 @@ where
 {
     let mut added = HashSet::new();
     loop {
-        match main_l(&pool, &addr, &mut added).await {
-            Ok(_) => (),
-            Err(e) => log::error!("{}", e),
+        let block_nums = queries::missing_blocks(&pool).await?;
+        if block_nums.len() <= 0 {
+            timer::Delay::new(std::time::Duration::from_secs(1)).await;
+            return Ok(());
         }
-    }
-}
-
-// TODO: once async closures are stabilized this could be a closure apart of the missing_blocks fn
-async fn main_l<B>(
-    pool: &sqlx::PgPool,
-    addr: &Address<BlockFetcher<B>>,
-    added: &mut HashSet<u32>,
-) -> ArchiveResult<()>
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    let block_nums = queries::missing_blocks(pool).await?;
-    if block_nums.len() <= 0 {
-        timer::Delay::new(std::time::Duration::from_secs(1)).await;
-        return Ok(());
-    }
-    let block_nums = block_nums
-        .into_iter()
-        .map(|b| b.generate_series as u32)
-        .collect::<HashSet<u32>>();
-
-    let block_nums = block_nums
-        .difference(&added)
-        .map(|b| *b)
-        .collect::<Vec<u32>>();
-    if block_nums.len() > 0 {
-        log::info!(
-            "Indexing {} missing blocks, from {} to {} ...",
-            block_nums.len(),
-            block_nums[0],
-            block_nums[block_nums.len() - 1]
-        );
-        added.extend(block_nums.iter());
-        addr.do_send(BlockRange(block_nums));
-        timer::Delay::new(std::time::Duration::from_secs(1)).await;
-    } else {
-        timer::Delay::new(std::time::Duration::from_secs(5)).await;
+        let block_nums = block_nums
+            .into_iter()
+            .map(|b| b.generate_series as u32)
+            .collect::<HashSet<u32>>();
+        let block_nums = block_nums
+            .difference(&added)
+            .map(|b| *b)
+            .collect::<Vec<u32>>();
+        if block_nums.len() > 0 {
+            log::info!(
+                "Indexing {} missing blocks, from {} to {} ...",
+                block_nums.len(),
+                block_nums[0],
+                block_nums[block_nums.len() - 1]
+            );
+            added.extend(block_nums.iter());
+            addr.do_send(BlockRange(block_nums));
+            timer::Delay::new(std::time::Duration::from_secs(1)).await;
+        } else {
+            timer::Delay::new(std::time::Duration::from_secs(5)).await;
+        }
     }
     Ok(())
 }

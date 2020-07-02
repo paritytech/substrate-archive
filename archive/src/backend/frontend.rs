@@ -110,9 +110,9 @@ impl CloneableSpawn for TaskExecutor {
 
 fn execution_strategies() -> ExecutionStrategies {
     ExecutionStrategies {
-        syncing: ExecutionStrategy::AlwaysWasm,
-        importing: ExecutionStrategy::AlwaysWasm,
-        block_construction: ExecutionStrategy::AlwaysWasm,
+        syncing: ExecutionStrategy::NativeElseWasm,
+        importing: ExecutionStrategy::NativeElseWasm,
+        block_construction: ExecutionStrategy::NativeElseWasm,
         offchain_worker: ExecutionStrategy::NativeWhenPossible,
         other: ExecutionStrategy::AlwaysWasm,
     }

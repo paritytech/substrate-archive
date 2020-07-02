@@ -16,7 +16,7 @@ serde = { version = "1.0", features = ["derive"] }
 # enabling arbitrary_precision for serde_json may cause rpc requests to fail
 serde_json = "1.0"
 dirs = { version = "2", package = "directories" }
-sqlx = { version = "0.3.5", default-features = false, features = ["postgres", "runtime-tokio", "tls", "macros"] }
+sqlx = { version = "0.3.5", features = ["postgres", "tls", "macros"] }
 async-trait = "0.1.35"
 hex = "0.4"
 itertools = "0.9"
@@ -29,11 +29,13 @@ num_cpus = "1"
 xtra = { version = "0.4.2", features = ["with-tokio-0_2"] }
 # Sql migrations
 refinery = { version = "0.3.0", features = ["postgres"] }
-tokio = { version = "0.2", features = ["sync"] }
 
 # Optional 
 fern = { version = "0.6", features = ["colored"], optional = true }
 chrono = { version = "0.4", optional = true }
+tokio = { version = "^0.2", features = ["sync", "rt-threaded", "blocking"], optional = true }
+smol = { version = "^0.1.11", optional = true }
+async-std = { version = "^1", features = ["unstable"], optional = true}
 
 # Parity
 primitive-types = "0.7"
@@ -71,6 +73,9 @@ bincode = "1.2.1"
 tempfile = "3.1"
 
 [features]
-default = []
+with-tokio = ["tokio", "xtra/with-tokio-0_2"]
+with-async-std = ["async-std", "xtra/with-async_std-1" ]
+with-smol = ["smol", "xtra/with-smol-0_1"]
+default = ["with-tokio", "logging"]
 logging = ["chrono", "fern"]
 test_rocksdb = []

@@ -15,10 +15,34 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! logging and general utilities
+use crate::error::ArchiveResult;
 #[cfg(feature = "logging")]
 use fern::colors::{Color, ColoredLevelConfig};
+use futures::Future;
 use log::*;
 use std::path::{Path, PathBuf};
+
+pub fn spawn(fut: impl Future<Output = ArchiveResult<()>> + Send + 'static) {
+    let fut = async move {
+        match fut.await {
+            Ok(_) => (),
+            Err(e) => log::error!("{}", e.to_string()),
+        }
+    };
+
+    #[cfg(feature = "with-tokio")]
+    {
+        tokio::spawn(fut);
+    }
+    #[cfg(feature = "with-async-std")]
+    {
+        async_std::task::spawn(fut);
+    }
+    #[cfg(feature = "with-smol")]
+    {
+        smol::Task::spawn(fut).detach();
+    }
+}
 
 /// create an arbitrary directory on disk
 /// panics if it fails because of anything other than the directory already exists

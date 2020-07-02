@@ -31,7 +31,7 @@ pub enum TripleContext {
 }
 
 impl TripleContext {
-    pub async fn shutdown(self) {
+    pub fn shutdown(self) {
         match self {
             TripleContext::Westend(w) => w.shutdown().unwrap(),
             TripleContext::Kusama(k) => k.shutdown().unwrap(),
