@@ -22,25 +22,17 @@ use polkadot_service::polkadot_runtime as dot_rt;
 use polkadot_service::westend_runtime as westend_rt;
 use polkadot_service::Block;
 use sc_chain_spec::ChainSpec;
-use substrate_archive::{Archive, ArchiveConfig, ArchiveContext};
+use substrate_archive::{Archive, ArchiveConfig, System};
+use tokio::runtime::Handle;
 
+#[allow(unused)]
 pub enum TripleContext {
-    Westend(ArchiveContext<Block>),
-    Kusama(ArchiveContext<Block>),
-    Polkadot(ArchiveContext<Block>),
+    Westend(System<Block>),
+    Kusama(System<Block>),
+    Polkadot(System<Block>),
 }
 
-impl TripleContext {
-    pub fn shutdown(self) {
-        match self {
-            TripleContext::Westend(w) => w.shutdown().unwrap(),
-            TripleContext::Kusama(k) => k.shutdown().unwrap(),
-            TripleContext::Polkadot(p) => p.shutdown().unwrap(),
-        }
-    }
-}
-
-pub fn run_archive(config: Config) -> Result<TripleContext> {
+pub fn run_archive(config: Config, handle: &Handle) -> Result<()> {
     let mut db_path = config.polkadot_path();
 
     let path = config.polkadot_path();
@@ -80,21 +72,24 @@ pub fn run_archive(config: Config) -> Result<TripleContext> {
                 Archive::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor>::new(
                     conf, spec,
                 )?;
-            Ok(TripleContext::Kusama(archive.run()?))
+            handle.block_on(archive.run())?;
+            Ok(())
         }
         "westend" => {
             let archive =
                 Archive::<Block, westend_rt::RuntimeApi, polkadot_service::WestendExecutor>::new(
                     conf, spec,
                 )?;
-            Ok(TripleContext::Westend(archive.run()?))
+            handle.block_on(archive.run())?;
+            Ok(())
         }
         "polkadot" | "dot" => {
             let archive =
                 Archive::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor>::new(
                     conf, spec,
                 )?;
-            Ok(TripleContext::Polkadot(archive.run()?))
+            handle.block_on(archive.run())?;
+            Ok(())
         }
         c => Err(anyhow!("unknown chain {}", c)),
     }

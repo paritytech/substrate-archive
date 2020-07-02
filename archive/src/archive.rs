@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-    actors::ArchiveContext,
+    actors::System,
     backend::{self, frontend::TArchiveClient, ApiAccess, ReadOnlyBackend, ReadOnlyDatabase},
     error::{ArchiveResult, Error as ArchiveError},
     migrations::MigrationConfig,
@@ -34,6 +34,37 @@ use sp_runtime::{
 use sp_version::RuntimeVersion;
 use std::{marker::PhantomData, sync::Arc};
 
+/// Main entrypoint for substrate-archive.
+/// Deals with starting, stopping and manipulating the Actors
+/// which drive the archive runtime.
+///
+/// # Examples
+///
+/// ```
+/// use polkadot_service::{kusama_runtime::RuntimeApi as RApi, Block, KusamaExecutor as KExec};
+/// use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
+/// let conf = ArchiveConfig {
+///     db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
+///     rpc_url: "ws://127.0.0.1:9944".into(),
+///     cache_size: 1024,
+///     block_workers: None,
+///     wasm_pages: None,
+///     psql_conf: MigrationConfig {
+///         host: None,
+///         port: None,
+///         user: Some("archive".to_string()),
+///         pass: Some("default".to_string()),
+///         name: Some("kusama-archive".to_string()),
+///     },
+/// };
+///
+/// let spec = polkadot_service::chain_spec::kusama_config().unwrap();
+/// let archive = Archive::<Block, RApi, KExec>::new(conf, Box::new(spec)).unwrap();
+/// let archive = archive.run().unwrap();
+///
+/// archive.block_until_stopped();
+///
+/// ```
 pub struct Archive<Block, Runtime, Dispatch> {
     rpc_url: String,
     psql_url: String,
@@ -116,7 +147,7 @@ where
 
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
-    pub async fn run(&self) -> Result<ArchiveContext<B>, ArchiveError> {
+    pub async fn run(&self) -> Result<System<B>, ArchiveError> {
         let cpus = num_cpus::get();
         let client = backend::runtime_api::<B, R, D>(
             self.db.clone(),
@@ -129,7 +160,7 @@ where
         self.verify_same_chain(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
 
-        let ctx = ArchiveContext::new::<R, _>(
+        let ctx = System::new::<R, _>(
             client,
             backend,
             self.block_workers,

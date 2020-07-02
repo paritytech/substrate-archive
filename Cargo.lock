@@ -201,6 +201,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7deb0a829ca7bcfaf5da70b073a8d128619259a7be8216a355e23f00763059e5"
 
 [[package]]
+name = "async-channel"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee81ba99bee79f3c8ae114ae4baa7eaa326f63447cf2ec65e4393618b63f8770"
+dependencies = [
+ "concurrent-queue",
+ "event-listener",
+ "futures-core",
+]
+
+[[package]]
 name = "async-ctrlc"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1221,6 +1232,12 @@ dependencies = [
  "gcc",
  "libc",
 ]
+
+[[package]]
+name = "event-listener"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7efa04b0031857b33e85eee730d65511ff8e9f1779374fcc876f397caeca4762"
 
 [[package]]
 name = "exit-future"
@@ -7781,6 +7798,7 @@ dependencies = [
 name = "substrate-archive"
 version = "0.4.1"
 dependencies = [
+ "async-channel",
  "async-std",
  "async-trait",
  "bincode",

@@ -23,23 +23,47 @@ use futures::future::FutureExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use sqlx::PgPool;
 use std::time::Duration;
-use tokio::prelude::*;
 
-#[tokio::main]
-pub async fn main() -> Result<()> {
-    match run().await {
+pub fn main() -> Result<()> {
+    match run() {
         Ok(_) => (),
         Err(e) => log::error!("{}", e.to_string()),
     };
     Ok(())
 }
 
-async fn run() -> Result<()> {
+fn run() -> Result<()> {
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Info);
 
-    let archive = archive::run_archive(config.clone())?;
+    let mut rt = tokio::runtime::Builder::new()
+        .threaded_scheduler()
+        .core_threads(2)
+        .max_threads(4)
+        .thread_name("subst-arch")
+        .build()?;
 
+    archive::run_archive(config.clone(), rt.handle())?;
+
+    if config.cli().log_num == 0 {
+        rt.spawn(progress(config.clone()));
+    }
+
+    rt.block_on(ctrlc())?;
+    Ok(())
+}
+
+async fn ctrlc() -> Result<()> {
+    let ctrlc = async_ctrlc::CtrlC::new().expect("Couldn't create ctrlc handler");
+    ctrlc
+        .then(|_| async {
+            println!("\nShutting down ...");
+        })
+        .await;
+    Ok(())
+}
+
+async fn progress(config: config::Config) -> Result<()> {
     let pb = ProgressBar::new_spinner();
     pb.set_style(
         ProgressStyle::default_spinner()
@@ -55,44 +79,21 @@ async fn run() -> Result<()> {
             .template("{spinner:.blue} {msg}"),
     );
 
-    // don't run ticker for higher levels
-    if config.cli().log_num < 1 {
-        let url = config.psql_conf().url();
-        let pool = PgPool::builder().max_size(2).build(url.as_str()).await?;
+    let url = config.psql_conf().url();
+    let pool = PgPool::builder().max_size(2).build(url.as_str()).await?;
 
-        let main = async move {
-            loop {
-                let indexed_blocks: Option<u32> = queries::block_count(&pool).await.ok();
-                let max = queries::max_block(&pool).await.ok();
-                let (indexed_blocks, max) = match (indexed_blocks, max) {
-                    (Some(a), Some(b)) => (a, b),
-                    _ => {
-                        timer::Delay::new(Duration::from_millis(160)).await;
-                        continue;
-                    }
-                };
-                let msg = format!("Indexed {}/{} blocks", indexed_blocks, max + 1,);
-                pb.set_message(msg.as_str());
-                timer::Delay::new(Duration::from_millis(80)).await;
+    loop {
+        let indexed_blocks: Option<u32> = queries::block_count(&pool).await.ok();
+        let max = queries::max_block(&pool).await.ok();
+        let (indexed_blocks, max) = match (indexed_blocks, max) {
+            (Some(a), Some(b)) => (a, b),
+            _ => {
+                timer::Delay::new(Duration::from_millis(160)).await;
+                continue;
             }
         };
-
-        let ctrlc = async_ctrlc::CtrlC::new().expect("Couldn't create ctrlc handler");
-        let ctrlc = ctrlc.then(|_| async {
-            // kill main loop
-            println!("\nShutting down ...");
-            archive.shutdown();
-        });
-        futures::future::join(main, ctrlc).await;
-    } else {
-        let ctrlc = async_ctrlc::CtrlC::new().expect("Couldn't create ctrlc handler");
-        println!("Waiting on ctrlc...");
-        ctrlc
-            .then(|_| async {
-                println!("\nShutting down ...");
-                archive.shutdown();
-            })
-            .await;
+        let msg = format!("Indexed {}/{} blocks", indexed_blocks, max + 1,);
+        pb.set_message(msg.as_str());
+        timer::Delay::new(Duration::from_millis(80)).await;
     }
-    Ok(())
 }

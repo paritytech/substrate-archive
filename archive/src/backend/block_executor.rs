@@ -23,6 +23,7 @@ use crate::{
     error::Error as ArchiveError,
     types::*,
 };
+use async_channel::{Receiver, Sender};
 use hashbrown::HashSet;
 use itertools::Itertools;
 use sc_client_api::backend;
@@ -34,7 +35,6 @@ use sp_runtime::{
 };
 use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
 use std::{marker::PhantomData, sync::Arc, thread::JoinHandle};
-use tokio::sync::mpsc;
 
 pub type StorageKey = Vec<u8>;
 pub type StorageValue = Vec<u8>;
@@ -49,12 +49,12 @@ pub enum BlockData<Block: BlockT> {
 
 /// A layer between ThreadedBlockExecutor and whatever else that contains
 /// channels for sending new work and receiving storage changes
-/// Works in it's own thread
+/// Works in it's own thread. Avoids proliferating generics
 pub struct BlockBroker<Block: BlockT> {
     /// channel for sending blocks to be executed on a threadpool
-    pub work: mpsc::UnboundedSender<BlockData<Block>>,
+    pub work: Sender<BlockData<Block>>,
     /// results once execution is finished
-    pub results: Option<mpsc::UnboundedReceiver<BlockChanges<Block>>>,
+    pub results: Receiver<BlockChanges<Block>>,
     /// handle to join threadpool back to main thread
     /// only one thread may own this handle
     /// any clones will make the handle `None`
@@ -66,7 +66,7 @@ impl<Block: BlockT> Clone for BlockBroker<Block> {
         Self {
             work: self.work.clone(),
             // only one thread may own the receiver
-            results: None,
+            results: self.results.clone(),
             // only one thread may own a handle
             handle: None,
         }
@@ -78,7 +78,7 @@ where
     NumberFor<Block>: Into<u32>,
 {
     pub fn stop(mut self) -> Result<(), ArchiveError> {
-        self.work.send(BlockData::Stop)?;
+        self.work.try_send(BlockData::Stop).expect("Could not send");
         std::thread::sleep(std::time::Duration::from_millis(250));
         self.handle.take().map(JoinHandle::join);
         Ok(())
@@ -110,7 +110,7 @@ where
         backend: Arc<Backend<Block>>,
     ) -> Result<BlockBroker<Block>, ArchiveError> {
         // channel pair for sending and receiving BlockChanges
-        let (sender, receiver) = mpsc::unbounded_channel();
+        let (sender, receiver) = async_channel::unbounded();
 
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads.unwrap_or(0))
@@ -130,7 +130,7 @@ where
 
         Ok(BlockBroker {
             work: tx,
-            results: Some(receiver),
+            results: receiver,
             handle: Some(handle),
         })
     }
@@ -139,20 +139,19 @@ where
         mut exec: ThreadedBlockExecutor<Block, RA, Api>,
         backend: Arc<Backend<Block>>,
         client: Arc<Api>,
-        sender: mpsc::UnboundedSender<BlockChanges<Block>>,
-    ) -> Result<(mpsc::UnboundedSender<BlockData<Block>>, JoinHandle<()>), ArchiveError> {
-        let (tx, mut rx) = mpsc::unbounded_channel();
+        sender: Sender<BlockChanges<Block>>,
+    ) -> Result<(Sender<BlockData<Block>>, JoinHandle<()>), ArchiveError> {
+        let (tx, mut rx) = async_channel::unbounded();
         let handle = std::thread::spawn(move || loop {
-            let data = futures::executor::block_on(rx.recv());
+            let data = futures::executor::block_on(rx.recv()).unwrap();
             match data {
-                Some(BlockData::Batch(v)) => exec
+                BlockData::Batch(v) => exec
                     .add_vec_task(v, client.clone(), backend.clone(), sender.clone())
                     .unwrap(),
-                Some(BlockData::Single(v)) => exec
+                BlockData::Single(v) => exec
                     .add_task(v, client.clone(), backend.clone(), sender.clone())
                     .unwrap(),
-                Some(BlockData::Stop) => break,
-                None => break,
+                BlockData::Stop => break,
             }
         });
         Ok((tx, handle))
@@ -162,7 +161,7 @@ where
         block: Block,
         client: Arc<Api>,
         backend: Arc<Backend<Block>>,
-        sender: mpsc::UnboundedSender<BlockChanges<Block>>,
+        sender: Sender<BlockChanges<Block>>,
     ) -> Result<(), ArchiveError> {
         let api = client.runtime_api();
 
@@ -182,7 +181,8 @@ where
 
         let block = BlockExecutor::new(api, backend, block)?.block_into_storage()?;
 
-        sender.send(block).map_err(Into::into)
+        sender.try_send(block).expect("Could not send");
+        Ok(())
     }
 
     /// push some work to the global pool
@@ -191,18 +191,17 @@ where
         block: Block,
         client: Arc<Api>,
         backend: Arc<Backend<Block>>,
-        sender: mpsc::UnboundedSender<BlockChanges<Block>>,
+        sender: Sender<BlockChanges<Block>>,
     ) -> Result<(), ArchiveError> {
         if self.inserted.contains(&block.hash()) {
             return Ok(());
         } else {
             self.inserted.insert(block.hash());
-            self.pool.spawn_fifo(move || {
-                match Self::work(block.clone(), client, backend, sender) {
+            self.pool
+                .spawn_fifo(move || match Self::work(block, client, backend, sender) {
                     Ok(_) => (),
                     Err(e) => log::error!("{}", e),
-                }
-            });
+                });
         }
         Ok(())
     }
@@ -212,7 +211,7 @@ where
         blocks: Vec<Block>,
         client: Arc<Api>,
         backend: Arc<Backend<Block>>,
-        sender: mpsc::UnboundedSender<BlockChanges<Block>>,
+        sender: Sender<BlockChanges<Block>>,
     ) -> Result<(), ArchiveError> {
         let to_insert = blocks
             .into_iter()

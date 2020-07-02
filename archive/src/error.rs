@@ -63,12 +63,6 @@ impl<T> From<crossbeam::SendError<T>> for Error {
     }
 }
 
-impl<T> From<tokio::sync::mpsc::error::SendError<T>> for Error {
-    fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Error {
-        Error::Channel
-    }
-}
-
 impl From<&str> for Error {
     fn from(e: &str) -> Error {
         Error::General(e.to_string())

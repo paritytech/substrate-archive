@@ -41,13 +41,17 @@ pub(crate) async fn missing_blocks(
 
 /// Will get blocks such that they exist in the `blocks` table but they
 /// do not exist in the `storage` table
+/// blocks are ordered by spec version
+/// this is so the runtime code can be kept in cache without
+/// constantly switching between runtime versions if the blocks will be executed
 pub(crate) async fn blocks_storage_intersection(
     pool: &sqlx::PgPool,
 ) -> Result<Vec<SqlBlock>, ArchiveError> {
     sqlx::query_as(
         "SELECT *
         FROM blocks
-        WHERE NOT EXISTS (SELECT * FROM storage WHERE storage.block_num = blocks.block_num)",
+        WHERE NOT EXISTS (SELECT * FROM storage WHERE storage.block_num = blocks.block_num)
+        ORDER BY blocks.spec",
     )
     .fetch_all(pool)
     .await

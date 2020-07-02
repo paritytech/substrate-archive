@@ -105,7 +105,10 @@ where
                         log::warn!("Block {} not found!", block_num);
                     } else {
                         let b = b.expect("Checked for none; qed");
-                        broker.work.send(BlockData::Single(b.block.clone()));
+                        broker
+                            .work
+                            .try_send(BlockData::Single(b.block.clone()))
+                            .unwrap();
                         // TODO: fix unwrap
                         let version = rt_fetch
                             .runtime_version(&BlockId::Hash(b.block.hash()))
@@ -144,7 +147,10 @@ where
                 return;
             }
             let block = block.expect("Checked for none; qed");
-            broker.work.send(BlockData::Single(block.block.clone()));
+            broker
+                .work
+                .try_send(BlockData::Single(block.block.clone()))
+                .unwrap();
             let version = rt_fetch
                 .runtime_version(&BlockId::Hash(block.block.hash()))
                 .unwrap();

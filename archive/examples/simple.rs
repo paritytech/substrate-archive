@@ -39,10 +39,13 @@ pub fn main() {
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
 
+    let mut rt = tokio::runtime::Runtime::new().unwrap();
+
     let archive = Archive::<Block, RApi, KExec>::new(conf, Box::new(spec)).unwrap();
 
-    let context = archive.run().unwrap();
+    // start running the archive
+    let context = rt.block_on(archive.run()).unwrap();
 
     // run indefinitely
-    context.block_until_stopped().unwrap();
+    rt.block_on(context.block_until_stopped());
 }

@@ -31,7 +31,7 @@ mod sql_block_builder;
 mod types;
 mod util;
 
-pub use actors::ArchiveContext;
+pub use actors::System;
 pub use archive::{Archive, ArchiveConfig};
 pub use error::Error;
 pub use migrations::MigrationConfig;

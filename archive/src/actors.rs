@@ -47,6 +47,7 @@ pub struct ActorContext<Block: BlockT> {
     api: Arc<dyn GetRuntimeVersion<Block>>,
     broker: BlockBroker<Block>,
     rpc_url: String,
+    psql_url: String,
 }
 
 impl<Block: BlockT> ActorContext<Block> {
@@ -54,12 +55,14 @@ impl<Block: BlockT> ActorContext<Block> {
         backend: Arc<ReadOnlyBackend<Block>>,
         broker: BlockBroker<Block>,
         rpc_url: String,
+        psql_url: String,
         api: Arc<dyn GetRuntimeVersion<Block>>,
     ) -> Self {
         Self {
             backend,
             broker,
             rpc_url,
+            psql_url,
             api,
         }
     }
@@ -79,44 +82,18 @@ impl<Block: BlockT> ActorContext<Block> {
     pub fn api(&self) -> Arc<dyn GetRuntimeVersion<Block>> {
         self.api.clone()
     }
+
+    pub fn psql_url(&self) -> &str {
+        self.psql_url.as_str()
+    }
 }
 
-/// Main entrypoint for substrate-archive.
-/// Deals with starting, stopping and manipulating the Archive Runtime
-///
-/// # Examples
-///
-/// ```
-/// use polkadot_service::{kusama_runtime::RuntimeApi as RApi, Block, KusamaExecutor as KExec};
-/// use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
-/// let conf = ArchiveConfig {
-///     db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
-///     rpc_url: "ws://127.0.0.1:9944".into(),
-///     cache_size: 1024,
-///     block_workers: None,
-///     wasm_pages: None,
-///     psql_conf: MigrationConfig {
-///         host: None,
-///         port: None,
-///         user: Some("archive".to_string()),
-///         pass: Some("default".to_string()),
-///         name: Some("kusama-archive".to_string()),
-///     },
-/// };
-///
-/// let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-/// let archive = Archive::<Block, RApi, KExec>::new(conf, Box::new(spec)).unwrap();
-/// let archive = archive.run().unwrap();
-///
-/// archive.block_until_stopped();
-///
-/// ```
-pub struct ArchiveContext<Block: BlockT> {
+#[derive(Clone)]
+pub struct System<Block: BlockT> {
     context: ActorContext<Block>,
-    psql_url: String,
 }
 
-impl<B> ArchiveContext<B>
+impl<B> System<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
@@ -158,24 +135,23 @@ where
         C: ApiAccess<B, ReadOnlyBackend<B>, R> + GetRuntimeVersion<B> + 'static,
     {
         let mut broker = ThreadedBlockExecutor::new(workers, client_api.clone(), backend.clone())?;
-        let context = ActorContext::new(backend.clone(), broker, url, client_api.clone());
-        let psql_url = psql_url.to_string();
+        let context = ActorContext::new(
+            backend.clone(),
+            broker,
+            url,
+            psql_url.to_string(),
+            client_api.clone(),
+        );
 
-        Ok(Self { context, psql_url })
+        Ok(Self { context })
     }
 
-    /// Start the actors and begin driving the execution of indexing
+    /// Start the actors and begin driving their execution
     pub async fn drive(&self) -> ArchiveResult<()> {
-        let results = self
-            .context
-            .clone()
-            .broker
-            .results
-            .take()
-            .expect("Must be present");
+        let results = self.context.clone().broker.results;
         let pool = PgPool::builder()
             .max_size(8)
-            .build(self.psql_url.as_str())
+            .build(self.context.psql_url())
             .await?;
         let context0 = self.context.clone();
         let rpc = crate::rpc::Rpc::<B>::connect(context0.rpc_url()).await?;
@@ -196,6 +172,7 @@ where
         }
     }
 
+    // runs destructor code for the threadpools
     pub fn shutdown(&self) -> ArchiveResult<()> {
         self.context.broker().stop()?;
         Ok(())

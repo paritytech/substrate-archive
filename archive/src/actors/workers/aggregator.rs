@@ -166,7 +166,7 @@ where
             0
         };
 
-        Ok(Count(s_count, b_count))
+        Ok(Count(b_count, s_count))
     }
 
     async fn kill(self) -> ArchiveResult<()> {
