@@ -15,7 +15,6 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod aggregator;
-mod block_executor;
 mod block_fetcher;
 mod database;
 mod metadata;
