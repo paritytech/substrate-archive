@@ -34,7 +34,7 @@ pub(crate) async fn missing_blocks(
         WHERE
         NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
         ORDER BY generate_series ASC
-        LIMIT 2500
+        LIMIT 5000
         ",
     )
     .fetch_all(pool)

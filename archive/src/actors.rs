@@ -153,7 +153,7 @@ where
     pub async fn drive(&self) -> ArchiveResult<()> {
         let results = self.context.clone().broker.results;
         let pool = PgPool::builder()
-            .max_size(8)
+            .max_size(16)
             .build(self.context.psql_url())
             .await?;
         let context0 = self.context.clone();
