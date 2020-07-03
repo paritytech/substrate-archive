@@ -92,6 +92,6 @@ pub async fn fill_storage<B: BlockT>(
         blocks.len()
     );
     log::info!("indexing {} blocks of storage ... ", blocks.len());
-    broker.work.send(BlockData::Batch(blocks)).await;
+    broker.work.send(BlockData::Batch(blocks)).unwrap();
     Ok(())
 }

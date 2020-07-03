@@ -110,7 +110,7 @@ where
                             .runtime_version(&BlockId::Hash(b.block.hash()))
                             .unwrap();
                         let block_spec = BlockSpec::from((b.block.clone(), version.spec_version));
-                        broker.work.try_send(BlockData::Single(block_spec)).unwrap();
+                        broker.work.send(BlockData::Single(block_spec)).unwrap();
                         let block = Block::<B>::new(b, version.spec_version);
                         addr.do_send(block).expect("Actor disconnected");
                     }

@@ -101,9 +101,8 @@ where
         + 'static,
     D: NativeExecutionDispatch + 'static,
     <R::RuntimeApi as sp_api::ApiExt<B>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-    NumberFor<B>: Into<u32>,
-    NumberFor<B>: From<u32>,
-    B::Hash: From<primitive_types::H256>,
+    NumberFor<B>: Into<u32> + From<u32> + Unpin,
+    B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,
 {
     /// Create a new instance of the Archive DB

@@ -23,7 +23,6 @@ use crate::{
     error::Error as ArchiveError,
     types::*,
 };
-use async_channel::{Receiver, Sender};
 use codec::Decode;
 use hashbrown::HashSet;
 use itertools::Itertools;
@@ -44,6 +43,7 @@ pub type StorageValue = Vec<u8>;
 pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
+#[derive(Debug)]
 pub struct BlockSpec<Block: BlockT> {
     pub block: Block,
     pub spec: u32,
@@ -64,6 +64,7 @@ impl<Block: BlockT> From<(Block, u32)> for BlockSpec<Block> {
     }
 }
 
+#[derive(Debug)]
 pub enum BlockData<Block: BlockT> {
     Batch(Vec<BlockSpec<Block>>),
     Single(BlockSpec<Block>),
@@ -75,9 +76,9 @@ pub enum BlockData<Block: BlockT> {
 /// Works in it's own thread. Avoids proliferating generics
 pub struct BlockBroker<Block: BlockT> {
     /// channel for sending blocks to be executed on a threadpool
-    pub work: Sender<BlockData<Block>>,
+    pub work: flume::Sender<BlockData<Block>>,
     /// results once execution is finished
-    pub results: Receiver<BlockChanges<Block>>,
+    pub results: Option<flume::Receiver<BlockChanges<Block>>>,
     /// handle to join threadpool back to main thread
     /// only one thread may own this handle
     /// any clones will make the handle `None`
@@ -89,7 +90,7 @@ impl<Block: BlockT> Clone for BlockBroker<Block> {
         Self {
             work: self.work.clone(),
             // only one thread may own the receiver
-            results: self.results.clone(),
+            results: None,
             // only one thread may own a handle
             handle: None,
         }
@@ -135,7 +136,7 @@ where
         backend: Arc<Backend<Block>>,
     ) -> Result<BlockBroker<Block>, ArchiveError> {
         // channel pair for sending and receiving BlockChanges
-        let (sender, receiver) = async_channel::unbounded();
+        let (sender, receiver) = flume::unbounded();
 
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads.unwrap_or(0))
@@ -157,7 +158,7 @@ where
 
         Ok(BlockBroker {
             work: tx,
-            results: receiver,
+            results: Some(receiver),
             handle: Some(handle),
         })
     }
@@ -167,15 +168,13 @@ where
         exec: ThreadedBlockExecutor<Block, RA, Api>,
         backend: Arc<Backend<Block>>,
         client: Arc<Api>,
-        sender: Sender<BlockChanges<Block>>,
-    ) -> Result<(Sender<BlockData<Block>>, JoinHandle<()>), ArchiveError> {
-        let (tx, mut rx) = async_channel::unbounded();
+        sender: flume::Sender<BlockChanges<Block>>,
+    ) -> Result<(flume::Sender<BlockData<Block>>, JoinHandle<()>), ArchiveError> {
+        let (tx, mut rx) = flume::unbounded();
         let mut sched = self::block_scheduler::BlockScheduler::new(exec, backend, client, sender);
         let handle = std::thread::spawn(move || loop {
             std::thread::sleep(std::time::Duration::from_millis(50));
-            for _ in 0..rx.len() {
-                sched.add_data(rx.try_recv().unwrap());
-            }
+            rx.drain().for_each(|v| sched.add_data(v));
             sched.check_work();
         });
         Ok((tx, handle))

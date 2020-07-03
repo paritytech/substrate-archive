@@ -28,7 +28,6 @@ use crate::{
     error::{ArchiveResult, Error as ArchiveError},
     types::*,
 };
-use async_channel::Sender;
 use codec::{Decode, Encode};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
@@ -89,7 +88,7 @@ pub struct BlockScheduler<B: BlockT, RA, Api> {
     queue: BinaryHeap<EncodedBlockSpec>,
     backend: Arc<Backend<B>>,
     client: Arc<Api>,
-    sender: Sender<BlockChanges<B>>,
+    sender: flume::Sender<BlockChanges<B>>,
     exec: ThreadedBlockExecutor<B, RA, Api>,
 
     // internal sender/receivers for gauging how much work
@@ -113,7 +112,7 @@ where
         exec: ThreadedBlockExecutor<B, RA, Api>,
         backend: Arc<Backend<B>>,
         client: Arc<Api>,
-        sender: Sender<BlockChanges<B>>,
+        sender: flume::Sender<BlockChanges<B>>,
     ) -> Self {
         let (tx, rx) = flume::unbounded();
         Self {

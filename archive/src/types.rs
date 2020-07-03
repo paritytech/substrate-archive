@@ -26,10 +26,20 @@ use xtra::prelude::*;
 
 pub trait ThreadedExecutor {}
 
-// /// Generic, unsigned block type
-// pub type AbstractBlock<B: BlockT> = NotSignedBlock<B::Header, OpaqueExtrinsic>;
+#[async_trait::async_trait]
+pub trait Archive<B: BlockT> {
+    /// start driving the execution of the archive
+    async fn drive(&self) -> Result<(), ArchiveError>;
 
-// pub type Runtime<T, Run, Dis> = crate::backend::Runtime<T, Run, Dis>;
+    /// this method will block indefinitely
+    async fn block_until_stopped(&self) -> ();
+
+    /// shutdown the system
+    fn shutdown(&self) -> Result<(), ArchiveError>;
+
+    /// Get a reference to the context the actors are using
+    fn context(&self) -> Result<super::actors::ActorContext<B>, ArchiveError>;
+}
 
 #[derive(Debug)]
 pub struct Metadata {
