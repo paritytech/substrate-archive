@@ -34,7 +34,7 @@ pub fn main() -> Result<()> {
 
 fn run() -> Result<()> {
     let config = config::Config::new()?;
-    substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Info);
+    substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
 
     let mut rt = tokio::runtime::Builder::new()
         .threaded_scheduler()

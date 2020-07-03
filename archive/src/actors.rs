@@ -119,7 +119,9 @@ where
     /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the
     /// environment variable `DATABASE_URL` instead.
     pub fn new<R, C>(
-        client_api: Arc<C>,
+        // one client per-threadpool. This way we don't have conflicting cache resources
+        // for WASM runtime-instances
+        client_api: (Arc<C>, Arc<C>),
         backend: Arc<ReadOnlyBackend<B>>,
         workers: Option<usize>,
         url: String,
@@ -134,13 +136,14 @@ where
             + 'static,
         C: ApiAccess<B, ReadOnlyBackend<B>, R> + GetRuntimeVersion<B> + 'static,
     {
-        let mut broker = ThreadedBlockExecutor::new(workers, client_api.clone(), backend.clone())?;
+        let (storg_client, blk_client) = client_api;
+        let mut broker = ThreadedBlockExecutor::new(workers, storg_client, backend.clone())?;
         let context = ActorContext::new(
             backend.clone(),
             broker,
             url,
             psql_url.to_string(),
-            client_api.clone(),
+            blk_client,
         );
 
         Ok(Self { context })

@@ -19,7 +19,7 @@
 use crate::types::*;
 use crate::{
     actors::{workers, ActorContext},
-    backend::{BlockBroker, BlockData, GetRuntimeVersion, ReadOnlyBackend},
+    backend::{BlockBroker, BlockData, BlockSpec, GetRuntimeVersion, ReadOnlyBackend},
     error::ArchiveResult,
 };
 use sp_runtime::{
@@ -105,14 +105,12 @@ where
                         log::warn!("Block {} not found!", block_num);
                     } else {
                         let b = b.expect("Checked for none; qed");
-                        broker
-                            .work
-                            .try_send(BlockData::Single(b.block.clone()))
-                            .unwrap();
-                        // TODO: fix unwrap
+                        // TODO: fix unwraps
                         let version = rt_fetch
                             .runtime_version(&BlockId::Hash(b.block.hash()))
                             .unwrap();
+                        let block_spec = BlockSpec::from((b.block.clone(), version.spec_version));
+                        broker.work.try_send(BlockData::Single(block_spec)).unwrap();
                         let block = Block::<B>::new(b, version.spec_version);
                         addr.do_send(block).expect("Actor disconnected");
                     }
@@ -147,13 +145,11 @@ where
                 return;
             }
             let block = block.expect("Checked for none; qed");
-            broker
-                .work
-                .try_send(BlockData::Single(block.block.clone()))
-                .unwrap();
             let version = rt_fetch
                 .runtime_version(&BlockId::Hash(block.block.hash()))
                 .unwrap();
+            let block_spec = BlockSpec::from((block.block.clone(), version.spec_version));
+            broker.work.try_send(BlockData::Single(block_spec)).unwrap();
             let block = Block::<B>::new(block, version.spec_version);
             addr.do_send(block).expect("Actor Disconnected");
         });

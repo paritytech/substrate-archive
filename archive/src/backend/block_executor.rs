@@ -24,6 +24,7 @@ use crate::{
     types::*,
 };
 use async_channel::{Receiver, Sender};
+use codec::Decode;
 use hashbrown::HashSet;
 use itertools::Itertools;
 use sc_client_api::backend;
@@ -36,14 +37,36 @@ use sp_runtime::{
 use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
 use std::{marker::PhantomData, sync::Arc, thread::JoinHandle};
 
+mod block_scheduler;
+
 pub type StorageKey = Vec<u8>;
 pub type StorageValue = Vec<u8>;
 pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
+pub struct BlockSpec<Block: BlockT> {
+    pub block: Block,
+    pub spec: u32,
+}
+
+impl<Block: BlockT> BlockSpec<Block> {
+    pub fn new(block: Block, spec: u32) -> Self {
+        Self { block, spec }
+    }
+}
+
+impl<Block: BlockT> From<(Block, u32)> for BlockSpec<Block> {
+    fn from(b: (Block, u32)) -> BlockSpec<Block> {
+        BlockSpec {
+            block: b.0,
+            spec: b.1,
+        }
+    }
+}
+
 pub enum BlockData<Block: BlockT> {
-    Batch(Vec<Block>),
-    Single(Block),
+    Batch(Vec<BlockSpec<Block>>),
+    Single(BlockSpec<Block>),
     Stop,
 }
 
@@ -90,8 +113,8 @@ pub struct ThreadedBlockExecutor<Block: BlockT, RA, Api> {
     /// the threadpool
     pool: rayon::ThreadPool,
     /// Entries that have been inserted (avoids inserting duplicates)
-    inserted: HashSet<Block::Hash>,
-    _marker: PhantomData<(RA, Api)>,
+    inserted: HashSet<Vec<u8>>,
+    _marker: PhantomData<(Block, RA, Api)>,
 }
 
 impl<Block, RA, Api> ThreadedBlockExecutor<Block, RA, Api>
@@ -135,35 +158,34 @@ where
         })
     }
 
+    /// Schedules tasks every 5 seconds
     fn scheduler_loop(
-        mut exec: ThreadedBlockExecutor<Block, RA, Api>,
+        exec: ThreadedBlockExecutor<Block, RA, Api>,
         backend: Arc<Backend<Block>>,
         client: Arc<Api>,
         sender: Sender<BlockChanges<Block>>,
     ) -> Result<(Sender<BlockData<Block>>, JoinHandle<()>), ArchiveError> {
         let (tx, mut rx) = async_channel::unbounded();
+        let mut sched = self::block_scheduler::BlockScheduler::new(exec, backend, client, sender);
         let handle = std::thread::spawn(move || loop {
-            let data = futures::executor::block_on(rx.recv()).unwrap();
-            match data {
-                BlockData::Batch(v) => exec
-                    .add_vec_task(v, client.clone(), backend.clone(), sender.clone())
-                    .unwrap(),
-                BlockData::Single(v) => exec
-                    .add_task(v, client.clone(), backend.clone(), sender.clone())
-                    .unwrap(),
-                BlockData::Stop => break,
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            for _ in 0..rx.len() {
+                sched.add_data(rx.try_recv().unwrap());
             }
+            sched.check_work();
         });
         Ok((tx, handle))
     }
 
     fn work(
-        block: Block,
+        block: Vec<u8>,
         client: Arc<Api>,
         backend: Arc<Backend<Block>>,
-        sender: Sender<BlockChanges<Block>>,
+        sender: crossbeam::channel::Sender<BlockChanges<Block>>,
     ) -> Result<(), ArchiveError> {
         let api = client.runtime_api();
+
+        let block: Block = Decode::decode(&mut block.as_slice())?;
 
         // don't execute genesis block
         if *block.header().parent_hash() == Default::default() {
@@ -181,48 +203,29 @@ where
 
         let block = BlockExecutor::new(api, backend, block)?.block_into_storage()?;
 
-        sender.try_send(block).expect("Could not send");
+        sender.send(block).expect("Could not send");
         Ok(())
     }
 
-    /// push some work to the global pool
-    pub fn add_task(
-        &mut self,
-        block: Block,
-        client: Arc<Api>,
-        backend: Arc<Backend<Block>>,
-        sender: Sender<BlockChanges<Block>>,
-    ) -> Result<(), ArchiveError> {
-        if self.inserted.contains(&block.hash()) {
-            return Ok(());
-        } else {
-            self.inserted.insert(block.hash());
-            self.pool
-                .spawn_fifo(move || match Self::work(block, client, backend, sender) {
-                    Ok(_) => (),
-                    Err(e) => log::error!("{}", e),
-                });
-        }
-        Ok(())
-    }
-
+    /// inserts tasks for the threadpool
+    /// returns the number of tasks that were inserted
     pub fn add_vec_task(
         &mut self,
-        blocks: Vec<Block>,
+        blocks: Vec<Vec<u8>>,
         client: Arc<Api>,
         backend: Arc<Backend<Block>>,
-        sender: Sender<BlockChanges<Block>>,
-    ) -> Result<(), ArchiveError> {
+        sender: crossbeam::channel::Sender<BlockChanges<Block>>,
+    ) -> Result<usize, ArchiveError> {
         let to_insert = blocks
             .into_iter()
-            .filter(|b| !self.inserted.contains(&b.hash()))
+            .filter(|b| !self.inserted.contains(b))
             .collect::<Vec<_>>();
 
         if to_insert.len() > 0 {
             // we try to execute at least 5 blocks at once, this lets rayon
             // avoid looking for work too much and using up CPU time
             for blocks in to_insert.chunks(5) {
-                self.inserted.extend(blocks.iter().map(|b| b.hash()));
+                self.inserted.extend(blocks.iter().map(|b| b.clone()));
                 let blocks = blocks.to_vec();
                 let client = client.clone();
                 let backend = backend.clone();
@@ -232,7 +235,6 @@ where
                         let client = client.clone();
                         let backend = backend.clone();
                         let sender = sender.clone();
-                        // FIXME: re-consider cloning
                         match Self::work(block, client, backend, sender) {
                             Ok(_) => (),
                             Err(e) => log::error!("{:?}", e),
@@ -241,7 +243,7 @@ where
                 });
             }
         }
-        Ok(())
+        Ok(to_insert.len())
     }
 }
 

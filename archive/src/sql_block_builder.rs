@@ -47,14 +47,14 @@ impl<'a, Block: BlockT> BlockBuilder<Block> {
     }
 
     /// With a vector of SqlBlocks
-    pub fn with_vec(&self, blocks: Vec<SqlBlock>) -> Result<Vec<Block>, ArchiveError> {
+    pub fn with_vec(&self, blocks: Vec<SqlBlock>) -> Result<Vec<(Block, u32)>, ArchiveError> {
         blocks
             .into_iter()
             .map(|b| self.with_single(b))
-            .collect::<Result<Vec<Block>, ArchiveError>>()
+            .collect::<Result<Vec<_>, ArchiveError>>()
     }
 
-    pub fn with_single(&self, block: SqlBlock) -> Result<Block, ArchiveError> {
+    pub fn with_single(&self, block: SqlBlock) -> Result<(Block, u32), ArchiveError> {
         let digest: DigestFor<Block> = Decode::decode(&mut block.digest.as_slice())?;
         let (parent_hash, state_root, extrinsics_root) = Self::into_generic(
             block.parent_hash.as_slice(),
@@ -67,7 +67,8 @@ impl<'a, Block: BlockT> BlockBuilder<Block> {
         let header =
             <Block::Header as HeaderT>::new(num, extrinsics_root, state_root, parent_hash, digest);
         let ext: Vec<Block::Extrinsic> = Decode::decode(&mut block.ext.as_slice())?;
-        Ok(Block::new(header, ext))
+        let spec = block.spec;
+        Ok((Block::new(header, ext), spec as u32))
     }
 
     fn into_generic(

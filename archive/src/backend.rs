@@ -26,7 +26,7 @@ pub mod util;
 
 // re-exports
 pub use self::block_executor::{
-    BlockBroker, BlockChanges, BlockData, BlockExecutor, ThreadedBlockExecutor,
+    BlockBroker, BlockChanges, BlockData, BlockExecutor, BlockSpec, ThreadedBlockExecutor,
 };
 pub use self::frontend::{GetRuntimeVersion, TArchiveClient};
 pub use self::read_only_backend::{ReadOnlyBackend, TrieState};

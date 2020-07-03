@@ -17,7 +17,7 @@
 use super::workers::msg::BlockRange;
 use super::{workers::BlockFetcher, ActorContext};
 use crate::{
-    backend::{BlockBroker, BlockData},
+    backend::{BlockBroker, BlockData, BlockSpec},
     error::ArchiveResult,
     queries,
     sql_block_builder::BlockBuilder,
@@ -81,7 +81,11 @@ pub async fn fill_storage<B: BlockT>(
     }
     let now = std::time::Instant::now();
     let blocks = queries::blocks_storage_intersection(&pool).await?;
-    let blocks = BlockBuilder::new().with_vec(blocks)?;
+    let blocks = BlockBuilder::<B>::new()
+        .with_vec(blocks)?
+        .into_iter()
+        .map(|b| BlockSpec::from(b))
+        .collect::<Vec<_>>();
     let elapsed = now.elapsed();
     log::info!(
         "TOOK {} seconds, {} milli-seconds to get and build {} blocks",
@@ -90,6 +94,6 @@ pub async fn fill_storage<B: BlockT>(
         blocks.len()
     );
     log::info!("indexing {} blocks of storage ... ", blocks.len());
-    broker.work.send(BlockData::Batch(blocks));
+    broker.work.send(BlockData::Batch(blocks)).await;
     Ok(())
 }

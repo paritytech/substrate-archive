@@ -136,32 +136,38 @@ where
         &self,
     ) -> Result<Arc<impl ApiAccess<B, ReadOnlyBackend<B>, R>>, ArchiveError> {
         let cpus = num_cpus::get();
-        let backend = backend::runtime_api::<B, R, D>(
-            self.db.clone(),
-            self.block_workers.unwrap_or(cpus),
-            self.wasm_pages.unwrap_or(2048),
-        )
-        .map_err(ArchiveError::from)?;
-        Ok(Arc::new(backend))
-    }
-
-    /// Constructs the Archive and returns the context
-    /// in which the archive is running.
-    pub async fn run(&self) -> Result<System<B>, ArchiveError> {
-        let cpus = num_cpus::get();
         let client = backend::runtime_api::<B, R, D>(
             self.db.clone(),
             self.block_workers.unwrap_or(cpus),
             self.wasm_pages.unwrap_or(2048),
         )
         .map_err(ArchiveError::from)?;
-        let client = Arc::new(client);
-        let rt = client.runtime_version_at(&BlockId::Number(0.into()))?;
+        Ok(Arc::new(client))
+    }
+
+    /// Constructs the Archive and returns the context
+    /// in which the archive is running.
+    pub async fn run(&self) -> Result<System<B>, ArchiveError> {
+        let cpus = num_cpus::get();
+        let client0 = Arc::new(
+            backend::runtime_api::<B, R, D>(
+                self.db.clone(),
+                self.block_workers.unwrap_or(cpus),
+                self.wasm_pages.unwrap_or(2048),
+            )
+            .map_err(ArchiveError::from)?,
+        );
+
+        let client1 = Arc::new(
+            backend::runtime_api::<B, R, D>(self.db.clone(), 3, 128).map_err(ArchiveError::from)?,
+        );
+
+        let rt = client1.runtime_version_at(&BlockId::Number(0.into()))?;
         self.verify_same_chain(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
 
         let ctx = System::new::<R, _>(
-            client,
+            (client0, client1),
             backend,
             self.block_workers,
             self.rpc_url.clone(),
