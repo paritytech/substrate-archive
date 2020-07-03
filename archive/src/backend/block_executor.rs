@@ -185,7 +185,7 @@ where
         block: Vec<u8>,
         client: Arc<Api>,
         backend: Arc<Backend<Block>>,
-        sender: crossbeam::channel::Sender<BlockChanges<Block>>,
+        sender: flume::Sender<BlockChanges<Block>>,
     ) -> Result<(), ArchiveError> {
         let api = client.runtime_api();
 
@@ -216,7 +216,7 @@ where
     pub fn add_vec_task(
         &mut self,
         blocks: Vec<Vec<u8>>,
-        sender: crossbeam::channel::Sender<BlockChanges<Block>>,
+        sender: flume::Sender<BlockChanges<Block>>,
     ) -> Result<usize, ArchiveError> {
         let to_insert = blocks
             .into_iter()

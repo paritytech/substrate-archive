@@ -94,8 +94,8 @@ pub struct BlockScheduler<B: BlockT, RA, Api> {
 
     // internal sender/receivers for gauging how much work
     // the threadpool has finished
-    tx: crossbeam::channel::Sender<BlockChanges<B>>,
-    rx: crossbeam::channel::Receiver<BlockChanges<B>>,
+    tx: flume::Sender<BlockChanges<B>>,
+    rx: flume::Receiver<BlockChanges<B>>,
     added: usize,
     finished: usize,
 }
@@ -115,7 +115,7 @@ where
         client: Arc<Api>,
         sender: Sender<BlockChanges<B>>,
     ) -> Self {
-        let (tx, rx) = crossbeam::channel::unbounded();
+        let (tx, rx) = flume::unbounded();
         Self {
             queue: BinaryHeap::new(),
             backend,
@@ -153,10 +153,13 @@ where
             self.add_work(256)?;
         }
         log::debug!("AFTER finished: {}, added: {}", self.finished, self.added);
-        self.finished += self.rx.len();
-        self.rx
-            .try_iter()
-            .for_each(|c| self.sender.try_send(c).unwrap());
+
+        let mut temp_fin = 0;
+        self.rx.drain().for_each(|c| {
+            temp_fin += 1;
+            self.sender.try_send(c).unwrap()
+        });
+        self.finished += temp_fin;
         Ok(())
     }
 
