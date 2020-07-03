@@ -172,12 +172,7 @@ where
         };
         self.queue.extend(sorted.into_iter());
 
-        self.added += self.exec.add_vec_task(
-            to_insert,
-            self.client.clone(),
-            self.backend.clone(),
-            self.tx.clone(),
-        )?;
+        self.added += self.exec.add_vec_task(to_insert, self.tx.clone())?;
         Ok(())
     }
 }

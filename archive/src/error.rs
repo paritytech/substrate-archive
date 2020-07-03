@@ -57,12 +57,6 @@ pub enum Error {
     Bincode(#[from] Box<bincode::ErrorKind>),
 }
 
-impl<T> From<crossbeam::SendError<T>> for Error {
-    fn from(_: crossbeam::SendError<T>) -> Error {
-        Error::Channel
-    }
-}
-
 impl From<&str> for Error {
     fn from(e: &str) -> Error {
         Error::General(e.to_string())
@@ -86,5 +80,11 @@ impl From<sp_blockchain::Error> for Error {
 impl From<xtra::Disconnected> for Error {
     fn from(e: xtra::Disconnected) -> Error {
         Error::Disconnected
+    }
+}
+
+impl<T> From<flume::SendError<T>> for Error {
+    fn from(e: flume::SendError<T>) -> Error {
+        Error::Channel
     }
 }

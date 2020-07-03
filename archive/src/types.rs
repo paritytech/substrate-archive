@@ -24,6 +24,8 @@ use sp_runtime::{
 use sp_storage::{StorageData, StorageKey};
 use xtra::prelude::*;
 
+pub trait ThreadedExecutor {}
+
 // /// Generic, unsigned block type
 // pub type AbstractBlock<B: BlockT> = NotSignedBlock<B::Header, OpaqueExtrinsic>;
 

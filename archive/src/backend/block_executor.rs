@@ -114,7 +114,9 @@ pub struct ThreadedBlockExecutor<Block: BlockT, RA, Api> {
     pool: rayon::ThreadPool,
     /// Entries that have been inserted (avoids inserting duplicates)
     inserted: HashSet<Vec<u8>>,
-    _marker: PhantomData<(Block, RA, Api)>,
+    client: Arc<Api>,
+    backend: Arc<Backend<Block>>,
+    _marker: PhantomData<(Block, RA)>,
 }
 
 impl<Block, RA, Api> ThreadedBlockExecutor<Block, RA, Api>
@@ -143,6 +145,8 @@ where
         let (tx, handle) = Self::scheduler_loop(
             Self {
                 pool,
+                client: client.clone(),
+                backend: backend.clone(),
                 inserted: HashSet::new(),
                 _marker: PhantomData,
             },
@@ -212,8 +216,6 @@ where
     pub fn add_vec_task(
         &mut self,
         blocks: Vec<Vec<u8>>,
-        client: Arc<Api>,
-        backend: Arc<Backend<Block>>,
         sender: crossbeam::channel::Sender<BlockChanges<Block>>,
     ) -> Result<usize, ArchiveError> {
         let to_insert = blocks
@@ -226,8 +228,8 @@ where
             for blocks in to_insert.chunks(5) {
                 self.inserted.extend(blocks.iter().map(|b| b.clone()));
                 let blocks = blocks.to_vec();
-                let client = client.clone();
-                let backend = backend.clone();
+                let client = self.client.clone();
+                let backend = self.backend.clone();
                 let sender = sender.clone();
                 self.pool.spawn_fifo(move || {
                     for block in blocks.into_iter() {

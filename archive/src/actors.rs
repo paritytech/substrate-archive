@@ -25,7 +25,6 @@ use super::{
     backend::{ApiAccess, BlockBroker, GetRuntimeVersion, ReadOnlyBackend, ThreadedBlockExecutor},
     error::{ArchiveResult, Error as ArchiveError},
 };
-use crossbeam::channel;
 use futures::{
     stream::{FuturesUnordered, StreamExt},
     Future,
