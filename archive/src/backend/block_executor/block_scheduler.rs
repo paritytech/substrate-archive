@@ -147,11 +147,12 @@ where
         let delta = self.added - self.finished;
         if delta < 256 && delta > 0 {
             self.add_work(delta)?;
-        } else if self.finished == 0 && self.added == 0 {
+        } else if self.finished == 0 && self.added == 0 && self.queue.len() > 256 {
+            self.add_work(256)?;
+        } else if delta == 0 && self.queue.len() > 256 {
             self.add_work(256)?;
         }
-        log::debug!("finished: {}, added: {}", self.finished, self.added);
-
+        log::debug!("AFTER finished: {}, added: {}", self.finished, self.added);
         self.finished += self.rx.len();
         self.rx
             .try_iter()

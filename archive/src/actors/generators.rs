@@ -61,8 +61,6 @@ where
             added.extend(block_nums.iter());
             addr.do_send(BlockRange(block_nums));
             timer::Delay::new(std::time::Duration::from_secs(1)).await;
-        } else {
-            timer::Delay::new(std::time::Duration::from_secs(5)).await;
         }
     }
     Ok(())

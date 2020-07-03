@@ -220,7 +220,6 @@ where
             .into_iter()
             .filter(|b| !self.inserted.contains(b))
             .collect::<Vec<_>>();
-
         if to_insert.len() > 0 {
             // we try to execute at least 5 blocks at once, this lets rayon
             // avoid looking for work too much and using up CPU time
