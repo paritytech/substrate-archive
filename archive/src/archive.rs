@@ -20,6 +20,7 @@ use crate::{
     error::{ArchiveResult, Error as ArchiveError},
     migrations::MigrationConfig,
     rpc::Rpc,
+    types,
 };
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
@@ -65,7 +66,7 @@ use std::{marker::PhantomData, sync::Arc};
 /// archive.block_until_stopped();
 ///
 /// ```
-pub struct Archive<Block, Runtime, Dispatch> {
+pub struct ArchiveBuilder<Block, Runtime, Dispatch> {
     rpc_url: String,
     psql_url: String,
     db: Arc<ReadOnlyDatabase>,
@@ -90,7 +91,7 @@ pub struct ArchiveConfig {
     pub wasm_pages: Option<u64>,
 }
 
-impl<B, R, D> Archive<B, R, D>
+impl<B, R, D> ArchiveBuilder<B, R, D>
 where
     B: BlockT,
     R: ConstructRuntimeApi<B, TArchiveClient<B, R, D>> + Send + Sync + 'static,
@@ -130,23 +131,24 @@ where
         })
     }
 
-    /// returns an Archive Client with a ReadOnlyBackend
+    /// Create a new Substrate Client with a ReadOnlyBackend
     pub fn api_client(
         &self,
+        block_workers: Option<usize>,
+        wasm_pages: Option<usize>,
     ) -> Result<Arc<impl ApiAccess<B, ReadOnlyBackend<B>, R>>, ArchiveError> {
         let cpus = num_cpus::get();
         let client = backend::runtime_api::<B, R, D>(
             self.db.clone(),
-            self.block_workers.unwrap_or(cpus),
-            self.wasm_pages.unwrap_or(2048),
-        )
-        .map_err(ArchiveError::from)?;
+            block_workers.unwrap_or(cpus),
+            wasm_pages.map(|v| v as u64).unwrap_or(2048 as u64),
+        )?;
         Ok(Arc::new(client))
     }
 
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
-    pub async fn run(&self) -> Result<System<B>, ArchiveError> {
+    pub async fn run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
         let cpus = num_cpus::get();
         let client0 = Arc::new(
             backend::runtime_api::<B, R, D>(
@@ -165,7 +167,7 @@ where
         self.verify_same_chain(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
 
-        let ctx = System::new::<R, _>(
+        let mut ctx = System::<_, R, _>::new(
             (client0, client1),
             backend,
             self.block_workers,

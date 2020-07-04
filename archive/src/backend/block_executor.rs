@@ -20,7 +20,7 @@
 
 use crate::{
     backend::{ApiAccess, ReadOnlyBackend as Backend},
-    error::Error as ArchiveError,
+    error::{ArchiveResult, Error as ArchiveError},
     types::*,
 };
 use codec::Decode;
@@ -113,8 +113,6 @@ where
 pub struct ThreadedBlockExecutor<Block: BlockT, RA, Api> {
     /// the threadpool
     pool: rayon::ThreadPool,
-    /// Entries that have been inserted (avoids inserting duplicates)
-    inserted: HashSet<Vec<u8>>,
     client: Arc<Api>,
     backend: Arc<Backend<Block>>,
     _marker: PhantomData<(Block, RA)>,
@@ -134,61 +132,61 @@ where
         num_threads: Option<usize>,
         client: Arc<Api>,
         backend: Arc<Backend<Block>>,
-    ) -> Result<BlockBroker<Block>, ArchiveError> {
+    ) -> Result<Self, ArchiveError> {
         // channel pair for sending and receiving BlockChanges
-        let (sender, receiver) = flume::unbounded();
 
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads.unwrap_or(0))
             .thread_name(|i| format!("blk-exec-{}", i))
             .build()?;
 
-        let (tx, handle) = Self::scheduler_loop(
-            Self {
-                pool,
-                client: client.clone(),
-                backend: backend.clone(),
-                inserted: HashSet::new(),
-                _marker: PhantomData,
-            },
-            backend,
-            client,
-            sender,
-        )?;
+        Ok(Self {
+            pool,
+            client: client.clone(),
+            backend: backend.clone(),
+            _marker: PhantomData,
+        })
+    }
 
+    pub fn start(self) -> ArchiveResult<BlockBroker<Block>> {
+        let (sender, receiver) = flume::unbounded();
+        // let (tx, handle) = self.scheduler_loop(sender)?;
+        let (tx, _) = flume::unbounded(); // DELETE THIS
+        let handle = std::thread::spawn(move || {
+            unimplemented!();
+        });
         Ok(BlockBroker {
             work: tx,
             results: Some(receiver),
             handle: Some(handle),
         })
     }
-
-    /// Schedules tasks every 5 seconds
-    fn scheduler_loop(
-        exec: ThreadedBlockExecutor<Block, RA, Api>,
-        backend: Arc<Backend<Block>>,
-        client: Arc<Api>,
-        sender: flume::Sender<BlockChanges<Block>>,
-    ) -> Result<(flume::Sender<BlockData<Block>>, JoinHandle<()>), ArchiveError> {
-        let (tx, mut rx) = flume::unbounded();
-        let mut sched = self::block_scheduler::BlockScheduler::new(exec, backend, client, sender);
-        let handle = std::thread::spawn(move || loop {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-            rx.drain().for_each(|v| sched.add_data(v));
-            sched.check_work();
-        });
-        Ok((tx, handle))
-    }
-
+    /*
+        /// Schedules tasks every 50 milli-seconds
+        fn scheduler_loop(
+            self,
+            sender: flume::Sender<BlockChanges<Block>>,
+        ) -> Result<(flume::Sender<BlockData<Block>>, JoinHandle<()>), ArchiveError> {
+            let (tx, mut rx) = flume::unbounded();
+            let (backend, client) = (self.backend.clone(), self.client.clone());
+            let mut sched = self::block_scheduler::BlockScheduler::new(self, sender, 256);
+            let handle = std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                rx.drain().for_each(|v| sched.add_data(v));
+                sched.check_work();
+            });
+            Ok((tx, handle))
+        }
+    */
     fn work(
-        block: Vec<u8>,
+        block: Block,
         client: Arc<Api>,
         backend: Arc<Backend<Block>>,
         sender: flume::Sender<BlockChanges<Block>>,
     ) -> Result<(), ArchiveError> {
         let api = client.runtime_api();
 
-        let block: Block = Decode::decode(&mut block.as_slice())?;
+        // let block: Block = Decode::decode(&mut block.as_slice())?;
 
         // don't execute genesis block
         if *block.header().parent_hash() == Default::default() {
@@ -213,19 +211,14 @@ where
     /// inserts tasks for the threadpool
     /// returns the number of tasks that were inserted
     pub fn add_vec_task(
-        &mut self,
-        blocks: Vec<Vec<u8>>,
+        &self,
+        blocks: Vec<Block>,
         sender: flume::Sender<BlockChanges<Block>>,
     ) -> Result<usize, ArchiveError> {
-        let to_insert = blocks
-            .into_iter()
-            .filter(|b| !self.inserted.contains(b))
-            .collect::<Vec<_>>();
-        if to_insert.len() > 0 {
+        if blocks.len() > 0 {
             // we try to execute at least 5 blocks at once, this lets rayon
             // avoid looking for work too much and using up CPU time
-            for blocks in to_insert.chunks(5) {
-                self.inserted.extend(blocks.iter().map(|b| b.clone()));
+            for blocks in blocks.chunks(5) {
                 let blocks = blocks.to_vec();
                 let client = self.client.clone();
                 let backend = self.backend.clone();
@@ -243,7 +236,7 @@ where
                 });
             }
         }
-        Ok(to_insert.len())
+        Ok(blocks.len())
     }
 }
 

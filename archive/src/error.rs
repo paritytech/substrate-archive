@@ -16,8 +16,8 @@
 use std::{env, io};
 use thiserror::Error;
 
-// pub type Result<T> = std::result::Result<T, Error>;
 pub type ArchiveResult<T> = std::result::Result<T, Error>;
+
 /// Substrate Archive Error Enum
 #[derive(Error, Debug)]
 pub enum Error {

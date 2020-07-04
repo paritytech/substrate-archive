@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::Error as ArchiveError;
+use crate::error::{ArchiveResult, Error as ArchiveError};
+use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_runtime::{
     generic::{Block as NotSignedBlock, SignedBlock},
@@ -24,18 +25,28 @@ use sp_runtime::{
 use sp_storage::{StorageData, StorageKey};
 use xtra::prelude::*;
 
-pub trait ThreadedExecutor {}
+pub trait ThreadPool {
+    type In: Ord + Eq + Clone + Send + Sync + Encode + Decode + std::hash::Hash + PriorityIdent;
+    type Out: Send + Sync + std::fmt::Debug;
+    fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> ArchiveResult<usize>;
+}
 
-#[async_trait::async_trait]
+/// Get an identifier from data that can be used to sort it
+pub trait PriorityIdent {
+    type Ident: Eq + PartialEq + Send + Sync + Copy + Ord + PartialOrd;
+    fn identifier(&self) -> Self::Ident;
+}
+
+#[async_trait::async_trait(?Send)]
 pub trait Archive<B: BlockT> {
     /// start driving the execution of the archive
-    async fn drive(&self) -> Result<(), ArchiveError>;
+    async fn drive(&mut self) -> Result<(), ArchiveError>;
 
     /// this method will block indefinitely
     async fn block_until_stopped(&self) -> ();
 
     /// shutdown the system
-    fn shutdown(&self) -> Result<(), ArchiveError>;
+    fn shutdown(self) -> Result<(), ArchiveError>;
 
     /// Get a reference to the context the actors are using
     fn context(&self) -> Result<super::actors::ActorContext<B>, ArchiveError>;

@@ -32,9 +32,10 @@ mod types;
 mod util;
 
 pub use actors::System;
-pub use archive::{Archive, ArchiveConfig};
+pub use archive::{ArchiveBuilder, ArchiveConfig};
 pub use error::Error;
 pub use migrations::MigrationConfig;
+pub use types::Archive;
 
 #[cfg(feature = "logging")]
 pub use util::init_logger;

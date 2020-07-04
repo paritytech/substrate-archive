@@ -29,13 +29,16 @@ use crate::{
     types::*,
 };
 use codec::{Decode, Encode};
+use hashbrown::HashSet;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::collections::BinaryHeap;
+use std::fmt::Debug;
+use std::hash::Hash;
 use std::sync::Arc;
-
+/*
 /// Encoded version of BlockSpec
 /// the spec version is not encoded so that it may be sorted
 /// this is more memory efficient than keeping the rust representation in memory
@@ -82,65 +85,102 @@ impl<B: BlockT> From<BlockSpec<B>> for EncodedBlockSpec {
         }
     }
 }
-
-pub struct BlockScheduler<B: BlockT, RA, Api> {
-    /// sorted prioritized queue of blocks
-    queue: BinaryHeap<EncodedBlockSpec>,
-    backend: Arc<Backend<B>>,
-    client: Arc<Api>,
-    sender: flume::Sender<BlockChanges<B>>,
-    exec: ThreadedBlockExecutor<B, RA, Api>,
-
-    // internal sender/receivers for gauging how much work
-    // the threadpool has finished
-    tx: flume::Sender<BlockChanges<B>>,
-    rx: flume::Receiver<BlockChanges<B>>,
-    added: usize,
-    finished: usize,
+*/
+#[derive(Clone)]
+struct EncodedIn<I: PriorityIdent> {
+    enc: Vec<u8>,
+    id: I::Ident,
 }
 
-impl<B, RA, Api> BlockScheduler<B, RA, Api>
+impl<I: PriorityIdent> Ord for EncodedIn<I> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl<I: PriorityIdent> PartialEq for EncodedIn<I> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl<I: PriorityIdent> PartialOrd for EncodedIn<I> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<I: PriorityIdent> Eq for EncodedIn<I> {}
+
+impl<I: Encode + PriorityIdent> From<I> for EncodedIn<I> {
+    fn from(d: I) -> EncodedIn<I> {
+        let id = d.identifier();
+        EncodedIn {
+            enc: d.encode(),
+            id,
+        }
+    }
+}
+
+pub struct BlockScheduler<I, O, T>
 where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-    RA: ConstructRuntimeApi<B, Api> + Send + 'static,
-    RA::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
-        + ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B>, B>>,
-    Api: ApiAccess<B, Backend<B>, RA> + 'static,
+    I: Ord + Eq + Clone + Send + Sync + Encode + Decode + std::hash::Hash + PriorityIdent,
+    O: Send + Sync + Debug,
+    T: ThreadPool<In = I, Out = O>,
 {
-    pub fn new(
-        exec: ThreadedBlockExecutor<B, RA, Api>,
-        backend: Arc<Backend<B>>,
-        client: Arc<Api>,
-        sender: flume::Sender<BlockChanges<B>>,
-    ) -> Self {
+    /// sorted prioritized queue of blocks
+    queue: BinaryHeap<EncodedIn<I>>, // EncodedBlockSpec
+    /// A HashSet of the data to be inserted. Used for checking against duplicates
+    dups: HashSet<Vec<u8>>,
+    sender: flume::Sender<O>, // BlockChanges<B>
+    exec: T,
+    // internal sender/receivers for gauging how much work
+    // the threadpool has finished
+    tx: flume::Sender<O>,
+    rx: flume::Receiver<O>,
+    added: usize,
+    finished: usize,
+    max_size: usize,
+}
+
+impl<I, O, T> BlockScheduler<I, O, T>
+where
+    I: Ord + Eq + Clone + Send + Sync + Encode + Decode + Hash + PriorityIdent + Debug,
+    O: Send + Sync + Debug,
+    T: ThreadPool<In = I, Out = O>,
+{
+    pub fn new(exec: T, sender: flume::Sender<O>, max_size: usize) -> Self {
         let (tx, rx) = flume::unbounded();
         Self {
             queue: BinaryHeap::new(),
-            backend,
-            client,
+            dups: HashSet::new(),
             sender,
             exec,
             tx,
             rx,
             added: 0,
             finished: 0,
+            max_size,
         }
     }
 
-    pub fn add_data(&mut self, data: BlockData<B>) {
-        match data {
-            BlockData::Batch(v) => self.queue.extend(v.into_iter().map(|v| v.into())),
-            BlockData::Single(v) => self.queue.push(v.into()),
-            Stop => unimplemented!(),
-        }
+    // BlockData<B>
+    pub fn add_data(&mut self, data: Vec<I>) {
+        // filter for duplicates
+        let data = data
+            .into_iter()
+            .map(|d| EncodedIn::from(d))
+            .filter(|d| !self.dups.contains(&d.enc))
+            .collect::<Vec<_>>();
+        self.dups.extend(data.iter().map(|d| d.enc.clone()));
+        self.queue.extend(data.into_iter());
     }
 
     pub fn check_work(&mut self) -> ArchiveResult<()> {
         log::debug!("Queue Length: {}", self.queue.len());
         log::debug!(
             "Queue Size: {}",
-            std::mem::size_of::<EncodedBlockSpec>() * self.queue.len()
+            std::mem::size_of::<EncodedIn<I>>() * self.queue.len()
         );
         // we try to maintain a MAX queue of 256 tasks at a time in the threadpool
         let delta = self.added - self.finished;
@@ -156,7 +196,7 @@ where
         let mut temp_fin = 0;
         self.rx.drain().for_each(|c| {
             temp_fin += 1;
-            self.sender.try_send(c).unwrap()
+            self.sender.send(c).unwrap()
         });
         self.finished += temp_fin;
         Ok(())
@@ -166,15 +206,21 @@ where
         let mut sorted = BinaryHeap::new();
         std::mem::swap(&mut self.queue, &mut sorted);
 
-        let mut sorted = sorted.into_sorted_vec().into_iter().collect::<Vec<_>>();
+        let mut sorted = sorted.into_sorted_vec();
         let to_insert = if sorted.len() > to_add {
-            sorted.drain(0..to_add).map(|b| b.block).collect::<Vec<_>>()
+            sorted
+                .drain(0..to_add)
+                .map(|b| Decode::decode(&mut b.enc.as_slice()).map_err(ArchiveError::from))
+                .collect::<ArchiveResult<Vec<I>>>()?
         } else {
-            sorted.drain(0..).map(|b| b.block).collect::<Vec<_>>()
+            sorted
+                .drain(0..)
+                .map(|b| Decode::decode(&mut b.enc.as_slice()).map_err(ArchiveError::from))
+                .collect::<ArchiveResult<Vec<I>>>()?
         };
         self.queue.extend(sorted.into_iter());
 
-        self.added += self.exec.add_vec_task(to_insert, self.tx.clone())?;
+        self.added += self.exec.add_task(to_insert, self.tx.clone())?;
         Ok(())
     }
 }

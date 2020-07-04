@@ -49,6 +49,7 @@ where
     /// create a new BlockFetcher
     /// Must be ran within the context of a executor
     pub fn new(
+        broker: BlockBroker<B>,
         context: ActorContext<B>,
         addr: Address<workers::Aggregator<B>>,
         num_threads: Option<usize>,
@@ -64,7 +65,7 @@ where
             pool,
             rt_fetch,
             backend: context.backend().clone(),
-            broker: context.broker().clone(),
+            broker: broker,
         })
     }
 }

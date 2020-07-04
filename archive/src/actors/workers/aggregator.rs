@@ -16,7 +16,7 @@
 
 use crate::{
     actors::{generators::fill_storage, workers::BlockFetcher, ActorContext},
-    backend::BlockChanges,
+    backend::{BlockBroker, BlockChanges},
     error::{self, ArchiveResult},
     types::{BatchBlock, Block, Storage},
 };
@@ -46,8 +46,8 @@ where
     /// Actor which manages getting the runtime metadata for blocks
     /// and sending them to the database actor
     meta_addr: Address<super::Metadata>,
-    /// General Context containing global shared state useful in Actors
-    context: ActorContext<B>,
+    /// Broker handling sending/receiving work from threaded block execution
+    broker: BlockBroker<B>,
     /// Pooled Postgres Database Connections
     pool: sqlx::PgPool,
 }
@@ -145,8 +145,7 @@ where
     NumberFor<B>: Into<u32>,
     NumberFor<B>: From<u32>,
 {
-    pub fn new(context: ActorContext<B>, pool: &sqlx::PgPool) -> Self {
-        let url = context.rpc_url();
+    pub fn new(url: &str, broker: BlockBroker<B>, pool: &sqlx::PgPool) -> Self {
         let db_addr = super::Database::new(&pool).spawn();
         let meta_addr = super::Metadata::new(url.to_string(), &pool).spawn();
         let (senders, recvs) = queues();
@@ -154,7 +153,7 @@ where
         Self {
             senders,
             recvs: Some(recvs),
-            context,
+            broker,
             db_addr,
             meta_addr,
             pool: pool.clone(),
@@ -183,9 +182,9 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn started(&mut self, ctx: &mut Context<Self>) {
-        let (broker, pool) = (self.context.broker(), self.pool.clone());
+        let (broker, pool) = (self.broker.clone(), self.pool.clone());
 
-        crate::util::spawn(fill_storage(pool.clone(), broker.clone()));
+        crate::util::spawn(fill_storage(pool, broker));
         if self.recvs.is_none() {
             let (sends, recvs) = queues();
             self.senders = sends;
