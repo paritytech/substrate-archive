@@ -38,54 +38,10 @@ use std::collections::BinaryHeap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
-/*
-/// Encoded version of BlockSpec
-/// the spec version is not encoded so that it may be sorted
+
+/// Encoded version of the data coming in
+/// the and identifier is kept decoded so that it may be sorted
 /// this is more memory efficient than keeping the rust representation in memory
-#[derive(Clone, Eq)]
-struct EncodedBlockSpec {
-    block: Vec<u8>,
-    spec: u32,
-}
-
-impl Ord for EncodedBlockSpec {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.spec.cmp(&other.spec)
-    }
-}
-
-impl PartialEq for EncodedBlockSpec {
-    fn eq(&self, other: &Self) -> bool {
-        self.spec == other.spec
-    }
-}
-
-impl PartialOrd for EncodedBlockSpec {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<B: BlockT> From<EncodedBlockSpec> for BlockSpec<B> {
-    fn from(enc: EncodedBlockSpec) -> BlockSpec<B> {
-        let block = Decode::decode(&mut enc.block.as_slice()).unwrap();
-        BlockSpec {
-            block,
-            spec: enc.spec,
-        }
-    }
-}
-
-impl<B: BlockT> From<BlockSpec<B>> for EncodedBlockSpec {
-    fn from(bspec: BlockSpec<B>) -> EncodedBlockSpec {
-        let block = bspec.block.encode();
-        EncodedBlockSpec {
-            block,
-            spec: bspec.spec,
-        }
-    }
-}
-*/
 #[derive(Clone)]
 struct EncodedIn<I: PriorityIdent> {
     enc: Vec<u8>,
@@ -124,7 +80,7 @@ impl<I: Encode + PriorityIdent> From<I> for EncodedIn<I> {
 
 pub struct BlockScheduler<I, O, T>
 where
-    I: Ord + Eq + Clone + Send + Sync + Encode + Decode + std::hash::Hash + PriorityIdent,
+    I: Clone + Send + Sync + Encode + Decode + PriorityIdent,
     O: Send + Sync + Debug,
     T: ThreadPool<In = I, Out = O>,
 {
@@ -145,7 +101,7 @@ where
 
 impl<I, O, T> BlockScheduler<I, O, T>
 where
-    I: Ord + Eq + Clone + Send + Sync + Encode + Decode + Hash + PriorityIdent + Debug,
+    I: Clone + Send + Sync + Encode + Decode + PriorityIdent + Debug,
     O: Send + Sync + Debug,
     T: ThreadPool<In = I, Out = O>,
 {

@@ -26,7 +26,7 @@ use sp_storage::{StorageData, StorageKey};
 use xtra::prelude::*;
 
 pub trait ThreadPool {
-    type In: Ord + Eq + Clone + Send + Sync + Encode + Decode + std::hash::Hash + PriorityIdent;
+    type In: Clone + Send + Sync + Encode + Decode + PriorityIdent;
     type Out: Send + Sync + std::fmt::Debug;
     fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> ArchiveResult<usize>;
 }

@@ -23,7 +23,7 @@ use crate::{
     error::{ArchiveResult, Error as ArchiveError},
     types::*,
 };
-use codec::Decode;
+use codec::{Decode, Encode};
 use hashbrown::HashSet;
 use itertools::Itertools;
 use sc_client_api::backend;
@@ -43,7 +43,7 @@ pub type StorageValue = Vec<u8>;
 pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct BlockSpec<Block: BlockT> {
     pub block: Block,
     pub spec: u32,
@@ -150,34 +150,15 @@ where
 
     pub fn start(self) -> ArchiveResult<BlockBroker<Block>> {
         let (sender, receiver) = flume::unbounded();
-        // let (tx, handle) = self.scheduler_loop(sender)?;
-        let (tx, _) = flume::unbounded(); // DELETE THIS
-        let handle = std::thread::spawn(move || {
-            unimplemented!();
-        });
+        let (tx, handle) = scheduler_loop(self, sender)?;
+
         Ok(BlockBroker {
             work: tx,
             results: Some(receiver),
             handle: Some(handle),
         })
     }
-    /*
-        /// Schedules tasks every 50 milli-seconds
-        fn scheduler_loop(
-            self,
-            sender: flume::Sender<BlockChanges<Block>>,
-        ) -> Result<(flume::Sender<BlockData<Block>>, JoinHandle<()>), ArchiveError> {
-            let (tx, mut rx) = flume::unbounded();
-            let (backend, client) = (self.backend.clone(), self.client.clone());
-            let mut sched = self::block_scheduler::BlockScheduler::new(self, sender, 256);
-            let handle = std::thread::spawn(move || loop {
-                std::thread::sleep(std::time::Duration::from_millis(50));
-                rx.drain().for_each(|v| sched.add_data(v));
-                sched.check_work();
-            });
-            Ok((tx, handle))
-        }
-    */
+
     fn work(
         block: Block,
         client: Arc<Api>,
@@ -237,6 +218,49 @@ where
             }
         }
         Ok(blocks.len())
+    }
+}
+
+/// spawns a thread which schedules tasks every 50 milli-seconds
+fn scheduler_loop<B: BlockT>(
+    pool: impl ThreadPool<In = BlockSpec<B>, Out = BlockChanges<B>>,
+    sender: flume::Sender<BlockChanges<B>>,
+) -> Result<(flume::Sender<BlockData<B>>, JoinHandle<()>), ArchiveError> {
+    let (tx, mut rx) = flume::unbounded();
+    let mut sched = self::block_scheduler::BlockScheduler::new(pool, sender, 256);
+    let handle = std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        rx.drain().for_each(|v| sched.add_data(v));
+        sched.check_work();
+    });
+    Ok((tx, handle))
+}
+
+impl<Block, R, A> ThreadPool for ThreadedBlockExecutor<Block, R, A>
+where
+    Block: BlockT,
+    NumberFor<Block>: Into<u32>,
+    R: ConstructRuntimeApi<Block, A> + Send + 'static,
+    R::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+        + ApiExt<Block, StateBackend = backend::StateBackendFor<Backend<Block>, Block>>,
+    A: ApiAccess<Block, Backend<Block>, R> + 'static,
+{
+    type In = BlockSpec<Block>;
+    type Out = BlockChanges<Block>;
+
+    fn add_task(
+        &self,
+        d: Vec<BlockSpec<Block>>,
+        tx: flume::Sender<BlockChanges<Block>>,
+    ) -> ArchiveResult<usize> {
+        self.add_vec_task(d.into_iter().map(|d| d.block).collect(), tx)
+    }
+}
+
+impl<B: BlockT> PriorityIdent for BlockSpec<B> {
+    type Ident = u32;
+    fn identifier(&self) -> u32 {
+        self.spec
     }
 }
 
