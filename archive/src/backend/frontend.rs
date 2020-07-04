@@ -63,7 +63,7 @@ where
     let backend = Arc::new(ReadOnlyBackend::new(db, true));
 
     let executor = NativeExecutor::<Dispatch>::new(
-        WasmExecutionMethod::Interpreted,
+        WasmExecutionMethod::Compiled,
         Some(wasm_pages),
         (block_workers as usize),
     );

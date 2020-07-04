@@ -36,17 +36,17 @@ use crate::{
 };
 
 pub type DbReturn = Result<u64, ArchiveError>;
-pub type DbConnection = sqlx::Pool<PgConnection>;
+pub type DbConn = sqlx::Pool<PgConnection>;
 
 #[async_trait]
 pub trait Insert: Sync {
-    async fn insert(mut self, db: DbConnection) -> DbReturn
+    async fn insert(mut self, db: DbConn) -> DbReturn
     where
         Self: Sized;
 }
 pub struct Database {
     /// pool of database connections
-    pool: DbConnection,
+    pool: DbConn,
 }
 
 // clones a database connection
@@ -60,7 +60,7 @@ impl Clone for Database {
 
 impl Database {
     /// Connect to the database
-    pub fn new(pool: &DbConnection) -> Self {
+    pub fn new(pool: &DbConn) -> Self {
         Self { pool: pool.clone() }
     }
 
@@ -79,7 +79,7 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn insert(mut self, db: DbConnection) -> DbReturn {
+    async fn insert(mut self, db: DbConn) -> DbReturn {
         log::trace!(
             "block_num = {:?}, hash = {:X?}",
             self.inner.block.header().number(),
@@ -120,41 +120,23 @@ where
 
 #[async_trait]
 impl<B: BlockT> Insert for StorageModel<B> {
-    async fn insert(mut self, db: DbConnection) -> DbReturn {
+    async fn insert(mut self, db: DbConn) -> DbReturn {
         self.single_insert()?.execute(&db).await.map_err(Into::into)
     }
 }
 
 #[async_trait]
 impl<B: BlockT> Insert for Vec<StorageModel<B>> {
-    async fn insert(mut self, db: DbConnection) -> DbReturn {
-        let mut sizes = Vec::new();
-        let chunks = self.chunks(12_000);
-
-        for chunk in chunks.clone() {
-            // FIXME should not clone here
-            sizes.push(chunk.len())
-        }
-
-        let queries = sizes
-            .into_iter()
-            .map(|s| self.build_sql(Some(s as u32)))
-            .collect::<Vec<String>>();
-        let mut counter = 0;
-        let mut futures = Vec::new();
+    async fn insert(mut self, db: DbConn) -> DbReturn {
+        let chunks = self.chunks(11_000);
+        let mut rows_changed = 0;
         for s in chunks {
             let storg = s.to_vec();
-            futures.push(storg.batch_insert(&queries[counter])?.execute(&db));
-            counter += 1;
+            let sql = self.build_sql(Some(storg.len() as u32));
+            rows_changed += storg
+                .batch_insert(sql.as_str(), |q| q.execute(&db))?
+                .await?;
         }
-        let mut rows_changed = 0;
-        future::join_all(futures)
-            .await
-            .iter()
-            .for_each(|r| match r {
-                Ok(v) => rows_changed += v,
-                Err(e) => log::error!("{:?}", e),
-            });
         Ok(rows_changed)
     }
 }
@@ -175,7 +157,7 @@ impl<'a, B: BlockT> BindAll<'a> for StorageModel<B> {
 
 #[async_trait]
 impl Insert for Metadata {
-    async fn insert(mut self, db: DbConnection) -> DbReturn {
+    async fn insert(mut self, db: DbConn) -> DbReturn {
         self.single_insert()?.execute(&db).await.map_err(Into::into)
     }
 }
@@ -195,13 +177,15 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn insert(mut self, db: DbConnection) -> DbReturn {
+    async fn insert(mut self, db: DbConn) -> DbReturn {
         log::trace!("Batch inserting {} blocks into DB", self.inner().len());
         let mut rows_changed = 0;
         for blocks in self.inner().chunks(8_000) {
             let blocks = blocks.to_vec();
             let sql = blocks.build_sql(None);
-            rows_changed += blocks.batch_insert(&sql)?.execute(&db).await?;
+            rows_changed += blocks
+                .batch_insert(sql.as_str(), |q| q.execute(&db))?
+                .await?;
         }
         Ok(rows_changed)
     }

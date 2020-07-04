@@ -21,6 +21,7 @@ mod generators;
 mod workers;
 
 use self::generators::missing_blocks;
+
 use super::{
     backend::{ApiAccess, BlockBroker, GetRuntimeVersion, ReadOnlyBackend, ThreadedBlockExecutor},
     error::{ArchiveResult, Error as ArchiveError},
@@ -37,7 +38,8 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sqlx::postgres::PgPool;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use workers::{msg, Aggregator, BlockFetcher};
+pub use workers::Aggregator;
+use workers::{msg, BlockFetcher};
 use xtra::prelude::*;
 
 /// Context that every actor may use

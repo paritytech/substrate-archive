@@ -20,6 +20,7 @@
 mod actors;
 pub mod archive;
 pub mod backend;
+mod block_scheduler;
 mod database;
 mod error;
 mod migrations;

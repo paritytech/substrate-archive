@@ -43,9 +43,13 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blks: BatchBlock<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        let mut specs = blks.inner().clone();
-        specs.as_mut_slice().sort_by_key(|b| b.spec);
+    async fn handle(
+        &mut self,
+        mut blks: BatchBlock<B>,
+        _ctx: &mut Context<Self>,
+    ) -> ArchiveResult<()> {
+        let mut specs = blks.mut_inner();
+        specs.sort_by_key(|b| b.spec);
         let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
         specs.dedup();
         loop {

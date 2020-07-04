@@ -17,6 +17,7 @@
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
 mod block_executor;
+mod block_fetcher;
 mod database;
 pub mod frontend;
 mod read_only_backend;

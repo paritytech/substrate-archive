@@ -19,6 +19,7 @@
 use super::models::StorageModel;
 use crate::error::ArchiveResult;
 use crate::types::{Block, Metadata, Storage};
+use futures::future::Future;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sqlx::Postgres;
 
@@ -39,7 +40,10 @@ pub trait PrepareSql<'a> {
 }
 
 pub trait PrepareBatchSql<'a> {
-    fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>>;
+    fn batch_insert<F, R>(&self, sql: &'a str, fun: F) -> ArchiveResult<R>
+    where
+        F: FnOnce(sqlx::Query<'a, Postgres>) -> R,
+        R: Future<Output = Result<u64, sqlx::Error>>;
     fn build_sql(&self, rows: Option<u32>) -> String;
 }
 
@@ -80,12 +84,17 @@ ON CONFLICT DO NOTHING
         stmt
     }
 
-    fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(self.iter().fold(sqlx::query(sql), |q, block| {
+    fn batch_insert<F, R>(&self, sql: &'a str, fun: F) -> ArchiveResult<R>
+    where
+        F: FnOnce(sqlx::Query<'a, Postgres>) -> R,
+        R: Future<Output = Result<u64, sqlx::Error>>,
+    {
+        let query = self.iter().fold(sqlx::query(sql), |q, block| {
             block
                 .bind_all_arguments(q)
                 .expect("arguments failed to bind")
-        }))
+        });
+        Ok(fun(query))
     }
 }
 
@@ -150,12 +159,17 @@ impl<'a, B: BlockT> PrepareBatchSql<'a> for Vec<StorageModel<B>> {
         }
     }
 
-    fn batch_insert(&self, sql: &'a str) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(self.iter().fold(sqlx::query(sql), |q, storg| {
+    fn batch_insert<F, R>(&self, sql: &'a str, fun: F) -> ArchiveResult<R>
+    where
+        F: FnOnce(sqlx::Query<'a, Postgres>) -> R,
+        R: Future<Output = Result<u64, sqlx::Error>>,
+    {
+        let query = self.iter().fold(sqlx::query(sql), |q, storg| {
             storg
                 .bind_all_arguments(q)
                 .expect("Could not bind storage arguments")
-        }))
+        });
+        Ok(fun(query))
     }
 }
 

@@ -22,9 +22,11 @@
 //! that is already fully-synced). Maintains a buffer of sorted blocks to execute, and sorts blocks
 //! that are being streamed
 
-use super::{BlockChanges, BlockData, BlockSpec, ThreadedBlockExecutor};
 use crate::{
-    backend::{ApiAccess, ReadOnlyBackend as Backend},
+    backend::{
+        ApiAccess, BlockChanges, BlockData, BlockSpec, ReadOnlyBackend as Backend,
+        ThreadedBlockExecutor,
+    },
     error::{ArchiveResult, Error as ArchiveError},
     types::*,
 };
@@ -34,10 +36,7 @@ use sc_client_api::backend;
 use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
-use std::collections::BinaryHeap;
-use std::fmt::Debug;
-use std::hash::Hash;
-use std::sync::Arc;
+use std::{collections::BinaryHeap, fmt::Debug, hash::Hash, sync::Arc};
 
 /// Encoded version of the data coming in
 /// the and identifier is kept decoded so that it may be sorted
@@ -132,20 +131,24 @@ where
         self.queue.extend(data.into_iter());
     }
 
+    pub fn add_data_single(&mut self, data: I) {
+        let data = EncodedIn::from(data);
+        if !self.dups.contains(&data.enc) {
+            self.dups.insert(data.enc.clone());
+            self.queue.push(data)
+        }
+    }
+
     pub fn check_work(&mut self) -> ArchiveResult<()> {
         log::debug!("Queue Length: {}", self.queue.len());
-        log::debug!(
-            "Queue Size: {}",
-            std::mem::size_of::<EncodedIn<I>>() * self.queue.len()
-        );
         // we try to maintain a MAX queue of 256 tasks at a time in the threadpool
         let delta = self.added - self.finished;
-        if delta < 256 && delta > 0 {
-            self.add_work(delta)?;
-        } else if self.finished == 0 && self.added == 0 && self.queue.len() > 256 {
-            self.add_work(256)?;
-        } else if delta == 0 && self.queue.len() > 256 {
-            self.add_work(256)?;
+        if self.finished == 0 && self.added == 0 && self.queue.len() > self.max_size {
+            self.add_work(self.max_size)?;
+        } else if delta < self.max_size && delta > 0 {
+            self.add_work(self.max_size - delta)?;
+        } else if delta == 0 && self.queue.len() > self.max_size {
+            self.add_work(self.max_size)?;
         }
         log::debug!("AFTER finished: {}, added: {}", self.finished, self.added);
 
@@ -163,6 +166,10 @@ where
         std::mem::swap(&mut self.queue, &mut sorted);
 
         let mut sorted = sorted.into_sorted_vec();
+        log::debug!(
+            "Queue Size: {} MB",
+            size_of_encoded(Deno::MB, sorted.as_slice())
+        );
         let to_insert = if sorted.len() > to_add {
             sorted
                 .drain(0..to_add)
@@ -175,8 +182,51 @@ where
                 .collect::<ArchiveResult<Vec<I>>>()?
         };
         self.queue.extend(sorted.into_iter());
-
+        log::debug!(
+            "Decoded Queue Size: {} KB",
+            size_of_decoded(Deno::KB, to_insert.as_slice())
+        );
         self.added += self.exec.add_task(to_insert, self.tx.clone())?;
         Ok(())
+    }
+}
+
+/// Denomination of bytes/megabytes/kilobytes
+enum Deno {
+    Bytes,
+    KB,
+    MB,
+}
+
+fn size_of_encoded<I: PriorityIdent>(deno: Deno, items: &[EncodedIn<I>]) -> usize {
+    let byte_size = || {
+        let mut total_size = 0;
+        for i in items.iter() {
+            let vec_size_bytes = i.enc.len();
+            let ident_size = std::mem::size_of::<I::Ident>();
+            total_size += vec_size_bytes + ident_size;
+        }
+        total_size
+    };
+    match deno {
+        Deno::Bytes => byte_size(),
+        Deno::KB => byte_size() / 1024,
+        Deno::MB => byte_size() / 1024 / 1024,
+    }
+}
+
+fn size_of_decoded<I: PriorityIdent>(deno: Deno, items: &[I]) -> usize {
+    let byte_size = || {
+        let mut total_size = 0;
+        for i in items.iter() {
+            let item_size_bytes = std::mem::size_of::<I>();
+            total_size += item_size_bytes;
+        }
+        total_size
+    };
+    match deno {
+        Deno::Bytes => byte_size(),
+        Deno::KB => byte_size() / 1024,
+        Deno::MB => byte_size() / 1024 / 1024,
     }
 }

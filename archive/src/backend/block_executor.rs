@@ -20,6 +20,7 @@
 
 use crate::{
     backend::{ApiAccess, ReadOnlyBackend as Backend},
+    block_scheduler::BlockScheduler,
     error::{ArchiveResult, Error as ArchiveError},
     types::*,
 };
@@ -35,8 +36,6 @@ use sp_runtime::{
 };
 use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
 use std::{marker::PhantomData, sync::Arc, thread::JoinHandle};
-
-mod block_scheduler;
 
 pub type StorageKey = Vec<u8>;
 pub type StorageValue = Vec<u8>;
@@ -161,13 +160,11 @@ where
 
     fn work(
         block: Block,
-        client: Arc<Api>,
-        backend: Arc<Backend<Block>>,
-        sender: flume::Sender<BlockChanges<Block>>,
+        client: &Arc<Api>,
+        backend: &Arc<Backend<Block>>,
+        sender: &flume::Sender<BlockChanges<Block>>,
     ) -> Result<(), ArchiveError> {
         let api = client.runtime_api();
-
-        // let block: Block = Decode::decode(&mut block.as_slice())?;
 
         // don't execute genesis block
         if *block.header().parent_hash() == Default::default() {
@@ -196,26 +193,21 @@ where
         blocks: Vec<Block>,
         sender: flume::Sender<BlockChanges<Block>>,
     ) -> Result<usize, ArchiveError> {
-        if blocks.len() > 0 {
-            // we try to execute at least 5 blocks at once, this lets rayon
-            // avoid looking for work too much and using up CPU time
-            for blocks in blocks.chunks(5) {
-                let blocks = blocks.to_vec();
-                let client = self.client.clone();
-                let backend = self.backend.clone();
-                let sender = sender.clone();
-                self.pool.spawn_fifo(move || {
-                    for block in blocks.into_iter() {
-                        let client = client.clone();
-                        let backend = backend.clone();
-                        let sender = sender.clone();
-                        match Self::work(block, client, backend, sender) {
-                            Ok(_) => (),
-                            Err(e) => log::error!("{:?}", e),
-                        }
+        // we try to execute at least 5 blocks at once, this lets rayon
+        // avoid looking for work too much and using up CPU time
+        for blocks in blocks.chunks(5) {
+            let client = self.client.clone();
+            let backend = self.backend.clone();
+            let sender = sender.clone();
+            let blocks = blocks.to_vec();
+            self.pool.spawn_fifo(move || {
+                for block in blocks.into_iter() {
+                    match Self::work(block, &client, &backend, &sender) {
+                        Ok(_) => (),
+                        Err(e) => log::error!("{:?}", e),
                     }
-                });
-            }
+                }
+            });
         }
         Ok(blocks.len())
     }
@@ -223,14 +215,18 @@ where
 
 /// spawns a thread which schedules tasks every 50 milli-seconds
 fn scheduler_loop<B: BlockT>(
-    pool: impl ThreadPool<In = BlockSpec<B>, Out = BlockChanges<B>>,
+    pool: impl ThreadPool<In = BlockSpec<B>, Out = BlockChanges<B>> + 'static,
     sender: flume::Sender<BlockChanges<B>>,
 ) -> Result<(flume::Sender<BlockData<B>>, JoinHandle<()>), ArchiveError> {
     let (tx, mut rx) = flume::unbounded();
-    let mut sched = self::block_scheduler::BlockScheduler::new(pool, sender, 256);
+    let mut sched = BlockScheduler::new(pool, sender, 256);
     let handle = std::thread::spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_millis(50));
-        rx.drain().for_each(|v| sched.add_data(v));
+        rx.drain().for_each(|v| match v {
+            BlockData::Batch(v) => sched.add_data(v),
+            BlockData::Single(v) => sched.add_data_single(v),
+            BlockData::Stop => unimplemented!(),
+        });
         sched.check_work();
     });
     Ok((tx, handle))
@@ -306,7 +302,7 @@ where
     B: backend::Backend<Block>,
 {
     api: ApiRef<'a, Api>,
-    backend: Arc<B>,
+    backend: &'a Arc<B>,
     block: Block,
     id: BlockId<Block>,
 }
@@ -319,7 +315,11 @@ where
         + ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
     B: backend::Backend<Block>,
 {
-    pub fn new(api: ApiRef<'a, Api>, backend: Arc<B>, block: Block) -> Result<Self, ArchiveError> {
+    pub fn new(
+        api: ApiRef<'a, Api>,
+        backend: &'a Arc<B>,
+        block: Block,
+    ) -> Result<Self, ArchiveError> {
         let header = block.header();
         let parent_hash = header.parent_hash();
         let id = BlockId::Hash(*parent_hash);

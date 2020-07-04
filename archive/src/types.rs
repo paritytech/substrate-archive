@@ -25,7 +25,7 @@ use sp_runtime::{
 use sp_storage::{StorageData, StorageKey};
 use xtra::prelude::*;
 
-pub trait ThreadPool {
+pub trait ThreadPool: Send {
     type In: Clone + Send + Sync + Encode + Decode + PriorityIdent;
     type Out: Send + Sync + std::fmt::Debug;
     fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> ArchiveResult<usize>;
@@ -109,6 +109,10 @@ impl<B: BlockT> BatchBlock<B> {
 
     pub fn inner(&self) -> &Vec<Block<B>> {
         &self.inner
+    }
+
+    pub fn mut_inner(&mut self) -> &mut [Block<B>] {
+        self.inner.as_mut_slice()
     }
 }
 

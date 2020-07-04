@@ -54,7 +54,6 @@ where
         addr: Address<workers::Aggregator<B>>,
         num_threads: Option<usize>,
     ) -> ArchiveResult<Self> {
-        let url = context.rpc_url().to_string();
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads.unwrap_or(0))
             .thread_name(|i| format!("blk-fetch-{}", i))
