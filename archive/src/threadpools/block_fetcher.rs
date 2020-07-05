@@ -16,16 +16,15 @@
 
 use crate::types::*;
 use crate::{
-    actors::{ActorContext, Aggregator},
+    actors::ActorContext,
     backend::{GetRuntimeVersion, ReadOnlyBackend},
     error::ArchiveResult,
 };
 use sp_runtime::{
     generic::BlockId,
-    traits::{Block as BlockT, Header as _, NumberFor},
+    traits::{Block as BlockT, NumberFor},
 };
 use std::sync::Arc;
-use xtra::prelude::*;
 
 pub struct ThreadedBlockFetcher<B>
 where
@@ -70,7 +69,7 @@ where
         } else {
             let b = b.expect("Checked for none; qed");
             let version = api.runtime_version(&BlockId::Hash(b.block.hash()))?;
-            tx.send(Block::<B>::new(b, version.spec_version));
+            tx.send(Block::<B>::new(b, version.spec_version))?;
         }
         Ok(())
     }

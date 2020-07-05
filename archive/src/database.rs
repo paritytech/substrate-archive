@@ -22,7 +22,6 @@ mod prepare_sql;
 
 use async_trait::async_trait;
 use codec::Encode;
-use futures::future;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::{PgConnection, Postgres};
 

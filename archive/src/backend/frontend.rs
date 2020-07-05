@@ -30,7 +30,7 @@ use sp_core::traits::CloneableSpawn;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
 
-use super::{ApiAccess, ReadOnlyBackend, RuntimeApiCollection};
+use super::{ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
 pub type TArchiveClient<TBl, TRtApi, TExecDisp> =
@@ -65,7 +65,7 @@ where
     let executor = NativeExecutor::<Dispatch>::new(
         WasmExecutionMethod::Compiled,
         Some(wasm_pages),
-        (block_workers as usize),
+        block_workers as usize,
     );
 
     let executor = ArchiveExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()));

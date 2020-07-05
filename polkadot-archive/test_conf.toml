@@ -12,7 +12,7 @@ cache_size = 128
 # to the default number of logical system threads
 block_workers = 16
 # Number of 64KB Heap Pages to allocate for WASM execution
-wasm_pages = 1024
+wasm_pages = 256
 
 db_host = "localhost"
 db_port = "5432"

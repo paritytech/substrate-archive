@@ -72,15 +72,13 @@ impl<Block: BlockT> StorageModel<Block> {
 
 impl<Block: BlockT> From<Storage<Block>> for Vec<StorageModel<Block>> {
     fn from(original: Storage<Block>) -> Vec<StorageModel<Block>> {
-        let hash = original.hash().clone();
+        let hash = *original.hash();
         let block_num = original.block_num();
         let full_storage = original.is_full();
         original
             .changes
             .into_iter()
-            .map(|changes| {
-                StorageModel::new(hash.clone(), block_num, full_storage, changes.0, changes.1)
-            })
+            .map(|changes| StorageModel::new(hash, block_num, full_storage, changes.0, changes.1))
             .collect::<Vec<StorageModel<Block>>>()
     }
 }

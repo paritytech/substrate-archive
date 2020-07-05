@@ -16,29 +16,24 @@
 
 //! Executes blocks concurrently
 
-use super::block_scheduler::BlockScheduler;
 use crate::{
     backend::{ApiAccess, BlockChanges, BlockExecutor, ReadOnlyBackend as Backend},
     error::{ArchiveResult, Error as ArchiveError},
     types::{self, PriorityIdent, ThreadPool},
 };
-use codec::{Decode, Encode};
-use hashbrown::HashSet;
-use itertools::Itertools;
 use sc_client_api::backend;
-use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
+use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, Header, NumberFor},
 };
-use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
-use std::{marker::PhantomData, sync::Arc, thread::JoinHandle};
+use std::{marker::PhantomData, sync::Arc};
 
-pub type StorageKey = Vec<u8>;
-pub type StorageValue = Vec<u8>;
-pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
-pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
+// pub type StorageKey = Vec<u8>;
+// pub type StorageValue = Vec<u8>;
+// pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
+// pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
 #[derive(Debug)]
 pub enum BlockData<B: BlockT> {
@@ -79,8 +74,8 @@ where
 
         Ok(Self {
             pool,
-            client: client.clone(),
-            backend: backend.clone(),
+            client,
+            backend,
             _marker: PhantomData,
         })
     }
@@ -117,7 +112,7 @@ where
     /// returns the number of tasks that were inserted
     pub fn add_vec_task(
         &self,
-        mut blocks: Vec<types::Block<B>>,
+        blocks: Vec<types::Block<B>>,
         sender: flume::Sender<BlockChanges<B>>,
     ) -> Result<usize, ArchiveError> {
         let len = blocks.len();

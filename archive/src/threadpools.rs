@@ -19,21 +19,13 @@ use self::block_exec_pool::BlockExecPool;
 use self::block_fetcher::ThreadedBlockFetcher;
 use self::block_scheduler::BlockScheduler;
 use crate::backend::{ApiAccess, BlockChanges, ReadOnlyBackend as Backend};
-use crate::{
-    actors::{ActorContext, Aggregator},
-    error::ArchiveResult,
-    types::Block,
-};
+use crate::{actors::ActorContext, error::ArchiveResult, types::Block};
 use futures::{Stream, StreamExt};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::{
-    generic::BlockId,
-    traits::{Block as BlockT, Header as _, NumberFor},
-};
-use std::{marker::PhantomData, sync::Arc, thread, time::Duration};
-use xtra::prelude::*;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
+use std::{sync::Arc, thread, time::Duration};
 
 mod block_exec_pool;
 mod block_fetcher;
@@ -52,7 +44,7 @@ where
 {
     sender: flume::Sender<u32>,
     pair: (flume::Sender<Block<B>>, flume::Receiver<Block<B>>),
-    handle: jod_thread::JoinHandle<ArchiveResult<()>>,
+    _handle: jod_thread::JoinHandle<ArchiveResult<()>>,
 }
 
 impl<B> BlockFetcher<B>
@@ -81,7 +73,7 @@ where
         Ok(Self {
             pair: (sender, receiver),
             sender: tx,
-            handle: handle.into(),
+            _handle: handle,
         })
     }
 
@@ -111,7 +103,7 @@ where
 {
     /// The main sender
     sender: flume::Sender<BlockData<B>>,
-    handle: jod_thread::JoinHandle<ArchiveResult<()>>,
+    _handle: jod_thread::JoinHandle<ArchiveResult<()>>,
     pair: (
         flume::Sender<BlockChanges<B>>,
         flume::Receiver<BlockChanges<B>>,
@@ -120,7 +112,7 @@ where
 
 impl<B> ThreadedBlockExecutor<B>
 where
-    B: BlockT + Unpin,
+    B: BlockT,
     NumberFor<B>: Into<u32>,
 {
     pub fn new<R, A>(
@@ -155,12 +147,13 @@ where
         Ok(Self {
             sender: tx,
             pair: (sender, receiver),
-            handle: handle.into(),
+            _handle: handle,
         })
     }
 
     /// attach a stream to this threadpool
     /// Forwards all messages from the stream to the threadpool
+    #[allow(unused)]
     pub fn attach_stream(
         &self,
         mut stream: impl Stream<Item = BlockData<B>> + Send + Unpin + 'static,

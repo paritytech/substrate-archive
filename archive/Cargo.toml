@@ -36,7 +36,7 @@ jod-thread = "0.1.2"
 # Optional 
 fern = { version = "0.6", features = ["colored"], optional = true }
 chrono = { version = "0.4", optional = true }
-tokio = { version = "^0.2", features = ["sync", "rt-threaded", "blocking"], optional = true }
+tokio = { version = "^0.2", features = ["sync", "rt-threaded", "blocking", "time"], optional = true }
 smol = { version = "^0.1.11", optional = true }
 async-std = { version = "^1", features = ["unstable"], optional = true}
 

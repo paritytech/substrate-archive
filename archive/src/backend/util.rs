@@ -118,7 +118,7 @@ pub fn read_header<Block: BlockT>(
     match read_db(db, col_index, col, id)? {
         Some(header) => match Block::Header::decode(&mut &header[..]) {
             Ok(header) => Ok(Some(header)),
-            Err(_) => return Err(ArchiveError::from("Error decoding header")),
+            Err(_) => Err(ArchiveError::from("Error decoding header")),
         },
         None => Ok(None),
     }
@@ -219,7 +219,7 @@ where
             );
             Ok((hash, *header.number()))
         } else {
-            Ok((genesis_hash.clone(), Zero::zero()))
+            Ok((genesis_hash, Zero::zero()))
         }
     };
 

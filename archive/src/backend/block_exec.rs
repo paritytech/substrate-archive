@@ -16,14 +16,14 @@
 
 use crate::{error::ArchiveResult, types::Storage};
 use sc_client_api::backend;
-use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
+use sp_api::{ApiExt, ApiRef};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, Header, NumberFor},
 };
 use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
-use std::{marker::PhantomData, sync::Arc, thread::JoinHandle};
+use std::sync::Arc;
 
 pub type StorageKey = Vec<u8>;
 pub type StorageValue = Vec<u8>;
@@ -58,7 +58,7 @@ where
             changes
                 .storage_changes
                 .into_iter()
-                .map(|s| (StorageKeyWrapper(s.0), s.1.map(|d| StorageData(d))))
+                .map(|s| (StorageKeyWrapper(s.0), s.1.map(StorageData)))
                 .collect::<Vec<(StorageKeyWrapper, Option<StorageData>)>>(),
         )
     }
@@ -100,9 +100,9 @@ where
 
     pub fn block_into_storage(self) -> ArchiveResult<BlockChanges<Block>> {
         let header = (&self.block).header();
-        let parent_hash = header.parent_hash().clone();
+        let parent_hash = *header.parent_hash();
         let hash = header.hash();
-        let num = header.number().clone();
+        let num = *header.number();
 
         let state = self.backend.state_at(self.id)?;
 

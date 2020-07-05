@@ -48,9 +48,9 @@ where
         mut blks: BatchBlock<B>,
         _ctx: &mut Context<Self>,
     ) -> ArchiveResult<()> {
-        let mut specs = blks.mut_inner();
+        let specs = blks.mut_inner();
         specs.sort_by_key(|b| b.spec);
-        let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
+        let mut specs = specs.iter_mut().map(|b| b.spec).collect::<Vec<u32>>();
         specs.dedup();
         loop {
             let versions = queries::get_versions(self.pool()).await?;
@@ -126,5 +126,5 @@ fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -
             return false;
         }
     }
-    return true;
+    true
 }

@@ -78,13 +78,13 @@ impl From<sp_blockchain::Error> for Error {
 }
 
 impl From<xtra::Disconnected> for Error {
-    fn from(e: xtra::Disconnected) -> Error {
+    fn from(_: xtra::Disconnected) -> Error {
         Error::Disconnected
     }
 }
 
 impl<T> From<flume::SendError<T>> for Error {
-    fn from(e: flume::SendError<T>) -> Error {
+    fn from(_: flume::SendError<T>) -> Error {
         Error::Channel
     }
 }

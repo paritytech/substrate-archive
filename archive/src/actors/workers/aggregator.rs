@@ -15,16 +15,14 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-    actors::{generators::fill_storage, ActorContext},
     backend::BlockChanges,
-    error::{self, ArchiveResult},
+    error::ArchiveResult,
     threadpools::BlockData,
     types::{BatchBlock, Block, Storage},
 };
 use itertools::{EitherOrBoth, Itertools};
 use sp_runtime::traits::{Block as BlockT, NumberFor};
-use std::{iter::FromIterator, sync::Arc, time::Duration};
-use tokio::{runtime, task};
+use std::{iter::FromIterator, time::Duration};
 use xtra::prelude::*;
 
 /// how often to check threadpools for finished work (in milli-seconds)
@@ -48,7 +46,6 @@ where
     /// and sending them to the database actor
     meta_addr: Address<super::Metadata>,
     /// Pooled Postgres Database Connections
-    pool: sqlx::PgPool,
     exec: flume::Sender<BlockData<B>>,
 }
 
@@ -59,15 +56,12 @@ where
 {
     let (storage_tx, storage_rx) = flume::unbounded();
     let (block_tx, block_rx) = flume::unbounded();
-    let (tx, rx) = flume::bounded(0);
     (
         Senders {
-            tx,
             storage_queue: storage_tx,
             block_queue: block_tx,
         },
         Receivers {
-            rx,
             storage_recv: storage_rx,
             block_recv: block_rx,
         },
@@ -76,10 +70,7 @@ where
 
 /// Internal struct representing a queue built around message-passing
 /// Sending/Receiving ends of queues to send batches of data to actors
-/// includes shutdown signal to end the System Loop
 struct Senders<B: BlockT> {
-    /// channel for sending a shutdown signal
-    tx: flume::Sender<()>,
     /// sending end of an internal queue to send batches of storage to actors
     storage_queue: flume::Sender<BlockChanges<B>>,
     /// sending end of an internal queue to send batches of blocks to actors
@@ -87,7 +78,6 @@ struct Senders<B: BlockT> {
 }
 
 struct Receivers<B: BlockT> {
-    rx: flume::Receiver<()>,
     /// receiving end of an internal queue to send batches of storage to actors
     storage_recv: flume::Receiver<BlockChanges<B>>,
     /// receiving end of an internal queue to send batches of blocks to actors
@@ -99,13 +89,6 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn should_shutdown(&self) -> bool {
-        match self.rx.try_recv() {
-            Ok(_) => return true,
-            Err(_) => return false,
-        }
-    }
-
     fn check_work(&self) -> BlockStorageCombo<B> {
         self.storage_recv
             .drain()
@@ -138,11 +121,6 @@ where
         }
         Ok(())
     }
-
-    fn shutdown(&self) -> ArchiveResult<()> {
-        self.tx.send(())?;
-        Ok(())
-    }
 }
 
 impl<B> Aggregator<B>
@@ -161,25 +139,13 @@ where
             recvs: Some(recvs),
             db_addr,
             meta_addr,
-            pool: pool.clone(),
             exec: tx,
         }
-    }
-
-    async fn kill(self) -> ArchiveResult<()> {
-        self.senders.shutdown()?;
-        Ok(())
     }
 }
 
 impl<B: BlockT> Message for BlockChanges<B> {
     type Result = ArchiveResult<()>;
-}
-
-struct Count(usize, usize);
-
-impl Message for Count {
-    type Result = ();
 }
 
 impl<B> Actor for Aggregator<B>
@@ -188,14 +154,12 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn started(&mut self, ctx: &mut Context<Self>) {
-        let pool = self.pool.clone();
         if self.recvs.is_none() {
             let (sends, recvs) = queues();
             self.senders = sends;
             self.recvs = Some(recvs);
         }
         let this = self.recvs.take().expect("checked for none; qed");
-        let addr = ctx.address().expect("Just instantiated; qed").clone();
         ctx.notify_interval(Duration::from_millis(SYSTEM_TICK), move || {
             this.check_work()
         });
@@ -266,7 +230,7 @@ where
     fn handle(&mut self, counts: BlockStorageCombo<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
         let (blocks, storage) = (counts.0, counts.1);
 
-        let s_count = if storage.0.len() > 0 {
+        let s_count = if !storage.0.is_empty() {
             let count = storage.0.len();
             self.db_addr.do_send(storage)?;
             count
@@ -274,7 +238,7 @@ where
             0
         };
 
-        let b_count = if blocks.inner().len() > 0 {
+        let b_count = if !blocks.inner().is_empty() {
             let count = blocks.inner().len();
             self.meta_addr.do_send(blocks)?;
             count

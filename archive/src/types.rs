@@ -17,11 +17,7 @@
 use crate::error::{ArchiveResult, Error as ArchiveError};
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-use sp_runtime::{
-    generic::{Block as NotSignedBlock, SignedBlock},
-    traits::{Block as BlockT, NumberFor},
-    OpaqueExtrinsic,
-};
+use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
 use xtra::prelude::*;
 
@@ -40,7 +36,7 @@ pub trait PriorityIdent {
 #[async_trait::async_trait(?Send)]
 pub trait Archive<B: BlockT> {
     /// start driving the execution of the archive
-    async fn drive(&mut self) -> Result<(), ArchiveError>;
+    async fn drive(&self) -> Result<(), ArchiveError>;
 
     /// this method will block indefinitely
     async fn block_until_stopped(&self) -> ();

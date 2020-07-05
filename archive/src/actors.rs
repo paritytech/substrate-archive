@@ -28,18 +28,14 @@ use super::{
     threadpools::{BlockFetcher, ThreadedBlockExecutor},
     types::Archive,
 };
-use futures::{
-    stream::{FuturesUnordered, StreamExt},
-    Future,
-};
+use futures::StreamExt;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::{Block as BlockT, NumberFor};
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::postgres::PgPool;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use workers::msg;
 pub use workers::Aggregator;
 use xtra::prelude::*;
 
@@ -94,7 +90,7 @@ pub struct System<Block: BlockT, R, C> {
 
 impl<B, R, C> System<B, R, C>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
     R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B>, B>>
@@ -125,7 +121,7 @@ where
         psql_url: &str,
     ) -> ArchiveResult<Self> {
         let (api, blk_client) = client_api;
-        let context = ActorContext::new(backend.clone(), url, psql_url.to_string(), blk_client);
+        let context = ActorContext::new(backend, url, psql_url.to_string(), blk_client);
 
         Ok(Self {
             context,
@@ -136,8 +132,7 @@ where
     }
 
     /// Start the actors and begin driving their execution
-    // FIXME: don't make drive mut self
-    pub async fn drive(&mut self) -> ArchiveResult<()> {
+    pub async fn drive(&self) -> ArchiveResult<()> {
         let pool = PgPool::builder()
             .max_size(16)
             .build(self.context.psql_url())
@@ -145,24 +140,23 @@ where
         let backend = self.context.backend.clone();
         let ctx = self.context.clone();
 
-        let exec_pool =
-            ThreadedBlockExecutor::new(self.api.clone(), backend, self.workers.clone())?;
+        let exec_pool = ThreadedBlockExecutor::new(self.api.clone(), backend, self.workers)?;
         let fetch_pool = BlockFetcher::new(ctx.clone(), Some(3))?;
         let tx = exec_pool.sender();
-
         let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
         let subscription = rpc.subscribe_finalized_heads().await?;
-        let ag = Aggregator::new(ctx.rpc_url(), tx, &pool).spawn();
-
-        fetch_pool.attach_stream(subscription.map(|h| h.number()));
-        ag.attach_stream(exec_pool.into_stream());
+        let ag = Aggregator::new(ctx.rpc_url(), tx.clone(), &pool).spawn();
+        fetch_pool.attach_stream(subscription.map(|h| (*h.number()).into()));
+        fetch_pool.attach_stream(missing_blocks(pool.clone()).await);
+        log::info!("Filling storage");
+        fill_storage(pool.clone(), tx).await?;
+        log::info!("Storage filled");
+        ag.clone().attach_stream(exec_pool.into_stream());
         ag.attach_stream(fetch_pool.into_stream());
-        // fetch.attach_stream(subscription.map(|h| msg::Head(h)));
-        // ag.attach_stream(results);
         Ok(())
     }
 
-    pub async fn block_until_stopped(&self) -> () {
+    pub async fn block_until_stopped(&self) {
         loop {
             timer::Delay::new(std::time::Duration::from_secs(1)).await;
         }
@@ -170,17 +164,29 @@ where
 }
 
 #[async_trait::async_trait(?Send)]
-impl<B: BlockT, R, C> Archive<B> for System<B, R, C> {
-    async fn drive(&mut self) -> Result<(), ArchiveError> {
-        self.drive().await
+impl<B, R, C> Archive<B> for System<B, R, C>
+where
+    B: BlockT + Unpin,
+    R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
+    R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
+        + ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B>, B>>
+        + Send
+        + Sync
+        + 'static,
+    C: ApiAccess<B, ReadOnlyBackend<B>, R> + GetRuntimeVersion<B> + 'static,
+    NumberFor<B>: Into<u32> + From<u32> + Unpin,
+    B::Hash: From<primitive_types::H256> + Unpin,
+    B::Header: serde::de::DeserializeOwned,
+{
+    async fn drive(&self) -> Result<(), ArchiveError> {
+        System::drive(self).await
     }
 
-    async fn block_until_stopped(&self) -> () {
+    async fn block_until_stopped(&self) {
         self.block_until_stopped().await
     }
 
     fn shutdown(self) -> Result<(), ArchiveError> {
-        self.shutdown()?;
         Ok(())
     }
 
@@ -188,13 +194,6 @@ impl<B: BlockT, R, C> Archive<B> for System<B, R, C> {
         Ok(self.context.clone())
     }
 }
-
-/*
-fn start_generators<B: BlockT>(pool: sqlx::PgPool) {
-    crate::util::spawn(missing_blocks(pool, fetch.clone()));
-    crate::util::spawn(fill_storage(pool, broker));
-}
-*/
 
 /// connect to the substrate RPC
 /// each actor may potentially have their own RPC connections

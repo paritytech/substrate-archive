@@ -28,7 +28,7 @@ use crate::{
 };
 use codec::{Decode, Encode};
 use hashbrown::HashSet;
-use std::{collections::BinaryHeap, fmt::Debug, hash::Hash, sync::Arc};
+use std::{collections::BinaryHeap, fmt::Debug};
 
 /// Encoded version of the data coming in
 /// the and identifier is kept decoded so that it may be sorted
@@ -119,7 +119,7 @@ where
         // filter for duplicates
         let data = data
             .into_iter()
-            .map(|d| EncodedIn::from(d))
+            .map(EncodedIn::from)
             .filter(|d| !self.dups.contains(&d.enc))
             .collect::<Vec<_>>();
         self.dups.extend(data.iter().map(|d| d.enc.clone()));
@@ -184,6 +184,7 @@ where
 
 /// Denomination of bytes/megabytes/kilobytes
 enum Deno {
+    #[allow(unused)]
     Bytes,
     KB,
     MB,
@@ -209,7 +210,7 @@ fn size_of_encoded<I: PriorityIdent>(deno: Deno, items: &[EncodedIn<I>]) -> usiz
 fn size_of_decoded<I: PriorityIdent>(deno: Deno, items: &[I]) -> usize {
     let byte_size = || {
         let mut total_size = 0;
-        for i in items.iter() {
+        for _ in items.iter() {
             let item_size_bytes = std::mem::size_of::<I>();
             total_size += item_size_bytes;
         }

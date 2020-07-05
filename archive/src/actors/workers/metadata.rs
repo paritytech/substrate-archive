@@ -53,7 +53,7 @@ impl Metadata {
         if !queries::check_if_meta_exists(ver, &self.pool).await? {
             let meta = rpc.metadata(Some(hash)).await?;
             let meta = MetadataT::new(ver, meta);
-            self.addr.do_send(meta);
+            self.addr.do_send(meta)?;
         }
         Ok(())
     }
@@ -71,7 +71,7 @@ where
         let rpc = super::connect::<B>(self.url.as_str()).await;
         let hash = blk.inner.block.header().hash();
         self.meta_checker(blk.spec, hash, &rpc).await?;
-        self.addr.do_send(blk);
+        self.addr.do_send(blk)?;
         Ok(())
     }
 }
@@ -95,7 +95,7 @@ where
             self.meta_checker(b.spec, b.inner.block.hash(), &rpc)
                 .await?;
         }
-        self.addr.do_send(blks);
+        self.addr.do_send(blks)?;
         Ok(())
     }
 }

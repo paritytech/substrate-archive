@@ -198,7 +198,7 @@ where
         let state_runtime_code = sp_state_machine::backend::BackendRuntimeCode::new(&state);
         self.executor
             .runtime_version(&mut ext, &state_runtime_code.runtime_code()?)
-            .map_err(|e| sp_blockchain::Error::VersionInvalid(format!("{:?}", e)).into())
+            .map_err(|e| sp_blockchain::Error::VersionInvalid(format!("{:?}", e)))
     }
 
     fn prove_at_trie_state<S: sp_state_machine::TrieBackendStorage<HashFor<Block>>>(

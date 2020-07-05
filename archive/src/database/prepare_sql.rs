@@ -18,7 +18,7 @@
 
 use super::models::StorageModel;
 use crate::error::ArchiveResult;
-use crate::types::{Block, Metadata, Storage};
+use crate::types::{Block, Metadata};
 use futures::future::Future;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sqlx::Postgres;

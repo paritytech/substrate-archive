@@ -99,15 +99,14 @@ pub fn interval(
 /// panics if it fails because of anything other than the directory already exists
 #[allow(unused)]
 pub fn create_dir(path: &Path) {
-    match std::fs::create_dir_all(path) {
-        Err(e) => match e.kind() {
+    if let Err(e) = std::fs::create_dir_all(path) {
+        match e.kind() {
             std::io::ErrorKind::AlreadyExists => (),
             _ => {
                 error!("{}", e);
                 std::process::exit(0x0100);
             }
-        },
-        Ok(_) => (),
+        }
     }
 }
 
@@ -200,15 +199,6 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .chain(file_dispatcher)
         .apply()
         .expect("Could not init logging");
-}
-
-#[cfg(feature = "logging")]
-#[allow(unused)]
-fn format_opt(file: Option<String>) -> String {
-    match file {
-        None => "".to_string(),
-        Some(f) => f.to_string(),
-    }
 }
 
 /// log an error without doing anything else

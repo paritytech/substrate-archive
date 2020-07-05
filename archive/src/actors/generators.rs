@@ -16,28 +16,18 @@
 
 use crate::{
     error::ArchiveResult, queries, sql_block_builder::BlockBuilder, threadpools::BlockData,
-    types::Block,
 };
-use futures::{Future, Stream};
+use futures::Stream;
 use genawaiter::{sync::gen, yield_};
-use hashbrown::HashSet;
-use sp_runtime::{
-    generic::SignedBlock,
-    traits::{Block as BlockT, NumberFor},
-};
-use xtra::prelude::*;
+use sp_runtime::traits::Block as BlockT;
 
 /// Gets missing blocks from the SQL database
-pub async fn missing_blocks<B>(pool: sqlx::PgPool) -> impl Stream<Item = ArchiveResult<u32>>
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
+pub async fn missing_blocks(pool: sqlx::PgPool) -> impl Stream<Item = u32> {
     gen!({
         loop {
             if let Ok(b) = queries::missing_blocks(&pool).await {
                 for num in b.into_iter().map(|b| b.generate_series) {
-                    yield_!(Ok(num as u32))
+                    yield_!(num as u32)
                 }
             } else {
                 break;
@@ -54,7 +44,7 @@ pub async fn fill_storage<B: BlockT>(
     pool: sqlx::PgPool,
     tx: flume::Sender<BlockData<B>>,
 ) -> ArchiveResult<()> {
-    if queries::blocks_count(&pool).await? <= 0 {
+    if queries::blocks_count(&pool).await? == 0 {
         // no blocks means we haven't indexed anything yet
         return Ok(());
     }

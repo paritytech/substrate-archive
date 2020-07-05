@@ -101,11 +101,11 @@ impl MigrateConfigParsed {
 fn parse(conf: MigrationConfig) -> MigrateConfigParsed {
     let host: String = conf
         .host
-        .unwrap_or_else(|| process_var("DB_HOST").unwrap_or("localhost".to_string()));
+        .unwrap_or_else(|| process_var("DB_HOST").unwrap_or_else(|| "localhost".to_string()));
 
     let port: String = conf
         .port
-        .unwrap_or_else(|| process_var("DB_PORT").unwrap_or("5432".to_string()));
+        .unwrap_or_else(|| process_var("DB_PORT").unwrap_or_else(|| "5432".to_string()));
 
     let user = if conf.user.is_some() {
         conf.user
