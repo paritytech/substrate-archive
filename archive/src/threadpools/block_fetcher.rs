@@ -17,7 +17,7 @@
 use crate::types::*;
 use crate::{
     actors::{ActorContext, Aggregator},
-    backend::{BlockBroker, BlockData, BlockSpec, GetRuntimeVersion, ReadOnlyBackend},
+    backend::{GetRuntimeVersion, ReadOnlyBackend},
     error::ArchiveResult,
 };
 use sp_runtime::{
@@ -69,15 +69,8 @@ where
             log::warn!("Block {} not found!", num);
         } else {
             let b = b.expect("Checked for none; qed");
-            // TODO: fix unwraps
             let version = api.runtime_version(&BlockId::Hash(b.block.hash()))?;
             tx.send(Block::<B>::new(b, version.spec_version));
-            /*
-            let block_spec = BlockSpec::from((b.block.clone(), version.spec_version));
-            broker.work.send(BlockData::Single(block_spec)).unwrap();
-            let block = Block::<B>::new(b, version.spec_version);
-            addr.do_send(block).expect("Actor disconnected");
-            */
         }
         Ok(())
     }

@@ -23,19 +23,11 @@
 //! that are being streamed
 
 use crate::{
-    backend::{
-        ApiAccess, BlockChanges, BlockData, BlockSpec, ReadOnlyBackend as Backend,
-        ThreadedBlockExecutor,
-    },
     error::{ArchiveResult, Error as ArchiveError},
     types::*,
 };
 use codec::{Decode, Encode};
 use hashbrown::HashSet;
-use sc_client_api::backend;
-use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
-use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::{collections::BinaryHeap, fmt::Debug, hash::Hash, sync::Arc};
 
 /// Encoded version of the data coming in
@@ -84,32 +76,36 @@ where
     T: ThreadPool<In = I, Out = O>,
 {
     /// sorted prioritized queue of blocks
-    queue: BinaryHeap<EncodedIn<I>>, // EncodedBlockSpec
+    queue: BinaryHeap<EncodedIn<I>>,
     /// A HashSet of the data to be inserted. Used for checking against duplicates
     dups: HashSet<Vec<u8>>,
-    sender: flume::Sender<O>, // BlockChanges<B>
+    /// the threadpool
     exec: T,
-    // internal sender/receivers for gauging how much work
-    // the threadpool has finished
+    /// internal sender for gauging how much work
+    /// the threadpool has finished
     tx: flume::Sender<O>,
+    /// internal receiver for gauging how much work
+    /// the threadpool has finished
     rx: flume::Receiver<O>,
+    /// how many total items have been added to the threadpool
     added: usize,
+    /// how many tasks has the threadpool already finished
     finished: usize,
+    /// the maximum tasks we should have queued in the threadpool at any one time
     max_size: usize,
 }
 
 impl<I, O, T> BlockScheduler<I, O, T>
 where
     I: Clone + Send + Sync + Encode + Decode + PriorityIdent + Debug,
-    O: Send + Sync + Debug,
+    O: Send + Sync + Debug + Clone,
     T: ThreadPool<In = I, Out = O>,
 {
-    pub fn new(exec: T, sender: flume::Sender<O>, max_size: usize) -> Self {
+    pub fn new(exec: T, max_size: usize) -> Self {
         let (tx, rx) = flume::unbounded();
         Self {
             queue: BinaryHeap::new(),
             dups: HashSet::new(),
-            sender,
             exec,
             tx,
             rx,
@@ -119,7 +115,6 @@ where
         }
     }
 
-    // BlockData<B>
     pub fn add_data(&mut self, data: Vec<I>) {
         // filter for duplicates
         let data = data
@@ -139,7 +134,7 @@ where
         }
     }
 
-    pub fn check_work(&mut self) -> ArchiveResult<()> {
+    pub fn check_work(&mut self) -> ArchiveResult<Vec<O>> {
         log::debug!("Queue Length: {}", self.queue.len());
         // we try to maintain a MAX queue of 256 tasks at a time in the threadpool
         let delta = self.added - self.finished;
@@ -152,13 +147,9 @@ where
         }
         log::debug!("AFTER finished: {}, added: {}", self.finished, self.added);
 
-        let mut temp_fin = 0;
-        self.rx.drain().for_each(|c| {
-            temp_fin += 1;
-            self.sender.send(c).unwrap()
-        });
-        self.finished += temp_fin;
-        Ok(())
+        let out = self.rx.drain().collect::<Vec<O>>();
+        self.finished += out.len();
+        Ok(out)
     }
 
     fn add_work(&mut self, to_add: usize) -> ArchiveResult<()> {

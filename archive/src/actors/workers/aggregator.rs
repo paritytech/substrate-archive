@@ -16,13 +16,14 @@
 
 use crate::{
     actors::{generators::fill_storage, workers::BlockFetcher, ActorContext},
-    backend::{BlockBroker, BlockChanges},
+    backend::BlockChanges,
     error::{self, ArchiveResult},
+    threadpools::BlockData,
     types::{BatchBlock, Block, Storage},
 };
 use itertools::{EitherOrBoth, Itertools};
 use sp_runtime::traits::{Block as BlockT, NumberFor};
-use std::{iter::FromIterator, sync::Arc};
+use std::{iter::FromIterator, sync::Arc, time::Duration};
 use tokio::{runtime, task};
 use xtra::prelude::*;
 
@@ -46,10 +47,9 @@ where
     /// Actor which manages getting the runtime metadata for blocks
     /// and sending them to the database actor
     meta_addr: Address<super::Metadata>,
-    /// Broker handling sending/receiving work from threaded block execution
-    broker: BlockBroker<B>,
     /// Pooled Postgres Database Connections
     pool: sqlx::PgPool,
+    exec: flume::Sender<BlockData<B>>,
 }
 
 fn queues<B>() -> (Senders<B>, Receivers<B>)
@@ -117,6 +117,7 @@ where
 
 enum BlockOrStorage<B: BlockT> {
     Block(Block<B>),
+    BatchBlock(BatchBlock<B>),
     Storage(BlockChanges<B>),
 }
 
@@ -129,6 +130,11 @@ where
         match t {
             BlockOrStorage::Block(b) => self.block_queue.send(b)?,
             BlockOrStorage::Storage(s) => self.storage_queue.send(s)?,
+            BlockOrStorage::BatchBlock(v) => {
+                for b in v.inner.into_iter() {
+                    self.block_queue.send(b)?;
+                }
+            }
         }
         Ok(())
     }
@@ -145,7 +151,7 @@ where
     NumberFor<B>: Into<u32>,
     NumberFor<B>: From<u32>,
 {
-    pub fn new(url: &str, broker: BlockBroker<B>, pool: &sqlx::PgPool) -> Self {
+    pub fn new(url: &str, tx: flume::Sender<BlockData<B>>, pool: &sqlx::PgPool) -> Self {
         let db_addr = super::Database::new(&pool).spawn();
         let meta_addr = super::Metadata::new(url.to_string(), &pool).spawn();
         let (senders, recvs) = queues();
@@ -153,10 +159,10 @@ where
         Self {
             senders,
             recvs: Some(recvs),
-            broker,
             db_addr,
             meta_addr,
             pool: pool.clone(),
+            exec: tx,
         }
     }
 
@@ -182,9 +188,7 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn started(&mut self, ctx: &mut Context<Self>) {
-        let (broker, pool) = (self.broker.clone(), self.pool.clone());
-
-        crate::util::spawn(fill_storage(pool, broker));
+        let pool = self.pool.clone();
         if self.recvs.is_none() {
             let (sends, recvs) = queues();
             self.senders = sends;
@@ -192,13 +196,8 @@ where
         }
         let this = self.recvs.take().expect("checked for none; qed");
         let addr = ctx.address().expect("Just instantiated; qed").clone();
-        crate::util::spawn(async move {
-            loop {
-                timer::Delay::new(std::time::Duration::from_millis(SYSTEM_TICK)).await;
-                if let Err(_) = addr.do_send(this.check_work()) {
-                    break;
-                }
-            }
+        crate::util::interval(Duration::from_millis(SYSTEM_TICK), || async move {
+            addr.do_send(this.check_work())?;
             Ok(())
         });
     }
@@ -220,7 +219,19 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, block: Block<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
+        self.exec.send(BlockData::Single(block.clone()))?;
         self.senders.push_back(BlockOrStorage::Block(block))
+    }
+}
+
+impl<B> SyncHandler<BatchBlock<B>> for Aggregator<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
+    fn handle(&mut self, blocks: BatchBlock<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
+        self.exec.send(BlockData::Batch(blocks.inner.clone()))?;
+        self.senders.push_back(BlockOrStorage::BatchBlock(blocks))
     }
 }
 

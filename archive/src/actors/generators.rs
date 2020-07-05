@@ -17,7 +17,7 @@
 use super::workers::msg::BlockRange;
 use super::{workers::BlockFetcher, ActorContext};
 use crate::{
-    backend::{BlockBroker, BlockData, BlockSpec},
+    backend::{BlockBroker, BlockData},
     error::ArchiveResult,
     queries,
     sql_block_builder::BlockBuilder,
@@ -71,7 +71,7 @@ where
 /// This fills in storage that might've been missed by a shutdown
 pub async fn fill_storage<B: BlockT>(
     pool: sqlx::PgPool,
-    broker: BlockBroker<B>,
+    tx: flume::Sender<BlockData<B>>,
 ) -> ArchiveResult<()> {
     if queries::blocks_count(&pool).await? <= 0 {
         // no blocks means we haven't indexed anything yet
@@ -79,11 +79,7 @@ pub async fn fill_storage<B: BlockT>(
     }
     let now = std::time::Instant::now();
     let blocks = queries::blocks_storage_intersection(&pool).await?;
-    let blocks = BlockBuilder::<B>::new()
-        .with_vec(blocks)?
-        .into_iter()
-        .map(|b| BlockSpec::from(b))
-        .collect::<Vec<_>>();
+    let blocks = BlockBuilder::<B>::new().with_vec(blocks)?;
     let elapsed = now.elapsed();
     log::info!(
         "TOOK {} seconds, {} milli-seconds to get and build {} blocks",
@@ -92,6 +88,6 @@ pub async fn fill_storage<B: BlockT>(
         blocks.len()
     );
     log::info!("indexing {} blocks of storage ... ", blocks.len());
-    broker.work.send(BlockData::Batch(blocks)).unwrap();
+    tx.send(BlockData::Batch(blocks))?;
     Ok(())
 }

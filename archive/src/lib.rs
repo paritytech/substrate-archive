@@ -20,7 +20,6 @@
 mod actors;
 pub mod archive;
 pub mod backend;
-mod block_scheduler;
 mod database;
 mod error;
 mod migrations;
@@ -29,6 +28,7 @@ mod rpc;
 #[cfg(test)]
 mod simple_db;
 mod sql_block_builder;
+mod threadpools;
 mod types;
 mod util;
 

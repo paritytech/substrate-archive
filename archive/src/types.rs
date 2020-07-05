@@ -76,7 +76,7 @@ impl Metadata {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct Block<B: BlockT> {
     pub inner: SignedBlock<B>,
     pub spec: u32,
@@ -95,7 +95,7 @@ impl<B: BlockT> Block<B> {
 /// NewType for committing many blocks to the database at once
 #[derive(Debug)]
 pub struct BatchBlock<B: BlockT> {
-    inner: Vec<Block<B>>,
+    pub inner: Vec<Block<B>>,
 }
 
 impl<B: BlockT> Message for BatchBlock<B> {

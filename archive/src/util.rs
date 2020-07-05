@@ -44,6 +44,57 @@ pub fn spawn(fut: impl Future<Output = ArchiveResult<()>> + Send + 'static) {
     }
 }
 
+/// runs some closure asyncronously on an interval
+/// if the future returns an error, this interval prints the error and ends
+pub fn interval<F, Fut>(duration: std::time::Duration, fun: F)
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: Future<Output = ArchiveResult<()>> + Send + 'static,
+{
+    #[cfg(feature = "with-tokio")]
+    {
+        tokio::spawn(async move {
+            let mut timer = tokio::time::interval(duration);
+            loop {
+                timer.tick().await;
+                if let Err(e) = fun().await {
+                    log::error!("Interval Ending! {}", e.to_string());
+                    break;
+                }
+            }
+        });
+    }
+
+    #[cfg(feature = "with-async-std")]
+    {
+        use async_std::prelude::FutureExt;
+        async_std::task::spawn(async move {
+            loop {
+                futures::future::ready(()).delay(duration.clone()).await;
+                if let Err(e) = fun().await {
+                    log::error!("Interval Ending! {}", e.to_string());
+                    break;
+                }
+            }
+        });
+    }
+
+    #[cfg(feature = "with-smol")]
+    {
+        use smol::Timer;
+        smol::Task::spawn(async move {
+            loop {
+                Timer::after(duration.clone()).await;
+                if let Err(e) = fun().await {
+                    log::error!("Interval Ending! {}", e.to_string());
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+}
+
 /// create an arbitrary directory on disk
 /// panics if it fails because of anything other than the directory already exists
 #[allow(unused)]

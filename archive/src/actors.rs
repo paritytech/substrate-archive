@@ -20,11 +20,12 @@
 mod generators;
 mod workers;
 
-use self::generators::missing_blocks;
+use self::generators::{fill_storage, missing_blocks};
 
 use super::{
-    backend::{ApiAccess, BlockBroker, GetRuntimeVersion, ReadOnlyBackend, ThreadedBlockExecutor},
+    backend::{ApiAccess, GetRuntimeVersion, ReadOnlyBackend, ThreadedBlockExecutor},
     error::{ArchiveResult, Error as ArchiveError},
+    threadpools::{BlockFetcher, ThreadedBlockExecutor},
     types::Archive,
 };
 use futures::{
@@ -88,7 +89,6 @@ pub struct System<Block: BlockT, R, C> {
     context: ActorContext<Block>,
     workers: Option<usize>,
     api: Arc<C>,
-    broker: Option<BlockBroker<Block>>,
     _marker: PhantomData<(R, C)>,
 }
 
@@ -115,14 +115,6 @@ where
     /// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
     /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the
     /// environment variable `DATABASE_URL` instead.
-    // just expose a 'shutdown' fn that must be called in order to avoid missing data.
-    // or just return an archive object for general telemetry/ops.
-    // TODO: Accept one `Config` Struct for which a builder is implemented on
-    // to make configuring this easier.
-    /// Initialize substrate archive.
-    /// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
-    /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the
-    /// environment variable `DATABASE_URL` instead.
     pub fn new(
         // one client per-threadpool. This way we don't have conflicting cache resources
         // for WASM runtime-instances
@@ -139,7 +131,6 @@ where
             context,
             workers,
             api,
-            broker: None,
             _marker: PhantomData,
         })
     }
@@ -152,19 +143,19 @@ where
             .build(self.context.psql_url())
             .await?;
         let backend = self.context.backend.clone();
-        let exec = ThreadedBlockExecutor::new(self.workers, self.api.clone(), backend)?;
-        let mut broker = exec.start()?;
-        self.broker = Some(broker.clone());
-        let results = broker.results.take().expect("Just instantiated");
-        let context0 = self.context.clone();
-        let rpc = crate::rpc::Rpc::<B>::connect(context0.rpc_url()).await?;
+
+        let exec_pool =
+            ThreadedBlockExecutor::new(self.api.clone(), backend, self.workers.clone())?;
+        let ctx = self.context.clone();
+
+        let fetch_pool = BlockFetcher::new(ctx.clone(), Some(3))?;
+
+        let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
         let subscription = rpc.subscribe_finalized_heads().await?;
-        let ag = Aggregator::new(self.context.rpc_url(), broker.clone(), &pool).spawn();
-        let fetch =
-            BlockFetcher::new(broker.clone(), context0.clone(), ag.clone(), Some(3))?.spawn();
-        crate::util::spawn(missing_blocks(pool, fetch.clone()));
-        fetch.attach_stream(subscription.map(|h| msg::Head(h)));
-        ag.attach_stream(results);
+        let ag = Aggregator::new(ctx.rpc_url(), &pool).spawn();
+
+        // fetch.attach_stream(subscription.map(|h| msg::Head(h)));
+        // ag.attach_stream(results);
         Ok(())
     }
 
@@ -172,14 +163,6 @@ where
         loop {
             timer::Delay::new(std::time::Duration::from_secs(1)).await;
         }
-    }
-
-    // runs destructor code for the threadpools
-    pub fn shutdown(self) -> ArchiveResult<()> {
-        self.broker
-            .map(|v| v.stop())
-            .expect("Broker does not exist")?;
-        Ok(())
     }
 }
 
@@ -202,6 +185,13 @@ impl<B: BlockT, R, C> Archive<B> for System<B, R, C> {
         Ok(self.context.clone())
     }
 }
+
+/*
+fn start_generators<B: BlockT>(pool: sqlx::PgPool) {
+    crate::util::spawn(missing_blocks(pool, fetch.clone()));
+    crate::util::spawn(fill_storage(pool, broker));
+}
+*/
 
 /// connect to the substrate RPC
 /// each actor may potentially have their own RPC connections
