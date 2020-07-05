@@ -120,7 +120,7 @@ where
 
 impl<B> ThreadedBlockExecutor<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
     NumberFor<B>: Into<u32>,
 {
     pub fn new<R, A>(

@@ -143,18 +143,20 @@ where
             .build(self.context.psql_url())
             .await?;
         let backend = self.context.backend.clone();
+        let ctx = self.context.clone();
 
         let exec_pool =
             ThreadedBlockExecutor::new(self.api.clone(), backend, self.workers.clone())?;
-        let tx = exec_pool.sender();
-        let ctx = self.context.clone();
-
         let fetch_pool = BlockFetcher::new(ctx.clone(), Some(3))?;
+        let tx = exec_pool.sender();
 
         let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
         let subscription = rpc.subscribe_finalized_heads().await?;
         let ag = Aggregator::new(ctx.rpc_url(), tx, &pool).spawn();
 
+        fetch_pool.attach_stream(subscription.map(|h| h.number()));
+        ag.attach_stream(exec_pool.into_stream());
+        ag.attach_stream(fetch_pool.into_stream());
         // fetch.attach_stream(subscription.map(|h| msg::Head(h)));
         // ag.attach_stream(results);
         Ok(())
