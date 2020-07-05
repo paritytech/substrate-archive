@@ -18,9 +18,12 @@
 //! Rather than fetching many blocks from RocksDB by number,
 //! this is a (much) faster alternative
 
-use crate::error::Error as ArchiveError;
+use crate::{error::Error as ArchiveError, types};
 use codec::{Decode, Encode};
-use sp_runtime::traits::{Block as BlockT, DigestFor, Header as HeaderT};
+use sp_runtime::{
+    generic::SignedBlock,
+    traits::{Block as BlockT, DigestFor, Header as HeaderT},
+};
 use std::marker::PhantomData;
 
 #[derive(sqlx::FromRow, Debug, Clone)]
@@ -35,11 +38,11 @@ pub struct SqlBlock {
     spec: i32,
 }
 
-pub struct BlockBuilder<Block: BlockT> {
-    _marker: PhantomData<Block>,
+pub struct BlockBuilder<B: BlockT> {
+    _marker: PhantomData<B>,
 }
 
-impl<'a, Block: BlockT> BlockBuilder<Block> {
+impl<'a, B: BlockT> BlockBuilder<B> {
     pub fn new() -> Self {
         Self {
             _marker: PhantomData,
@@ -47,28 +50,35 @@ impl<'a, Block: BlockT> BlockBuilder<Block> {
     }
 
     /// With a vector of SqlBlocks
-    pub fn with_vec(&self, blocks: Vec<SqlBlock>) -> Result<Vec<(Block, u32)>, ArchiveError> {
+    pub fn with_vec(&self, blocks: Vec<SqlBlock>) -> Result<Vec<types::Block<B>>, ArchiveError> {
         blocks
             .into_iter()
-            .map(|b| self.with_single(b))
-            .collect::<Result<Vec<_>, ArchiveError>>()
+            .map(|b| {
+                let (b, s) = self.with_single(b)?;
+                let b = SignedBlock {
+                    block: b,
+                    justification: None,
+                };
+                Ok(types::Block::new(b, s))
+            })
+            .collect()
     }
 
-    pub fn with_single(&self, block: SqlBlock) -> Result<(Block, u32), ArchiveError> {
-        let digest: DigestFor<Block> = Decode::decode(&mut block.digest.as_slice())?;
+    pub fn with_single(&self, block: SqlBlock) -> Result<(B, u32), ArchiveError> {
+        let digest: DigestFor<B> = Decode::decode(&mut block.digest.as_slice())?;
         let (parent_hash, state_root, extrinsics_root) = Self::into_generic(
             block.parent_hash.as_slice(),
             block.state_root.as_slice(),
             block.extrinsics_root.as_slice(),
         )?;
-        let num: <Block::Header as HeaderT>::Number =
+        let num: <B::Header as HeaderT>::Number =
             Decode::decode(&mut (block.block_num as u32).encode().as_slice())?;
 
         let header =
-            <Block::Header as HeaderT>::new(num, extrinsics_root, state_root, parent_hash, digest);
-        let ext: Vec<Block::Extrinsic> = Decode::decode(&mut block.ext.as_slice())?;
+            <B::Header as HeaderT>::new(num, extrinsics_root, state_root, parent_hash, digest);
+        let ext: Vec<B::Extrinsic> = Decode::decode(&mut block.ext.as_slice())?;
         let spec = block.spec;
-        Ok((Block::new(header, ext), spec as u32))
+        Ok((B::new(header, ext), spec as u32))
     }
 
     fn into_generic(
@@ -77,9 +87,9 @@ impl<'a, Block: BlockT> BlockBuilder<Block> {
         mut extrinsics_root: &[u8],
     ) -> Result<
         (
-            <Block::Header as HeaderT>::Hash,
-            <Block::Header as HeaderT>::Hash,
-            <Block::Header as HeaderT>::Hash,
+            <B::Header as HeaderT>::Hash,
+            <B::Header as HeaderT>::Hash,
+            <B::Header as HeaderT>::Hash,
         ),
         ArchiveError,
     > {

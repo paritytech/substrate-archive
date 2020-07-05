@@ -16,9 +16,9 @@
 
 //! Executes blocks concurrently
 
+use super::block_scheduler::BlockScheduler;
 use crate::{
     backend::{ApiAccess, BlockChanges, BlockExecutor, ReadOnlyBackend as Backend},
-    block_scheduler::BlockScheduler,
     error::{ArchiveResult, Error as ArchiveError},
     types::{self, PriorityIdent, ThreadPool},
 };
@@ -117,26 +117,26 @@ where
     /// returns the number of tasks that were inserted
     pub fn add_vec_task(
         &self,
-        blocks: Vec<types::Block<B>>,
+        mut blocks: Vec<types::Block<B>>,
         sender: flume::Sender<BlockChanges<B>>,
     ) -> Result<usize, ArchiveError> {
-        // we try to execute at least 5 blocks at once, this lets rayon
-        // avoid looking for work too much and using up CPU time
+        let len = blocks.len();
+
         for blocks in blocks.chunks(5) {
             let client = self.client.clone();
             let backend = self.backend.clone();
             let sender = sender.clone();
-            let blocks = blocks.iter().map(|b| b.inner.block).collect::<Vec<B>>();
+            let blocks = blocks.to_vec();
             self.pool.spawn_fifo(move || {
                 for block in blocks.into_iter() {
-                    match Self::work(block, &client, &backend, &sender) {
+                    match Self::work(block.inner.block, &client, &backend, &sender) {
                         Ok(_) => (),
                         Err(e) => log::error!("{:?}", e),
                     }
                 }
             });
         }
-        Ok(blocks.len())
+        Ok(len)
     }
 }
 

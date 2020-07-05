@@ -43,21 +43,21 @@ pub fn spawn(fut: impl Future<Output = ArchiveResult<()>> + Send + 'static) {
         smol::Task::spawn(fut).detach();
     }
 }
-
+/*
 /// runs some closure asyncronously on an interval
 /// if the future returns an error, this interval prints the error and ends
-pub fn interval<F, Fut>(duration: std::time::Duration, fun: F)
-where
-    F: FnOnce() -> Fut + Send + 'static,
-    Fut: Future<Output = ArchiveResult<()>> + Send + 'static,
-{
+pub fn interval(
+    duration: std::time::Duration,
+    fut: impl Future<Output = ArchiveResult<()>> + Send + 'static,
+) {
+
     #[cfg(feature = "with-tokio")]
     {
         tokio::spawn(async move {
             let mut timer = tokio::time::interval(duration);
             loop {
                 timer.tick().await;
-                if let Err(e) = fun().await {
+                if let Err(e) = fut.await {
                     log::error!("Interval Ending! {}", e.to_string());
                     break;
                 }
@@ -94,7 +94,7 @@ where
         .detach();
     }
 }
-
+*/
 /// create an arbitrary directory on disk
 /// panics if it fails because of anything other than the directory already exists
 #[allow(unused)]

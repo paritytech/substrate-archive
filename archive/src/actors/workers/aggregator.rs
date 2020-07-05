@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-    actors::{generators::fill_storage, workers::BlockFetcher, ActorContext},
+    actors::{generators::fill_storage, ActorContext},
     backend::BlockChanges,
     error::{self, ArchiveResult},
     threadpools::BlockData,
@@ -196,9 +196,8 @@ where
         }
         let this = self.recvs.take().expect("checked for none; qed");
         let addr = ctx.address().expect("Just instantiated; qed").clone();
-        crate::util::interval(Duration::from_millis(SYSTEM_TICK), || async move {
-            addr.do_send(this.check_work())?;
-            Ok(())
+        ctx.notify_interval(Duration::from_millis(SYSTEM_TICK), move || {
+            this.check_work()
         });
     }
 }

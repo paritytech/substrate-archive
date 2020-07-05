@@ -23,7 +23,7 @@ mod workers;
 use self::generators::{fill_storage, missing_blocks};
 
 use super::{
-    backend::{ApiAccess, GetRuntimeVersion, ReadOnlyBackend, ThreadedBlockExecutor},
+    backend::{ApiAccess, GetRuntimeVersion, ReadOnlyBackend},
     error::{ArchiveResult, Error as ArchiveError},
     threadpools::{BlockFetcher, ThreadedBlockExecutor},
     types::Archive,
@@ -39,8 +39,8 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sqlx::postgres::PgPool;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use workers::msg;
 pub use workers::Aggregator;
-use workers::{msg, BlockFetcher};
 use xtra::prelude::*;
 
 /// Context that every actor may use
@@ -146,13 +146,14 @@ where
 
         let exec_pool =
             ThreadedBlockExecutor::new(self.api.clone(), backend, self.workers.clone())?;
+        let tx = exec_pool.sender();
         let ctx = self.context.clone();
 
         let fetch_pool = BlockFetcher::new(ctx.clone(), Some(3))?;
 
         let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
         let subscription = rpc.subscribe_finalized_heads().await?;
-        let ag = Aggregator::new(ctx.rpc_url(), &pool).spawn();
+        let ag = Aggregator::new(ctx.rpc_url(), tx, &pool).spawn();
 
         // fetch.attach_stream(subscription.map(|h| msg::Head(h)));
         // ag.attach_stream(results);
