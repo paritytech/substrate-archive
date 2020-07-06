@@ -127,7 +127,7 @@ impl<B: BlockT> Insert for StorageModel<B> {
 #[async_trait]
 impl<B: BlockT> Insert for Vec<StorageModel<B>> {
     async fn insert(mut self, db: DbConn) -> DbReturn {
-        let chunks = self.chunks(11_000);
+        let chunks = self.chunks(2048);
         let mut rows_changed = 0;
         for s in chunks {
             let storg = s.to_vec();
@@ -179,7 +179,7 @@ where
     async fn insert(mut self, db: DbConn) -> DbReturn {
         log::trace!("Batch inserting {} blocks into DB", self.inner().len());
         let mut rows_changed = 0;
-        for blocks in self.inner().chunks(8_000) {
+        for blocks in self.inner().chunks(2048) {
             let blocks = blocks.to_vec();
             let sql = blocks.build_sql(None);
             rows_changed += blocks
