@@ -7855,6 +7855,7 @@ dependencies = [
  "hashbrown 0.8.0",
  "hex",
  "itertools 0.9.0",
+ "itoa",
  "jod-thread",
  "jsonrpsee",
  "kvdb",

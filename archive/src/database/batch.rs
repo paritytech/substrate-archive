@@ -1,0 +1,152 @@
+// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// This file is part of substrate-archive.
+
+// substrate-archive is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// substrate-archive is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
+
+use crate::error::ArchiveResult;
+use sqlx::{
+    arguments::Arguments, encode::Encode, postgres::PgArguments, postgres::PgConnection,
+    query::query, PgPool, Postgres, Type,
+};
+
+const CHUNK_MAX: usize = 35000;
+
+pub struct Chunk {
+    query: String,
+    pub arguments: PgArguments,
+
+    // FIXME: Would be nice if PgArguments exposed the # of args as `.len()`
+    pub args_len: usize,
+}
+
+pub struct Batch {
+    name: &'static str,
+    leading: String,
+    trailing: String,
+    with: Option<Box<dyn Fn(&mut Chunk) -> ArchiveResult<()> + Send>>,
+    chunks: Vec<Chunk>,
+    index: usize,
+    len: usize,
+}
+
+impl Batch {
+    pub fn new(name: &'static str, leading: &str, trailing: &str) -> Self {
+        Self {
+            name,
+            leading: leading.to_owned(),
+            trailing: trailing.to_owned(),
+            chunks: vec![Chunk::new(leading)],
+            with: None,
+            index: 0,
+            len: 0,
+        }
+    }
+
+    pub fn new_with(
+        name: &'static str,
+        leading: &str,
+        trailing: &str,
+        with: impl Fn(&mut Chunk) -> ArchiveResult<()> + Send + 'static,
+    ) -> ArchiveResult<Self> {
+        let mut chunk = Chunk::new(leading);
+        with(&mut chunk)?;
+
+        Ok(Self {
+            name,
+            leading: leading.to_owned(),
+            trailing: trailing.to_owned(),
+            with: Some(Box::new(with)),
+            chunks: vec![chunk],
+            index: 0,
+            len: 0,
+        })
+    }
+
+    // ensure there is enough room for N more arguments
+    pub fn reserve(&mut self, arguments: usize) -> ArchiveResult<()> {
+        self.len += 1;
+
+        if self.chunks[self.index].args_len + arguments > CHUNK_MAX {
+            let mut chunk = Chunk::new(&self.leading);
+
+            if let Some(with) = &self.with {
+                with(&mut chunk)?;
+            }
+
+            self.chunks.push(chunk);
+            self.index += 1;
+        }
+
+        Ok(())
+    }
+
+    pub fn append(&mut self, sql: &str) {
+        self.chunks[self.index].append(sql);
+    }
+
+    pub fn bind<T: Encode<Postgres> + Type<Postgres>>(&mut self, value: T) -> ArchiveResult<()> {
+        self.chunks[self.index].bind(value)
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<()> {
+        if self.len > 0 {
+            for mut chunk in self.chunks {
+                chunk.append(&self.trailing);
+                chunk.execute(&mut *conn).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    // TODO: Better name?
+    pub fn current_num_arguments(&self) -> usize {
+        self.chunks[self.index].args_len
+    }
+}
+
+impl Chunk {
+    fn new(sql: &str) -> Self {
+        let mut query = String::with_capacity(1024 * 8);
+        query.push_str(sql);
+
+        Self {
+            query,
+            arguments: PgArguments::default(),
+            args_len: 0,
+        }
+    }
+
+    pub fn append(&mut self, sql: &str) {
+        self.query.push_str(sql);
+    }
+
+    pub fn bind<T: Encode<Postgres> + Type<Postgres>>(&mut self, value: T) -> ArchiveResult<()> {
+        self.arguments.add(value);
+        self.query.push('$');
+        itoa::fmt(&mut self.query, self.args_len + 1)?;
+        self.args_len += 1;
+
+        Ok(())
+    }
+
+    async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<()> {
+        query(&*self.query)
+            .bind_all(self.arguments)
+            .execute(&mut *conn)
+            .await?;
+
+        Ok(())
+    }
+}

@@ -27,6 +27,8 @@ pub enum Error {
     Env(#[from] env::VarError),
     #[error("decode")]
     Codec(#[from] codec::Error),
+    #[error("Formatting {0}")]
+    Fmt(#[from] std::fmt::Error),
     #[error("serialization error")]
     Serialization(#[from] serde_json::Error),
     #[error("sqlx error: {0}")]

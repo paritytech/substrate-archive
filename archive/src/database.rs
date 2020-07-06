@@ -17,6 +17,7 @@
 //! IO for the PostgreSQL database connected to Substrate Archive Node
 //! Handles inserting of data into the database
 
+mod batch;
 pub mod models;
 mod prepare_sql;
 
