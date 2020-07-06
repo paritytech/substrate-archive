@@ -14,20 +14,39 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::Error as ArchiveError;
+use crate::error::{ArchiveResult, Error as ArchiveError};
+use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-use sp_runtime::{
-    generic::{Block as NotSignedBlock, SignedBlock},
-    traits::{Block as BlockT, NumberFor},
-    OpaqueExtrinsic,
-};
+use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
 use xtra::prelude::*;
 
-// /// Generic, unsigned block type
-// pub type AbstractBlock<B: BlockT> = NotSignedBlock<B::Header, OpaqueExtrinsic>;
+pub trait ThreadPool: Send {
+    type In: Clone + Send + Sync + Encode + Decode + PriorityIdent;
+    type Out: Send + Sync + std::fmt::Debug;
+    fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> ArchiveResult<usize>;
+}
 
-// pub type Runtime<T, Run, Dis> = crate::backend::Runtime<T, Run, Dis>;
+/// Get an identifier from data that can be used to sort it
+pub trait PriorityIdent {
+    type Ident: Eq + PartialEq + Send + Sync + Copy + Ord + PartialOrd;
+    fn identifier(&self) -> Self::Ident;
+}
+
+#[async_trait::async_trait(?Send)]
+pub trait Archive<B: BlockT> {
+    /// start driving the execution of the archive
+    async fn drive(&mut self) -> Result<(), ArchiveError>;
+
+    /// this method will block indefinitely
+    async fn block_until_stopped(&self) -> ();
+
+    /// shutdown the system
+    fn shutdown(self) -> Result<(), ArchiveError>;
+
+    /// Get a reference to the context the actors are using
+    fn context(&self) -> Result<super::actors::ActorContext<B>, ArchiveError>;
+}
 
 #[derive(Debug)]
 pub struct Metadata {
@@ -53,7 +72,7 @@ impl Metadata {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct Block<B: BlockT> {
     pub inner: SignedBlock<B>,
     pub spec: u32,
@@ -72,7 +91,7 @@ impl<B: BlockT> Block<B> {
 /// NewType for committing many blocks to the database at once
 #[derive(Debug)]
 pub struct BatchBlock<B: BlockT> {
-    inner: Vec<Block<B>>,
+    pub inner: Vec<Block<B>>,
 }
 
 impl<B: BlockT> Message for BatchBlock<B> {
@@ -86,6 +105,10 @@ impl<B: BlockT> BatchBlock<B> {
 
     pub fn inner(&self) -> &Vec<Block<B>> {
         &self.inner
+    }
+
+    pub fn mut_inner(&mut self) -> &mut [Block<B>] {
+        self.inner.as_mut_slice()
     }
 }
 

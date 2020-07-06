@@ -67,17 +67,15 @@ where
                 self.storage.clone(),
                 Some(Block::Hash::default()),
             ))
+        } else if let Some(state_root) = self.state_root(hash) {
+            let state = DbState::<Block>::new(self.storage.clone(), state_root);
+            Some(TrieState::<Block>::new(
+                state,
+                self.storage.clone(),
+                Some(hash),
+            ))
         } else {
-            if let Some(state_root) = self.state_root(hash) {
-                let state = DbState::<Block>::new(self.storage.clone(), state_root);
-                Some(TrieState::<Block>::new(
-                    state,
-                    self.storage.clone(),
-                    Some(hash.clone()),
-                ))
-            } else {
-                None
-            }
+            None
         }
     }
 
@@ -99,7 +97,7 @@ where
         match self.state_at(hash) {
             Some(state) => state
                 .storage(key)
-                .expect(format!("No storage found for {:?}", hash).as_str()),
+                .unwrap_or_else(|_| panic!("No storage found for {:?}", hash)),
             None => None,
         }
     }

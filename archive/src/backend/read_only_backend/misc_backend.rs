@@ -80,7 +80,7 @@ impl<Block: BlockT> BlockImportOperation<Block> for RealBlockImportOperation {
         _child_update: ChildStorageCollection,
     ) -> ChainResult<()> {
         log::warn!("Cannot modify storage of a read only backend. Storage not updated.");
-        Ok(Default::default())
+        Ok(())
     }
 
     fn update_changes_trie(

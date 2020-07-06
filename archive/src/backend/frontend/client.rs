@@ -86,7 +86,7 @@ where
 
     /// get the backend for this client instance
     pub fn backend(&self) -> Arc<ReadOnlyBackend<Block>> {
-        self.backend()
+        self.backend.clone()
     }
 
     fn prepare_environment_block(
@@ -125,7 +125,7 @@ where
     RA: ConstructRuntimeApi<Block, Self>,
 {
     type Api = <RA as ConstructRuntimeApi<Block, Self>>::RuntimeApi;
-    fn runtime_api<'a>(&'a self) -> ApiRef<'a, Self::Api> {
+    fn runtime_api(&self) -> ApiRef<'_, Self::Api> {
         RA::construct_runtime_api(self)
     }
 }

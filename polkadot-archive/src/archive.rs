@@ -22,16 +22,16 @@ use polkadot_service::polkadot_runtime as dot_rt;
 use polkadot_service::westend_runtime as westend_rt;
 use polkadot_service::Block;
 use sc_chain_spec::ChainSpec;
-use substrate_archive::{Archive, ArchiveConfig, System};
+use substrate_archive::{Archive, ArchiveBuilder, ArchiveConfig, System};
 use tokio::runtime::Handle;
-
+/*
 #[allow(unused)]
 pub enum TripleContext {
     Westend(System<Block>),
     Kusama(System<Block>),
     Polkadot(System<Block>),
 }
-
+*/
 pub fn run_archive(config: Config, handle: &Handle) -> Result<()> {
     let mut db_path = config.polkadot_path();
 
@@ -69,25 +69,27 @@ pub fn run_archive(config: Config, handle: &Handle) -> Result<()> {
     match config.cli().chain.to_ascii_lowercase().as_str() {
         "kusama" | "ksm" => {
             let archive =
-                Archive::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor>::new(
+                ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor>::new(
                     conf, spec,
                 )?;
             handle.block_on(archive.run())?;
             Ok(())
         }
         "westend" => {
-            let archive =
-                Archive::<Block, westend_rt::RuntimeApi, polkadot_service::WestendExecutor>::new(
-                    conf, spec,
-                )?;
+            let archive = ArchiveBuilder::<
+                Block,
+                westend_rt::RuntimeApi,
+                polkadot_service::WestendExecutor,
+            >::new(conf, spec)?;
             handle.block_on(archive.run())?;
             Ok(())
         }
         "polkadot" | "dot" => {
-            let archive =
-                Archive::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor>::new(
-                    conf, spec,
-                )?;
+            let archive = ArchiveBuilder::<
+                Block,
+                dot_rt::RuntimeApi,
+                polkadot_service::PolkadotExecutor,
+            >::new(conf, spec)?;
             handle.block_on(archive.run())?;
             Ok(())
         }

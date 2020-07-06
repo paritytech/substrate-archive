@@ -16,7 +16,7 @@
 
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
-mod block_executor;
+mod block_exec;
 mod database;
 pub mod frontend;
 mod read_only_backend;
@@ -25,9 +25,7 @@ pub mod test_util;
 pub mod util;
 
 // re-exports
-pub use self::block_executor::{
-    BlockBroker, BlockChanges, BlockData, BlockExecutor, BlockSpec, ThreadedBlockExecutor,
-};
+pub use self::block_exec::{BlockChanges, BlockExecutor};
 pub use self::frontend::{GetRuntimeVersion, TArchiveClient};
 pub use self::read_only_backend::{ReadOnlyBackend, TrieState};
 pub use self::{database::ReadOnlyDatabase, frontend::runtime_api, util::open_database};

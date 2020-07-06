@@ -133,7 +133,7 @@ impl KeyValueDB for ReadOnlyDatabase {
 
     fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
         let unboxed = self.inner.iter(col);
-        Box::new(unboxed.into_iter())
+        Box::new(unboxed)
     }
 
     fn iter_with_prefix<'a>(

@@ -20,7 +20,7 @@ sqlx = { version = "0.3.5", features = ["postgres", "tls", "macros"] }
 async-trait = "0.1.35"
 hex = "0.4"
 itertools = "0.9"
-crossbeam = "0.7"
+flume = "0.7.1"
 parking_lot = "0.10"
 hashbrown = "0.8.0"
 thiserror = "1.0.20"
@@ -29,11 +29,14 @@ num_cpus = "1"
 xtra = { version = "0.4.2", features = ["with-tokio-0_2"] }
 # Sql migrations
 refinery = { version = "0.3.0", features = ["postgres"] }
+# TODO: Should replace with real rust generators when stabilized 
+genawaiter = { version = "0.99", features = ["futures03"] }
+jod-thread = "0.1.2"
 
 # Optional 
 fern = { version = "0.6", features = ["colored"], optional = true }
 chrono = { version = "0.4", optional = true }
-tokio = { version = "^0.2", features = ["sync", "rt-threaded", "blocking"], optional = true }
+tokio = { version = "^0.2", features = ["sync", "rt-threaded", "blocking", "time"], optional = true }
 smol = { version = "^0.1.11", optional = true }
 async-std = { version = "^1", features = ["unstable"], optional = true}
 
@@ -61,7 +64,6 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" } 
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
-async-channel = "1.1.1"
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }

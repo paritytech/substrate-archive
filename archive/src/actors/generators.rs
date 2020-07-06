@@ -14,56 +14,27 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::workers::msg::BlockRange;
-use super::{workers::BlockFetcher, ActorContext};
 use crate::{
-    backend::{BlockBroker, BlockData, BlockSpec},
-    error::ArchiveResult,
-    queries,
-    sql_block_builder::BlockBuilder,
+    error::ArchiveResult, queries, sql_block_builder::BlockBuilder, threadpools::BlockData,
 };
-use futures::future::Future;
-use hashbrown::HashSet;
-use sp_runtime::traits::{Block as BlockT, NumberFor};
-use xtra::prelude::*;
+use futures::Stream;
+use genawaiter::{sync::gen, yield_};
+use sp_runtime::traits::Block as BlockT;
 
 /// Gets missing blocks from the SQL database
-pub async fn missing_blocks<B>(
-    pool: sqlx::PgPool,
-    addr: Address<BlockFetcher<B>>,
-) -> ArchiveResult<()>
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    let mut added = HashSet::new();
-    loop {
-        let block_nums = queries::missing_blocks(&pool).await?;
-        if block_nums.len() <= 0 {
-            timer::Delay::new(std::time::Duration::from_secs(1)).await;
-            return Ok(());
-        }
-        let block_nums = block_nums
-            .into_iter()
-            .map(|b| b.generate_series as u32)
-            .collect::<HashSet<u32>>();
-        let block_nums = block_nums
-            .difference(&added)
-            .map(|b| *b)
-            .collect::<Vec<u32>>();
-        if block_nums.len() > 0 {
-            log::info!(
-                "Indexing {} missing blocks, from {} to {} ...",
-                block_nums.len(),
-                block_nums[0],
-                block_nums[block_nums.len() - 1]
-            );
-            added.extend(block_nums.iter());
-            addr.do_send(BlockRange(block_nums));
+pub async fn missing_blocks(pool: sqlx::PgPool) -> impl Stream<Item = u32> {
+    gen!({
+        loop {
+            if let Ok(b) = queries::missing_blocks(&pool).await {
+                for num in b.into_iter().map(|b| b.generate_series) {
+                    yield_!(num as u32)
+                }
+            } else {
+                break;
+            }
             timer::Delay::new(std::time::Duration::from_secs(1)).await;
         }
-    }
-    Ok(())
+    })
 }
 
 /// Gets storage that is missing from the storage table
@@ -71,19 +42,15 @@ where
 /// This fills in storage that might've been missed by a shutdown
 pub async fn fill_storage<B: BlockT>(
     pool: sqlx::PgPool,
-    broker: BlockBroker<B>,
+    tx: flume::Sender<BlockData<B>>,
 ) -> ArchiveResult<()> {
-    if queries::blocks_count(&pool).await? <= 0 {
+    if queries::blocks_count(&pool).await? == 0 {
         // no blocks means we haven't indexed anything yet
         return Ok(());
     }
     let now = std::time::Instant::now();
     let blocks = queries::blocks_storage_intersection(&pool).await?;
-    let blocks = BlockBuilder::<B>::new()
-        .with_vec(blocks)?
-        .into_iter()
-        .map(|b| BlockSpec::from(b))
-        .collect::<Vec<_>>();
+    let blocks = BlockBuilder::<B>::new().with_vec(blocks)?;
     let elapsed = now.elapsed();
     log::info!(
         "TOOK {} seconds, {} milli-seconds to get and build {} blocks",
@@ -92,6 +59,6 @@ pub async fn fill_storage<B: BlockT>(
         blocks.len()
     );
     log::info!("indexing {} blocks of storage ... ", blocks.len());
-    broker.work.send(BlockData::Batch(blocks)).await;
+    tx.send(BlockData::Batch(blocks))?;
     Ok(())
 }

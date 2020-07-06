@@ -34,10 +34,11 @@ pub fn main() -> Result<()> {
 
 fn run() -> Result<()> {
     let config = config::Config::new()?;
-    substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
+    substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Info);
 
     let mut rt = tokio::runtime::Builder::new()
         .threaded_scheduler()
+        .enable_time()
         .core_threads(2)
         .max_threads(4)
         .thread_name("subst-arch")

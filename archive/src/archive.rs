@@ -20,6 +20,7 @@ use crate::{
     error::{ArchiveResult, Error as ArchiveError},
     migrations::MigrationConfig,
     rpc::Rpc,
+    types,
 };
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
@@ -65,11 +66,11 @@ use std::{marker::PhantomData, sync::Arc};
 /// archive.block_until_stopped();
 ///
 /// ```
-pub struct Archive<Block, Runtime, Dispatch> {
+pub struct ArchiveBuilder<Block, Runtime, Dispatch> {
     rpc_url: String,
     psql_url: String,
     db: Arc<ReadOnlyDatabase>,
-    spec: Box<dyn ChainSpec>,
+    // spec: Box<dyn ChainSpec>,
     block_workers: Option<usize>,
     wasm_pages: Option<u64>,
     _marker: PhantomData<(Block, Runtime, Dispatch)>,
@@ -90,9 +91,9 @@ pub struct ArchiveConfig {
     pub wasm_pages: Option<u64>,
 }
 
-impl<B, R, D> Archive<B, R, D>
+impl<B, R, D> ArchiveBuilder<B, R, D>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
     R: ConstructRuntimeApi<B, TArchiveClient<B, R, D>> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + ApiExt<B, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<B>, B>>
@@ -101,9 +102,8 @@ where
         + 'static,
     D: NativeExecutionDispatch + 'static,
     <R::RuntimeApi as sp_api::ApiExt<B>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-    NumberFor<B>: Into<u32>,
-    NumberFor<B>: From<u32>,
-    B::Hash: From<primitive_types::H256>,
+    NumberFor<B>: Into<u32> + From<u32> + Unpin,
+    B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,
 {
     /// Create a new instance of the Archive DB
@@ -123,7 +123,7 @@ where
         Ok(Self {
             db,
             psql_url,
-            spec,
+            // spec,
             rpc_url: conf.rpc_url,
             block_workers: conf.block_workers,
             wasm_pages: conf.wasm_pages,
@@ -131,49 +131,51 @@ where
         })
     }
 
-    /// returns an Archive Client with a ReadOnlyBackend
+    /// Create a new Substrate Client with a ReadOnlyBackend
     pub fn api_client(
         &self,
+        block_workers: Option<usize>,
+        wasm_pages: Option<usize>,
     ) -> Result<Arc<impl ApiAccess<B, ReadOnlyBackend<B>, R>>, ArchiveError> {
         let cpus = num_cpus::get();
         let client = backend::runtime_api::<B, R, D>(
             self.db.clone(),
-            self.block_workers.unwrap_or(cpus),
-            self.wasm_pages.unwrap_or(2048),
-        )
-        .map_err(ArchiveError::from)?;
+            block_workers.unwrap_or(cpus),
+            wasm_pages.map(|v| v as u64).unwrap_or(2048 as u64),
+        )?;
         Ok(Arc::new(client))
     }
 
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
-    pub async fn run(&self) -> Result<System<B>, ArchiveError> {
+    pub async fn run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
         let cpus = num_cpus::get();
+        log::info!("Creating client 0 ");
         let client0 = Arc::new(
             backend::runtime_api::<B, R, D>(
                 self.db.clone(),
                 self.block_workers.unwrap_or(cpus),
-                self.wasm_pages.unwrap_or(2048),
+                self.wasm_pages.unwrap_or(512),
             )
             .map_err(ArchiveError::from)?,
         );
-
+        log::info!("Creating client 1");
         let client1 = Arc::new(
-            backend::runtime_api::<B, R, D>(self.db.clone(), 3, 128).map_err(ArchiveError::from)?,
+            backend::runtime_api::<B, R, D>(self.db.clone(), 3, 64).map_err(ArchiveError::from)?,
         );
 
         let rt = client1.runtime_version_at(&BlockId::Number(0.into()))?;
         self.verify_same_chain(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
 
-        let ctx = System::new::<R, _>(
+        let mut ctx = System::<_, R, _>::new(
             (client0, client1),
             backend,
             self.block_workers,
             self.rpc_url.clone(),
             self.psql_url.as_str(),
         )?;
-        ctx.drive().await;
+        ctx.drive().await?;
         Ok(ctx)
     }
 
@@ -191,7 +193,7 @@ where
             (RuntimeString::Owned(s0), RuntimeString::Borrowed(s1)) => (s0, s1.to_string()),
         };
         if rpc_rstr.to_ascii_lowercase().as_str() != backend_rstr.to_ascii_lowercase().as_str() {
-            return Err(ArchiveError::MismatchedChains(backend_rstr, rpc_rstr));
+            Err(ArchiveError::MismatchedChains(backend_rstr, rpc_rstr))
         } else {
             Ok(())
         }

@@ -15,15 +15,14 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-    actors::{generators::fill_storage, workers::BlockFetcher, ActorContext},
     backend::BlockChanges,
-    error::{self, ArchiveResult},
+    error::ArchiveResult,
+    threadpools::BlockData,
     types::{BatchBlock, Block, Storage},
 };
-use crossbeam::channel;
-use sp_runtime::traits::{Block as BlockT, NumberFor};
-use std::sync::Arc;
-use tokio::{runtime, task};
+use itertools::{EitherOrBoth, Itertools};
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use std::{iter::FromIterator, time::Duration};
 use xtra::prelude::*;
 
 /// how often to check threadpools for finished work (in milli-seconds)
@@ -34,94 +33,94 @@ pub const SYSTEM_TICK: u64 = 1000;
 /// results in batch inserts into the database (better perf)
 /// also easier telemetry/logging
 /// Handles sending and receiving messages from threadpools
-#[derive(Clone)]
 pub struct Aggregator<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    queues: Queues<B>,
+    senders: Senders<B>,
+    recvs: Option<Receivers<B>>,
     /// actor which inserts blocks into the database
     db_addr: Address<super::Database>,
     /// Actor which manages getting the runtime metadata for blocks
     /// and sending them to the database actor
     meta_addr: Address<super::Metadata>,
-    /// General Context containing global shared state useful in Actors
-    context: ActorContext<B>,
     /// Pooled Postgres Database Connections
-    pool: sqlx::PgPool,
+    exec: flume::Sender<BlockData<B>>,
+    /// just a switch so we know not to print redundant messages
+    last_count_was_0: bool,
 }
 
-/// Internal struct representing a queue built around message-passing
-/// Sending/Receiving ends of queues to send batches of data to actors
-/// includes shutdown signal to end the System Loop
-#[derive(Clone)]
-struct Queues<B: BlockT> {
-    /// channel for receiving a shutdown signal
-    rx: channel::Receiver<()>,
-    /// channel for sending a shutdown signal
-    tx: channel::Sender<()>,
-    /// sending end of an internal queue to send batches of storage to actors
-    storage_queue: channel::Sender<BlockChanges<B>>,
-    /// sending end of an internal queue to send batches of blocks to actors
-    block_queue: channel::Sender<Block<B>>,
-    /// receiving end of an internal queue to send batches of storage to actors
-    storage_recv: channel::Receiver<BlockChanges<B>>,
-    /// receiving end of an internal queue to send batches of blocks to actors
-    block_recv: channel::Receiver<Block<B>>,
-}
-
-enum BlockOrStorage<B: BlockT> {
-    Block(Block<B>),
-    Storage(BlockChanges<B>),
-}
-
-impl<B> Queues<B>
+fn queues<B>() -> (Senders<B>, Receivers<B>)
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn new() -> Self {
-        let (storage_tx, storage_rx) = channel::unbounded();
-        let (block_tx, block_rx) = channel::unbounded();
-        let (tx, rx) = channel::bounded(0);
-        Self {
-            rx,
-            tx,
+    let (storage_tx, storage_rx) = flume::unbounded();
+    let (block_tx, block_rx) = flume::unbounded();
+    (
+        Senders {
             storage_queue: storage_tx,
             block_queue: block_tx,
+        },
+        Receivers {
             storage_recv: storage_rx,
             block_recv: block_rx,
-        }
-    }
+        },
+    )
+}
 
+/// Internal struct representing a queue built around message-passing
+/// Sending/Receiving ends of queues to send batches of data to actors
+struct Senders<B: BlockT> {
+    /// sending end of an internal queue to send batches of storage to actors
+    storage_queue: flume::Sender<BlockChanges<B>>,
+    /// sending end of an internal queue to send batches of blocks to actors
+    block_queue: flume::Sender<Block<B>>,
+}
+
+struct Receivers<B: BlockT> {
+    /// receiving end of an internal queue to send batches of storage to actors
+    storage_recv: flume::Receiver<BlockChanges<B>>,
+    /// receiving end of an internal queue to send batches of blocks to actors
+    block_recv: flume::Receiver<Block<B>>,
+}
+
+impl<B> Receivers<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
+    fn check_work(&self) -> BlockStorageCombo<B> {
+        self.storage_recv
+            .drain()
+            .map(Storage::from)
+            .zip_longest(self.block_recv.drain())
+            .collect::<BlockStorageCombo<B>>()
+    }
+}
+
+enum BlockOrStorage<B: BlockT> {
+    Block(Block<B>),
+    BatchBlock(BatchBlock<B>),
+    Storage(BlockChanges<B>),
+}
+
+impl<B> Senders<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
     fn push_back(&self, t: BlockOrStorage<B>) -> ArchiveResult<()> {
         match t {
             BlockOrStorage::Block(b) => self.block_queue.send(b)?,
             BlockOrStorage::Storage(s) => self.storage_queue.send(s)?,
+            BlockOrStorage::BatchBlock(v) => {
+                for b in v.inner.into_iter() {
+                    self.block_queue.send(b)?;
+                }
+            }
         }
-        Ok(())
-    }
-
-    fn pop_iter(&self) -> (Vec<Storage<B>>, Vec<Block<B>>) {
-        (
-            self.storage_recv
-                .try_iter()
-                .map(Storage::from)
-                .collect::<Vec<Storage<B>>>(),
-            self.block_recv.try_iter().collect(),
-        )
-    }
-
-    fn should_shutdown(&self) -> bool {
-        match self.rx.try_recv() {
-            Ok(_) => true,
-            Err(_) => false,
-        }
-    }
-
-    fn shutdown(&self) -> ArchiveResult<()> {
-        self.tx.send(())?;
         Ok(())
     }
 }
@@ -132,57 +131,24 @@ where
     NumberFor<B>: Into<u32>,
     NumberFor<B>: From<u32>,
 {
-    pub fn new(context: ActorContext<B>, pool: &sqlx::PgPool) -> Self {
-        let url = context.rpc_url();
+    pub fn new(url: &str, tx: flume::Sender<BlockData<B>>, pool: &sqlx::PgPool) -> Self {
         let db_addr = super::Database::new(&pool).spawn();
         let meta_addr = super::Metadata::new(url.to_string(), &pool).spawn();
-        let queues = Queues::new();
+        let (senders, recvs) = queues();
 
         Self {
-            queues,
-            context,
+            senders,
+            recvs: Some(recvs),
             db_addr,
             meta_addr,
-            pool: pool.clone(),
+            exec: tx,
+            last_count_was_0: false,
         }
-    }
-
-    fn check_work(&self) -> ArchiveResult<Count> {
-        let (changes, blocks) = self.queues.pop_iter();
-
-        let s_count = if changes.len() > 0 {
-            let count = changes.len();
-            self.db_addr.do_send(super::msg::VecStorageWrap(changes))?;
-            count
-        } else {
-            0
-        };
-
-        let b_count = if blocks.len() > 0 {
-            let count = blocks.len();
-            self.meta_addr.do_send(BatchBlock::new(blocks))?;
-            count
-        } else {
-            0
-        };
-
-        Ok(Count(b_count, s_count))
-    }
-
-    async fn kill(self) -> ArchiveResult<()> {
-        self.queues.shutdown()?;
-        Ok(())
     }
 }
 
 impl<B: BlockT> Message for BlockChanges<B> {
     type Result = ArchiveResult<()>;
-}
-
-struct Count(usize, usize);
-
-impl Message for Count {
-    type Result = ();
 }
 
 impl<B> Actor for Aggregator<B>
@@ -191,20 +157,14 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn started(&mut self, ctx: &mut Context<Self>) {
-        let (broker, pool) = (self.context.broker(), self.pool.clone());
-
-        crate::util::spawn(fill_storage(pool.clone(), broker.clone()));
-
-        let this = self.clone();
-        let addr = ctx.address().expect("Just instantiated; qed").clone();
-        crate::util::spawn(async move {
-            loop {
-                timer::Delay::new(std::time::Duration::from_millis(SYSTEM_TICK)).await;
-                if let Err(_) = addr.do_send(this.check_work()?) {
-                    break;
-                }
-            }
-            Ok(())
+        if self.recvs.is_none() {
+            let (sends, recvs) = queues();
+            self.senders = sends;
+            self.recvs = Some(recvs);
+        }
+        let this = self.recvs.take().expect("checked for none; qed");
+        ctx.notify_interval(Duration::from_millis(SYSTEM_TICK), move || {
+            this.check_work()
         });
     }
 }
@@ -215,7 +175,7 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, changes: BlockChanges<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
-        self.queues.push_back(BlockOrStorage::Storage(changes))
+        self.senders.push_back(BlockOrStorage::Storage(changes))
     }
 }
 
@@ -225,22 +185,90 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, block: Block<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
-        self.queues.push_back(BlockOrStorage::Block(block))
+        self.exec.send(BlockData::Single(block.clone()))?;
+        self.senders.push_back(BlockOrStorage::Block(block))
     }
 }
 
-impl<B> SyncHandler<Count> for Aggregator<B>
+impl<B> SyncHandler<BatchBlock<B>> for Aggregator<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, counts: Count, _: &mut Context<Self>) -> () {
-        let (blocks, storage) = (counts.0, counts.1);
-        match (blocks, storage) {
-            (0, 0) => (),
-            (b, 0) => log::info!("Indexing Blocks {} bps", b),
-            (0, s) => log::info!("Indexing Storage {} bps", s),
-            (b, s) => log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s),
+    fn handle(&mut self, blocks: BatchBlock<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
+        self.exec.send(BlockData::Batch(blocks.inner.clone()))?;
+        self.senders.push_back(BlockOrStorage::BatchBlock(blocks))
+    }
+}
+
+struct BlockStorageCombo<B: BlockT>(BatchBlock<B>, super::msg::VecStorageWrap<B>);
+
+impl<B: BlockT> Message for BlockStorageCombo<B> {
+    type Result = ArchiveResult<()>;
+}
+
+impl<B: BlockT> FromIterator<EitherOrBoth<Storage<B>, Block<B>>> for BlockStorageCombo<B> {
+    fn from_iter<I: IntoIterator<Item = EitherOrBoth<Storage<B>, Block<B>>>>(iter: I) -> Self {
+        let mut storage = Vec::new();
+        let mut blocks = Vec::new();
+        for i in iter {
+            match i {
+                EitherOrBoth::Left(s) => storage.push(s),
+                EitherOrBoth::Right(b) => blocks.push(b),
+                EitherOrBoth::Both(s, b) => {
+                    storage.push(s);
+                    blocks.push(b);
+                }
+            }
         }
+        BlockStorageCombo(BatchBlock::new(blocks), super::msg::VecStorageWrap(storage))
+    }
+}
+
+impl<B> SyncHandler<BlockStorageCombo<B>> for Aggregator<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
+    fn handle(&mut self, counts: BlockStorageCombo<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
+        let (blocks, storage) = (counts.0, counts.1);
+
+        let b_count = if !blocks.inner().is_empty() {
+            let count = blocks.inner().len();
+            self.meta_addr.do_send(blocks)?;
+            count
+        } else {
+            0
+        };
+
+        let s_count = if !storage.0.is_empty() {
+            let count = storage.0.len();
+            self.db_addr.do_send(storage)?;
+            count
+        } else {
+            0
+        };
+
+        match (b_count, s_count) {
+            (0, 0) => {
+                if !self.last_count_was_0 {
+                    log::info!("Waiting on node, nothing left to index ...");
+                    self.last_count_was_0 = true;
+                }
+            }
+            (b, 0) => {
+                log::info!("Indexing Blocks {} bps", b);
+                self.last_count_was_0 = false;
+            }
+            (0, s) => {
+                log::info!("Indexing Storage {} bps", s);
+                self.last_count_was_0 = false;
+            }
+            (b, s) => {
+                log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s);
+                self.last_count_was_0 = false;
+            }
+        };
+        Ok(())
     }
 }

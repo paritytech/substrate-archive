@@ -143,10 +143,9 @@ impl<Block: BlockT> HeaderMetadata<Block> for ReadOnlyBackend<Block> {
     fn header_metadata(&self, hash: Block::Hash) -> ChainResult<CachedHeaderMetadata<Block>> {
         self.header(BlockId::hash(hash))?
             .map(|header| CachedHeaderMetadata::from(&header))
-            .ok_or(BlockchainError::UnknownBlock(format!(
-                "header not found in db: {}",
-                hash
-            )))
+            .ok_or_else(|| {
+                BlockchainError::UnknownBlock(format!("header not found in db: {}", hash))
+            })
     }
 
     fn insert_header_metadata(
