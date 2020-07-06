@@ -14,7 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+//! A method of dynamic queries with SQLx
+//! Taken from this Gist by @mehcode (Github): https://gist.github.com/mehcode/c476922be0290a4f8502d18701cc8c74
+//! This is sortof temporary until SQLx develops their dynamic query builder: https://github.com/launchbadge/sqlx/issues/291
+//! and `Quaint` switches to SQLx as a backend: https://github.com/prisma/quaint/issues/138
+
 use crate::error::ArchiveResult;
+use futures::future::try_join_all;
 use sqlx::{
     arguments::Arguments, encode::Encode, postgres::PgArguments, postgres::PgConnection,
     query::query, PgPool, Postgres, Type,
@@ -99,12 +105,14 @@ impl Batch {
         self.chunks[self.index].bind(value)
     }
 
-    pub async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<()> {
+    pub async fn execute(self, conn: PgPool) -> ArchiveResult<()> {
         if self.len > 0 {
+            let mut futures = Vec::new();
             for mut chunk in self.chunks {
                 chunk.append(&self.trailing);
-                chunk.execute(&mut *conn).await?;
+                futures.push(chunk.execute(&conn));
             }
+            try_join_all(futures).await?;
         }
 
         Ok(())
@@ -141,10 +149,10 @@ impl Chunk {
         Ok(())
     }
 
-    async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<()> {
+    async fn execute(self, conn: &PgPool) -> ArchiveResult<()> {
         query(&*self.query)
             .bind_all(self.arguments)
-            .execute(&mut *conn)
+            .execute(conn)
             .await?;
 
         Ok(())

@@ -86,10 +86,10 @@ where
     NumberFor<Block>: Into<u32>,
 {
     context: ActorContext<Block>,
-    workers: Option<usize>,
+    // workers: Option<usize>,
     executor: ThreadedBlockExecutor<Block>,
     fetcher: BlockFetcher<Block>,
-    api: Arc<C>,
+    // api: Arc<C>,
     _marker: PhantomData<(R, C)>,
 }
 
@@ -133,8 +133,8 @@ where
 
         Ok(Self {
             context,
-            workers,
-            api,
+            // workers,
+            // api,
             executor,
             fetcher,
             _marker: PhantomData,

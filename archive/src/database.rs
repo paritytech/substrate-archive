@@ -19,17 +19,14 @@
 
 mod batch;
 pub mod models;
-mod prepare_sql;
 
 use async_trait::async_trait;
+use batch::Batch;
 use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::{PgConnection, Postgres};
 
-use self::{
-    models::*,
-    prepare_sql::{BindAll, PrepareBatchSql as _, PrepareSql as _},
-};
+use self::models::*;
 use crate::{
     error::{ArchiveResult, Error as ArchiveError},
     types::*,
@@ -85,19 +82,13 @@ where
             self.inner.block.header().number(),
             hex::encode(self.inner.block.header().hash().as_ref())
         );
-        self.single_insert()?.execute(&db).await.map_err(Into::into)
-    }
-}
-
-impl<'a, B> BindAll<'a> for Block<B>
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    fn bind_all_arguments(
-        &self,
-        query: sqlx::Query<'a, Postgres>,
-    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
+        let query = sqlx::query(
+            r#"
+            INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
+            VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT DO NOTHING
+        "#,
+        );
         let parent_hash = self.inner.block.header().parent_hash().as_ref();
         let hash = self.inner.block.header().hash();
         let block_num: u32 = (*self.inner.block.header().number()).into();
@@ -106,7 +97,7 @@ where
         let digest = self.inner.block.header().digest().encode();
         let extrinsics = self.inner.block.extrinsics().encode();
 
-        Ok(query
+        query
             .bind(parent_hash)
             .bind(hash.as_ref())
             .bind(block_num)
@@ -114,60 +105,92 @@ where
             .bind(extrinsics_root)
             .bind(digest.as_slice())
             .bind(extrinsics.as_slice())
-            .bind(self.spec))
+            .bind(self.spec)
+            .execute(&db)
+            .await
+            .map_err(Into::into)
     }
 }
 
 #[async_trait]
 impl<B: BlockT> Insert for StorageModel<B> {
     async fn insert(mut self, db: DbConn) -> DbReturn {
-        self.single_insert()?.execute(&db).await.map_err(Into::into)
+        sqlx::query(
+            r#"
+                INSERT INTO storage (block_num, hash, is_full, key, storage)
+                VALUES (#1, $2, $3, $4, $5)
+                ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
+                hash = EXCLUDED.hash,
+                key = EXCLUDED.key,
+                storage = EXCLUDED.storage,
+                is_full = EXCLUDED.is_full
+            "#,
+        )
+        .bind(self.block_num())
+        .bind(self.hash().as_ref())
+        .bind(self.is_full())
+        .bind(self.key().0.as_slice())
+        .bind(self.data().map(|d| d.0.as_slice()))
+        .execute(&db)
+        .await
+        .map_err(Into::into)
     }
 }
 
 #[async_trait]
 impl<B: BlockT> Insert for Vec<StorageModel<B>> {
     async fn insert(mut self, db: DbConn) -> DbReturn {
-        let chunks = self.chunks(2048);
-        let mut rows_changed = 0;
-        for s in chunks {
-            let storg = s.to_vec();
-            let sql = self.build_sql(Some(storg.len() as u32));
-            rows_changed += storg
-                .batch_insert(sql.as_str(), |q| q.execute(&db))?
-                .await?;
-        }
-        Ok(rows_changed)
-    }
-}
+        let mut batch = Batch::new(
+            "storage",
+            r#"
+            INSERT INTO storage (block_num, hash, is_full, key, storage)
+            "#,
+            r#"
+            ON CONFLICT ((hash, key, md5(storage)) DO UPDATE SET
+                hash = EXCLUDED.hash,
+                key = EXCLUDED.key,
+                storage = EXCLUDED.storage,
+                is_full = EXCLUDED.is_full
+            "#,
+        );
 
-impl<'a, B: BlockT> BindAll<'a> for StorageModel<B> {
-    fn bind_all_arguments(
-        &self,
-        query: sqlx::Query<'a, Postgres>,
-    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(query
-            .bind(self.block_num())
-            .bind(self.hash().as_ref())
-            .bind(self.is_full())
-            .bind(self.key().0.as_slice())
-            .bind(self.data().map(|d| d.0.as_slice())))
+        for s in self.into_iter() {
+            batch.reserve(5)?;
+            if batch.current_num_arguments() > 0 {
+                batch.append(",");
+            }
+            batch.append("(");
+            batch.bind(s.block_num())?;
+            batch.append(",");
+            batch.bind(s.hash().as_ref())?;
+            batch.append(",");
+            batch.bind(s.is_full())?;
+            batch.append(",");
+            batch.bind(s.key().0.as_slice())?;
+            batch.append(",");
+            batch.bind(s.data().map(|d| d.0.as_slice()))?;
+            batch.append(")");
+        }
+        batch.execute(db).await?;
+        Ok(0)
     }
 }
 
 #[async_trait]
 impl Insert for Metadata {
     async fn insert(mut self, db: DbConn) -> DbReturn {
-        self.single_insert()?.execute(&db).await.map_err(Into::into)
-    }
-}
-
-impl<'a> BindAll<'a> for Metadata {
-    fn bind_all_arguments(
-        &self,
-        query: sqlx::Query<'a, Postgres>,
-    ) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
-        Ok(query.bind(self.version()).bind(self.meta()))
+        sqlx::query(
+            r#"
+            INSERT INTO metadata (version, meta)
+            VALUES($1, $2)
+            ON CONFLICT DO NOTHING
+        "#,
+        )
+        .bind(self.version())
+        .bind(self.meta())
+        .execute(&db)
+        .await
+        .map_err(Into::into)
     }
 }
 
@@ -178,16 +201,47 @@ where
     NumberFor<B>: Into<u32>,
 {
     async fn insert(mut self, db: DbConn) -> DbReturn {
-        log::trace!("Batch inserting {} blocks into DB", self.inner().len());
-        let mut rows_changed = 0;
-        for blocks in self.inner().chunks(2048) {
-            let blocks = blocks.to_vec();
-            let sql = blocks.build_sql(None);
-            rows_changed += blocks
-                .batch_insert(sql.as_str(), |q| q.execute(&db))?
-                .await?;
+        let mut batch = Batch::new(
+            "storage",
+            r#"
+            INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
+            "#,
+            r#"
+            ON CONFLICT DO NOTHING
+            "#,
+        );
+        for b in self.inner.into_iter() {
+            batch.reserve(8)?;
+            if batch.current_num_arguments() > 0 {
+                batch.append(",");
+            }
+            let parent_hash = b.inner.block.header().parent_hash().as_ref();
+            let hash = b.inner.block.header().hash();
+            let block_num: u32 = (*b.inner.block.header().number()).into();
+            let state_root = b.inner.block.header().state_root().as_ref();
+            let extrinsics_root = b.inner.block.header().extrinsics_root().as_ref();
+            let digest = b.inner.block.header().digest().encode();
+            let extrinsics = b.inner.block.extrinsics().encode();
+            batch.append("(");
+            batch.bind(parent_hash)?;
+            batch.append(",");
+            batch.bind(hash.as_ref())?;
+            batch.append(",");
+            batch.bind(block_num)?;
+            batch.append(",");
+            batch.bind(state_root)?;
+            batch.append(",");
+            batch.bind(extrinsics_root)?;
+            batch.append(",");
+            batch.bind(digest.as_slice())?;
+            batch.append(",");
+            batch.bind(extrinsics.as_slice())?;
+            batch.append(",");
+            batch.bind(b.spec)?;
+            batch.append(")");
         }
-        Ok(rows_changed)
+        batch.execute(db).await?;
+        Ok(0)
     }
 }
 

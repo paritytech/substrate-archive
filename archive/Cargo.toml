@@ -1,6 +1,6 @@
 [package]
 name = "substrate-archive"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
 edition = "2018"
 
@@ -31,6 +31,7 @@ xtra = { version = "0.4.2", features = ["with-tokio-0_2"] }
 refinery = { version = "0.3.0", features = ["postgres"] }
 # TODO: Should replace with real rust generators when stabilized 
 genawaiter = { version = "0.99", features = ["futures03"] }
+# Just a simple wrapper around std::thread that `joins on drop`
 jod-thread = "0.1.2"
 
 # Optional 
