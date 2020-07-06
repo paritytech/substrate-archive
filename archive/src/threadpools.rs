@@ -43,7 +43,7 @@ where
     NumberFor<B>: Into<u32>,
 {
     sender: flume::Sender<u32>,
-    pair: (flume::Sender<Block<B>>, flume::Receiver<Block<B>>),
+    pair: (flume::Sender<Block<B>>, Option<flume::Receiver<Block<B>>>),
     _handle: jod_thread::JoinHandle<ArchiveResult<()>>,
 }
 
@@ -63,7 +63,8 @@ where
                 thread::sleep(Duration::from_millis(50));
                 let msgs = rx.drain().collect::<Vec<u32>>();
                 pool.add_data(msgs);
-                for w in pool.check_work()?.into_iter() {
+                let work = pool.check_work()?;
+                for w in work.into_iter() {
                     res_sender.send(w)?;
                 }
             }
@@ -71,7 +72,7 @@ where
         });
 
         Ok(Self {
-            pair: (sender, receiver),
+            pair: (sender, Some(receiver)),
             sender: tx,
             _handle: handle,
         })
@@ -90,8 +91,11 @@ where
     }
 
     /// Convert this Threadpool into a stream of its outputs
-    pub fn into_stream(self) -> impl Stream<Item = Block<B>> {
-        self.pair.1
+    ///
+    /// # Panics
+    /// panics if the stream has already been taken
+    pub fn get_stream(&mut self) -> impl Stream<Item = Block<B>> {
+        self.pair.1.take().unwrap()
     }
 }
 
@@ -106,7 +110,7 @@ where
     _handle: jod_thread::JoinHandle<ArchiveResult<()>>,
     pair: (
         flume::Sender<BlockChanges<B>>,
-        flume::Receiver<BlockChanges<B>>,
+        Option<flume::Receiver<BlockChanges<B>>>,
     ),
 }
 
@@ -146,7 +150,7 @@ where
         });
         Ok(Self {
             sender: tx,
-            pair: (sender, receiver),
+            pair: (sender, Some(receiver)),
             _handle: handle,
         })
     }
@@ -168,8 +172,10 @@ where
     }
 
     /// Convert this Threadpool into a stream of its outputs
-    pub fn into_stream(self) -> impl Stream<Item = BlockChanges<B>> {
-        self.pair.1
+    /// # Panics
+    /// panics if the stream has already been taken
+    pub fn get_stream(&mut self) -> impl Stream<Item = BlockChanges<B>> {
+        self.pair.1.take().unwrap()
     }
 
     /// Get the sender for this threadpool

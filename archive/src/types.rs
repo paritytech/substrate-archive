@@ -36,7 +36,7 @@ pub trait PriorityIdent {
 #[async_trait::async_trait(?Send)]
 pub trait Archive<B: BlockT> {
     /// start driving the execution of the archive
-    async fn drive(&self) -> Result<(), ArchiveError>;
+    async fn drive(&mut self) -> Result<(), ArchiveError>;
 
     /// this method will block indefinitely
     async fn block_until_stopped(&self) -> ();

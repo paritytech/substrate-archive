@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Tries to Schedule continguously runtime-versioned blocks onto a threadpool
+//! Schedules blocks based upon a pre-defined priority
+//! this could be EX runtime-version or block_number
 //! This allows us to use the runtime-code cache to it's fullest potential
 //! and reduces reads on the rocksdb backend
 //! without rewriting `NativeExecutor` in substrate
@@ -138,14 +139,16 @@ where
         log::debug!("Queue Length: {}", self.queue.len());
         // we try to maintain a MAX queue of 256 tasks at a time in the threadpool
         let delta = self.added - self.finished;
-        if self.finished == 0 && self.added == 0 && self.queue.len() > self.max_size {
+        if self.finished == 0 && self.added == 0 {
             self.add_work(self.max_size)?;
         } else if delta < self.max_size && delta > 0 {
             self.add_work(self.max_size - delta)?;
         } else if delta == 0 && self.queue.len() > self.max_size {
             self.add_work(self.max_size)?;
+        } else if delta == 0 && self.queue.len() <= self.max_size {
+            self.add_work(self.queue.len())?;
         }
-        log::debug!("AFTER finished: {}, added: {}", self.finished, self.added);
+        log::debug!("finished: {}, added: {}", self.finished, self.added);
 
         let out = self.rx.drain().collect::<Vec<O>>();
         self.finished += out.len();

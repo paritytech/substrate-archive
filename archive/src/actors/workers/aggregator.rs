@@ -21,7 +21,7 @@ use crate::{
     types::{BatchBlock, Block, Storage},
 };
 use itertools::{EitherOrBoth, Itertools};
-use sp_runtime::traits::{Block as BlockT, NumberFor};
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use std::{iter::FromIterator, time::Duration};
 use xtra::prelude::*;
 
@@ -47,6 +47,8 @@ where
     meta_addr: Address<super::Metadata>,
     /// Pooled Postgres Database Connections
     exec: flume::Sender<BlockData<B>>,
+    /// just a switch so we know not to print redundant messages
+    last_count_was_0: bool,
 }
 
 fn queues<B>() -> (Senders<B>, Receivers<B>)
@@ -140,6 +142,7 @@ where
             db_addr,
             meta_addr,
             exec: tx,
+            last_count_was_0: false,
         }
     }
 }
@@ -230,14 +233,6 @@ where
     fn handle(&mut self, counts: BlockStorageCombo<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
         let (blocks, storage) = (counts.0, counts.1);
 
-        let s_count = if !storage.0.is_empty() {
-            let count = storage.0.len();
-            self.db_addr.do_send(storage)?;
-            count
-        } else {
-            0
-        };
-
         let b_count = if !blocks.inner().is_empty() {
             let count = blocks.inner().len();
             self.meta_addr.do_send(blocks)?;
@@ -246,11 +241,33 @@ where
             0
         };
 
+        let s_count = if !storage.0.is_empty() {
+            let count = storage.0.len();
+            self.db_addr.do_send(storage)?;
+            count
+        } else {
+            0
+        };
+
         match (b_count, s_count) {
-            (0, 0) => (),
-            (b, 0) => log::info!("Indexing Blocks {} bps", b),
-            (0, s) => log::info!("Indexing Storage {} bps", s),
-            (b, s) => log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s),
+            (0, 0) => {
+                if !self.last_count_was_0 {
+                    log::info!("Waiting on node, nothing left to index ...");
+                    self.last_count_was_0 = true;
+                }
+            }
+            (b, 0) => {
+                log::info!("Indexing Blocks {} bps", b);
+                self.last_count_was_0 = false;
+            }
+            (0, s) => {
+                log::info!("Indexing Storage {} bps", s);
+                self.last_count_was_0 = false;
+            }
+            (b, s) => {
+                log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s);
+                self.last_count_was_0 = false;
+            }
         };
         Ok(())
     }

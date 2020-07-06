@@ -42,7 +42,6 @@ pub use types::Archive;
 pub use util::init_logger;
 
 // Re-Exports
-
 pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
 pub use sp_runtime::MultiSignature;

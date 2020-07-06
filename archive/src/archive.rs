@@ -155,20 +155,20 @@ where
             backend::runtime_api::<B, R, D>(
                 self.db.clone(),
                 self.block_workers.unwrap_or(cpus),
-                self.wasm_pages.unwrap_or(2048),
+                self.wasm_pages.unwrap_or(512),
             )
             .map_err(ArchiveError::from)?,
         );
         log::info!("Creating client 1");
         let client1 = Arc::new(
-            backend::runtime_api::<B, R, D>(self.db.clone(), 3, 128).map_err(ArchiveError::from)?,
+            backend::runtime_api::<B, R, D>(self.db.clone(), 3, 64).map_err(ArchiveError::from)?,
         );
 
         let rt = client1.runtime_version_at(&BlockId::Number(0.into()))?;
         self.verify_same_chain(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
 
-        let ctx = System::<_, R, _>::new(
+        let mut ctx = System::<_, R, _>::new(
             (client0, client1),
             backend,
             self.block_workers,

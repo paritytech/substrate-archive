@@ -80,10 +80,15 @@ impl<Block: BlockT> ActorContext<Block> {
     }
 }
 
-#[derive(Clone)]
-pub struct System<Block: BlockT, R, C> {
+pub struct System<Block, R, C>
+where
+    Block: BlockT,
+    NumberFor<Block>: Into<u32>,
+{
     context: ActorContext<Block>,
     workers: Option<usize>,
+    executor: ThreadedBlockExecutor<Block>,
+    fetcher: BlockFetcher<Block>,
     api: Arc<C>,
     _marker: PhantomData<(R, C)>,
 }
@@ -121,38 +126,40 @@ where
         psql_url: &str,
     ) -> ArchiveResult<Self> {
         let (api, blk_client) = client_api;
-        let context = ActorContext::new(backend, url, psql_url.to_string(), blk_client);
+        let context = ActorContext::new(backend.clone(), url, psql_url.to_string(), blk_client);
+
+        let executor = ThreadedBlockExecutor::new(api.clone(), backend, workers)?;
+        let fetcher = BlockFetcher::new(context.clone(), Some(3))?;
 
         Ok(Self {
             context,
             workers,
             api,
+            executor,
+            fetcher,
             _marker: PhantomData,
         })
     }
 
     /// Start the actors and begin driving their execution
-    pub async fn drive(&self) -> ArchiveResult<()> {
+    pub async fn drive(&mut self) -> ArchiveResult<()> {
         let pool = PgPool::builder()
-            .max_size(16)
+            .max_size(32)
             .build(self.context.psql_url())
             .await?;
-        let backend = self.context.backend.clone();
         let ctx = self.context.clone();
 
-        let exec_pool = ThreadedBlockExecutor::new(self.api.clone(), backend, self.workers)?;
-        let fetch_pool = BlockFetcher::new(ctx.clone(), Some(3))?;
-        let tx = exec_pool.sender();
+        let tx = self.executor.sender();
         let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
         let subscription = rpc.subscribe_finalized_heads().await?;
-        let ag = Aggregator::new(ctx.rpc_url(), tx.clone(), &pool).spawn();
-        fetch_pool.attach_stream(subscription.map(|h| (*h.number()).into()));
-        fetch_pool.attach_stream(missing_blocks(pool.clone()).await);
-        log::info!("Filling storage");
-        fill_storage(pool.clone(), tx).await?;
-        log::info!("Storage filled");
-        ag.clone().attach_stream(exec_pool.into_stream());
-        ag.attach_stream(fetch_pool.into_stream());
+        fill_storage(pool.clone(), tx.clone()).await?;
+        let ag = Aggregator::new(ctx.rpc_url(), tx, &pool).spawn();
+        self.fetcher
+            .attach_stream(subscription.map(|h| (*h.number()).into()));
+        self.fetcher
+            .attach_stream(missing_blocks(pool.clone()).await);
+        ag.clone().attach_stream(self.executor.get_stream());
+        ag.attach_stream(self.fetcher.get_stream());
         Ok(())
     }
 
@@ -178,12 +185,12 @@ where
     B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,
 {
-    async fn drive(&self) -> Result<(), ArchiveError> {
+    async fn drive(&mut self) -> Result<(), ArchiveError> {
         System::drive(self).await
     }
 
     async fn block_until_stopped(&self) {
-        self.block_until_stopped().await
+        System::block_until_stopped(self).await
     }
 
     fn shutdown(self) -> Result<(), ArchiveError> {

@@ -43,58 +43,7 @@ pub fn spawn(fut: impl Future<Output = ArchiveResult<()>> + Send + 'static) {
         smol::Task::spawn(fut).detach();
     }
 }
-/*
-/// runs some closure asyncronously on an interval
-/// if the future returns an error, this interval prints the error and ends
-pub fn interval(
-    duration: std::time::Duration,
-    fut: impl Future<Output = ArchiveResult<()>> + Send + 'static,
-) {
 
-    #[cfg(feature = "with-tokio")]
-    {
-        tokio::spawn(async move {
-            let mut timer = tokio::time::interval(duration);
-            loop {
-                timer.tick().await;
-                if let Err(e) = fut.await {
-                    log::error!("Interval Ending! {}", e.to_string());
-                    break;
-                }
-            }
-        });
-    }
-
-    #[cfg(feature = "with-async-std")]
-    {
-        use async_std::prelude::FutureExt;
-        async_std::task::spawn(async move {
-            loop {
-                futures::future::ready(()).delay(duration.clone()).await;
-                if let Err(e) = fun().await {
-                    log::error!("Interval Ending! {}", e.to_string());
-                    break;
-                }
-            }
-        });
-    }
-
-    #[cfg(feature = "with-smol")]
-    {
-        use smol::Timer;
-        smol::Task::spawn(async move {
-            loop {
-                Timer::after(duration.clone()).await;
-                if let Err(e) = fun().await {
-                    log::error!("Interval Ending! {}", e.to_string());
-                    break;
-                }
-            }
-        })
-        .detach();
-    }
-}
-*/
 /// create an arbitrary directory on disk
 /// panics if it fails because of anything other than the directory already exists
 #[allow(unused)]
@@ -160,6 +109,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("bastion", log::LevelFilter::Warn)
         .level_for("sqlx", log::LevelFilter::Warn)
         .level_for("staking", log::LevelFilter::Warn)
+        .level_for("cranelift_codegen", log::LevelFilter::Warn)
         .format(move |out, message, record| {
             out.finish(format_args!(
                 "{} {} {}",
@@ -179,6 +129,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("bastion", log::LevelFilter::Warn)
         .level_for("sqlx", log::LevelFilter::Warn)
         .level_for("staking", log::LevelFilter::Warn)
+        .level_for("cranelift_codegen", log::LevelFilter::Warn)
         // .level_for("desub_core", log::LevelFilter::Debug)
         // .level_for("bastion", log::LevelFilter::Trace)
         // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
