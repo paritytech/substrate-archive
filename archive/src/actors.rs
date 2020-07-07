@@ -156,8 +156,7 @@ where
         let ag = Aggregator::new(ctx.rpc_url(), tx, &pool).spawn();
         self.fetcher
             .attach_stream(subscription.map(|h| (*h.number()).into()));
-        self.fetcher
-            .attach_stream(missing_blocks(pool.clone()).await);
+        crate::util::spawn(missing_blocks(pool.clone(), self.fetcher.sender()));
         ag.clone().attach_stream(self.executor.get_stream());
         ag.attach_stream(self.fetcher.get_stream());
         Ok(())

@@ -97,6 +97,11 @@ where
     pub fn get_stream(&mut self) -> impl Stream<Item = Block<B>> {
         self.pair.1.take().unwrap()
     }
+
+    /// get the channel to send work to this threadpool
+    pub fn sender(&self) -> flume::Sender<u32> {
+        self.sender.clone()
+    }
 }
 
 /// Threadpool that executes blocks

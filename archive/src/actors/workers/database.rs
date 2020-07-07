@@ -31,6 +31,7 @@ where
 {
     async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         while !queries::check_if_meta_exists(blk.spec, self.pool()).await? {
+            log::error!("METADATA DOESN'T EXIST, waiting");
             timer::Delay::new(std::time::Duration::from_millis(20)).await;
         }
         self.insert(blk).await.map(|_| ())
@@ -57,9 +58,9 @@ where
             if db_contains_metadata(specs.as_slice(), versions) {
                 break;
             }
+            log::error!("Waiting....");
             timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
-
         self.insert(blks).await.map(|_| ())
     }
 }

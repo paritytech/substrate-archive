@@ -39,8 +39,8 @@ fn run() -> Result<()> {
     let mut rt = tokio::runtime::Builder::new()
         .threaded_scheduler()
         .enable_time()
-        .core_threads(2)
-        .max_threads(4)
+        .core_threads(4)
+        .max_threads(8)
         .thread_name("subst-arch")
         .build()?;
 

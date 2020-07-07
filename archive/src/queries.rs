@@ -16,8 +16,13 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
-use crate::{error::Error as ArchiveError, sql_block_builder::SqlBlock};
-use sqlx::postgres::PgQueryAs as _;
+use crate::{
+    error::{ArchiveResult, Error as ArchiveError},
+    sql_block_builder::SqlBlock,
+};
+use futures::Stream;
+use sqlx::postgres::PgRow;
+use sqlx::prelude::*;
 
 #[derive(sqlx::FromRow, Debug, Clone)]
 pub struct BlockNumSeries {
@@ -25,10 +30,10 @@ pub struct BlockNumSeries {
 }
 
 /// get missing blocks from relational database
-pub(crate) async fn missing_blocks(
-    pool: &sqlx::PgPool,
-) -> Result<Vec<BlockNumSeries>, ArchiveError> {
-    sqlx::query_as(
+pub(crate) fn missing_blocks(
+    conn: &mut sqlx::PgConnection,
+) -> impl Stream<Item = Result<(i32,), sqlx::Error>> + Send + '_ {
+    sqlx::query_as::<_, (i32,)>(
         "SELECT generate_series
         FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
         WHERE
@@ -36,9 +41,7 @@ pub(crate) async fn missing_blocks(
         ORDER BY generate_series ASC
         ",
     )
-    .fetch_all(pool)
-    .await
-    .map_err(Into::into)
+    .fetch(conn)
 }
 
 /// Will get blocks such that they exist in the `blocks` table but they
