@@ -21,6 +21,7 @@ use crate::{
     sql_block_builder::SqlBlock,
 };
 use futures::Stream;
+use sp_runtime::traits::Block as BlockT;
 
 #[derive(sqlx::FromRow, Debug, Clone)]
 pub struct BlockNumSeries {
@@ -118,10 +119,11 @@ pub(crate) async fn check_if_meta_exists(
     Ok(row.0)
 }
 
-pub(crate) async fn check_if_block_exists(
-    hash: &[u8],
+pub(crate) async fn contains_block<B: BlockT>(
+    hash: B::Hash,
     pool: &sqlx::PgPool,
 ) -> Result<bool, ArchiveError> {
+    let hash = hash.as_ref();
     let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash=$1)"#)
         .bind(hash)
         .fetch_one(pool)

@@ -22,9 +22,13 @@ use super::DbConn;
 use crate::error::ArchiveResult;
 // use futures::future::try_join_all;
 use sqlx::prelude::*;
-use sqlx::{encode::Encode, postgres::PgArguments, postgres::Postgres, Arguments};
+use sqlx::{
+    encode::Encode,
+    postgres::{PgArguments, PgConnection, Postgres},
+    Arguments,
+};
 
-const CHUNK_MAX: usize = 40_000;
+const CHUNK_MAX: usize = 35_000;
 
 pub struct Chunk {
     query: String,
@@ -84,7 +88,6 @@ impl Batch {
         self.len += 1;
 
         if self.chunks[self.index].args_len + arguments > CHUNK_MAX {
-            log::info!("Arg len: {}", self.chunks[self.index].args_len);
             let mut chunk = Chunk::new(&self.leading);
 
             if let Some(with) = &self.with {
@@ -109,14 +112,12 @@ impl Batch {
         self.chunks[self.index].bind(value)
     }
 
-    pub async fn execute(self, conn: &mut DbConn) -> ArchiveResult<()> {
+    pub async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<()> {
         if self.len > 0 {
-            // let mut futures = Vec::new();
             for mut chunk in self.chunks {
                 chunk.append(&self.trailing);
                 chunk.execute(conn).await?;
             }
-            // try_join_all(futures).await?;
         }
 
         Ok(())
@@ -160,11 +161,10 @@ impl Chunk {
         Ok(())
     }
 
-    async fn execute(self, conn: &mut DbConn) -> ArchiveResult<()> {
+    async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<()> {
         sqlx::query_with(&*self.query, self.arguments.into_arguments())
             .execute(conn)
             .await?;
-
         Ok(())
     }
 }

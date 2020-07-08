@@ -21,7 +21,7 @@ mod generators;
 mod workers;
 
 use self::generators::{fill_storage, missing_blocks};
-
+pub use self::workers::msg;
 use super::{
     backend::{ApiAccess, GetRuntimeVersion, ReadOnlyBackend},
     error::{ArchiveResult, Error as ArchiveError},

@@ -136,7 +136,7 @@ where
     }
 
     pub fn check_work(&mut self) -> ArchiveResult<Vec<O>> {
-        log::debug!("Queue Length: {}", self.queue.len());
+        log::trace!("Queue Length: {}", self.queue.len());
         // we try to maintain a MAX queue of 256 tasks at a time in the threadpool
         let delta = self.added - self.finished;
         if self.finished == 0 && self.added == 0 {
@@ -148,7 +148,7 @@ where
         } else if delta == 0 && self.queue.len() <= self.max_size {
             self.add_work(self.queue.len())?;
         }
-        log::debug!("finished: {}, added: {}", self.finished, self.added);
+        log::trace!("finished: {}, added: {}", self.finished, self.added);
 
         let out = self.rx.drain().collect::<Vec<O>>();
         self.finished += out.len();
@@ -160,10 +160,6 @@ where
         std::mem::swap(&mut self.queue, &mut sorted);
 
         let mut sorted = sorted.into_sorted_vec();
-        log::debug!(
-            "Queue Size: {} MB",
-            size_of_encoded(Deno::MB, sorted.as_slice())
-        );
         let to_insert = if sorted.len() > to_add {
             sorted
                 .drain(0..to_add)
@@ -176,15 +172,12 @@ where
                 .collect::<ArchiveResult<Vec<I>>>()?
         };
         self.queue.extend(sorted.into_iter());
-        log::debug!(
-            "Decoded Queue Size: {} KB",
-            size_of_decoded(Deno::KB, to_insert.as_slice())
-        );
         self.added += self.exec.add_task(to_insert, self.tx.clone())?;
         Ok(())
     }
 }
 
+/*
 /// Denomination of bytes/megabytes/kilobytes
 enum Deno {
     #[allow(unused)]
@@ -225,3 +218,4 @@ fn size_of_decoded<I: PriorityIdent>(deno: Deno, items: &[I]) -> usize {
         Deno::MB => byte_size() / 1024 / 1024,
     }
 }
+*/

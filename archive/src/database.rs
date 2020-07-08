@@ -86,6 +86,7 @@ where
     NumberFor<B>: Into<u32>,
 {
     async fn insert(mut self, mut conn: DbConn) -> DbReturn {
+        log::info!("Inserting single block");
         log::trace!(
             "block_num = {:?}, hash = {:X?}",
             self.inner.block.header().number(),
@@ -106,8 +107,6 @@ where
         let digest = self.inner.block.header().digest().encode();
         let extrinsics = self.inner.block.extrinsics().encode();
 
-        // let conn = PgConnection::connec
-
         query
             .bind(parent_hash)
             .bind(hash.as_ref())
@@ -126,15 +125,17 @@ where
 #[async_trait]
 impl<B: BlockT> Insert for StorageModel<B> {
     async fn insert(mut self, mut conn: DbConn) -> DbReturn {
+        log::info!("Inserting Single Storage");
         sqlx::query(
             r#"
-                INSERT INTO storage (block_num, hash, is_full, key, storage)
-                VALUES (#1, $2, $3, $4, $5)
+                INSERT INTO storage (
+                    block_num, hash, is_full, key, storage
+                ) VALUES (#1, $2, $3, $4, $5)
                 ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
-                hash = EXCLUDED.hash,
-                key = EXCLUDED.key,
-                storage = EXCLUDED.storage,
-                is_full = EXCLUDED.is_full
+                    hash = EXCLUDED.hash,
+                    key = EXCLUDED.key,
+                    storage = EXCLUDED.storage,
+                    is_full = EXCLUDED.is_full
             "#,
         )
         .bind(self.block_num())
@@ -154,10 +155,12 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
         let mut batch = Batch::new(
             "storage",
             r#"
-            INSERT INTO storage (block_num, hash, is_full, key, storage)
+            INSERT INTO "storage" (
+                block_num, hash, is_full, key, storage
+            ) VALUES
             "#,
             r#"
-            ON CONFLICT ((hash, key, md5(storage)) DO UPDATE SET
+            ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
                 hash = EXCLUDED.hash,
                 key = EXCLUDED.key,
                 storage = EXCLUDED.storage,
@@ -184,7 +187,6 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
         }
         let len = batch.len();
         batch.execute(&mut conn).await?;
-        log::info!("Inserted {} storage items", len);
         Ok(0)
     }
 }
@@ -192,6 +194,7 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
 #[async_trait]
 impl Insert for Metadata {
     async fn insert(mut self, mut conn: DbConn) -> DbReturn {
+        log::info!("Inserting Metadata");
         sqlx::query(
             r#"
             INSERT INTO metadata (version, meta)
@@ -214,11 +217,12 @@ where
     NumberFor<B>: Into<u32>,
 {
     async fn insert(mut self, mut conn: DbConn) -> DbReturn {
-        log::info!("Got batch of blocks");
         let mut batch = Batch::new(
             "blocks",
             r#"
-            INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
+            INSERT INTO "blocks" (
+                parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
+            ) VALUES
             "#,
             r#"
             ON CONFLICT DO NOTHING
@@ -256,7 +260,6 @@ where
         }
         let len = batch.len();
         batch.execute(&mut conn).await?;
-        log::info!("Inserted {} blocks", len);
         Ok(0)
     }
 }
