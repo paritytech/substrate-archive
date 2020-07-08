@@ -49,6 +49,7 @@ where
         mut blks: BatchBlock<B>,
         _ctx: &mut Context<Self>,
     ) -> ArchiveResult<()> {
+        log::info!("BLOCKS LEN: {}", blks.inner().len());
         let specs = blks.mut_inner();
         specs.sort_by_key(|b| b.spec);
         let mut specs = specs.iter_mut().map(|b| b.spec).collect::<Vec<u32>>();
@@ -61,7 +62,18 @@ where
             log::error!("Waiting....");
             timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
-        self.insert(blks).await.map(|_| ())
+        log::info!("BLOCKS AFTER: {:}", blks.inner().len());
+        let now = std::time::Instant::now();
+        self.insert(blks).await.map(|_| ())?;
+        let elapsed = now.elapsed();
+        log::info!(
+            "TOOK {} seconds, {} milli-seconds, {} micro-seconds, {} nano-seconds to insert blocks",
+            elapsed.as_secs(),
+            elapsed.as_millis(),
+            elapsed.as_micros(),
+            elapsed.as_nanos()
+        );
+        Ok(())
     }
 }
 

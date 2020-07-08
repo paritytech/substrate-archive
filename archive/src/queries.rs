@@ -21,16 +21,15 @@ use crate::{
     sql_block_builder::SqlBlock,
 };
 use futures::Stream;
-use sqlx::postgres::PgRow;
-use sqlx::prelude::*;
 
 #[derive(sqlx::FromRow, Debug, Clone)]
 pub struct BlockNumSeries {
     pub generate_series: i32,
 }
 
-/// get missing blocks from relational database
-pub(crate) fn missing_blocks(
+/// get missing blocks from relational database as a stream
+#[allow(unused)]
+pub(crate) fn missing_blocks_stream(
     conn: &mut sqlx::PgConnection,
 ) -> impl Stream<Item = Result<(i32,), sqlx::Error>> + Send + '_ {
     sqlx::query_as::<_, (i32,)>(
@@ -42,6 +41,23 @@ pub(crate) fn missing_blocks(
         ",
     )
     .fetch(conn)
+}
+
+/// get missing blocks from relational database
+pub(crate) async fn missing_blocks(conn: &sqlx::PgPool) -> ArchiveResult<Vec<u32>> {
+    Ok(sqlx::query_as::<_, (i32,)>(
+        "SELECT generate_series
+        FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
+        WHERE
+        NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
+        ORDER BY generate_series ASC
+        ",
+    )
+    .fetch_all(conn)
+    .await?
+    .iter()
+    .map(|t| t.0 as u32)
+    .collect())
 }
 
 /// Will get blocks such that they exist in the `blocks` table but they
@@ -94,10 +110,11 @@ pub(crate) async fn check_if_meta_exists(
     spec: u32,
     pool: &sqlx::PgPool,
 ) -> Result<bool, ArchiveError> {
-    let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM metadata WHERE version=$1)"#)
-        .bind(spec)
-        .fetch_one(pool)
-        .await?;
+    let row: (bool,) =
+        sqlx::query_as(r#"SELECT EXISTS(SELECT version FROM metadata WHERE version=$1)"#)
+            .bind(spec)
+            .fetch_one(pool)
+            .await?;
     Ok(row.0)
 }
 

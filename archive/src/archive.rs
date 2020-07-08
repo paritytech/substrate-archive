@@ -22,6 +22,7 @@ use crate::{
     rpc::Rpc,
     types,
 };
+
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
@@ -91,6 +92,21 @@ pub struct ArchiveConfig {
     pub wasm_pages: Option<u64>,
 }
 
+fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
+    // refinery creates a current-thread tokio runtime that calls 'block_on', so we need to run possibly in its own thread
+    // in case the user creates another runtime with tokio
+    #[cfg(feature = "with-tokio")]
+    {
+        std::thread::spawn(move || crate::migrations::migrate(conf))
+            .join()
+            .expect("Migrations failed to run")
+    }
+    #[cfg(not(feature = "with-tokio"))]
+    {
+        crate::migrations::migrate(conf)
+    }
+}
+
 impl<B, R, D> ArchiveBuilder<B, R, D>
 where
     B: BlockT + Unpin,
@@ -110,10 +126,8 @@ where
     /// and run Postgres Migrations
     /// Should not be run within a futures runtime
     pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self, ArchiveError> {
-        let pconf = conf.psql_conf.clone();
-        // refinery creates a current-thread tokio runtime that calls 'block_on', so we need to run possibly in its own thread
-        // in case the user creates another runtime with tokio
-        let psql_url = crate::migrations::migrate(pconf)?;
+        let psql_url = migrate(conf.psql_conf.clone())?;
+
         let db = Arc::new(backend::util::open_database(
             conf.db_url.as_str(),
             conf.cache_size,

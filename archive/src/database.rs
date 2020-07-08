@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use batch::Batch;
 use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-use sqlx::{PgConnection, Postgres};
+use sqlx::{PgPool, Postgres};
 
 use self::models::*;
 use crate::{
@@ -33,17 +33,19 @@ use crate::{
 };
 
 pub type DbReturn = Result<u64, ArchiveError>;
-pub type DbConn = sqlx::Pool<PgConnection>;
+pub type DbConn = sqlx::pool::PoolConnection<Postgres>;
 
 #[async_trait]
 pub trait Insert: Sync {
-    async fn insert(mut self, db: DbConn) -> DbReturn
+    async fn insert(mut self, mut conn: DbConn) -> DbReturn
     where
         Self: Sized;
 }
+
 pub struct Database {
     /// pool of database connections
-    pool: DbConn,
+    pool: PgPool,
+    url: String,
 }
 
 // clones a database connection
@@ -51,22 +53,29 @@ impl Clone for Database {
     fn clone(&self) -> Self {
         Database {
             pool: self.pool.clone(),
+            url: self.url.clone(),
         }
     }
 }
 
 impl Database {
     /// Connect to the database
-    pub fn new(pool: &DbConn) -> Self {
-        Self { pool: pool.clone() }
+    pub async fn new(url: String) -> ArchiveResult<Self> {
+        let pool = PgPool::builder()
+            .min_size(16)
+            .max_size(32)
+            .build(url.as_str())
+            .await?;
+        Ok(Self { pool, url })
     }
 
-    pub fn pool(&self) -> &sqlx::Pool<PgConnection> {
+    pub fn pool(&self) -> &sqlx::Pool<Postgres> {
         &self.pool
     }
 
     pub async fn insert(&self, data: impl Insert) -> ArchiveResult<u64> {
-        data.insert(self.pool.clone()).await
+        let conn = self.pool.acquire().await?;
+        data.insert(conn).await
     }
 }
 
@@ -76,7 +85,7 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn insert(mut self, db: DbConn) -> DbReturn {
+    async fn insert(mut self, mut conn: DbConn) -> DbReturn {
         log::trace!(
             "block_num = {:?}, hash = {:X?}",
             self.inner.block.header().number(),
@@ -97,6 +106,8 @@ where
         let digest = self.inner.block.header().digest().encode();
         let extrinsics = self.inner.block.extrinsics().encode();
 
+        // let conn = PgConnection::connec
+
         query
             .bind(parent_hash)
             .bind(hash.as_ref())
@@ -106,7 +117,7 @@ where
             .bind(digest.as_slice())
             .bind(extrinsics.as_slice())
             .bind(self.spec)
-            .execute(&db)
+            .execute(&mut conn)
             .await
             .map_err(Into::into)
     }
@@ -114,7 +125,7 @@ where
 
 #[async_trait]
 impl<B: BlockT> Insert for StorageModel<B> {
-    async fn insert(mut self, db: DbConn) -> DbReturn {
+    async fn insert(mut self, mut conn: DbConn) -> DbReturn {
         sqlx::query(
             r#"
                 INSERT INTO storage (block_num, hash, is_full, key, storage)
@@ -131,7 +142,7 @@ impl<B: BlockT> Insert for StorageModel<B> {
         .bind(self.is_full())
         .bind(self.key().0.as_slice())
         .bind(self.data().map(|d| d.0.as_slice()))
-        .execute(&db)
+        .execute(&mut conn)
         .await
         .map_err(Into::into)
     }
@@ -139,7 +150,7 @@ impl<B: BlockT> Insert for StorageModel<B> {
 
 #[async_trait]
 impl<B: BlockT> Insert for Vec<StorageModel<B>> {
-    async fn insert(mut self, db: DbConn) -> DbReturn {
+    async fn insert(mut self, mut conn: DbConn) -> DbReturn {
         let mut batch = Batch::new(
             "storage",
             r#"
@@ -171,14 +182,16 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
             batch.bind(s.data().map(|d| d.0.as_slice()))?;
             batch.append(")");
         }
-        batch.execute(db).await?;
+        let len = batch.len();
+        batch.execute(&mut conn).await?;
+        log::info!("Inserted {} storage items", len);
         Ok(0)
     }
 }
 
 #[async_trait]
 impl Insert for Metadata {
-    async fn insert(mut self, db: DbConn) -> DbReturn {
+    async fn insert(mut self, mut conn: DbConn) -> DbReturn {
         sqlx::query(
             r#"
             INSERT INTO metadata (version, meta)
@@ -188,7 +201,7 @@ impl Insert for Metadata {
         )
         .bind(self.version())
         .bind(self.meta())
-        .execute(&db)
+        .execute(&mut conn)
         .await
         .map_err(Into::into)
     }
@@ -200,9 +213,10 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn insert(mut self, db: DbConn) -> DbReturn {
+    async fn insert(mut self, mut conn: DbConn) -> DbReturn {
+        log::info!("Got batch of blocks");
         let mut batch = Batch::new(
-            "storage",
+            "blocks",
             r#"
             INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
             "#,
@@ -240,7 +254,9 @@ where
             batch.bind(b.spec)?;
             batch.append(")");
         }
-        batch.execute(db).await?;
+        let len = batch.len();
+        batch.execute(&mut conn).await?;
+        log::info!("Inserted {} blocks", len);
         Ok(0)
     }
 }

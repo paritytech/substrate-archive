@@ -143,8 +143,10 @@ where
 
     /// Start the actors and begin driving their execution
     pub async fn drive(&mut self) -> ArchiveResult<()> {
+        println!("Before PG");
         let pool = PgPool::builder()
-            .max_size(32)
+            .min_size(4)
+            .max_size(8)
             .build(self.context.psql_url())
             .await?;
         let ctx = self.context.clone();
@@ -153,9 +155,9 @@ where
         let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
         let subscription = rpc.subscribe_finalized_heads().await?;
         fill_storage(pool.clone(), tx.clone()).await?;
-        let ag = Aggregator::new(ctx.rpc_url(), tx, &pool).spawn();
-        self.fetcher
-            .attach_stream(subscription.map(|h| (*h.number()).into()));
+        let ag = Aggregator::new(ctx.clone(), tx, &pool).await?.spawn();
+        let block_num_stream = subscription.map(|h| (*h.number()).into());
+        self.fetcher.attach_stream(block_num_stream);
         crate::util::spawn(missing_blocks(pool.clone(), self.fetcher.sender()));
         ag.clone().attach_stream(self.executor.get_stream());
         ag.attach_stream(self.fetcher.get_stream());

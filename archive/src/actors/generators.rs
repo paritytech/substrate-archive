@@ -17,19 +17,26 @@
 use crate::{
     error::ArchiveResult, queries, sql_block_builder::BlockBuilder, threadpools::BlockData,
 };
-use futures::{Stream, StreamExt};
+// use futures::{Stream, StreamExt};
 use sp_runtime::traits::Block as BlockT;
 
 /// Gets missing blocks from the SQL database
 pub async fn missing_blocks(pool: sqlx::PgPool, sender: flume::Sender<u32>) -> ArchiveResult<()> {
     loop {
-        let conn = &mut pool.acquire().await?;
-        let mut stream = queries::missing_blocks(conn);
+        // let conn = &mut pool.acquire().await?;
+        let nums = queries::missing_blocks(&pool).await?;
+        for num in nums.into_iter() {
+            if let Err(_) = sender.send(num) {
+                break;
+            }
+        }
+        /*
         while let Some(Ok(num)) = stream.next().await {
             if let Err(_) = sender.send(num.0 as u32) {
                 break;
             }
         }
+        */
         timer::Delay::new(std::time::Duration::from_secs(1)).await;
     }
     Ok(())

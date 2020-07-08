@@ -14,14 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::ActorContext;
 use crate::{
     backend::BlockChanges,
     error::ArchiveResult,
     threadpools::BlockData,
     types::{BatchBlock, Block, Storage},
 };
+use flume::Sender;
 use itertools::{EitherOrBoth, Itertools};
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::{iter::FromIterator, time::Duration};
 use xtra::prelude::*;
 
@@ -46,7 +48,7 @@ where
     /// and sending them to the database actor
     meta_addr: Address<super::Metadata>,
     /// Pooled Postgres Database Connections
-    exec: flume::Sender<BlockData<B>>,
+    exec: Sender<BlockData<B>>,
     /// just a switch so we know not to print redundant messages
     last_count_was_0: bool,
 }
@@ -74,9 +76,9 @@ where
 /// Sending/Receiving ends of queues to send batches of data to actors
 struct Senders<B: BlockT> {
     /// sending end of an internal queue to send batches of storage to actors
-    storage_queue: flume::Sender<BlockChanges<B>>,
+    storage_queue: Sender<BlockChanges<B>>,
     /// sending end of an internal queue to send batches of blocks to actors
-    block_queue: flume::Sender<Block<B>>,
+    block_queue: Sender<Block<B>>,
 }
 
 struct Receivers<B: BlockT> {
@@ -131,19 +133,24 @@ where
     NumberFor<B>: Into<u32>,
     NumberFor<B>: From<u32>,
 {
-    pub fn new(url: &str, tx: flume::Sender<BlockData<B>>, pool: &sqlx::PgPool) -> Self {
-        let db_addr = super::Database::new(&pool).spawn();
-        let meta_addr = super::Metadata::new(url.to_string(), &pool).spawn();
+    pub async fn new(
+        ctx: ActorContext<B>,
+        tx: Sender<BlockData<B>>,
+        pool: &sqlx::PgPool,
+    ) -> ArchiveResult<Self> {
+        let (psql_url, rpc_url) = (ctx.psql_url().to_string(), ctx.rpc_url().to_string());
+        let db_addr = super::Database::new(psql_url).await?.spawn();
+        let meta_addr = super::Metadata::new(rpc_url, &pool, db_addr.clone()).spawn();
         let (senders, recvs) = queues();
 
-        Self {
+        Ok(Self {
             senders,
             recvs: Some(recvs),
             db_addr,
             meta_addr,
             exec: tx,
             last_count_was_0: false,
-        }
+        })
     }
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2018-2019 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -18,15 +18,13 @@
 //! Taken from this Gist by @mehcode (Github): https://gist.github.com/mehcode/c476922be0290a4f8502d18701cc8c74
 //! This is sortof temporary until SQLx develops their dynamic query builder: https://github.com/launchbadge/sqlx/issues/291
 //! and `Quaint` switches to SQLx as a backend: https://github.com/prisma/quaint/issues/138
-
+use super::DbConn;
 use crate::error::ArchiveResult;
-use futures::future::try_join_all;
-use sqlx::{
-    arguments::Arguments, encode::Encode, postgres::PgArguments, postgres::PgConnection,
-    query::query, PgPool, Postgres, Type,
-};
+// use futures::future::try_join_all;
+use sqlx::prelude::*;
+use sqlx::{encode::Encode, postgres::PgArguments, postgres::Postgres, Arguments};
 
-const CHUNK_MAX: usize = 35000;
+const CHUNK_MAX: usize = 40_000;
 
 pub struct Chunk {
     query: String,
@@ -37,6 +35,7 @@ pub struct Chunk {
 }
 
 pub struct Batch {
+    #[allow(unused)]
     name: &'static str,
     leading: String,
     trailing: String,
@@ -59,6 +58,7 @@ impl Batch {
         }
     }
 
+    #[allow(unused)]
     pub fn new_with(
         name: &'static str,
         leading: &str,
@@ -84,6 +84,7 @@ impl Batch {
         self.len += 1;
 
         if self.chunks[self.index].args_len + arguments > CHUNK_MAX {
+            log::info!("Arg len: {}", self.chunks[self.index].args_len);
             let mut chunk = Chunk::new(&self.leading);
 
             if let Some(with) = &self.with {
@@ -101,18 +102,21 @@ impl Batch {
         self.chunks[self.index].append(sql);
     }
 
-    pub fn bind<T: Encode<Postgres> + Type<Postgres>>(&mut self, value: T) -> ArchiveResult<()> {
+    pub fn bind<'a, T: 'a>(&mut self, value: T) -> ArchiveResult<()>
+    where
+        T: Encode<'a, Postgres> + Type<Postgres> + Send,
+    {
         self.chunks[self.index].bind(value)
     }
 
-    pub async fn execute(self, conn: PgPool) -> ArchiveResult<()> {
+    pub async fn execute(self, conn: &mut DbConn) -> ArchiveResult<()> {
         if self.len > 0 {
-            let mut futures = Vec::new();
+            // let mut futures = Vec::new();
             for mut chunk in self.chunks {
                 chunk.append(&self.trailing);
-                futures.push(chunk.execute(&conn));
+                chunk.execute(conn).await?;
             }
-            try_join_all(futures).await?;
+            // try_join_all(futures).await?;
         }
 
         Ok(())
@@ -121,6 +125,10 @@ impl Batch {
     // TODO: Better name?
     pub fn current_num_arguments(&self) -> usize {
         self.chunks[self.index].args_len
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
     }
 }
 
@@ -140,7 +148,10 @@ impl Chunk {
         self.query.push_str(sql);
     }
 
-    pub fn bind<T: Encode<Postgres> + Type<Postgres>>(&mut self, value: T) -> ArchiveResult<()> {
+    pub fn bind<'a, T: 'a>(&mut self, value: T) -> ArchiveResult<()>
+    where
+        T: Encode<'a, Postgres> + Type<Postgres> + Send,
+    {
         self.arguments.add(value);
         self.query.push('$');
         itoa::fmt(&mut self.query, self.args_len + 1)?;
@@ -149,9 +160,8 @@ impl Chunk {
         Ok(())
     }
 
-    async fn execute(self, conn: &PgPool) -> ArchiveResult<()> {
-        query(&*self.query)
-            .bind_all(self.arguments)
+    async fn execute(self, conn: &mut DbConn) -> ArchiveResult<()> {
+        sqlx::query_with(&*self.query, self.arguments.into_arguments())
             .execute(conn)
             .await?;
 
