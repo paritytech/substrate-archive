@@ -17,7 +17,7 @@
 //! A module that handles a pool of actors
 use crate::error::ArchiveResult;
 use futures::future::{Future, FutureExt};
-use futures::{stream::FuturesUnordered, Stream, StreamExt};
+use futures::{stream::FuturesUnordered, StreamExt};
 use std::collections::VecDeque;
 use std::pin::Pin;
 use xtra::prelude::*;
@@ -86,5 +86,38 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
         }
         self.queue.rotate_left(1);
         self.futures.push(self.queue[0].send(msg).boxed());
+    }
+}
+
+impl<A: Actor> Actor for ActorPool<A> {}
+
+// We need a concrete struct for this otherwise our handler implementation
+// conflicts with xtra's generic implementation for all T
+pub struct PoolMessage<M: Message + Send>(M);
+
+impl<M> Message for PoolMessage<M>
+where
+    M: Message + Send,
+{
+    type Result = ();
+}
+
+#[async_trait::async_trait]
+impl<A, M> Handler<PoolMessage<M>> for ActorPool<A>
+where
+    A: Actor + Send + Clone + Handler<M>,
+    M: Message<Result = ArchiveResult<()>> + Send,
+{
+    async fn handle(&mut self, msg: PoolMessage<M>, _: &mut Context<Self>) {
+        self.forward(msg.0).await;
+    }
+}
+
+impl<M> From<M> for PoolMessage<M>
+where
+    M: Message + Send,
+{
+    fn from(m: M) -> PoolMessage<M> {
+        PoolMessage(m)
     }
 }

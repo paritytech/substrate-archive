@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::ActorPool;
 use crate::{
     error::ArchiveResult,
     queries,
@@ -28,11 +29,15 @@ use xtra::prelude::*;
 pub struct Metadata {
     url: String,
     pool: sqlx::PgPool,
-    addr: Address<super::Database>,
+    addr: Address<ActorPool<super::Database>>,
 }
 
 impl Metadata {
-    pub fn new(url: String, pool: &sqlx::PgPool, addr: Address<super::Database>) -> Self {
+    pub fn new(
+        url: String,
+        pool: &sqlx::PgPool,
+        addr: Address<ActorPool<super::Database>>,
+    ) -> Self {
         Self {
             url,
             pool: pool.clone(),
@@ -51,7 +56,7 @@ impl Metadata {
         if !queries::check_if_meta_exists(ver, &self.pool).await? {
             let meta = rpc.metadata(Some(hash)).await?;
             let meta = MetadataT::new(ver, meta);
-            self.addr.do_send(meta)?;
+            self.addr.do_send(meta.into())?;
         }
         Ok(())
     }
@@ -69,7 +74,7 @@ where
         let rpc = super::connect::<B>(self.url.as_str()).await;
         let hash = blk.inner.block.header().hash();
         self.meta_checker(blk.spec, hash, &rpc).await?;
-        self.addr.do_send(blk)?;
+        self.addr.do_send(blk.into())?;
         Ok(())
     }
 }
@@ -93,7 +98,7 @@ where
             self.meta_checker(b.spec, b.inner.block.hash(), &rpc)
                 .await?;
         }
-        self.addr.do_send(blks)?;
+        self.addr.do_send(blks.into())?;
         Ok(())
     }
 }
