@@ -13,19 +13,3 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
-
-mod aggregator;
-mod database;
-mod metadata;
-
-pub use self::aggregator::Aggregator;
-pub use self::metadata::Metadata;
-
-use super::{actor_pool::ActorPool, connect, ActorContext};
-pub use crate::database::Database;
-
-/// any messages defined in the workers
-pub mod msg {
-    pub use super::aggregator::IncomingData;
-    pub use super::database::VecStorageWrap;
-}

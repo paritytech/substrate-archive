@@ -42,20 +42,11 @@ pub trait Insert: Sync {
         Self: Sized;
 }
 
+#[derive(Clone)]
 pub struct Database {
     /// pool of database connections
     pool: PgPool,
     url: String,
-}
-
-// clones a database connection
-impl Clone for Database {
-    fn clone(&self) -> Self {
-        Database {
-            pool: self.pool.clone(),
-            url: self.url.clone(),
-        }
-    }
 }
 
 impl Database {
@@ -67,6 +58,12 @@ impl Database {
             .build(url.as_str())
             .await?;
         Ok(Self { pool, url })
+    }
+
+    /// Start the database with a pre-defined pool
+    #[allow(unused)]
+    pub fn with_pool(url: String, pool: PgPool) -> Self {
+        Self { pool, url }
     }
 
     pub fn pool(&self) -> &sqlx::Pool<Postgres> {

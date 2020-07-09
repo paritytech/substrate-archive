@@ -27,7 +27,7 @@ hashbrown = { version = "0.8.0", features = ["inline-more"] }
 thiserror = "1.0"
 rayon = "1.3"
 num_cpus = "1"
-xtra = { version = "0.4", features = ["with-tokio-0_2"] }
+xtra = "0.4"
 # Sql migrations
 refinery = { version = "0.3.0", features = ["postgres"] }
 # Just a simple wrapper around std::thread that `joins on drop`

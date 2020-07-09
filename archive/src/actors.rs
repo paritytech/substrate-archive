@@ -17,6 +17,7 @@
 //! Main entrypoint for substrate-archive. `init` will start all actors and begin indexing the
 //! chain defined with the passed-in Client and URL.
 
+mod actor_pool;
 mod generators;
 mod workers;
 
@@ -28,7 +29,7 @@ use super::{
     threadpools::{BlockFetcher, ThreadedBlockExecutor},
     types::Archive,
 };
-use futures::StreamExt;
+use futures::{future::Either, StreamExt};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
@@ -144,8 +145,8 @@ where
     /// Start the actors and begin driving their execution
     pub async fn drive(&mut self) -> ArchiveResult<()> {
         let pool = PgPool::builder()
-            .min_size(2)
-            .max_size(4)
+            .min_size(8)
+            .max_size(16)
             .build(self.context.psql_url())
             .await?;
         let ctx = self.context.clone();
@@ -158,8 +159,10 @@ where
         self.fetcher
             .attach_stream(subscription.map(|h| (*h.number()).into()));
         crate::util::spawn(missing_blocks(pool.clone(), self.fetcher.sender()));
-        ag.clone().attach_stream(self.executor.get_stream());
-        ag.attach_stream(self.fetcher.get_stream());
+        let exec_stream = self.executor.get_stream().map(|c| Either::Left(c));
+        let fetch_stream = self.fetcher.get_stream().map(|b| Either::Right(b));
+        let comb_stream = futures::stream::select(exec_stream, fetch_stream);
+        ag.attach_stream(comb_stream.map(|d| msg::IncomingData::from(d)));
         Ok(())
     }
 
