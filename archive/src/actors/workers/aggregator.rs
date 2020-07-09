@@ -14,14 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::ActorContext;
 use crate::{
     backend::BlockChanges,
     error::ArchiveResult,
     threadpools::BlockData,
     types::{BatchBlock, Block, Storage},
 };
+use flume::Sender;
 use itertools::{EitherOrBoth, Itertools};
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::{iter::FromIterator, time::Duration};
 use xtra::prelude::*;
 
@@ -46,7 +48,7 @@ where
     /// and sending them to the database actor
     meta_addr: Address<super::Metadata>,
     /// Pooled Postgres Database Connections
-    exec: flume::Sender<BlockData<B>>,
+    exec: Sender<BlockData<B>>,
     /// just a switch so we know not to print redundant messages
     last_count_was_0: bool,
 }
@@ -74,9 +76,9 @@ where
 /// Sending/Receiving ends of queues to send batches of data to actors
 struct Senders<B: BlockT> {
     /// sending end of an internal queue to send batches of storage to actors
-    storage_queue: flume::Sender<BlockChanges<B>>,
+    storage_queue: Sender<BlockChanges<B>>,
     /// sending end of an internal queue to send batches of blocks to actors
-    block_queue: flume::Sender<Block<B>>,
+    block_queue: Sender<Block<B>>,
 }
 
 struct Receivers<B: BlockT> {
@@ -84,20 +86,6 @@ struct Receivers<B: BlockT> {
     storage_recv: flume::Receiver<BlockChanges<B>>,
     /// receiving end of an internal queue to send batches of blocks to actors
     block_recv: flume::Receiver<Block<B>>,
-}
-
-impl<B> Receivers<B>
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    fn check_work(&self) -> BlockStorageCombo<B> {
-        self.storage_recv
-            .drain()
-            .map(Storage::from)
-            .zip_longest(self.block_recv.drain())
-            .collect::<BlockStorageCombo<B>>()
-    }
 }
 
 enum BlockOrStorage<B: BlockT> {
@@ -131,19 +119,24 @@ where
     NumberFor<B>: Into<u32>,
     NumberFor<B>: From<u32>,
 {
-    pub fn new(url: &str, tx: flume::Sender<BlockData<B>>, pool: &sqlx::PgPool) -> Self {
-        let db_addr = super::Database::new(&pool).spawn();
-        let meta_addr = super::Metadata::new(url.to_string(), &pool).spawn();
+    pub async fn new(
+        ctx: ActorContext<B>,
+        tx: Sender<BlockData<B>>,
+        pool: &sqlx::PgPool,
+    ) -> ArchiveResult<Self> {
+        let (psql_url, rpc_url) = (ctx.psql_url().to_string(), ctx.rpc_url().to_string());
+        let db_addr = super::Database::new(psql_url).await?.spawn();
+        let meta_addr = super::Metadata::new(rpc_url, &pool, db_addr.clone()).spawn();
         let (senders, recvs) = queues();
 
-        Self {
+        Ok(Self {
             senders,
             recvs: Some(recvs),
             db_addr,
             meta_addr,
             exec: tx,
             last_count_was_0: false,
-        }
+        })
     }
 }
 
@@ -164,7 +157,11 @@ where
         }
         let this = self.recvs.take().expect("checked for none; qed");
         ctx.notify_interval(Duration::from_millis(SYSTEM_TICK), move || {
-            this.check_work()
+            this.storage_recv
+                .drain()
+                .map(Storage::from)
+                .zip_longest(this.block_recv.drain())
+                .collect::<BlockStorageCombo<B>>()
         });
     }
 }
@@ -204,7 +201,7 @@ where
 struct BlockStorageCombo<B: BlockT>(BatchBlock<B>, super::msg::VecStorageWrap<B>);
 
 impl<B: BlockT> Message for BlockStorageCombo<B> {
-    type Result = ArchiveResult<()>;
+    type Result = ();
 }
 
 impl<B: BlockT> FromIterator<EitherOrBoth<Storage<B>, Block<B>>> for BlockStorageCombo<B> {
@@ -230,45 +227,40 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, counts: BlockStorageCombo<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
-        let (blocks, storage) = (counts.0, counts.1);
+    fn handle(&mut self, data: BlockStorageCombo<B>, ctx: &mut Context<Self>) {
+        let (blocks, storage) = (data.0, data.1);
 
-        let b_count = if !blocks.inner().is_empty() {
-            let count = blocks.inner().len();
-            self.meta_addr.do_send(blocks)?;
-            count
-        } else {
-            0
-        };
-
-        let s_count = if !storage.0.is_empty() {
-            let count = storage.0.len();
-            self.db_addr.do_send(storage)?;
-            count
-        } else {
-            0
-        };
-
-        match (b_count, s_count) {
-            (0, 0) => {
-                if !self.last_count_was_0 {
-                    log::info!("Waiting on node, nothing left to index ...");
-                    self.last_count_was_0 = true;
+        let (b, s) = (blocks.inner().len(), storage.0.len());
+        let r = || -> ArchiveResult<()> {
+            match (b, s) {
+                (0, 0) => {
+                    if !self.last_count_was_0 {
+                        log::info!("Waiting on node, nothing left to index ...");
+                        self.last_count_was_0 = true;
+                    }
                 }
-            }
-            (b, 0) => {
-                log::info!("Indexing Blocks {} bps", b);
-                self.last_count_was_0 = false;
-            }
-            (0, s) => {
-                log::info!("Indexing Storage {} bps", s);
-                self.last_count_was_0 = false;
-            }
-            (b, s) => {
-                log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s);
-                self.last_count_was_0 = false;
-            }
+                (b, 0) => {
+                    self.meta_addr.do_send(blocks)?;
+                    log::info!("Indexing Blocks {} bps", b);
+                    self.last_count_was_0 = false;
+                }
+                (0, s) => {
+                    self.db_addr.do_send(storage)?;
+                    log::info!("Indexing Storage {} bps", s);
+                    self.last_count_was_0 = false;
+                }
+                (b, s) => {
+                    self.db_addr.do_send(storage)?;
+                    self.meta_addr.do_send(blocks)?;
+                    log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s);
+                    self.last_count_was_0 = false;
+                }
+            };
+            Ok(())
         };
-        Ok(())
+        // receivers have dropped which means the system is stopping
+        if let Err(_) = r() {
+            ctx.stop()
+        }
     }
 }

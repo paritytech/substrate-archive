@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::database::{models::StorageModel, Database};
-use crate::error::ArchiveResult;
+use crate::error::{ArchiveResult, Error as ArchiveError};
 use crate::queries;
 use crate::types::*;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
@@ -31,6 +31,7 @@ where
 {
     async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         while !queries::check_if_meta_exists(blk.spec, self.pool()).await? {
+            log::error!("METADATA DOESN'T EXIST, waiting");
             timer::Delay::new(std::time::Duration::from_millis(20)).await;
         }
         self.insert(blk).await.map(|_| ())
@@ -57,10 +58,19 @@ where
             if db_contains_metadata(specs.as_slice(), versions) {
                 break;
             }
+            log::error!("Waiting....");
             timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
-
-        self.insert(blks).await.map(|_| ())
+        let now = std::time::Instant::now();
+        self.insert(blks).await.map(|_| ())?;
+        let elapsed = now.elapsed();
+        log::debug!(
+            "TOOK {} seconds, {} milli-seconds, {} micro-seconds, to insert blocks",
+            elapsed.as_secs(),
+            elapsed.as_millis(),
+            elapsed.as_micros(),
+        );
+        Ok(())
     }
 }
 
@@ -74,7 +84,7 @@ impl Handler<Metadata> for Database {
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<Storage<B>> for Database {
     async fn handle(&mut self, storage: Storage<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        while !queries::check_if_block_exists(storage.hash().as_ref(), self.pool()).await? {
+        while !queries::contains_block::<B>(*storage.hash(), self.pool()).await? {
             timer::Delay::new(std::time::Duration::from_millis(10)).await;
         }
         self.insert(Vec::<StorageModel<B>>::from(storage))
@@ -97,20 +107,29 @@ impl<B: BlockT> Handler<VecStorageWrap<B>> for Database {
         _ctx: &mut Context<Self>,
     ) -> ArchiveResult<()> {
         let mut futures = Vec::new();
-        for s in storage.0.into_iter() {
-            futures.push(async {
-                while !queries::check_if_block_exists(s.hash().as_ref(), self.pool()).await? {
+        for s in storage.0.iter() {
+            let hash = *s.hash();
+            let pool = self.pool();
+            futures.push(async move {
+                while !queries::contains_block::<B>(hash, pool).await? {
                     timer::Delay::new(std::time::Duration::from_millis(10)).await;
                 }
-                self.insert(Vec::<StorageModel<B>>::from(s))
-                    .await
-                    .map(|_| ())
+                futures::future::ok::<(), ArchiveError>(()).await
             });
         }
-        futures::future::join_all(futures)
+        futures::future::try_join_all(futures).await?;
+        let now = std::time::Instant::now();
+        self.insert(Vec::<StorageModel<B>>::from(storage))
             .await
-            .into_iter()
-            .collect::<ArchiveResult<()>>()
+            .map(|_| ())?;
+        let elapsed = now.elapsed();
+        log::debug!(
+            "TOOK {} seconds, {} milli-seconds, {} micro-seconds, to insert storage",
+            elapsed.as_secs(),
+            elapsed.as_millis(),
+            elapsed.as_micros(),
+        );
+        Ok(())
     }
 }
 

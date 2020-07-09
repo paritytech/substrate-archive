@@ -59,10 +59,20 @@ where
         let handle = jod_thread::spawn(move || -> ArchiveResult<()> {
             let pool = ThreadedBlockFetcher::new(ctx, threads)?;
             let mut pool = BlockScheduler::new(pool, 1000);
-            loop {
+            'sched: loop {
+                // ideally, there should be a way to check if senders
+                // have dropped: https://github.com/zesterer/flume/issues/32
+                // instead we just recv one message and see if it's disconnected
+                // before draining the queue
                 thread::sleep(Duration::from_millis(50));
-                let msgs = rx.drain().collect::<Vec<u32>>();
-                pool.add_data(msgs);
+                match rx.try_recv() {
+                    Ok(v) => pool.add_data_single(v),
+                    Err(e) => match e {
+                        flume::TryRecvError::Disconnected => break 'sched,
+                        _ => (),
+                    },
+                }
+                pool.add_data(rx.drain().collect());
                 let work = pool.check_work()?;
                 for w in work.into_iter() {
                     res_sender.send(w)?;
@@ -96,6 +106,11 @@ where
     /// panics if the stream has already been taken
     pub fn get_stream(&mut self) -> impl Stream<Item = Block<B>> {
         self.pair.1.take().unwrap()
+    }
+
+    /// get the channel to send work to this threadpool
+    pub fn sender(&self) -> flume::Sender<u32> {
+        self.sender.clone()
     }
 }
 
@@ -136,8 +151,22 @@ where
         let handle = jod_thread::spawn(move || -> ArchiveResult<()> {
             let pool = BlockExecPool::<B, R, A>::new(threads, client, backend)?;
             let mut pool = BlockScheduler::new(pool, 256);
-            loop {
+            'sched: loop {
                 thread::sleep(Duration::from_millis(50));
+                // ideally, there should be a way to check if senders
+                // have dropped: https://github.com/zesterer/flume/issues/32
+                // instead we just recv one message and see if it's disconnected
+                // before draining the queue
+                match rx.try_recv() {
+                    Ok(v) => match v {
+                        BlockData::Batch(v) => pool.add_data(v),
+                        BlockData::Single(v) => pool.add_data_single(v),
+                    },
+                    Err(e) => match e {
+                        flume::TryRecvError::Disconnected => break 'sched,
+                        _ => (),
+                    },
+                }
                 rx.drain().for_each(|v| match v {
                     BlockData::Batch(v) => pool.add_data(v),
                     BlockData::Single(v) => pool.add_data_single(v),
@@ -148,6 +177,7 @@ where
             }
             Ok(())
         });
+
         Ok(Self {
             sender: tx,
             pair: (sender, Some(receiver)),

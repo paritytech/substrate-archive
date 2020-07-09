@@ -29,10 +29,11 @@ pub fn main() -> Result<()> {
 
     let ctrlc = async_ctrlc::CtrlC::new().expect("Couldn't create ctrlc handler");
     println!("Waiting on ctrlc");
+    /*
     async_std::task::block_on(ctrlc.then(|_| async {
         println!("\nShutting down ...");
         archive.shutdown().await.unwrap();
     }));
-
+    */
     Ok(())
 }

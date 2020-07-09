@@ -22,6 +22,7 @@ use crate::{
     rpc::Rpc,
     types,
 };
+
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
@@ -91,6 +92,23 @@ pub struct ArchiveConfig {
     pub wasm_pages: Option<u64>,
 }
 
+fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
+    // TODO
+    // refinery creates a current-thread tokio runtime that calls 'block_on', so we need to run possibly in its own thread
+    // in case the user creates another runtime with tokio
+    // Once SQLx 0.4 releases, we can replace refinery with embedded SQLx migrations
+    #[cfg(feature = "with-tokio")]
+    {
+        std::thread::spawn(move || crate::migrations::migrate(conf))
+            .join()
+            .expect("Migrations failed to run")
+    }
+    #[cfg(not(feature = "with-tokio"))]
+    {
+        crate::migrations::migrate(conf)
+    }
+}
+
 impl<B, R, D> ArchiveBuilder<B, R, D>
 where
     B: BlockT + Unpin,
@@ -110,10 +128,8 @@ where
     /// and run Postgres Migrations
     /// Should not be run within a futures runtime
     pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self, ArchiveError> {
-        let pconf = conf.psql_conf.clone();
-        // refinery creates a current-thread tokio runtime that calls 'block_on', so we need to run possibly in its own thread
-        // in case the user creates another runtime with tokio
-        let psql_url = crate::migrations::migrate(pconf)?;
+        let psql_url = migrate(conf.psql_conf.clone())?;
+
         let db = Arc::new(backend::util::open_database(
             conf.db_url.as_str(),
             conf.cache_size,
@@ -150,7 +166,6 @@ where
     /// in which the archive is running.
     pub async fn run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
         let cpus = num_cpus::get();
-        log::info!("Creating client 0 ");
         let client0 = Arc::new(
             backend::runtime_api::<B, R, D>(
                 self.db.clone(),
@@ -159,7 +174,6 @@ where
             )
             .map_err(ArchiveError::from)?,
         );
-        log::info!("Creating client 1");
         let client1 = Arc::new(
             backend::runtime_api::<B, R, D>(self.db.clone(), 3, 64).map_err(ArchiveError::from)?,
         );

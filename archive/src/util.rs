@@ -10,7 +10,6 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -110,6 +109,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("sqlx", log::LevelFilter::Warn)
         .level_for("staking", log::LevelFilter::Warn)
         .level_for("cranelift_codegen", log::LevelFilter::Warn)
+        .level_for("header", log::LevelFilter::Warn)
         .format(move |out, message, record| {
             out.finish(format_args!(
                 "{} {} {}",
