@@ -17,18 +17,18 @@
 //! A module that handles a pool of actors
 use crate::error::ArchiveResult;
 use futures::future::{Future, FutureExt};
-use futures::{stream::FuturesUnordered, StreamExt};
 use std::collections::VecDeque;
 use std::pin::Pin;
 use xtra::prelude::*;
 use xtra::Disconnected;
 
-type SendFuture =
-    Pin<Box<dyn Future<Output = Result<ArchiveResult<()>, Disconnected>> + 'static + Send>>;
+// type SendFuture =
+//    Pin<Box<dyn Future<Output = Result<ArchiveResult<()>, Disconnected>> + 'static + Send>>;
 
 pub struct ActorPool<A: Actor> {
     queue: VecDeque<Address<A>>,
-    futures: FuturesUnordered<SendFuture>,
+    // futures: FuturesUnordered<SendFuture>,
+    // tx: flume::Sender<SendFuture>,
     pure_actor: A,
 }
 
@@ -40,10 +40,9 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
             let a = actor.clone();
             queue.push_back(a.spawn())
         }
-        let futures = FuturesUnordered::new();
+
         Self {
             queue,
-            futures,
             pure_actor: actor,
         }
     }
@@ -76,16 +75,24 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
         M: Message<Result = ArchiveResult<()>>,
         A: Handler<M>,
     {
-        let next = self.futures.next().await;
-        if let Some(Ok(v)) = next {
-            if let Err(e) = v {
-                log::error!("{}", e.to_string());
-            }
-        } else if let Some(Err(_)) = next {
-            log::warn!("One of the pooled actors has disconnected");
-        }
         self.queue.rotate_left(1);
-        self.futures.push(self.queue[0].send(msg).boxed());
+        crate::util::spawn(spawn(self.queue[0].send(msg)));
+    }
+}
+
+async fn spawn(
+    fut: impl Future<Output = Result<ArchiveResult<()>, Disconnected>>,
+) -> ArchiveResult<()> {
+    match fut.await {
+        Ok(v) => {
+            log::info!("completed!");
+            v
+        }
+        Err(e) => {
+            log::error!("one of the pooled db actors has disconnected");
+            //TODO: Panic?
+            Ok(())
+        }
     }
 }
 

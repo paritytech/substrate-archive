@@ -47,7 +47,7 @@ where
     db_pool: Address<super::ActorPool<super::Database>>,
     /// Actor which manages getting the runtime metadata for blocks
     /// and sending them to the database actor
-    meta_addr: Address<super::Metadata>,
+    meta_addr: Address<super::Metadata<B>>,
     /// Pooled Postgres Database Connections
     exec: Sender<BlockData<B>>,
     /// just a switch so we know not to print redundant messages
@@ -127,9 +127,12 @@ where
     ) -> ArchiveResult<Self> {
         let (psql_url, rpc_url) = (ctx.psql_url().to_string(), ctx.rpc_url().to_string());
         let pool = pool.clone();
+        let conn = pool.acquire().await?;
         let db = super::Database::with_pool(psql_url, pool.clone());
-        let db_pool = super::ActorPool::new(db.clone(), 3).spawn();
-        let meta_addr = super::Metadata::new(rpc_url, &pool, db_pool.clone()).spawn();
+        let db_pool = super::ActorPool::new(db.clone(), 8).spawn();
+        let meta_addr = super::Metadata::new(rpc_url, conn, db_pool.clone())
+            .await
+            .spawn();
         let (senders, recvs) = queues();
 
         Ok(Self {
@@ -249,16 +252,14 @@ where
             }
             (0, s) => {
                 self.db_pool
-                    .send(storage.into())
-                    .await
-                    .expect("Actor disconnected");
+                    .do_send(storage.into())
+                    .expect("Actor Disconnected");
                 log::info!("Indexing Storage {} bps", s);
                 self.last_count_was_0 = false;
             }
             (b, s) => {
                 self.db_pool
-                    .send(storage.into())
-                    .await
+                    .do_send(storage.into())
                     .expect("Actor Disconnected");
                 self.meta_addr.do_send(blocks).expect("Actor Disconnected");
                 log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s);

@@ -16,12 +16,14 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
+use super::batch::Batch;
 use crate::{
     error::{ArchiveResult, Error as ArchiveError},
     sql_block_builder::SqlBlock,
 };
 use futures::Stream;
 use sp_runtime::traits::Block as BlockT;
+use sqlx::PgConnection;
 
 #[derive(sqlx::FromRow, Debug, Clone)]
 pub struct BlockNumSeries {
@@ -30,7 +32,7 @@ pub struct BlockNumSeries {
 
 /// get missing blocks from relational database as a stream
 pub(crate) fn missing_blocks_stream(
-    conn: &mut sqlx::PgConnection,
+    conn: &mut PgConnection,
 ) -> impl Stream<Item = Result<(i32,), sqlx::Error>> + Send + '_ {
     sqlx::query_as::<_, (i32,)>(
         "SELECT generate_series
@@ -45,7 +47,7 @@ pub(crate) fn missing_blocks_stream(
 
 /// get missing blocks from relational database
 #[allow(unused)]
-pub(crate) async fn missing_blocks(conn: &sqlx::PgPool) -> ArchiveResult<Vec<u32>> {
+pub(crate) async fn missing_blocks(conn: &mut PgConnection) -> ArchiveResult<Vec<u32>> {
     Ok(sqlx::query_as::<_, (i32,)>(
         "SELECT generate_series
         FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
@@ -67,7 +69,7 @@ pub(crate) async fn missing_blocks(conn: &sqlx::PgPool) -> ArchiveResult<Vec<u32
 /// this is so the runtime code can be kept in cache without
 /// constantly switching between runtime versions if the blocks will be executed
 pub(crate) async fn blocks_storage_intersection(
-    pool: &sqlx::PgPool,
+    conn: &mut sqlx::PgConnection,
 ) -> Result<Vec<SqlBlock>, ArchiveError> {
     sqlx::query_as(
         "SELECT *
@@ -75,14 +77,14 @@ pub(crate) async fn blocks_storage_intersection(
         WHERE NOT EXISTS (SELECT * FROM storage WHERE storage.block_num = blocks.block_num)
         ORDER BY blocks.spec",
     )
-    .fetch_all(pool)
+    .fetch_all(conn)
     .await
     .map_err(Into::into)
 }
 
 #[cfg(test)]
 pub(crate) async fn get_full_block(
-    pool: &sqlx::PgPool,
+    conn: &mut sqlx::PgConnection,
     block_num: u32,
 ) -> Result<SqlBlock, ArchiveError> {
     sqlx::query_as(
@@ -98,9 +100,9 @@ pub(crate) async fn get_full_block(
     .map_err(Into::into)
 }
 
-pub(crate) async fn blocks_count(pool: &sqlx::PgPool) -> Result<u64, ArchiveError> {
+pub(crate) async fn blocks_count(conn: &mut sqlx::PgConnection) -> Result<u64, ArchiveError> {
     let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM blocks")
-        .fetch_one(pool)
+        .fetch_one(conn)
         .await
         .map_err(ArchiveError::from)?;
     Ok(row.0 as u64)
@@ -109,25 +111,41 @@ pub(crate) async fn blocks_count(pool: &sqlx::PgPool) -> Result<u64, ArchiveErro
 /// check if a runtime versioned metadata exists in the database
 pub(crate) async fn check_if_meta_exists(
     spec: u32,
-    pool: &sqlx::PgPool,
+    conn: &mut PgConnection,
 ) -> Result<bool, ArchiveError> {
     let row: (bool,) =
         sqlx::query_as(r#"SELECT EXISTS(SELECT version FROM metadata WHERE version=$1)"#)
             .bind(spec)
-            .fetch_one(pool)
+            .fetch_one(conn)
             .await?;
     Ok(row.0)
 }
 
 pub(crate) async fn contains_block<B: BlockT>(
     hash: B::Hash,
-    pool: &sqlx::PgPool,
+    conn: &mut PgConnection,
 ) -> Result<bool, ArchiveError> {
     let hash = hash.as_ref();
     let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash=$1)"#)
         .bind(hash)
-        .fetch_one(pool)
+        .fetch_one(conn)
         .await?;
+    Ok(row.0)
+}
+
+pub(crate) async fn contains_blocks<B: BlockT>(
+    nums: &[u32],
+    conn: &mut PgConnection,
+) -> Result<bool, ArchiveError> {
+    let mut query = String::from("SELECT EXISTS(SELECT block_num FROM blocks WHERE block_num IN (");
+    for (i, num) in nums.iter().enumerate() {
+        itoa::fmt(&mut query, *num)?;
+        if i != nums.len() - 1 {
+            query.push_str(",");
+        }
+    }
+    query.push_str("))");
+    let row: (bool,) = sqlx::query_as(query.as_str()).fetch_one(conn).await?;
     Ok(row.0)
 }
 
@@ -136,9 +154,9 @@ pub struct Version {
     pub version: i32,
 }
 
-pub(crate) async fn get_versions(pool: &sqlx::PgPool) -> Result<Vec<Version>, ArchiveError> {
+pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<Version>, ArchiveError> {
     sqlx::query_as::<_, Version>("SELECT version FROM metadata")
-        .fetch_all(pool)
+        .fetch_all(conn)
         .await
         .map_err(Into::into)
 }

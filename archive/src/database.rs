@@ -19,6 +19,7 @@
 
 mod batch;
 pub mod models;
+pub mod queries;
 
 use async_trait::async_trait;
 use batch::Batch;
@@ -37,7 +38,7 @@ pub type DbConn = sqlx::pool::PoolConnection<Postgres>;
 
 #[async_trait]
 pub trait Insert: Sync {
-    async fn insert(mut self, mut conn: DbConn) -> DbReturn
+    async fn insert(mut self, conn: &mut DbConn) -> DbReturn
     where
         Self: Sized;
 }
@@ -71,8 +72,15 @@ impl Database {
     }
 
     pub async fn insert(&self, data: impl Insert) -> ArchiveResult<u64> {
-        let conn = self.pool.acquire().await?;
-        data.insert(conn).await
+        let mut conn = self.pool.acquire().await?;
+        let res = data.insert(&mut conn).await?;
+        // we HAVE to ensure the connection is dropped, otherwise we may never reclaim it
+        std::mem::drop(conn);
+        Ok(res)
+    }
+
+    pub async fn conn(&self) -> ArchiveResult<DbConn> {
+        self.pool.acquire().await.map_err(Into::into)
     }
 }
 
@@ -82,7 +90,7 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn insert(mut self, mut conn: DbConn) -> DbReturn {
+    async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
         log::info!("Inserting single block");
         log::trace!(
             "block_num = {:?}, hash = {:X?}",
@@ -113,7 +121,7 @@ where
             .bind(digest.as_slice())
             .bind(extrinsics.as_slice())
             .bind(self.spec)
-            .execute(&mut conn)
+            .execute(conn)
             .await
             .map_err(Into::into)
     }
@@ -121,7 +129,7 @@ where
 
 #[async_trait]
 impl<B: BlockT> Insert for StorageModel<B> {
-    async fn insert(mut self, mut conn: DbConn) -> DbReturn {
+    async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
         log::info!("Inserting Single Storage");
         sqlx::query(
             r#"
@@ -140,7 +148,7 @@ impl<B: BlockT> Insert for StorageModel<B> {
         .bind(self.is_full())
         .bind(self.key().0.as_slice())
         .bind(self.data().map(|d| d.0.as_slice()))
-        .execute(&mut conn)
+        .execute(conn)
         .await
         .map_err(Into::into)
     }
@@ -148,7 +156,7 @@ impl<B: BlockT> Insert for StorageModel<B> {
 
 #[async_trait]
 impl<B: BlockT> Insert for Vec<StorageModel<B>> {
-    async fn insert(mut self, mut conn: DbConn) -> DbReturn {
+    async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
         let mut batch = Batch::new(
             "storage",
             r#"
@@ -182,14 +190,14 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
             batch.bind(s.data().map(|d| d.0.as_slice()))?;
             batch.append(")");
         }
-        batch.execute(&mut conn).await?;
+        batch.execute(conn).await?;
         Ok(0)
     }
 }
 
 #[async_trait]
 impl Insert for Metadata {
-    async fn insert(mut self, mut conn: DbConn) -> DbReturn {
+    async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
         log::info!("Inserting Metadata");
         sqlx::query(
             r#"
@@ -200,7 +208,7 @@ impl Insert for Metadata {
         )
         .bind(self.version())
         .bind(self.meta())
-        .execute(&mut conn)
+        .execute(conn)
         .await
         .map_err(Into::into)
     }
@@ -212,7 +220,7 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn insert(mut self, mut conn: DbConn) -> DbReturn {
+    async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
         let mut batch = Batch::new(
             "blocks",
             r#"
@@ -254,7 +262,7 @@ where
             batch.bind(b.spec)?;
             batch.append(")");
         }
-        batch.execute(&mut conn).await?;
+        batch.execute(conn).await?;
         Ok(0)
     }
 }

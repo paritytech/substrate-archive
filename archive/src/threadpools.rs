@@ -20,13 +20,13 @@ use self::block_fetcher::ThreadedBlockFetcher;
 use self::block_scheduler::BlockScheduler;
 use crate::backend::{ApiAccess, BlockChanges, ReadOnlyBackend as Backend};
 use crate::{actors::ActorContext, error::ArchiveResult, types::Block};
+use block_scheduler::Ordering;
 use futures::{Stream, StreamExt};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::{sync::Arc, thread, time::Duration};
-
 mod block_exec_pool;
 mod block_fetcher;
 mod block_scheduler;
@@ -58,7 +58,7 @@ where
         let res_sender = sender.clone();
         let handle = jod_thread::spawn(move || -> ArchiveResult<()> {
             let pool = ThreadedBlockFetcher::new(ctx, threads)?;
-            let mut pool = BlockScheduler::new(pool, 1000);
+            let mut pool = BlockScheduler::new(pool, 1000, Ordering::Descending);
             'sched: loop {
                 // ideally, there should be a way to check if senders
                 // have dropped: https://github.com/zesterer/flume/issues/32
@@ -150,7 +150,7 @@ where
         let res_sender = sender.clone();
         let handle = jod_thread::spawn(move || -> ArchiveResult<()> {
             let pool = BlockExecPool::<B, R, A>::new(threads, client, backend)?;
-            let mut pool = BlockScheduler::new(pool, 256);
+            let mut pool = BlockScheduler::new(pool, 256, Ordering::Ascending);
             'sched: loop {
                 thread::sleep(Duration::from_millis(50));
                 // ideally, there should be a way to check if senders

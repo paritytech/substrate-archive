@@ -15,6 +15,7 @@
 
 use super::ActorPool;
 use crate::{
+    database::DbConn,
     error::ArchiveResult,
     queries,
     rpc::Rpc,
@@ -26,34 +27,23 @@ use xtra::prelude::*;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub struct Metadata {
-    url: String,
-    pool: sqlx::PgPool,
+pub struct Metadata<B: BlockT> {
+    conn: DbConn,
     addr: Address<ActorPool<super::Database>>,
+    rpc: Rpc<B>,
 }
 
-impl Metadata {
-    pub fn new(
-        url: String,
-        pool: &sqlx::PgPool,
-        addr: Address<ActorPool<super::Database>>,
-    ) -> Self {
-        Self {
-            url,
-            pool: pool.clone(),
-            addr,
-        }
+impl<B: BlockT> Metadata<B> {
+    pub async fn new(url: String, conn: DbConn, addr: Address<ActorPool<super::Database>>) -> Self {
+        let rpc = super::connect::<B>(url.as_str()).await;
+        Self { conn, addr, rpc }
     }
 
     // checks if the metadata exists in the database
     // if it doesn't exist yet, fetch metadata and insert it
-    async fn meta_checker<B: BlockT>(
-        &self,
-        ver: u32,
-        hash: B::Hash,
-        rpc: &Rpc<B>,
-    ) -> ArchiveResult<()> {
-        if !queries::check_if_meta_exists(ver, &self.pool).await? {
+    async fn meta_checker(&mut self, ver: u32, hash: B::Hash) -> ArchiveResult<()> {
+        let rpc = self.rpc.clone();
+        if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
             let meta = rpc.metadata(Some(hash)).await?;
             let meta = MetadataT::new(ver, meta);
             self.addr.do_send(meta.into())?;
@@ -62,32 +52,29 @@ impl Metadata {
     }
 }
 
-impl Actor for Metadata {}
+impl<B: BlockT> Actor for Metadata<B> {}
 
 #[async_trait::async_trait]
-impl<B> Handler<Block<B>> for Metadata
+impl<B> Handler<Block<B>> for Metadata<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        let rpc = super::connect::<B>(self.url.as_str()).await;
         let hash = blk.inner.block.header().hash();
-        self.meta_checker(blk.spec, hash, &rpc).await?;
+        self.meta_checker(blk.spec, hash).await?;
         self.addr.do_send(blk.into())?;
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl<B> Handler<BatchBlock<B>> for Metadata
+impl<B> Handler<BatchBlock<B>> for Metadata<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, blks: BatchBlock<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        let rpc = super::connect::<B>(self.url.as_str()).await;
-
         let versions = blks
             .inner()
             .iter()
@@ -95,8 +82,7 @@ where
             .collect::<Vec<&Block<B>>>();
 
         for b in versions.iter() {
-            self.meta_checker(b.spec, b.inner.block.hash(), &rpc)
-                .await?;
+            self.meta_checker(b.spec, b.inner.block.hash()).await?;
         }
         self.addr.do_send(blks.into())?;
         Ok(())

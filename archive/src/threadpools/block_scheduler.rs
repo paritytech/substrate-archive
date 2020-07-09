@@ -70,6 +70,11 @@ impl<I: Encode + PriorityIdent> From<I> for EncodedIn<I> {
     }
 }
 
+pub enum Ordering {
+    Ascending,
+    Descending,
+}
+
 pub struct BlockScheduler<I, O, T>
 where
     I: Clone + Send + Sync + Encode + Decode + PriorityIdent,
@@ -94,6 +99,8 @@ where
     finished: usize,
     /// the maximum tasks we should have queued in the threadpool at any one time
     max_size: usize,
+    /// The order in which we should schedule based on the priority identifier
+    ordering: Ordering,
 }
 
 impl<I, O, T> BlockScheduler<I, O, T>
@@ -102,7 +109,7 @@ where
     O: Send + Sync + Debug + Clone,
     T: ThreadPool<In = I, Out = O>,
 {
-    pub fn new(exec: T, max_size: usize) -> Self {
+    pub fn new(exec: T, max_size: usize, ord: Ordering) -> Self {
         let (tx, rx) = flume::unbounded();
         Self {
             queue: BinaryHeap::new(),
@@ -113,6 +120,7 @@ where
             added: 0,
             finished: 0,
             max_size,
+            ordering: ord,
         }
     }
 
@@ -159,7 +167,14 @@ where
         let mut sorted = BinaryHeap::new();
         std::mem::swap(&mut self.queue, &mut sorted);
 
-        let mut sorted = sorted.into_sorted_vec();
+        let mut sorted = {
+            let mut s = sorted.into_sorted_vec();
+            match self.ordering {
+                Ordering::Ascending => (),
+                Ordering::Descending => s.reverse(),
+            }
+            s
+        };
         let to_insert = if sorted.len() > to_add {
             sorted
                 .drain(0..to_add)
@@ -171,6 +186,9 @@ where
                 .map(|b| Decode::decode(&mut b.enc.as_slice()).map_err(ArchiveError::from))
                 .collect::<ArchiveResult<Vec<I>>>()?
         };
+        if matches!(self.ordering, Ordering::Descending) {
+            sorted.reverse();
+        }
         self.queue.extend(sorted.into_iter());
         self.added += self.exec.add_task(to_insert, self.tx.clone())?;
         Ok(())

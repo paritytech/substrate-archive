@@ -145,8 +145,8 @@ where
     /// Start the actors and begin driving their execution
     pub async fn drive(&mut self) -> ArchiveResult<()> {
         let pool = PgPool::builder()
-            .min_size(8)
-            .max_size(16)
+            .min_size(16)
+            .max_size(32)
             .build(self.context.psql_url())
             .await?;
         let ctx = self.context.clone();
@@ -154,11 +154,14 @@ where
         let tx = self.executor.sender();
         let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
         let subscription = rpc.subscribe_finalized_heads().await?;
-        fill_storage(pool.clone(), tx.clone()).await?;
+        log::info!("Blocking on filling storage");
+        let conn = pool.acquire().await?;
+        crate::util::spawn(fill_storage(conn, tx.clone()));
         let ag = Aggregator::new(ctx.clone(), tx, &pool).await?.spawn();
         self.fetcher
             .attach_stream(subscription.map(|h| (*h.number()).into()));
-        crate::util::spawn(missing_blocks(pool.clone(), self.fetcher.sender()));
+        let conn = pool.acquire().await?;
+        crate::util::spawn(missing_blocks(conn, self.fetcher.sender()));
         let exec_stream = self.executor.get_stream().map(|c| Either::Left(c));
         let fetch_stream = self.fetcher.get_stream().map(|b| Either::Right(b));
         let comb_stream = futures::stream::select(exec_stream, fetch_stream);
