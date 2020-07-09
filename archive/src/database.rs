@@ -185,7 +185,6 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
             batch.bind(s.data().map(|d| d.0.as_slice()))?;
             batch.append(")");
         }
-        let len = batch.len();
         batch.execute(&mut conn).await?;
         Ok(0)
     }
@@ -258,7 +257,6 @@ where
             batch.bind(b.spec)?;
             batch.append(")");
         }
-        let len = batch.len();
         batch.execute(&mut conn).await?;
         Ok(0)
     }

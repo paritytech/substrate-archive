@@ -18,7 +18,6 @@
 //! Taken from this Gist by @mehcode (Github): https://gist.github.com/mehcode/c476922be0290a4f8502d18701cc8c74
 //! This is sortof temporary until SQLx develops their dynamic query builder: https://github.com/launchbadge/sqlx/issues/291
 //! and `Quaint` switches to SQLx as a backend: https://github.com/prisma/quaint/issues/138
-use super::DbConn;
 use crate::error::ArchiveResult;
 // use futures::future::try_join_all;
 use sqlx::prelude::*;
@@ -28,7 +27,7 @@ use sqlx::{
     Arguments,
 };
 
-const CHUNK_MAX: usize = 35_000;
+const CHUNK_MAX: usize = 30_000;
 
 pub struct Chunk {
     query: String,
@@ -126,10 +125,6 @@ impl Batch {
     // TODO: Better name?
     pub fn current_num_arguments(&self) -> usize {
         self.chunks[self.index].args_len
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
     }
 }
 

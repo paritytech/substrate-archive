@@ -109,6 +109,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("sqlx", log::LevelFilter::Warn)
         .level_for("staking", log::LevelFilter::Warn)
         .level_for("cranelift_codegen", log::LevelFilter::Warn)
+        .level_for("header", log::LevelFilter::Warn)
         .format(move |out, message, record| {
             out.finish(format_args!(
                 "{} {} {}",

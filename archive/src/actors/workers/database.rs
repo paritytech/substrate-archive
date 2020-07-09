@@ -65,11 +65,10 @@ where
         self.insert(blks).await.map(|_| ())?;
         let elapsed = now.elapsed();
         log::debug!(
-            "TOOK {} seconds, {} milli-seconds, {} micro-seconds, {} nano-seconds to insert blocks",
+            "TOOK {} seconds, {} milli-seconds, {} micro-seconds, to insert blocks",
             elapsed.as_secs(),
             elapsed.as_millis(),
             elapsed.as_micros(),
-            elapsed.as_nanos()
         );
         Ok(())
     }
@@ -125,11 +124,10 @@ impl<B: BlockT> Handler<VecStorageWrap<B>> for Database {
             .map(|_| ())?;
         let elapsed = now.elapsed();
         log::debug!(
-            "TOOK {} seconds, {} milli-seconds, {} micro-seconds, {} nano-seconds to insert storage",
+            "TOOK {} seconds, {} milli-seconds, {} micro-seconds, to insert storage",
             elapsed.as_secs(),
             elapsed.as_millis(),
             elapsed.as_micros(),
-            elapsed.as_nanos()
         );
         Ok(())
     }

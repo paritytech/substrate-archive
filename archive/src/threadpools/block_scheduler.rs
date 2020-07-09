@@ -137,7 +137,7 @@ where
 
     pub fn check_work(&mut self) -> ArchiveResult<Vec<O>> {
         log::trace!("Queue Length: {}", self.queue.len());
-        // we try to maintain a MAX queue of 256 tasks at a time in the threadpool
+        // we try to maintain a MAX queue of max_size tasks at a time in the threadpool
         let delta = self.added - self.finished;
         if self.finished == 0 && self.added == 0 {
             self.add_work(self.max_size)?;

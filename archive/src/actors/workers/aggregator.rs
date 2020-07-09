@@ -88,20 +88,6 @@ struct Receivers<B: BlockT> {
     block_recv: flume::Receiver<Block<B>>,
 }
 
-impl<B> Receivers<B>
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    fn check_work(&self) -> BlockStorageCombo<B> {
-        self.storage_recv
-            .drain()
-            .map(Storage::from)
-            .zip_longest(self.block_recv.drain())
-            .collect::<BlockStorageCombo<B>>()
-    }
-}
-
 enum BlockOrStorage<B: BlockT> {
     Block(Block<B>),
     BatchBlock(BatchBlock<B>),
@@ -171,7 +157,11 @@ where
         }
         let this = self.recvs.take().expect("checked for none; qed");
         ctx.notify_interval(Duration::from_millis(SYSTEM_TICK), move || {
-            this.check_work()
+            this.storage_recv
+                .drain()
+                .map(Storage::from)
+                .zip_longest(this.block_recv.drain())
+                .collect::<BlockStorageCombo<B>>()
         });
     }
 }
@@ -211,7 +201,7 @@ where
 struct BlockStorageCombo<B: BlockT>(BatchBlock<B>, super::msg::VecStorageWrap<B>);
 
 impl<B: BlockT> Message for BlockStorageCombo<B> {
-    type Result = ArchiveResult<()>;
+    type Result = ();
 }
 
 impl<B: BlockT> FromIterator<EitherOrBoth<Storage<B>, Block<B>>> for BlockStorageCombo<B> {
@@ -237,45 +227,40 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, counts: BlockStorageCombo<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
-        let (blocks, storage) = (counts.0, counts.1);
+    fn handle(&mut self, data: BlockStorageCombo<B>, ctx: &mut Context<Self>) {
+        let (blocks, storage) = (data.0, data.1);
 
-        let b_count = if !blocks.inner().is_empty() {
-            let count = blocks.inner().len();
-            self.meta_addr.do_send(blocks)?;
-            count
-        } else {
-            0
-        };
-
-        let s_count = if !storage.0.is_empty() {
-            let count = storage.0.len();
-            self.db_addr.do_send(storage)?;
-            count
-        } else {
-            0
-        };
-
-        match (b_count, s_count) {
-            (0, 0) => {
-                if !self.last_count_was_0 {
-                    log::info!("Waiting on node, nothing left to index ...");
-                    self.last_count_was_0 = true;
+        let (b, s) = (blocks.inner().len(), storage.0.len());
+        let r = || -> ArchiveResult<()> {
+            match (b, s) {
+                (0, 0) => {
+                    if !self.last_count_was_0 {
+                        log::info!("Waiting on node, nothing left to index ...");
+                        self.last_count_was_0 = true;
+                    }
                 }
-            }
-            (b, 0) => {
-                log::info!("Indexing Blocks {} bps", b);
-                self.last_count_was_0 = false;
-            }
-            (0, s) => {
-                log::info!("Indexing Storage {} bps", s);
-                self.last_count_was_0 = false;
-            }
-            (b, s) => {
-                log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s);
-                self.last_count_was_0 = false;
-            }
+                (b, 0) => {
+                    self.meta_addr.do_send(blocks)?;
+                    log::info!("Indexing Blocks {} bps", b);
+                    self.last_count_was_0 = false;
+                }
+                (0, s) => {
+                    self.db_addr.do_send(storage)?;
+                    log::info!("Indexing Storage {} bps", s);
+                    self.last_count_was_0 = false;
+                }
+                (b, s) => {
+                    self.db_addr.do_send(storage)?;
+                    self.meta_addr.do_send(blocks)?;
+                    log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s);
+                    self.last_count_was_0 = false;
+                }
+            };
+            Ok(())
         };
-        Ok(())
+        // receivers have dropped which means the system is stopping
+        if let Err(_) = r() {
+            ctx.stop()
+        }
     }
 }

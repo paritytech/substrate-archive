@@ -29,7 +29,6 @@ pub struct BlockNumSeries {
 }
 
 /// get missing blocks from relational database as a stream
-#[allow(unused)]
 pub(crate) fn missing_blocks_stream(
     conn: &mut sqlx::PgConnection,
 ) -> impl Stream<Item = Result<(i32,), sqlx::Error>> + Send + '_ {
@@ -45,6 +44,7 @@ pub(crate) fn missing_blocks_stream(
 }
 
 /// get missing blocks from relational database
+#[allow(unused)]
 pub(crate) async fn missing_blocks(conn: &sqlx::PgPool) -> ArchiveResult<Vec<u32>> {
     Ok(sqlx::query_as::<_, (i32,)>(
         "SELECT generate_series

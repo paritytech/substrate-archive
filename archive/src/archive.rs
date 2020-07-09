@@ -93,8 +93,10 @@ pub struct ArchiveConfig {
 }
 
 fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
+    // TODO
     // refinery creates a current-thread tokio runtime that calls 'block_on', so we need to run possibly in its own thread
     // in case the user creates another runtime with tokio
+    // Once SQLx 0.4 releases, we can replace refinery with embedded SQLx migrations
     #[cfg(feature = "with-tokio")]
     {
         std::thread::spawn(move || crate::migrations::migrate(conf))
@@ -164,7 +166,6 @@ where
     /// in which the archive is running.
     pub async fn run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
         let cpus = num_cpus::get();
-        log::info!("Creating client 0 ");
         let client0 = Arc::new(
             backend::runtime_api::<B, R, D>(
                 self.db.clone(),
@@ -173,7 +174,6 @@ where
             )
             .map_err(ArchiveError::from)?,
         );
-        log::info!("Creating client 1");
         let client1 = Arc::new(
             backend::runtime_api::<B, R, D>(self.db.clone(), 3, 64).map_err(ArchiveError::from)?,
         );
