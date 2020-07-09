@@ -16,19 +16,13 @@
 
 //! A module that handles a pool of actors
 use crate::error::ArchiveResult;
-use futures::future::{Future, FutureExt};
+use futures::future::Future;
 use std::collections::VecDeque;
-use std::pin::Pin;
 use xtra::prelude::*;
 use xtra::Disconnected;
 
-// type SendFuture =
-//    Pin<Box<dyn Future<Output = Result<ArchiveResult<()>, Disconnected>> + 'static + Send>>;
-
 pub struct ActorPool<A: Actor> {
     queue: VecDeque<Address<A>>,
-    // futures: FuturesUnordered<SendFuture>,
-    // tx: flume::Sender<SendFuture>,
     pure_actor: A,
 }
 
@@ -84,11 +78,8 @@ async fn spawn(
     fut: impl Future<Output = Result<ArchiveResult<()>, Disconnected>>,
 ) -> ArchiveResult<()> {
     match fut.await {
-        Ok(v) => {
-            log::info!("completed!");
-            v
-        }
-        Err(e) => {
+        Ok(v) => v,
+        Err(_) => {
             log::error!("one of the pooled db actors has disconnected");
             //TODO: Panic?
             Ok(())

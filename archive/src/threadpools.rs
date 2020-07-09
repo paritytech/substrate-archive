@@ -58,7 +58,7 @@ where
         let res_sender = sender.clone();
         let handle = jod_thread::spawn(move || -> ArchiveResult<()> {
             let pool = ThreadedBlockFetcher::new(ctx, threads)?;
-            let mut pool = BlockScheduler::new(pool, 1000, Ordering::Descending);
+            let mut pool = BlockScheduler::new(pool, 1000, Ordering::Ascending);
             'sched: loop {
                 // ideally, there should be a way to check if senders
                 // have dropped: https://github.com/zesterer/flume/issues/32

@@ -123,13 +123,12 @@ where
     pub async fn new(
         ctx: ActorContext<B>,
         tx: Sender<BlockData<B>>,
-        pool: &sqlx::PgPool,
+        pool: sqlx::PgPool,
     ) -> ArchiveResult<Self> {
         let (psql_url, rpc_url) = (ctx.psql_url().to_string(), ctx.rpc_url().to_string());
-        let pool = pool.clone();
         let conn = pool.acquire().await?;
-        let db = super::Database::with_pool(psql_url, pool.clone());
-        let db_pool = super::ActorPool::new(db.clone(), 8).spawn();
+        let db = super::Database::with_pool(psql_url, pool);
+        let db_pool = super::ActorPool::new(db.clone(), 4).spawn();
         let meta_addr = super::Metadata::new(rpc_url, conn, db_pool.clone())
             .await
             .spawn();
