@@ -23,7 +23,6 @@ pub mod backend;
 mod database;
 mod error;
 mod migrations;
-mod queries;
 mod rpc;
 #[cfg(test)]
 mod simple_db;
@@ -34,6 +33,7 @@ mod util;
 
 pub use actors::System;
 pub use archive::{ArchiveBuilder, ArchiveConfig};
+pub use database::queries;
 pub use error::Error;
 pub use migrations::MigrationConfig;
 pub use types::Archive;

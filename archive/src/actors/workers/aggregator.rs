@@ -22,6 +22,7 @@ use crate::{
     types::{BatchBlock, Block, Storage},
 };
 use flume::Sender;
+use futures::future::Either;
 use itertools::{EitherOrBoth, Itertools};
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::{iter::FromIterator, time::Duration};
@@ -43,10 +44,10 @@ where
     senders: Senders<B>,
     recvs: Option<Receivers<B>>,
     /// actor which inserts blocks into the database
-    db_addr: Address<super::Database>,
+    db_pool: Address<super::ActorPool<super::Database>>,
     /// Actor which manages getting the runtime metadata for blocks
     /// and sending them to the database actor
-    meta_addr: Address<super::Metadata>,
+    meta_addr: Address<super::Metadata<B>>,
     /// Pooled Postgres Database Connections
     exec: Sender<BlockData<B>>,
     /// just a switch so we know not to print redundant messages
@@ -125,14 +126,19 @@ where
         pool: &sqlx::PgPool,
     ) -> ArchiveResult<Self> {
         let (psql_url, rpc_url) = (ctx.psql_url().to_string(), ctx.rpc_url().to_string());
-        let db_addr = super::Database::new(psql_url).await?.spawn();
-        let meta_addr = super::Metadata::new(rpc_url, &pool, db_addr.clone()).spawn();
+        let pool = pool.clone();
+        let conn = pool.acquire().await?;
+        let db = super::Database::with_pool(psql_url, pool.clone());
+        let db_pool = super::ActorPool::new(db.clone(), 8).spawn();
+        let meta_addr = super::Metadata::new(rpc_url, conn, db_pool.clone())
+            .await
+            .spawn();
         let (senders, recvs) = queues();
 
         Ok(Self {
             senders,
+            db_pool,
             recvs: Some(recvs),
-            db_addr,
             meta_addr,
             exec: tx,
             last_count_was_0: false,
@@ -222,45 +228,76 @@ impl<B: BlockT> FromIterator<EitherOrBoth<Storage<B>, Block<B>>> for BlockStorag
     }
 }
 
-impl<B> SyncHandler<BlockStorageCombo<B>> for Aggregator<B>
+#[async_trait::async_trait]
+impl<B> Handler<BlockStorageCombo<B>> for Aggregator<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, data: BlockStorageCombo<B>, ctx: &mut Context<Self>) {
+    async fn handle(&mut self, data: BlockStorageCombo<B>, _: &mut Context<Self>) {
         let (blocks, storage) = (data.0, data.1);
 
         let (b, s) = (blocks.inner().len(), storage.0.len());
-        let r = || -> ArchiveResult<()> {
-            match (b, s) {
-                (0, 0) => {
-                    if !self.last_count_was_0 {
-                        log::info!("Waiting on node, nothing left to index ...");
-                        self.last_count_was_0 = true;
-                    }
+        match (b, s) {
+            (0, 0) => {
+                if !self.last_count_was_0 {
+                    log::info!("Waiting on node, nothing left to index ...");
+                    self.last_count_was_0 = true;
                 }
-                (b, 0) => {
-                    self.meta_addr.do_send(blocks)?;
-                    log::info!("Indexing Blocks {} bps", b);
-                    self.last_count_was_0 = false;
-                }
-                (0, s) => {
-                    self.db_addr.do_send(storage)?;
-                    log::info!("Indexing Storage {} bps", s);
-                    self.last_count_was_0 = false;
-                }
-                (b, s) => {
-                    self.db_addr.do_send(storage)?;
-                    self.meta_addr.do_send(blocks)?;
-                    log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s);
-                    self.last_count_was_0 = false;
-                }
-            };
-            Ok(())
+            }
+            (b, 0) => {
+                self.meta_addr.do_send(blocks).expect("Actor Disconnected");
+                log::info!("Indexing Blocks {} bps", b);
+                self.last_count_was_0 = false;
+            }
+            (0, s) => {
+                self.db_pool
+                    .do_send(storage.into())
+                    .expect("Actor Disconnected");
+                log::info!("Indexing Storage {} bps", s);
+                self.last_count_was_0 = false;
+            }
+            (b, s) => {
+                self.db_pool
+                    .do_send(storage.into())
+                    .expect("Actor Disconnected");
+                self.meta_addr.do_send(blocks).expect("Actor Disconnected");
+                log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s);
+                self.last_count_was_0 = false;
+            }
         };
-        // receivers have dropped which means the system is stopping
+    }
+}
+
+pub struct IncomingData<B: BlockT>(Either<BlockChanges<B>, Block<B>>);
+
+impl<B: BlockT> From<Either<BlockChanges<B>, Block<B>>> for IncomingData<B> {
+    fn from(e: Either<BlockChanges<B>, Block<B>>) -> IncomingData<B> {
+        IncomingData(e)
+    }
+}
+
+impl<B: BlockT> Message for IncomingData<B> {
+    type Result = ();
+}
+
+impl<B> SyncHandler<IncomingData<B>> for Aggregator<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
+    fn handle(&mut self, data: IncomingData<B>, c: &mut Context<Self>) {
+        let r = || -> ArchiveResult<()> {
+            match data.0 {
+                Either::Left(changes) => self.senders.push_back(BlockOrStorage::Storage(changes)),
+                Either::Right(block) => {
+                    self.exec.send(BlockData::Single(block.clone()))?;
+                    self.senders.push_back(BlockOrStorage::Block(block))
+                }
+            }
+        };
         if let Err(_) = r() {
-            ctx.stop()
+            c.stop()
         }
     }
 }

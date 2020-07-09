@@ -30,10 +30,12 @@ where
     NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        while !queries::check_if_meta_exists(blk.spec, self.pool()).await? {
+        let mut conn = self.conn().await?;
+        while !queries::check_if_meta_exists(blk.spec, &mut conn).await? {
             log::error!("METADATA DOESN'T EXIST, waiting");
             timer::Delay::new(std::time::Duration::from_millis(20)).await;
         }
+        std::mem::drop(conn);
         self.insert(blk).await.map(|_| ())
     }
 }
@@ -53,14 +55,16 @@ where
         specs.sort_by_key(|b| b.spec);
         let mut specs = specs.iter_mut().map(|b| b.spec).collect::<Vec<u32>>();
         specs.dedup();
+        let mut conn = self.conn().await?;
         loop {
-            let versions = queries::get_versions(self.pool()).await?;
+            let versions = queries::get_versions(&mut conn).await?;
             if db_contains_metadata(specs.as_slice(), versions) {
                 break;
             }
             log::error!("Waiting....");
             timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
+        std::mem::drop(conn);
         let now = std::time::Instant::now();
         self.insert(blks).await.map(|_| ())?;
         let elapsed = now.elapsed();
@@ -84,7 +88,8 @@ impl Handler<Metadata> for Database {
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<Storage<B>> for Database {
     async fn handle(&mut self, storage: Storage<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        while !queries::contains_block::<B>(*storage.hash(), self.pool()).await? {
+        let mut conn = self.conn().await?;
+        while !queries::contains_block::<B>(*storage.hash(), &mut conn).await? {
             timer::Delay::new(std::time::Duration::from_millis(10)).await;
         }
         self.insert(Vec::<StorageModel<B>>::from(storage))
@@ -106,18 +111,11 @@ impl<B: BlockT> Handler<VecStorageWrap<B>> for Database {
         storage: VecStorageWrap<B>,
         _ctx: &mut Context<Self>,
     ) -> ArchiveResult<()> {
-        let mut futures = Vec::new();
-        for s in storage.0.iter() {
-            let hash = *s.hash();
-            let pool = self.pool();
-            futures.push(async move {
-                while !queries::contains_block::<B>(hash, pool).await? {
-                    timer::Delay::new(std::time::Duration::from_millis(10)).await;
-                }
-                futures::future::ok::<(), ArchiveError>(()).await
-            });
+        let mut conn = self.conn().await?;
+        let block_nums: Vec<u32> = storage.0.iter().map(|s| s.block_num()).collect();
+        while !queries::contains_blocks::<B>(block_nums.as_slice(), &mut conn).await? {
+            timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
-        futures::future::try_join_all(futures).await?;
         let now = std::time::Instant::now();
         self.insert(Vec::<StorageModel<B>>::from(storage))
             .await

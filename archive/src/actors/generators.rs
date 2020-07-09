@@ -19,12 +19,14 @@ use crate::{
 };
 use futures::StreamExt;
 use sp_runtime::traits::Block as BlockT;
-
+use sqlx::{pool::PoolConnection, Postgres};
 /// Gets missing blocks from the SQL database
-pub async fn missing_blocks(pool: sqlx::PgPool, sender: flume::Sender<u32>) -> ArchiveResult<()> {
+pub async fn missing_blocks(
+    mut conn: PoolConnection<Postgres>,
+    sender: flume::Sender<u32>,
+) -> ArchiveResult<()> {
     'gen: loop {
-        let conn = &mut pool.acquire().await?;
-        let mut stream = queries::missing_blocks_stream(conn);
+        let mut stream = queries::missing_blocks_stream(&mut conn);
         while let Some(num) = stream.next().await {
             match num {
                 Ok(n) => {
@@ -42,6 +44,7 @@ pub async fn missing_blocks(pool: sqlx::PgPool, sender: flume::Sender<u32>) -> A
         }
         timer::Delay::new(std::time::Duration::from_secs(1)).await;
     }
+    std::mem::drop(conn);
     Ok(())
 }
 
@@ -49,15 +52,15 @@ pub async fn missing_blocks(pool: sqlx::PgPool, sender: flume::Sender<u32>) -> A
 /// by querying it against the blocks table
 /// This fills in storage that might've been missed by a shutdown
 pub async fn fill_storage<B: BlockT>(
-    pool: sqlx::PgPool,
+    mut conn: PoolConnection<Postgres>,
     tx: flume::Sender<BlockData<B>>,
 ) -> ArchiveResult<()> {
-    if queries::blocks_count(&pool).await? == 0 {
+    if queries::blocks_count(&mut conn).await? == 0 {
         // no blocks means we haven't indexed anything yet
         return Ok(());
     }
     let now = std::time::Instant::now();
-    let blocks = queries::blocks_storage_intersection(&pool).await?;
+    let blocks = queries::blocks_storage_intersection(&mut conn).await?;
     let blocks = BlockBuilder::<B>::new().with_vec(blocks)?;
     let elapsed = now.elapsed();
     log::info!(
@@ -68,5 +71,6 @@ pub async fn fill_storage<B: BlockT>(
     );
     log::info!("indexing {} blocks of storage ... ", blocks.len());
     tx.send(BlockData::Batch(blocks))?;
+    std::mem::drop(conn);
     Ok(())
 }
