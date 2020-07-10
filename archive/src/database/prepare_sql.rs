@@ -16,9 +16,10 @@
 
 //! prepared statements for sqlx
 
-use super::models::*;
+use super::models::StorageModel;
 use crate::error::ArchiveResult;
-use crate::types::*;
+use crate::types::{Block, Metadata, Storage};
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sqlx::Postgres;
 
 pub trait SuperTrait<'a>: PrepareSql<'a> + PrepareBatchSql<'a> {}
@@ -42,11 +43,11 @@ pub trait PrepareBatchSql<'a> {
     fn build_sql(&self, rows: Option<u32>) -> String;
 }
 
-impl<'a, T> PrepareSql<'a> for Block<T>
+impl<'a, B> PrepareSql<'a> for Block<B>
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: From<u32>,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: From<u32>,
+    NumberFor<B>: Into<u32>,
 {
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         let query = sqlx::query(
@@ -61,11 +62,11 @@ where
     }
 }
 
-impl<'a, T> PrepareBatchSql<'a> for Vec<Block<T>>
+impl<'a, B> PrepareBatchSql<'a> for Vec<Block<B>>
 where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: From<u32>,
-    <T as System>::BlockNumber: Into<u32>,
+    B: BlockT,
+    NumberFor<B>: From<u32>,
+    NumberFor<B>: Into<u32>,
 {
     fn build_sql(&self, _rows: Option<u32>) -> String {
         let stmt = format!(
@@ -99,10 +100,7 @@ ON CONFLICT DO NOTHING
     }
 }
 
-impl<'a, T> PrepareSql<'a> for StorageModel<T>
-where
-    T: Substrate + Send + Sync,
-{
+impl<'a, B: BlockT> PrepareSql<'a> for StorageModel<B> {
     fn single_insert(&self) -> ArchiveResult<sqlx::Query<'a, Postgres>> {
         let query = sqlx::query(
             r#"
@@ -119,10 +117,7 @@ is_full = EXCLUDED.is_full
     }
 }
 
-impl<'a, T> PrepareBatchSql<'a> for Vec<StorageModel<T>>
-where
-    T: Substrate + Send + Sync,
-{
+impl<'a, B: BlockT> PrepareBatchSql<'a> for Vec<StorageModel<B>> {
     fn build_sql(&self, rows: Option<u32>) -> String {
         if let Some(r) = rows {
             format!(

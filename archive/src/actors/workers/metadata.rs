@@ -14,167 +14,88 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::actors::scheduler::{Algorithm, Scheduler};
 use crate::{
-    error::Error as ArchiveError,
+    error::ArchiveResult,
     queries,
     rpc::Rpc,
-    types::{Block, Metadata, Substrate, SubstrateBlock, System},
+    types::{BatchBlock, Block, Metadata as MetadataT},
 };
-use bastion::prelude::*;
-use serde::de::DeserializeOwned;
-use sp_runtime::traits::{Block as _, Header as _};
-
-const REDUNDANCY: usize = 2;
+use itertools::Itertools;
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use xtra::prelude::*;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub fn actor<T>(url: String, pool: sqlx::PgPool) -> Result<ChildrenRef, ArchiveError>
-where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
-    <T as System>::Header: DeserializeOwned,
-{
-    let transform_workers = super::transformers::actor::<T>(pool.clone())?;
-    Bastion::children(|children| {
-        children
-            .with_redundancy(REDUNDANCY)
-            .with_exec(move |ctx: BastionContext| {
-                let workers = transform_workers.clone();
-                let url = url.clone();
-                let pool = pool.clone();
-                async move {
-                    let mut sched = Scheduler::new(Algorithm::RoundRobin, &ctx);
-                    sched.add_worker("transform", &workers);
-                    match handle_msg::<T>(&mut sched, &pool, url.as_str()).await {
-                        Ok(_) => (),
-                        Err(e) => log::error!("{:?}", e),
-                    }
-                    Ok(())
-                }
-            })
-    })
-    .map_err(|_| ArchiveError::from("Could not instantiate metadata workers"))
+pub struct Metadata {
+    url: String,
+    pool: sqlx::PgPool,
+    addr: Address<super::Database>,
 }
 
-async fn handle_msg<T>(
-    sched: &mut Scheduler<'_>,
-    pool: &sqlx::PgPool,
-    url: &str,
-) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-    <T as System>::BlockNumber: Into<u32>,
-    <T as System>::Header: DeserializeOwned,
-{
-    let rpc = super::connect::<T>(url).await;
-    loop {
-        msg! {
-            sched.context().recv().await.expect("Could not receive"),
-            block: SubstrateBlock<T> => {
-                meta_process_block::<T>(block, rpc.clone(), &pool, sched).await?;
-            };
-            blocks: Vec<SubstrateBlock<T>> =!> {
-                meta_process_blocks(blocks, rpc.clone(), &pool, sched).await?;
-                crate::archive_answer!(sched.context(), super::ArchiveAnswer::Success)?;
-            };
-            ref _broadcast: super::Broadcast => {
-                ()
-            };
-            e: _ => log::warn!("Received unknown data {:?}", e);
-        }
-    }
-}
-
-async fn meta_process_block<T>(
-    block: SubstrateBlock<T>,
-    rpc: Rpc<T>,
-    pool: &sqlx::PgPool,
-    sched: &mut Scheduler<'_>,
-) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-{
-    let hash = block.block.header().hash();
-    let ver = rpc.version(Some(hash).as_ref()).await?;
-    meta_checker(ver.spec_version, Some(hash), &rpc, pool, sched).await?;
-    let block = Block::<T>::new(block, ver.spec_version);
-    let v = sched.ask_next("transform", block)?.await;
-    log::debug!("{:?}", v);
-    Ok(())
-}
-
-async fn meta_process_blocks<T>(
-    blocks: Vec<SubstrateBlock<T>>,
-    rpc: Rpc<T>,
-    pool: &sqlx::PgPool,
-    sched: &mut Scheduler<'_>,
-) -> Result<(), ArchiveError>
-where
-    T: Substrate + Send + Sync,
-{
-    log::info!("Got {} blocks", blocks.len());
-    let mut batch_items = Vec::new();
-
-    let now = std::time::Instant::now();
-    let first = rpc.version(Some(&blocks[0].block.header().hash())).await?;
-    let elapsed = now.elapsed();
-    log::debug!(
-        "Rpc request for version took {} milli-seconds",
-        elapsed.as_millis()
-    );
-    let last = rpc
-        .version(Some(blocks[blocks.len() - 1].block.header().hash()).as_ref())
-        .await?;
-    log::info!(
-        "First Version: {}, Last Version: {}",
-        first.spec_version,
-        last.spec_version
-    );
-    // if first and last versions of metadata are the same, we only need to do one check
-    if first == last {
-        meta_checker(
-            first.spec_version,
-            Some(blocks[0].block.header().hash()),
-            &rpc,
-            pool,
-            sched,
-        )
-        .await?;
-        blocks
-            .into_iter()
-            .for_each(|b| batch_items.push(Block::<T>::new(b, first.spec_version)));
-    } else {
-        for b in blocks.into_iter() {
-            let hash = b.block.header().hash();
-            let ver = rpc.version(Some(hash).as_ref()).await?;
-            meta_checker(ver.spec_version, Some(hash), &rpc, pool, sched).await?;
-            batch_items.push(Block::<T>::new(b, ver.spec_version))
+impl Metadata {
+    pub fn new(url: String, pool: &sqlx::PgPool) -> Self {
+        let addr = super::Database::new(pool).spawn();
+        Self {
+            url,
+            pool: pool.clone(),
+            addr,
         }
     }
 
-    let v = sched.ask_next("transform", batch_items)?.await;
-    log::debug!("{:?}", v);
-    Ok(())
+    // checks if the metadata exists in the database
+    // if it doesn't exist yet, fetch metadata and insert it
+    async fn meta_checker<B: BlockT>(
+        &self,
+        ver: u32,
+        hash: B::Hash,
+        rpc: &Rpc<B>,
+    ) -> ArchiveResult<()> {
+        if !queries::check_if_meta_exists(ver, &self.pool).await? {
+            let meta = rpc.metadata(Some(hash)).await?;
+            let meta = MetadataT::new(ver, meta);
+            self.addr.do_send(meta);
+        }
+        Ok(())
+    }
 }
 
-// checks if the metadata exists in the database
-// if it doesn't exist yet, fetch metadata and insert it
-async fn meta_checker<T>(
-    ver: u32,
-    hash: Option<T::Hash>,
-    rpc: &Rpc<T>,
-    pool: &sqlx::PgPool,
-    sched: &mut Scheduler<'_>,
-) -> Result<(), ArchiveError>
+impl Actor for Metadata {}
+
+#[async_trait::async_trait]
+impl<B> Handler<Block<B>> for Metadata
 where
-    T: Substrate + Send + Sync,
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
 {
-    if !queries::check_if_meta_exists(ver, pool).await? {
-        let meta = rpc.metadata(hash).await?;
-        let meta = Metadata::new(ver, meta);
-        let v = sched.ask_next("transform", meta)?.await;
-        log::debug!("{:?}", v);
+    async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+        let rpc = super::connect::<B>(self.url.as_str()).await;
+        let hash = blk.inner.block.header().hash();
+        self.meta_checker(blk.spec, hash, &rpc).await?;
+        self.addr.do_send(blk);
+        Ok(())
     }
-    Ok(())
+}
+
+#[async_trait::async_trait]
+impl<B> Handler<BatchBlock<B>> for Metadata
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
+    async fn handle(&mut self, blks: BatchBlock<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+        let rpc = super::connect::<B>(self.url.as_str()).await;
+
+        let versions = blks
+            .inner()
+            .iter()
+            .unique_by(|b| b.spec)
+            .collect::<Vec<&Block<B>>>();
+
+        for b in versions.iter() {
+            self.meta_checker(b.spec, b.inner.block.hash(), &rpc)
+                .await?;
+        }
+        self.addr.do_send(blks);
+        Ok(())
+    }
 }

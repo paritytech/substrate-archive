@@ -16,7 +16,7 @@
 
 mod client;
 mod executor;
-pub use self::client::Client;
+pub use self::client::{Client, GetRuntimeVersion};
 use sc_client_api::{
     execution_extensions::{ExecutionExtensions, ExecutionStrategies},
     ExecutionStrategy,
@@ -44,7 +44,7 @@ pub fn runtime_api<Block, Runtime, Dispatch>(
     db: Arc<ReadOnlyDatabase>,
     block_workers: usize,
     wasm_pages: u64,
-) -> Result<impl ApiAccess<Block, ReadOnlyBackend<Block>, Runtime>, ArchiveError>
+) -> Result<TArchiveClient<Block, Runtime, Dispatch>, ArchiveError>
 where
     Block: BlockT,
     Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>>
@@ -60,14 +60,12 @@ where
     Dispatch: NativeExecutionDispatch + 'static,
     <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
-    // FIXME: prefix keys
-
     let backend = Arc::new(ReadOnlyBackend::new(db, true));
 
     let executor = NativeExecutor::<Dispatch>::new(
         WasmExecutionMethod::Interpreted,
         Some(wasm_pages),
-        block_workers as usize,
+        (block_workers as usize) + 3,
     );
 
     let executor = ArchiveExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()));

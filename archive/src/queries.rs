@@ -32,8 +32,7 @@ pub(crate) async fn missing_blocks(
         "SELECT generate_series
         FROM (SELECT 0 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
         WHERE
-        NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
-        LIMIT 10000",
+        NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)",
     )
     .fetch_all(pool)
     .await
