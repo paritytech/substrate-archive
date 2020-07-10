@@ -21,6 +21,11 @@ use crate::types::*;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use xtra::prelude::*;
 
+/// Get Some State from the Database Actor
+pub enum Get {
+    Conn,
+}
+
 impl Actor for Database {}
 
 #[async_trait::async_trait]
