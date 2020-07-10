@@ -71,14 +71,15 @@ impl ReadOnlyDatabase {
     }
 }
 
+type DBError = Result<(), sp_database::error::DatabaseError>;
 //TODO: Remove panics with a warning that database has not been written to / is read-only
 /// Preliminary trait for ReadOnlyDatabase
 impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
-    fn commit(&self, _transaction: Transaction<H>) {
+    fn commit(&self, _transaction: Transaction<H>) -> DBError {
         panic!("Read only db")
     }
 
-    fn commit_ref<'a>(&self, _transaction: &mut dyn Iterator<Item = ChangeRef<'a, H>>) {
+    fn commit_ref<'a>(&self, _transaction: &mut dyn Iterator<Item = ChangeRef<'a, H>>) -> DBError {
         panic!("Read only db")
     }
 
@@ -94,7 +95,7 @@ impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
     }
     // with_get -> default is fine
 
-    fn remove(&self, _col: ColumnId, _key: &[u8]) {
+    fn remove(&self, _col: ColumnId, _key: &[u8]) -> Result<(), sp_database::error::DatabaseError> {
         panic!("Read only db")
     }
 
@@ -133,7 +134,7 @@ impl KeyValueDB for ReadOnlyDatabase {
 
     fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
         let unboxed = self.inner.iter(col);
-        Box::new(unboxed.into_iter())
+        Box::new(unboxed)
     }
 
     fn iter_with_prefix<'a>(

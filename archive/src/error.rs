@@ -16,7 +16,7 @@
 use std::{env, io};
 use thiserror::Error;
 
-pub type ArchiveResult<T> = Result<T, Error>;
+pub type ArchiveResult<T> = std::result::Result<T, Error>;
 
 /// Substrate Archive Error Enum
 #[derive(Error, Debug)]
@@ -27,6 +27,8 @@ pub enum Error {
     Env(#[from] env::VarError),
     #[error("decode")]
     Codec(#[from] codec::Error),
+    #[error("Formatting {0}")]
+    Fmt(#[from] std::fmt::Error),
     #[error("serialization error")]
     Serialization(#[from] serde_json::Error),
     #[error("sqlx error: {0}")]
@@ -47,24 +49,14 @@ pub enum Error {
     MismatchedChains(String, String),
     #[error("sending on disconnected channel")]
     Channel,
+    #[error("Trying to send to disconnected actor")]
+    Disconnected,
     #[error("Unexpected Error {0}")]
     General(String),
 
     #[cfg(test)]
     #[error("{0}")]
     Bincode(#[from] Box<bincode::ErrorKind>),
-}
-
-impl<T> From<crossbeam::SendError<T>> for Error {
-    fn from(_: crossbeam::SendError<T>) -> Error {
-        Error::Channel
-    }
-}
-
-impl<T> From<tokio::sync::mpsc::error::SendError<T>> for Error {
-    fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Error {
-        Error::Channel
-    }
 }
 
 impl From<&str> for Error {
@@ -84,5 +76,17 @@ impl From<String> for Error {
 impl From<sp_blockchain::Error> for Error {
     fn from(e: sp_blockchain::Error) -> Error {
         Error::Blockchain(e.to_string())
+    }
+}
+
+impl From<xtra::Disconnected> for Error {
+    fn from(_: xtra::Disconnected) -> Error {
+        Error::Disconnected
+    }
+}
+
+impl<T> From<flume::SendError<T>> for Error {
+    fn from(_: flume::SendError<T>) -> Error {
+        Error::Channel
     }
 }

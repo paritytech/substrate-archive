@@ -15,12 +15,14 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-    actors::ArchiveContext,
+    actors::System,
     backend::{self, frontend::TArchiveClient, ApiAccess, ReadOnlyBackend, ReadOnlyDatabase},
     error::{ArchiveResult, Error as ArchiveError},
     migrations::MigrationConfig,
     rpc::Rpc,
+    types,
 };
+
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
@@ -34,11 +36,42 @@ use sp_runtime::{
 use sp_version::RuntimeVersion;
 use std::{marker::PhantomData, sync::Arc};
 
-pub struct Archive<Block, Runtime, Dispatch> {
+/// Main entrypoint for substrate-archive.
+/// Deals with starting, stopping and manipulating the Actors
+/// which drive the archive runtime.
+///
+/// # Examples
+///
+/// ```
+/// use polkadot_service::{kusama_runtime::RuntimeApi as RApi, Block, KusamaExecutor as KExec};
+/// use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
+/// let conf = ArchiveConfig {
+///     db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
+///     rpc_url: "ws://127.0.0.1:9944".into(),
+///     cache_size: 1024,
+///     block_workers: None,
+///     wasm_pages: None,
+///     psql_conf: MigrationConfig {
+///         host: None,
+///         port: None,
+///         user: Some("archive".to_string()),
+///         pass: Some("default".to_string()),
+///         name: Some("kusama-archive".to_string()),
+///     },
+/// };
+///
+/// let spec = polkadot_service::chain_spec::kusama_config().unwrap();
+/// let archive = Archive::<Block, RApi, KExec>::new(conf, Box::new(spec)).unwrap();
+/// let archive = archive.run().unwrap();
+///
+/// archive.block_until_stopped();
+///
+/// ```
+pub struct ArchiveBuilder<Block, Runtime, Dispatch> {
     rpc_url: String,
     psql_url: String,
     db: Arc<ReadOnlyDatabase>,
-    spec: Box<dyn ChainSpec>,
+    // spec: Box<dyn ChainSpec>,
     block_workers: Option<usize>,
     wasm_pages: Option<u64>,
     _marker: PhantomData<(Block, Runtime, Dispatch)>,
@@ -59,9 +92,26 @@ pub struct ArchiveConfig {
     pub wasm_pages: Option<u64>,
 }
 
-impl<B, R, D> Archive<B, R, D>
+fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
+    // TODO
+    // refinery creates a current-thread tokio runtime that calls 'block_on', so we need to run possibly in its own thread
+    // in case the user creates another runtime with tokio
+    // Once SQLx 0.4 releases, we can replace refinery with embedded SQLx migrations
+    #[cfg(feature = "with-tokio")]
+    {
+        std::thread::spawn(move || crate::migrations::migrate(conf))
+            .join()
+            .expect("Migrations failed to run")
+    }
+    #[cfg(not(feature = "with-tokio"))]
+    {
+        crate::migrations::migrate(conf)
+    }
+}
+
+impl<B, R, D> ArchiveBuilder<B, R, D>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
     R: ConstructRuntimeApi<B, TArchiveClient<B, R, D>> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + ApiExt<B, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<B>, B>>
@@ -70,15 +120,16 @@ where
         + 'static,
     D: NativeExecutionDispatch + 'static,
     <R::RuntimeApi as sp_api::ApiExt<B>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-    NumberFor<B>: Into<u32>,
-    NumberFor<B>: From<u32>,
-    B::Hash: From<primitive_types::H256>,
+    NumberFor<B>: Into<u32> + From<u32> + Unpin,
+    B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,
 {
     /// Create a new instance of the Archive DB
     /// and run Postgres Migrations
+    /// Should not be run within a futures runtime
     pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self, ArchiveError> {
-        let psql_url = crate::migrations::migrate(conf.psql_conf)?;
+        let psql_url = migrate(conf.psql_conf.clone())?;
+
         let db = Arc::new(backend::util::open_database(
             conf.db_url.as_str(),
             conf.cache_size,
@@ -88,7 +139,7 @@ where
         Ok(Self {
             db,
             psql_url,
-            spec,
+            // spec,
             rpc_url: conf.rpc_url,
             block_workers: conf.block_workers,
             wasm_pages: conf.wasm_pages,
@@ -96,42 +147,50 @@ where
         })
     }
 
-    /// returns an Archive Client with a ReadOnlyBackend
+    /// Create a new Substrate Client with a ReadOnlyBackend
     pub fn api_client(
         &self,
+        block_workers: Option<usize>,
+        wasm_pages: Option<usize>,
     ) -> Result<Arc<impl ApiAccess<B, ReadOnlyBackend<B>, R>>, ArchiveError> {
         let cpus = num_cpus::get();
-        let backend = backend::runtime_api::<B, R, D>(
+        let client = backend::runtime_api::<B, R, D>(
             self.db.clone(),
-            self.block_workers.unwrap_or(cpus),
-            self.wasm_pages.unwrap_or(2048),
-        )
-        .map_err(ArchiveError::from)?;
-        Ok(Arc::new(backend))
+            block_workers.unwrap_or(cpus),
+            wasm_pages.map(|v| v as u64).unwrap_or(2048 as u64),
+        )?;
+        Ok(Arc::new(client))
     }
 
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
-    pub fn run(&self) -> Result<ArchiveContext<B>, ArchiveError> {
+    pub async fn run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
         let cpus = num_cpus::get();
-        let client = backend::runtime_api::<B, R, D>(
-            self.db.clone(),
-            self.block_workers.unwrap_or(cpus),
-            self.wasm_pages.unwrap_or(2048),
-        )
-        .map_err(ArchiveError::from)?;
-        let client = Arc::new(client);
-        let rt = client.runtime_version_at(&BlockId::Number(0.into()))?;
+        let client0 = Arc::new(
+            backend::runtime_api::<B, R, D>(
+                self.db.clone(),
+                self.block_workers.unwrap_or(cpus),
+                self.wasm_pages.unwrap_or(512),
+            )
+            .map_err(ArchiveError::from)?,
+        );
+        let client1 = Arc::new(
+            backend::runtime_api::<B, R, D>(self.db.clone(), 3, 64).map_err(ArchiveError::from)?,
+        );
+
+        let rt = client1.runtime_version_at(&BlockId::Number(0.into()))?;
         self.verify_same_chain(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
 
-        ArchiveContext::init::<R, _>(
-            client,
+        let mut ctx = System::<_, R, _>::new(
+            (client0, client1),
             backend,
             self.block_workers,
             self.rpc_url.clone(),
             self.psql_url.as_str(),
-        )
+        )?;
+        ctx.drive().await?;
+        Ok(ctx)
     }
 
     /// Internal function to verify the running chain and the Runtime that was passed to us
@@ -148,7 +207,7 @@ where
             (RuntimeString::Owned(s0), RuntimeString::Borrowed(s1)) => (s0, s1.to_string()),
         };
         if rpc_rstr.to_ascii_lowercase().as_str() != backend_rstr.to_ascii_lowercase().as_str() {
-            return Err(ArchiveError::MismatchedChains(backend_rstr, rpc_rstr));
+            Err(ArchiveError::MismatchedChains(backend_rstr, rpc_rstr))
         } else {
             Ok(())
         }

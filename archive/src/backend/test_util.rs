@@ -17,7 +17,7 @@
 use crate::{
     backend,
     backend::{ApiAccess, ReadOnlyBackend},
-    Archive, ArchiveConfig, ArchiveContext, MigrationConfig,
+    Archive, ArchiveConfig, MigrationConfig, System,
 };
 use polkadot_service::{kusama_runtime as ksm_runtime, Block};
 use sp_api::ProvideRuntimeApi;

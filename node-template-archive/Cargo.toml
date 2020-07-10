@@ -1,13 +1,13 @@
 [package]
 name = "node-template-archive"
-version = "0.1.0"
+version = "0.2.1"
 authors = ["Andrew Plaza <aplaza@liquidthink.net>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-substrate-archive = { version = "0.4", path = "../archive", features = ["logging"] }
+substrate-archive = { version = "0.5", path = "../archive", features = ["logging"] }
 node-template-runtime = { git = "https://github.com/paritytech/substrate", branch="master", default-features = false, package = "node-template-runtime" }
 node-template = { git = "https://github.com/paritytech/substrate", branch="master", package = "node-template" }
 clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }
@@ -17,8 +17,7 @@ log = "0.4.8"
 pretty_env_logger = "0.4.0"
 anyhow = "1.0.31"
 serde = "1.0.110"
-sqlx = { version = "0.3.5", features = ["postgres"] }
-async-std = "1.5.0"
 async-ctrlc = "1.1.0"
+tokio = "0.2"
 
 [features]

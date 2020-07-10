@@ -10,29 +10,51 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! logging and general utilities
+use crate::error::ArchiveResult;
 #[cfg(feature = "logging")]
 use fern::colors::{Color, ColoredLevelConfig};
+use futures::Future;
 use log::*;
 use std::path::{Path, PathBuf};
+
+pub fn spawn(fut: impl Future<Output = ArchiveResult<()>> + Send + 'static) {
+    let fut = async move {
+        match fut.await {
+            Ok(_) => (),
+            Err(e) => log::error!("{}", e.to_string()),
+        }
+    };
+
+    #[cfg(feature = "with-tokio")]
+    {
+        tokio::spawn(fut);
+    }
+    #[cfg(feature = "with-async-std")]
+    {
+        async_std::task::spawn(fut);
+    }
+    #[cfg(feature = "with-smol")]
+    {
+        smol::Task::spawn(fut).detach();
+    }
+}
 
 /// create an arbitrary directory on disk
 /// panics if it fails because of anything other than the directory already exists
 #[allow(unused)]
 pub fn create_dir(path: &Path) {
-    match std::fs::create_dir_all(path) {
-        Err(e) => match e.kind() {
+    if let Err(e) = std::fs::create_dir_all(path) {
+        match e.kind() {
             std::io::ErrorKind::AlreadyExists => (),
             _ => {
                 error!("{}", e);
                 std::process::exit(0x0100);
             }
-        },
-        Ok(_) => (),
+        }
     }
 }
 
@@ -86,6 +108,8 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("bastion", log::LevelFilter::Warn)
         .level_for("sqlx", log::LevelFilter::Warn)
         .level_for("staking", log::LevelFilter::Warn)
+        .level_for("cranelift_codegen", log::LevelFilter::Warn)
+        .level_for("header", log::LevelFilter::Warn)
         .format(move |out, message, record| {
             out.finish(format_args!(
                 "{} {} {}",
@@ -105,6 +129,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("bastion", log::LevelFilter::Warn)
         .level_for("sqlx", log::LevelFilter::Warn)
         .level_for("staking", log::LevelFilter::Warn)
+        .level_for("cranelift_codegen", log::LevelFilter::Warn)
         // .level_for("desub_core", log::LevelFilter::Debug)
         // .level_for("bastion", log::LevelFilter::Trace)
         // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
@@ -125,15 +150,6 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .chain(file_dispatcher)
         .apply()
         .expect("Could not init logging");
-}
-
-#[cfg(feature = "logging")]
-#[allow(unused)]
-fn format_opt(file: Option<String>) -> String {
-    match file {
-        None => "".to_string(),
-        Some(f) => f.to_string(),
-    }
 }
 
 /// log an error without doing anything else

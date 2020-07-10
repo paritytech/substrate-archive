@@ -17,22 +17,27 @@
 //! Main entrypoint for substrate-archive. `init` will start all actors and begin indexing the
 //! chain defined with the passed-in Client and URL.
 
+mod actor_pool;
 mod generators;
 mod workers;
 
+use self::generators::{fill_storage, missing_blocks};
+pub use self::workers::msg;
 use super::{
-    backend::{ApiAccess, BlockBroker, GetRuntimeVersion, ReadOnlyBackend, ThreadedBlockExecutor},
+    backend::{ApiAccess, GetRuntimeVersion, ReadOnlyBackend},
     error::{ArchiveResult, Error as ArchiveError},
+    threadpools::{BlockFetcher, ThreadedBlockExecutor},
+    types::Archive,
 };
-use crossbeam::channel;
-use futures::stream::StreamExt;
+use futures::{future::Either, StreamExt};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::{Block as BlockT, NumberFor};
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::postgres::PgPool;
+use std::marker::PhantomData;
 use std::sync::Arc;
-use workers::msg;
+pub use workers::Aggregator;
 use xtra::prelude::*;
 
 /// Context that every actor may use
@@ -40,24 +45,21 @@ use xtra::prelude::*;
 pub struct ActorContext<Block: BlockT> {
     backend: Arc<ReadOnlyBackend<Block>>,
     api: Arc<dyn GetRuntimeVersion<Block>>,
-    broker: BlockBroker<Block>,
     rpc_url: String,
-    pool: sqlx::PgPool,
+    psql_url: String,
 }
 
 impl<Block: BlockT> ActorContext<Block> {
     pub fn new(
         backend: Arc<ReadOnlyBackend<Block>>,
-        broker: BlockBroker<Block>,
         rpc_url: String,
-        pool: sqlx::PgPool,
+        psql_url: String,
         api: Arc<dyn GetRuntimeVersion<Block>>,
     ) -> Self {
         Self {
             backend,
-            broker,
             rpc_url,
-            pool,
+            psql_url,
             api,
         }
     }
@@ -70,63 +72,41 @@ impl<Block: BlockT> ActorContext<Block> {
         self.rpc_url.as_str()
     }
 
-    pub fn pool(&self) -> sqlx::PgPool {
-        self.pool.clone()
-    }
-
-    pub fn broker(&self) -> BlockBroker<Block> {
-        self.broker.clone()
-    }
-
     pub fn api(&self) -> Arc<dyn GetRuntimeVersion<Block>> {
         self.api.clone()
     }
+
+    pub fn psql_url(&self) -> &str {
+        self.psql_url.as_str()
+    }
 }
 
-/// Main entrypoint for substrate-archive.
-/// Deals with starting, stopping and manipulating the Archive Runtime
-///
-/// # Examples
-///
-/// ```
-/// use polkadot_service::{kusama_runtime::RuntimeApi as RApi, Block, KusamaExecutor as KExec};
-/// use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
-/// let conf = ArchiveConfig {
-///     db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
-///     rpc_url: "ws://127.0.0.1:9944".into(),
-///     cache_size: 1024,
-///     block_workers: None,
-///     wasm_pages: None,
-///     psql_conf: MigrationConfig {
-///         host: None,
-///         port: None,
-///         user: Some("archive".to_string()),
-///         pass: Some("default".to_string()),
-///         name: Some("kusama-archive".to_string()),
-///     },
-/// };
-///
-/// let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-/// let archive = Archive::<Block, RApi, KExec>::new(conf, Box::new(spec)).unwrap();
-/// let archive = archive.run().unwrap();
-///
-/// archive.block_until_stopped();
-///
-/// ```
-pub struct ArchiveContext<Block: BlockT> {
-    actor_context: ActorContext<Block>,
-    /// Sender for the shutdown signal
-    tx: channel::Sender<()>,
-    handle: std::thread::JoinHandle<ArchiveResult<()>>,
-}
-
-impl<Block> ArchiveContext<Block>
+pub struct System<Block, R, C>
 where
     Block: BlockT,
     NumberFor<Block>: Into<u32>,
-    NumberFor<Block>: From<u32>,
-    Block::Hash: From<primitive_types::H256>,
-    Block::Header: serde::de::DeserializeOwned,
+{
+    context: ActorContext<Block>,
+    // workers: Option<usize>,
+    executor: ThreadedBlockExecutor<Block>,
+    fetcher: BlockFetcher<Block>,
+    // api: Arc<C>,
+    _marker: PhantomData<(R, C)>,
+}
+
+impl<B, R, C> System<B, R, C>
+where
+    B: BlockT + Unpin,
+    R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
+    R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
+        + ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B>, B>>
+        + Send
+        + Sync
+        + 'static,
+    C: ApiAccess<B, ReadOnlyBackend<B>, R> + GetRuntimeVersion<B> + 'static,
+    NumberFor<B>: Into<u32> + From<u32> + Unpin,
+    B::Hash: From<primitive_types::H256> + Unpin,
+    B::Header: serde::de::DeserializeOwned,
 {
     // TODO: Return a reference to the Db pool.
     // just expose a 'shutdown' fn that must be called in order to avoid missing data.
@@ -137,95 +117,93 @@ where
     /// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
     /// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the
     /// environment variable `DATABASE_URL` instead.
-    pub fn init<Runtime, ClientApi>(
-        client_api: Arc<ClientApi>,
-        backend: Arc<ReadOnlyBackend<Block>>,
+    pub fn new(
+        // one client per-threadpool. This way we don't have conflicting cache resources
+        // for WASM runtime-instances
+        client_api: (Arc<C>, Arc<C>),
+        backend: Arc<ReadOnlyBackend<B>>,
         workers: Option<usize>,
         url: String,
         psql_url: &str,
-    ) -> Result<Self, ArchiveError>
-    where
-        Runtime: ConstructRuntimeApi<Block, ClientApi> + Send + Sync + 'static,
-        Runtime::RuntimeApi: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-            + ApiExt<Block, StateBackend = backend::StateBackendFor<ReadOnlyBackend<Block>, Block>>
-            + Send
-            + Sync
-            + 'static,
-        ClientApi:
-            ApiAccess<Block, ReadOnlyBackend<Block>, Runtime> + GetRuntimeVersion<Block> + 'static,
-    {
-        let mut broker = ThreadedBlockExecutor::new(workers, client_api.clone(), backend.clone())?;
-        let results = broker.results.take().expect("Value just instantiated; qed");
-        // shutdown signals
+    ) -> ArchiveResult<Self> {
+        let (api, blk_client) = client_api;
+        let context = ActorContext::new(backend.clone(), url, psql_url.to_string(), blk_client);
 
-        let pool = futures::executor::block_on(PgPool::builder().max_size(8).build(psql_url))?;
-        let (tx, rx) = channel::bounded(0);
-        let context = ActorContext::new(
-            backend.clone(),
-            broker,
-            url,
-            pool.clone(),
-            client_api.clone(),
-        );
-
-        let context0 = context.clone();
-        let handle = std::thread::spawn(move || -> ArchiveResult<()> {
-            let mut rt = tokio::runtime::Runtime::new()?;
-            let handle = rt.handle();
-            let main = || -> ArchiveResult<()> {
-                let subscription = handle.block_on(async {
-                    let rpc = crate::rpc::Rpc::<Block>::connect(context0.rpc_url()).await?;
-                    rpc.subscribe_finalized_heads().await
-                })?;
-                let ag = workers::Aggregator::new(context0.clone(), handle.clone()).spawn();
-                ag.clone().attach_stream(subscription.map(|h| msg::Head(h)));
-                ag.attach_stream(results);
-                Ok(())
-            };
-            rt.enter(main)?;
-            rt.block_on(async move {
-                loop {
-                    match rx.try_recv() {
-                        Ok(_) => break,
-                        Err(_) => (),
-                    }
-                    timer::Delay::new(std::time::Duration::from_secs(1)).await;
-                }
-            });
-            rt.shutdown_timeout(std::time::Duration::from_secs(5));
-            Ok(())
-        });
+        let executor = ThreadedBlockExecutor::new(api.clone(), backend, workers)?;
+        let fetcher = BlockFetcher::new(context.clone(), Some(3))?;
 
         Ok(Self {
-            actor_context: context,
-            tx,
-            handle,
+            context,
+            // workers,
+            // api,
+            executor,
+            fetcher,
+            _marker: PhantomData,
         })
     }
 
-    /// Block the current thread with a single-threaded runtime
-    /// until shutdown
-    pub fn block_until_stopped(mut self) -> Result<(), ArchiveError> {
-        let mut rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async {
-            loop {
-                timer::Delay::new(std::time::Duration::from_secs(1)).await;
-            }
-        });
-        self.tx.send(())?;
-        self.handle.join().unwrap();
+    /// Start the actors and begin driving their execution
+    pub async fn drive(&mut self) -> ArchiveResult<()> {
+        let pool = PgPool::builder()
+            .min_size(8)
+            .max_size(16)
+            .build(self.context.psql_url())
+            .await?;
+        let ctx = self.context.clone();
+
+        let tx = self.executor.sender();
+        let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
+        let subscription = rpc.subscribe_finalized_heads().await?;
+        log::info!("Blocking on filling storage");
+        let (conn0, conn1) = (pool.acquire().await?, pool.acquire().await?);
+        crate::util::spawn(fill_storage(conn0, tx.clone()));
+        let ag = Aggregator::new(ctx.clone(), tx, pool).await?.spawn();
+        self.fetcher
+            .attach_stream(subscription.map(|h| (*h.number()).into()));
+        crate::util::spawn(missing_blocks(conn1, self.fetcher.sender()));
+        let exec_stream = self.executor.get_stream().map(|c| Either::Left(c));
+        let fetch_stream = self.fetcher.get_stream().map(|b| Either::Right(b));
+        let comb_stream = futures::stream::select(exec_stream, fetch_stream);
+        ag.attach_stream(comb_stream.map(|d| msg::IncomingData::from(d)));
         Ok(())
     }
 
-    /// Shutdown Gracefully.
-    /// This makes sure any data we have is saved for the next time substrate-archive is run.
-    pub fn shutdown(self) -> Result<(), ArchiveError> {
-        log::info!("Shutting down");
-        self.tx.send(());
-        self.handle.join().unwrap();
-        self.actor_context.broker.stop()?;
-        log::info!("Shut down succesfully");
+    pub async fn block_until_stopped(&self) {
+        loop {
+            timer::Delay::new(std::time::Duration::from_secs(1)).await;
+        }
+    }
+}
+
+#[async_trait::async_trait(?Send)]
+impl<B, R, C> Archive<B> for System<B, R, C>
+where
+    B: BlockT + Unpin,
+    R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
+    R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
+        + ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B>, B>>
+        + Send
+        + Sync
+        + 'static,
+    C: ApiAccess<B, ReadOnlyBackend<B>, R> + GetRuntimeVersion<B> + 'static,
+    NumberFor<B>: Into<u32> + From<u32> + Unpin,
+    B::Hash: From<primitive_types::H256> + Unpin,
+    B::Header: serde::de::DeserializeOwned,
+{
+    async fn drive(&mut self) -> Result<(), ArchiveError> {
+        System::drive(self).await
+    }
+
+    async fn block_until_stopped(&self) {
+        System::block_until_stopped(self).await
+    }
+
+    fn shutdown(self) -> Result<(), ArchiveError> {
         Ok(())
+    }
+
+    fn context(&self) -> Result<super::actors::ActorContext<B>, ArchiveError> {
+        Ok(self.context.clone())
     }
 }
 

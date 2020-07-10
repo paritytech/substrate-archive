@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::database::{models::StorageModel, Database};
-use crate::error::ArchiveResult;
+use crate::error::{ArchiveResult, Error as ArchiveError};
 use crate::queries;
 use crate::types::*;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
@@ -30,9 +30,12 @@ where
     NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        while !queries::check_if_meta_exists(blk.spec, self.pool()).await? {
+        let mut conn = self.conn().await?;
+        while !queries::check_if_meta_exists(blk.spec, &mut conn).await? {
+            log::error!("METADATA DOESN'T EXIST, waiting");
             timer::Delay::new(std::time::Duration::from_millis(20)).await;
         }
+        std::mem::drop(conn);
         self.insert(blk).await.map(|_| ())
     }
 }
@@ -43,20 +46,35 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blks: BatchBlock<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        let mut specs = blks.inner().clone();
-        specs.as_mut_slice().sort_by_key(|b| b.spec);
-        let mut specs = specs.into_iter().map(|b| b.spec).collect::<Vec<u32>>();
+    async fn handle(
+        &mut self,
+        mut blks: BatchBlock<B>,
+        _ctx: &mut Context<Self>,
+    ) -> ArchiveResult<()> {
+        let specs = blks.mut_inner();
+        specs.sort_by_key(|b| b.spec);
+        let mut specs = specs.iter_mut().map(|b| b.spec).collect::<Vec<u32>>();
         specs.dedup();
+        let mut conn = self.conn().await?;
         loop {
-            let versions = queries::get_versions(self.pool()).await?;
+            let versions = queries::get_versions(&mut conn).await?;
             if db_contains_metadata(specs.as_slice(), versions) {
                 break;
             }
+            log::error!("Waiting....");
             timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
-
-        self.insert(blks).await.map(|_| ())
+        std::mem::drop(conn);
+        let now = std::time::Instant::now();
+        self.insert(blks).await.map(|_| ())?;
+        let elapsed = now.elapsed();
+        log::debug!(
+            "TOOK {} seconds, {} milli-seconds, {} micro-seconds, to insert blocks",
+            elapsed.as_secs(),
+            elapsed.as_millis(),
+            elapsed.as_micros(),
+        );
+        Ok(())
     }
 }
 
@@ -70,7 +88,8 @@ impl Handler<Metadata> for Database {
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<Storage<B>> for Database {
     async fn handle(&mut self, storage: Storage<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        while !queries::check_if_block_exists(storage.hash().as_ref(), self.pool()).await? {
+        let mut conn = self.conn().await?;
+        while !queries::contains_block::<B>(*storage.hash(), &mut conn).await? {
             timer::Delay::new(std::time::Duration::from_millis(10)).await;
         }
         self.insert(Vec::<StorageModel<B>>::from(storage))
@@ -92,21 +111,23 @@ impl<B: BlockT> Handler<VecStorageWrap<B>> for Database {
         storage: VecStorageWrap<B>,
         _ctx: &mut Context<Self>,
     ) -> ArchiveResult<()> {
-        let mut futures = Vec::new();
-        for s in storage.0.into_iter() {
-            futures.push(async {
-                while !queries::check_if_block_exists(s.hash().as_ref(), self.pool()).await? {
-                    timer::Delay::new(std::time::Duration::from_millis(10)).await;
-                }
-                self.insert(Vec::<StorageModel<B>>::from(s))
-                    .await
-                    .map(|_| ())
-            });
+        let mut conn = self.conn().await?;
+        let block_nums: Vec<u32> = storage.0.iter().map(|s| s.block_num()).collect();
+        while !queries::contains_blocks::<B>(block_nums.as_slice(), &mut conn).await? {
+            timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
-        futures::future::join_all(futures)
+        let now = std::time::Instant::now();
+        self.insert(Vec::<StorageModel<B>>::from(storage))
             .await
-            .into_iter()
-            .collect::<ArchiveResult<()>>()
+            .map(|_| ())?;
+        let elapsed = now.elapsed();
+        log::debug!(
+            "TOOK {} seconds, {} milli-seconds, {} micro-seconds, to insert storage",
+            elapsed.as_secs(),
+            elapsed.as_millis(),
+            elapsed.as_micros(),
+        );
+        Ok(())
     }
 }
 
@@ -122,5 +143,5 @@ fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -
             return false;
         }
     }
-    return true;
+    true
 }

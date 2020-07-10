@@ -22,25 +22,16 @@ use polkadot_service::polkadot_runtime as dot_rt;
 use polkadot_service::westend_runtime as westend_rt;
 use polkadot_service::Block;
 use sc_chain_spec::ChainSpec;
-use substrate_archive::{Archive, ArchiveConfig, ArchiveContext};
-
+use substrate_archive::{ArchiveBuilder, ArchiveConfig};
+/*
+#[allow(unused)]
 pub enum TripleContext {
-    Westend(ArchiveContext<Block>),
-    Kusama(ArchiveContext<Block>),
-    Polkadot(ArchiveContext<Block>),
+    Westend(System<Block>),
+    Kusama(System<Block>),
+    Polkadot(System<Block>),
 }
-
-impl TripleContext {
-    pub async fn shutdown(self) {
-        match self {
-            TripleContext::Westend(w) => w.shutdown().unwrap(),
-            TripleContext::Kusama(k) => k.shutdown().unwrap(),
-            TripleContext::Polkadot(p) => p.shutdown().unwrap(),
-        }
-    }
-}
-
-pub fn run_archive(config: Config) -> Result<TripleContext> {
+*/
+pub async fn run_archive(config: Config) -> Result<()> {
     let mut db_path = config.polkadot_path();
 
     let path = config.polkadot_path();
@@ -77,24 +68,29 @@ pub fn run_archive(config: Config) -> Result<TripleContext> {
     match config.cli().chain.to_ascii_lowercase().as_str() {
         "kusama" | "ksm" => {
             let archive =
-                Archive::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor>::new(
+                ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor>::new(
                     conf, spec,
                 )?;
-            Ok(TripleContext::Kusama(archive.run()?))
+            archive.run().await?;
+            Ok(())
         }
         "westend" => {
-            let archive =
-                Archive::<Block, westend_rt::RuntimeApi, polkadot_service::WestendExecutor>::new(
-                    conf, spec,
-                )?;
-            Ok(TripleContext::Westend(archive.run()?))
+            let archive = ArchiveBuilder::<
+                Block,
+                westend_rt::RuntimeApi,
+                polkadot_service::WestendExecutor,
+            >::new(conf, spec)?;
+            archive.run().await?;
+            Ok(())
         }
         "polkadot" | "dot" => {
-            let archive =
-                Archive::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor>::new(
-                    conf, spec,
-                )?;
-            Ok(TripleContext::Polkadot(archive.run()?))
+            let archive = ArchiveBuilder::<
+                Block,
+                dot_rt::RuntimeApi,
+                polkadot_service::PolkadotExecutor,
+            >::new(conf, spec)?;
+            archive.run().await?;
+            Ok(())
         }
         c => Err(anyhow!("unknown chain {}", c)),
     }

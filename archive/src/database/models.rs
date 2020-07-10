@@ -18,6 +18,7 @@
 //! Only some types implemented, for convenience most types are already in their database model
 //! equivalents
 
+use crate::actors::msg;
 use crate::types::*;
 use serde::{Deserialize, Serialize};
 use sp_runtime::traits::Block as BlockT;
@@ -72,15 +73,23 @@ impl<Block: BlockT> StorageModel<Block> {
 
 impl<Block: BlockT> From<Storage<Block>> for Vec<StorageModel<Block>> {
     fn from(original: Storage<Block>) -> Vec<StorageModel<Block>> {
-        let hash = original.hash().clone();
+        let hash = *original.hash();
         let block_num = original.block_num();
         let full_storage = original.is_full();
         original
             .changes
             .into_iter()
-            .map(|changes| {
-                StorageModel::new(hash.clone(), block_num, full_storage, changes.0, changes.1)
-            })
+            .map(|changes| StorageModel::new(hash, block_num, full_storage, changes.0, changes.1))
             .collect::<Vec<StorageModel<Block>>>()
+    }
+}
+
+impl<Block: BlockT> From<msg::VecStorageWrap<Block>> for Vec<StorageModel<Block>> {
+    fn from(original: msg::VecStorageWrap<Block>) -> Vec<StorageModel<Block>> {
+        original
+            .0
+            .into_iter()
+            .flat_map(Vec::<StorageModel<Block>>::from)
+            .collect()
     }
 }

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-#![allow(warnings)]
+// #![allow(warnings)]
 #![forbid(unsafe_code)]
 
 mod actors;
@@ -23,24 +23,25 @@ pub mod backend;
 mod database;
 mod error;
 mod migrations;
-mod queries;
 mod rpc;
 #[cfg(test)]
 mod simple_db;
 mod sql_block_builder;
+mod threadpools;
 mod types;
 mod util;
 
-pub use actors::ArchiveContext;
-pub use archive::{Archive, ArchiveConfig};
+pub use actors::System;
+pub use archive::{ArchiveBuilder, ArchiveConfig};
+pub use database::queries;
 pub use error::Error;
 pub use migrations::MigrationConfig;
+pub use types::Archive;
 
 #[cfg(feature = "logging")]
 pub use util::init_logger;
 
 // Re-Exports
-
 pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
 pub use sp_runtime::MultiSignature;
