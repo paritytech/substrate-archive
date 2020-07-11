@@ -21,7 +21,10 @@ mod metadata;
 pub use self::aggregator::Aggregator;
 pub use self::metadata::Metadata;
 
-use super::{actor_pool::ActorPool, connect, ActorContext};
+use super::{
+    actor_pool::{ActorPool, PoolConnection, PoolMessage},
+    connect, ActorContext,
+};
 pub use crate::database::Database;
 
 /// any messages defined in the workers

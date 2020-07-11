@@ -15,11 +15,14 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A module that handles a pool of actors
+//! Messages that return nothing but an error may be sent to an asyncronous pool of actors
+//! if state is an actor may be pulled out of the pool
+
 use crate::error::ArchiveResult;
 use futures::future::Future;
-use std::collections::VecDeque;
+use std::{collections::VecDeque, marker::PhantomData};
 use xtra::prelude::*;
-use xtra::Disconnected;
+use xtra::{Disconnected, WeakAddress};
 
 pub struct ActorPool<A: Actor> {
     queue: VecDeque<Address<A>>,
@@ -62,9 +65,20 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
         }
     }
 
+    /// Gets a weak address to the lastly-queued actor in the pool
+    /// This actor will still receive messages that are sent to the pool
+    /// and is not taken out. WeakAddresses can be used to access
+    /// state directly on the actor.
+    ///
+    /// # None
+    /// Returns none if there are no actors left in the pool
+    pub fn pull_weak(&self) -> Option<WeakAddress<A>> {
+        self.queue.back().map(|a| a.downgrade())
+    }
+
     /// Forward a message to one of the spawned actors
     /// and advance the state of the futures in queue.
-    pub async fn forward<M>(&mut self, msg: M)
+    pub fn forward<M>(&mut self, msg: M)
     where
         M: Message<Result = ArchiveResult<()>>,
         A: Handler<M>,
@@ -89,9 +103,38 @@ async fn spawn(
 
 impl<A: Actor> Actor for ActorPool<A> {}
 
+// TODO: Could have a message which pulls an actor out of the queue completely, and rejoins it to
+// the queue when that Address is dropped
+// This message would have to return a Box<dyn AddressExt>, however, since it's implementation
+// would require something like a struct `RejoinOnDrop` that sends the address back to the pool to
+// Re-add it to the queue. RejoinOnDrop would implement AddressExt.
+// this avoids having to call methods like `add` when working directly with a Strong Addres
+// But it's only really useful if a strong address is needed (IE when we don't want the actor to
+// be dropped if there is unfinished work to do).
+/// Gets a weak address to one of the actors in the pool
+pub struct PoolConnection<A: Actor + Send>(PhantomData<A>);
+
+// if we don't implement this manually, it requires that the actor implement
+// Default
+impl<A: Actor + Send> Default for PoolConnection<A> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<A: Actor + Send> Message for PoolConnection<A> {
+    type Result = Option<WeakAddress<A>>;
+}
+
+impl<A: Actor + Send + Clone> SyncHandler<PoolConnection<A>> for ActorPool<A> {
+    fn handle(&mut self, _: PoolConnection<A>, _: &mut Context<Self>) -> Option<WeakAddress<A>> {
+        self.pull_weak()
+    }
+}
+
 // We need a concrete struct for this otherwise our handler implementation
 // conflicts with xtra's generic implementation for all T
-pub struct PoolMessage<M: Message + Send>(M);
+pub struct PoolMessage<M: Message + Send>(pub M);
 
 impl<M> Message for PoolMessage<M>
 where
@@ -100,14 +143,13 @@ where
     type Result = ();
 }
 
-#[async_trait::async_trait]
-impl<A, M> Handler<PoolMessage<M>> for ActorPool<A>
+impl<A, M> SyncHandler<PoolMessage<M>> for ActorPool<A>
 where
     A: Actor + Send + Clone + Handler<M>,
     M: Message<Result = ArchiveResult<()>> + Send,
 {
-    async fn handle(&mut self, msg: PoolMessage<M>, _: &mut Context<Self>) {
-        self.forward(msg.0).await;
+    fn handle(&mut self, msg: PoolMessage<M>, _: &mut Context<Self>) {
+        self.forward(msg.0);
     }
 }
 

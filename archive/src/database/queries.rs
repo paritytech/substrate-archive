@@ -16,7 +16,6 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
-use super::batch::Batch;
 use crate::{
     error::{ArchiveResult, Error as ArchiveError},
     sql_block_builder::SqlBlock,

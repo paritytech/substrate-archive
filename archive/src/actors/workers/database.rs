@@ -14,17 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::database::{models::StorageModel, Database};
-use crate::error::{ArchiveResult, Error as ArchiveError};
+use crate::database::{models::StorageModel, Database, DbConn};
+use crate::error::ArchiveResult;
 use crate::queries;
 use crate::types::*;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use xtra::prelude::*;
-
-/// Get Some State from the Database Actor
-pub enum Get {
-    Conn,
-}
 
 impl Actor for Database {}
 
@@ -149,4 +144,50 @@ fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -
         }
     }
     true
+}
+
+// this is an enum in case there is some more state
+// that might be needed in the future
+/// Get Some State from the Database Actor
+pub enum GetState {
+    Conn,
+}
+
+/// A resposne to `GetState`
+/// it is callers responsiblity to make sure to call the
+/// correct method on the implement after receiving the message
+pub enum StateResponse {
+    Conn(DbConn),
+}
+
+impl StateResponse {
+    /// Pull a connection out of the enum
+    ///
+    /// # Panics
+    /// panics if the enum is not actually of the `Conn` type
+    pub fn conn(self) -> DbConn {
+        match self {
+            StateResponse::Conn(v) => v,
+        }
+    }
+}
+
+impl Message for GetState {
+    type Result = ArchiveResult<StateResponse>;
+}
+
+#[async_trait::async_trait]
+impl Handler<GetState> for Database {
+    async fn handle(
+        &mut self,
+        msg: GetState,
+        _: &mut Context<Self>,
+    ) -> ArchiveResult<StateResponse> {
+        match msg {
+            GetState::Conn => {
+                let conn = self.conn().await?;
+                Ok(StateResponse::Conn(conn))
+            }
+        }
+    }
 }

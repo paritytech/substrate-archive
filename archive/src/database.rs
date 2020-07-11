@@ -62,13 +62,8 @@ impl Database {
     }
 
     /// Start the database with a pre-defined pool
-    #[allow(unused)]
     pub fn with_pool(url: String, pool: PgPool) -> Self {
         Self { pool, url }
-    }
-
-    pub fn pool(&self) -> &sqlx::Pool<Postgres> {
-        &self.pool
     }
 
     pub async fn insert(&self, data: impl Insert) -> ArchiveResult<u64> {

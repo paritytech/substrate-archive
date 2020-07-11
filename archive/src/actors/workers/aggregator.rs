@@ -126,11 +126,10 @@ where
         pool: sqlx::PgPool,
     ) -> ArchiveResult<Self> {
         let (psql_url, rpc_url) = (ctx.psql_url().to_string(), ctx.rpc_url().to_string());
-        let conn = pool.acquire().await?;
         let db = super::Database::with_pool(psql_url, pool);
-        let db_pool = super::ActorPool::new(db.clone(), 4).spawn();
-        let meta_addr = super::Metadata::new(rpc_url, conn, db_pool.clone())
-            .await
+        let db_pool = super::ActorPool::new(db, 4).spawn();
+        let meta = super::Metadata::new(rpc_url, db_pool.clone())
+            .await?
             .spawn();
         let (senders, recvs) = queues();
 
@@ -138,7 +137,7 @@ where
             senders,
             db_pool,
             recvs: Some(recvs),
-            meta_addr,
+            meta_addr: meta,
             exec: tx,
             last_count_was_0: false,
         })
@@ -251,14 +250,14 @@ where
             }
             (0, s) => {
                 self.db_pool
-                    .do_send(storage.into())
+                    .do_send(super::PoolMessage(storage))
                     .expect("Actor Disconnected");
                 log::info!("Indexing Storage {} bps", s);
                 self.last_count_was_0 = false;
             }
             (b, s) => {
                 self.db_pool
-                    .do_send(storage.into())
+                    .do_send(super::PoolMessage(storage))
                     .expect("Actor Disconnected");
                 self.meta_addr.do_send(blocks).expect("Actor Disconnected");
                 log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s);

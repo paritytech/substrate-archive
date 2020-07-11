@@ -13,10 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::ActorPool;
+use super::{database::GetState, ActorPool, PoolMessage};
 use crate::{
     database::DbConn,
-    error::ArchiveResult,
+    error::{ArchiveResult, Error},
     queries,
     rpc::Rpc,
     types::{BatchBlock, Block, Metadata as MetadataT},
@@ -24,31 +24,52 @@ use crate::{
 use itertools::Itertools;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use xtra::prelude::*;
+use xtra::WeakAddress;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
 pub struct Metadata<B: BlockT> {
-    conn: DbConn,
+    // TODO it would be nice to be able to get state
+    // from the database without holding two references
+    // but would require a re-thinking of 'ActorPool'
     addr: Address<ActorPool<super::Database>>,
+    addr_single: WeakAddress<super::Database>,
     rpc: Rpc<B>,
 }
 
 impl<B: BlockT> Metadata<B> {
-    pub async fn new(url: String, conn: DbConn, addr: Address<ActorPool<super::Database>>) -> Self {
+    pub async fn new(
+        url: String,
+        addr: Address<ActorPool<super::Database>>,
+    ) -> ArchiveResult<Self> {
         let rpc = super::connect::<B>(url.as_str()).await;
-        Self { conn, addr, rpc }
+        let addr_single = addr
+            .send(super::PoolConnection::default())
+            .await?
+            .ok_or(Error::General("No actors in actor pool".into()))?;
+
+        Ok(Self {
+            addr_single,
+            addr,
+            rpc,
+        })
     }
 
     // checks if the metadata exists in the database
     // if it doesn't exist yet, fetch metadata and insert it
     async fn meta_checker(&mut self, ver: u32, hash: B::Hash) -> ArchiveResult<()> {
         let rpc = self.rpc.clone();
-        if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
+        let mut conn = self.get_conn().await?;
+        if !queries::check_if_meta_exists(ver, &mut conn).await? {
             let meta = rpc.metadata(Some(hash)).await?;
             let meta = MetadataT::new(ver, meta);
-            self.addr.do_send(meta.into())?;
+            self.addr.do_send(PoolMessage(meta))?;
         }
         Ok(())
+    }
+
+    async fn get_conn(&self) -> ArchiveResult<DbConn> {
+        Ok(self.addr_single.send(GetState::Conn).await??.conn())
     }
 }
 
@@ -63,7 +84,7 @@ where
     async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let hash = blk.inner.block.header().hash();
         self.meta_checker(blk.spec, hash).await?;
-        self.addr.do_send(blk.into())?;
+        self.addr.do_send(PoolMessage(blk))?;
         Ok(())
     }
 }
@@ -84,7 +105,7 @@ where
         for b in versions.iter() {
             self.meta_checker(b.spec, b.inner.block.hash()).await?;
         }
-        self.addr.do_send(blks.into())?;
+        self.addr.do_send(PoolMessage(blks))?;
         Ok(())
     }
 }
