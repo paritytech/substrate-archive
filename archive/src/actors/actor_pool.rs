@@ -115,6 +115,7 @@ where
 }
 
 impl<A: Actor> Actor for ActorPool<A> {}
+
 // We need a concrete struct for this otherwise our handler implementation
 // conflicts with xtra's generic implementation for all T
 pub struct PoolMessage<M: Message + Send>(pub M);
