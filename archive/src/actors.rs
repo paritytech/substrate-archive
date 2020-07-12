@@ -145,8 +145,8 @@ where
     /// Start the actors and begin driving their execution
     pub async fn drive(&mut self) -> ArchiveResult<()> {
         let pool = PgPool::builder()
-            .min_size(8)
-            .max_size(16)
+            .min_size(4)
+            .max_size(8)
             .build(self.context.psql_url())
             .await?;
         let ctx = self.context.clone();
@@ -154,7 +154,6 @@ where
         let tx = self.executor.sender();
         let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
         let subscription = rpc.subscribe_finalized_heads().await?;
-        log::info!("Blocking on filling storage");
         let (conn0, conn1) = (pool.acquire().await?, pool.acquire().await?);
         crate::util::spawn(fill_storage(conn0, tx.clone()));
         let ag = Aggregator::new(ctx.clone(), tx, pool).await?.spawn();

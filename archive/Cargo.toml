@@ -60,7 +60,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", 
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-api" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-block-builder" }
 sp-version = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-version" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-executor", features = ["wasmtime"] }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-executor" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" } 
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }

@@ -61,7 +61,6 @@ where
             if db_contains_metadata(specs.as_slice(), versions) {
                 break;
             }
-            log::error!("Waiting....");
             timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
         std::mem::drop(conn);

@@ -33,7 +33,7 @@ pub struct Metadata<B: BlockT> {
     // from the database without holding two references
     // but would require a re-thinking of 'ActorPool'
     addr: Address<ActorPool<super::Database>>,
-    addr_single: WeakAddress<super::Database>,
+    conn: DbConn,
     rpc: Rpc<B>,
 }
 
@@ -43,33 +43,20 @@ impl<B: BlockT> Metadata<B> {
         addr: Address<ActorPool<super::Database>>,
     ) -> ArchiveResult<Self> {
         let rpc = super::connect::<B>(url.as_str()).await;
-        let addr_single = addr
-            .send(super::PoolConnection::default())
-            .await?
-            .ok_or(Error::General("No actors in actor pool".into()))?;
-
-        Ok(Self {
-            addr_single,
-            addr,
-            rpc,
-        })
+        let conn = addr.send(GetState::Conn.into()).await?.await?.conn();
+        Ok(Self { conn, addr, rpc })
     }
 
     // checks if the metadata exists in the database
     // if it doesn't exist yet, fetch metadata and insert it
     async fn meta_checker(&mut self, ver: u32, hash: B::Hash) -> ArchiveResult<()> {
         let rpc = self.rpc.clone();
-        let mut conn = self.get_conn().await?;
-        if !queries::check_if_meta_exists(ver, &mut conn).await? {
+        if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
             let meta = rpc.metadata(Some(hash)).await?;
             let meta = MetadataT::new(ver, meta);
             self.addr.do_send(PoolMessage(meta))?;
         }
         Ok(())
-    }
-
-    async fn get_conn(&self) -> ArchiveResult<DbConn> {
-        Ok(self.addr_single.send(GetState::Conn).await??.conn())
     }
 }
 

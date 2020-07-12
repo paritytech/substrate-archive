@@ -19,7 +19,8 @@
 //! if state is an actor may be pulled out of the pool
 
 use crate::error::ArchiveResult;
-use futures::future::Future;
+use futures::future::{Future, FutureExt};
+use std::pin::Pin;
 use std::{collections::VecDeque, marker::PhantomData};
 use xtra::prelude::*;
 use xtra::{Disconnected, WeakAddress};
@@ -78,60 +79,42 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
 
     /// Forward a message to one of the spawned actors
     /// and advance the state of the futures in queue.
-    pub fn forward<M>(&mut self, msg: M)
+    pub fn forward<M>(
+        &mut self,
+        msg: M,
+    ) -> Pin<Box<dyn Future<Output = M::Result> + Send + 'static>>
     where
-        M: Message<Result = ArchiveResult<()>>,
+        M: Message,
         A: Handler<M>,
     {
         self.queue.rotate_left(1);
-        crate::util::spawn(spawn(self.queue[0].send(msg)));
+        spawn(self.queue[0].send(msg))
     }
 }
 
-async fn spawn(
-    fut: impl Future<Output = Result<ArchiveResult<()>, Disconnected>>,
-) -> ArchiveResult<()> {
-    match fut.await {
-        Ok(v) => v,
-        Err(_) => {
-            log::error!("one of the pooled db actors has disconnected");
-            //TODO: Panic?
-            Ok(())
+fn spawn<R>(
+    fut: impl Future<Output = Result<R, Disconnected>> + Send + 'static,
+) -> Pin<Box<dyn Future<Output = R> + Send + 'static>>
+where
+    R: Send + 'static,
+{
+    let (tx, mut rx) = flume::bounded(0);
+    crate::util::spawn(async move {
+        match fut.await {
+            Ok(v) => tx.send(v)?,
+            Err(_) => {
+                log::error!(
+                    "One of the pooled db actors has disconnected. could not send message."
+                );
+                panic!("Actor Disconnected");
+            }
         }
-    }
+        Ok(())
+    });
+    async move { rx.recv_async().map(|r| r.unwrap()).await }.boxed()
 }
 
 impl<A: Actor> Actor for ActorPool<A> {}
-
-// TODO: Could have a message which pulls an actor out of the queue completely, and rejoins it to
-// the queue when that Address is dropped
-// This message would have to return a Box<dyn AddressExt>, however, since it's implementation
-// would require something like a struct `RejoinOnDrop` that sends the address back to the pool to
-// Re-add it to the queue. RejoinOnDrop would implement AddressExt.
-// this avoids having to call methods like `add` when working directly with a Strong Addres
-// But it's only really useful if a strong address is needed (IE when we don't want the actor to
-// be dropped if there is unfinished work to do).
-/// Gets a weak address to one of the actors in the pool
-pub struct PoolConnection<A: Actor + Send>(PhantomData<A>);
-
-// if we don't implement this manually, it requires that the actor implement
-// Default
-impl<A: Actor + Send> Default for PoolConnection<A> {
-    fn default() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<A: Actor + Send> Message for PoolConnection<A> {
-    type Result = Option<WeakAddress<A>>;
-}
-
-impl<A: Actor + Send + Clone> SyncHandler<PoolConnection<A>> for ActorPool<A> {
-    fn handle(&mut self, _: PoolConnection<A>, _: &mut Context<Self>) -> Option<WeakAddress<A>> {
-        self.pull_weak()
-    }
-}
-
 // We need a concrete struct for this otherwise our handler implementation
 // conflicts with xtra's generic implementation for all T
 pub struct PoolMessage<M: Message + Send>(pub M);
@@ -140,16 +123,20 @@ impl<M> Message for PoolMessage<M>
 where
     M: Message + Send,
 {
-    type Result = ();
+    type Result = Pin<Box<dyn Future<Output = M::Result> + Send + 'static>>;
 }
 
 impl<A, M> SyncHandler<PoolMessage<M>> for ActorPool<A>
 where
     A: Actor + Send + Clone + Handler<M>,
-    M: Message<Result = ArchiveResult<()>> + Send,
+    M: Message + Send,
 {
-    fn handle(&mut self, msg: PoolMessage<M>, _: &mut Context<Self>) {
-        self.forward(msg.0);
+    fn handle(
+        &mut self,
+        msg: PoolMessage<M>,
+        _: &mut Context<Self>,
+    ) -> Pin<Box<dyn Future<Output = M::Result> + Send + 'static>> {
+        self.forward(msg.0)
     }
 }
 

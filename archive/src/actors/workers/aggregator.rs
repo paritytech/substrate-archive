@@ -127,8 +127,8 @@ where
     ) -> ArchiveResult<Self> {
         let (psql_url, rpc_url) = (ctx.psql_url().to_string(), ctx.rpc_url().to_string());
         let db = super::Database::with_pool(psql_url, pool);
-        let db_pool = super::ActorPool::new(db, 4).spawn();
-        let meta = super::Metadata::new(rpc_url, db_pool.clone())
+        let db_pool = super::ActorPool::new(db.clone(), 4).spawn();
+        let meta_addr = super::Metadata::new(rpc_url, db_pool.clone())
             .await?
             .spawn();
         let (senders, recvs) = queues();
@@ -137,7 +137,7 @@ where
             senders,
             db_pool,
             recvs: Some(recvs),
-            meta_addr: meta,
+            meta_addr,
             exec: tx,
             last_count_was_0: false,
         })

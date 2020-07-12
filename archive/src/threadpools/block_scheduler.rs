@@ -81,6 +81,7 @@ where
     O: Send + Sync + Debug,
     T: ThreadPool<In = I, Out = O>,
 {
+    name: String,
     /// sorted prioritized queue of blocks
     queue: BinaryHeap<EncodedIn<I>>,
     /// A HashSet of the data to be inserted. Used for checking against duplicates
@@ -109,9 +110,10 @@ where
     O: Send + Sync + Debug + Clone,
     T: ThreadPool<In = I, Out = O>,
 {
-    pub fn new(exec: T, max_size: usize, ord: Ordering) -> Self {
+    pub fn new(name: &str, exec: T, max_size: usize, ord: Ordering) -> Self {
         let (tx, rx) = flume::unbounded();
         Self {
+            name: name.to_string(),
             queue: BinaryHeap::new(),
             dups: HashSet::new(),
             exec,
@@ -144,7 +146,6 @@ where
     }
 
     pub fn check_work(&mut self) -> ArchiveResult<Vec<O>> {
-        log::trace!("Queue Length: {}", self.queue.len());
         // we try to maintain a MAX queue of max_size tasks at a time in the threadpool
         let delta = self.added - self.finished;
         if self.finished == 0 && self.added == 0 {
@@ -155,8 +156,16 @@ where
             self.add_work(self.max_size)?;
         } else if delta == 0 && self.queue.len() <= self.max_size {
             self.add_work(self.queue.len())?;
+        } else {
+            log::info!(
+                "sched-{}: Queue Length: {}, Delta: {}, added: {}, finished: {}",
+                self.name,
+                self.queue.len(),
+                delta,
+                self.added,
+                self.finished
+            );
         }
-        log::trace!("finished: {}, added: {}", self.finished, self.added);
 
         let out = self.rx.drain().collect::<Vec<O>>();
         self.finished += out.len();
