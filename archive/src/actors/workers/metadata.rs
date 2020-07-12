@@ -13,10 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{database::GetState, ActorPool, PoolMessage};
+use super::{database::GetState, ActorPool};
 use crate::{
     database::DbConn,
-    error::{ArchiveResult, Error},
+    error::ArchiveResult,
     queries,
     rpc::Rpc,
     types::{BatchBlock, Block, Metadata as MetadataT},
@@ -54,7 +54,7 @@ impl<B: BlockT> Metadata<B> {
         if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
             let meta = rpc.metadata(Some(hash)).await?;
             let meta = MetadataT::new(ver, meta);
-            self.addr.do_send(PoolMessage(meta))?;
+            self.addr.do_send(meta.into())?;
         }
         Ok(())
     }
@@ -71,7 +71,7 @@ where
     async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
         let hash = blk.inner.block.header().hash();
         self.meta_checker(blk.spec, hash).await?;
-        self.addr.do_send(PoolMessage(blk))?;
+        self.addr.do_send(blk.into())?;
         Ok(())
     }
 }
@@ -92,7 +92,7 @@ where
         for b in versions.iter() {
             self.meta_checker(b.spec, b.inner.block.hash()).await?;
         }
-        self.addr.do_send(PoolMessage(blks))?;
+        self.addr.do_send(blks.into())?;
         Ok(())
     }
 }
