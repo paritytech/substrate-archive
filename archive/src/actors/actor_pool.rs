@@ -18,10 +18,9 @@
 //! Messages that return nothing but an error may be sent to an asyncronous pool of actors
 //! if state is an actor may be pulled out of the pool
 
-use crate::error::ArchiveResult;
 use futures::future::{Future, FutureExt};
+use std::collections::VecDeque;
 use std::pin::Pin;
-use std::{collections::VecDeque, marker::PhantomData};
 use xtra::prelude::*;
 use xtra::{Disconnected, WeakAddress};
 
@@ -68,11 +67,15 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
 
     /// Gets a weak address to the lastly-queued actor in the pool
     /// This actor will still receive messages that are sent to the pool
-    /// and is not taken out. WeakAddresses can be used to access
-    /// state directly on the actor.
+    /// and is not taken out. WeakAddresses can be used to
+    /// communicate directly with a single actor.
+    ///
+    /// This has the possiblity of interrupting the pooled actors
+    /// if many tasks are sent to the one actor.
     ///
     /// # None
     /// Returns none if there are no actors left in the pool
+    #[allow(unused)]
     pub fn pull_weak(&self) -> Option<WeakAddress<A>> {
         self.queue.back().map(|a| a.downgrade())
     }
@@ -125,6 +128,7 @@ where
         };
         Ok(())
     });
+    // the expect won't even be called if we call `do_send`
     async move { rx.recv_async().map(|r| r.expect("One shot")).await }.boxed()
 }
 

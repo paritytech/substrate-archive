@@ -157,7 +157,7 @@ where
         } else if delta == 0 && self.queue.len() <= self.max_size {
             self.add_work(self.queue.len())?;
         } else {
-            log::info!(
+            log::debug!(
                 "sched-{}: Queue Length: {}, Delta: {}, added: {}, finished: {}",
                 self.name,
                 self.queue.len(),

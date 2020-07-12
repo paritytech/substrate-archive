@@ -24,14 +24,10 @@ use crate::{
 use itertools::Itertools;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use xtra::prelude::*;
-use xtra::WeakAddress;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
 pub struct Metadata<B: BlockT> {
-    // TODO it would be nice to be able to get state
-    // from the database without holding two references
-    // but would require a re-thinking of 'ActorPool'
     addr: Address<ActorPool<super::Database>>,
     conn: DbConn,
     rpc: Rpc<B>,
@@ -61,7 +57,6 @@ impl<B: BlockT> Metadata<B> {
 }
 
 impl<B: BlockT> Actor for Metadata<B> {}
-
 #[async_trait::async_trait]
 impl<B> Handler<Block<B>> for Metadata<B>
 where
