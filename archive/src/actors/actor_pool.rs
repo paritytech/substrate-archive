@@ -98,20 +98,34 @@ fn spawn<R>(
 where
     R: Send + 'static,
 {
-    let (tx, mut rx) = flume::bounded(0);
+    // we create a channel with a capacity of one so that
+    // the send does not block the runtime
+    let (tx, mut rx) = flume::bounded(1);
     crate::util::spawn(async move {
         match fut.await {
-            Ok(v) => tx.send(v)?,
+            Ok(v) => {
+                if let Err(e) = tx.try_send(v) {
+                    match e {
+                        flume::TrySendError::Disconnected(_) => {
+                            // Receiver might just want to throw out the value (IE `do_send`)
+                            // we do nothing.
+                        }
+                        flume::TrySendError::Full(_) => {
+                            log::warn!("Oneshot channel full!"); // this should never happen
+                        }
+                    }
+                }
+            }
             Err(_) => {
                 log::error!(
                     "One of the pooled db actors has disconnected. could not send message."
                 );
                 panic!("Actor Disconnected");
             }
-        }
+        };
         Ok(())
     });
-    async move { rx.recv_async().map(|r| r.unwrap()).await }.boxed()
+    async move { rx.recv_async().map(|r| r.expect("One shot")).await }.boxed()
 }
 
 impl<A: Actor> Actor for ActorPool<A> {}
