@@ -46,7 +46,6 @@ pub struct ActorContext<Block: BlockT> {
     rpc_url: String,
     psql_url: String,
 }
-
 impl<Block: BlockT> ActorContext<Block> {
     pub fn new(
         backend: Arc<ReadOnlyBackend<Block>>,
@@ -144,14 +143,17 @@ where
     pub async fn drive(&mut self) -> ArchiveResult<()> {
         let ctx = self.context.clone();
         let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
-        let subscription = rpc.subscribe_finalized_heads().await?;
+        let subscription = rpc
+            .subscribe_finalized_heads()
+            .await?
+            .map(|h| (*h.number()).into());
 
         let (tx_block, tx_num) = (self.executor.sender(), self.fetcher.sender());
         let ag = Aggregator::new(ctx.clone(), tx_block, tx_num)
             .await?
             .spawn();
-        self.fetcher
-            .attach_stream(subscription.map(|h| (*h.number()).into()));
+
+        self.fetcher.attach_stream(subscription);
         let exec_stream = self.executor.get_stream().map(|c| Either::Left(c));
         let fetch_stream = self.fetcher.get_stream().map(|b| Either::Right(b));
         let comb_stream = futures::stream::select(exec_stream, fetch_stream);
