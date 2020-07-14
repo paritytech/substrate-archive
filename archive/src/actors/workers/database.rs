@@ -16,6 +16,7 @@
 
 use crate::database::{models::StorageModel, Database, DbConn};
 use crate::error::ArchiveResult;
+use crate::p_err;
 use crate::queries;
 use crate::types::*;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
@@ -29,14 +30,13 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        let mut conn = self.conn().await?;
-        while !queries::check_if_meta_exists(blk.spec, &mut conn).await? {
-            log::error!("METADATA DOESN'T EXIST, waiting");
+    async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) {
+        let mut conn = self.conn_unchecked().await;
+        while !p_err!(queries::check_if_meta_exists(blk.spec, &mut conn).await) {
             timer::Delay::new(std::time::Duration::from_millis(20)).await;
         }
         std::mem::drop(conn);
-        self.insert(blk).await.map(|_| ())
+        self.insert_unchecked(blk).await;
     }
 }
 
@@ -46,18 +46,14 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn handle(
-        &mut self,
-        mut blks: BatchBlock<B>,
-        _ctx: &mut Context<Self>,
-    ) -> ArchiveResult<()> {
+    async fn handle(&mut self, mut blks: BatchBlock<B>, _ctx: &mut Context<Self>) {
         let specs = blks.mut_inner();
         specs.sort_by_key(|b| b.spec);
         let mut specs = specs.iter_mut().map(|b| b.spec).collect::<Vec<u32>>();
         specs.dedup();
-        let mut conn = self.conn().await?;
+        let mut conn = self.conn_unchecked().await;
         loop {
-            let versions = queries::get_versions(&mut conn).await?;
+            let versions = p_err!(queries::get_versions(&mut conn).await);
             if db_contains_metadata(specs.as_slice(), versions) {
                 break;
             }
@@ -65,7 +61,7 @@ where
         }
         std::mem::drop(conn);
         let now = std::time::Instant::now();
-        self.insert(blks).await.map(|_| ())?;
+        self.insert_unchecked(blks).await;
         let elapsed = now.elapsed();
         log::debug!(
             "TOOK {} seconds, {} milli-seconds, {} micro-seconds, to insert blocks",
@@ -73,27 +69,25 @@ where
             elapsed.as_millis(),
             elapsed.as_micros(),
         );
-        Ok(())
     }
 }
 
 #[async_trait::async_trait]
 impl Handler<Metadata> for Database {
-    async fn handle(&mut self, meta: Metadata, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        self.insert(meta).await.map(|_| ())
+    async fn handle(&mut self, meta: Metadata, _ctx: &mut Context<Self>) {
+        self.insert_unchecked(meta).await;
     }
 }
 
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<Storage<B>> for Database {
-    async fn handle(&mut self, storage: Storage<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        let mut conn = self.conn().await?;
-        while !queries::contains_block::<B>(*storage.hash(), &mut conn).await? {
+    async fn handle(&mut self, storage: Storage<B>, _ctx: &mut Context<Self>) {
+        let mut conn = self.conn_unchecked().await;
+        while !p_err!(queries::contains_block::<B>(*storage.hash(), &mut conn).await) {
             timer::Delay::new(std::time::Duration::from_millis(10)).await;
         }
-        self.insert(Vec::<StorageModel<B>>::from(storage))
-            .await
-            .map(|_| ())
+        let storage = Vec::<StorageModel<B>>::from(storage);
+        self.insert_unchecked(storage).await;
     }
 }
 
@@ -110,15 +104,14 @@ impl<B: BlockT> Handler<VecStorageWrap<B>> for Database {
         storage: VecStorageWrap<B>,
         _ctx: &mut Context<Self>,
     ) -> ArchiveResult<()> {
-        let mut conn = self.conn().await?;
+        let mut conn = self.conn_unchecked().await;
         let block_nums: Vec<u32> = storage.0.iter().map(|s| s.block_num()).collect();
-        while !queries::contains_blocks::<B>(block_nums.as_slice(), &mut conn).await? {
+        while !p_err!(queries::contains_blocks::<B>(block_nums.as_slice(), &mut conn).await) {
             timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
         let now = std::time::Instant::now();
-        self.insert(Vec::<StorageModel<B>>::from(storage))
-            .await
-            .map(|_| ())?;
+        let storage = Vec::<StorageModel<B>>::from(storage);
+        self.insert_unchecked(storage).await;
         let elapsed = now.elapsed();
         log::debug!(
             "TOOK {} seconds, {} milli-seconds, {} micro-seconds, to insert storage",

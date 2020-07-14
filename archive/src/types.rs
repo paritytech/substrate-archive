@@ -55,7 +55,7 @@ pub struct Metadata {
 }
 
 impl Message for Metadata {
-    type Result = Result<(), ArchiveError>;
+    type Result = ();
 }
 
 impl Metadata {
@@ -79,7 +79,7 @@ pub struct Block<B: BlockT> {
 }
 
 impl<B: BlockT> Message for Block<B> {
-    type Result = Result<(), ArchiveError>;
+    type Result = ();
 }
 
 impl<B: BlockT> Block<B> {
@@ -95,7 +95,7 @@ pub struct BatchBlock<B: BlockT> {
 }
 
 impl<B: BlockT> Message for BatchBlock<B> {
-    type Result = Result<(), ArchiveError>;
+    type Result = ();
 }
 
 impl<B: BlockT> BatchBlock<B> {
@@ -122,7 +122,7 @@ pub struct Storage<Block: BlockT> {
 }
 
 impl<Block: BlockT> Message for Storage<Block> {
-    type Result = Result<(), ArchiveError>;
+    type Result = ();
 }
 
 impl<Block: BlockT> Storage<Block> {

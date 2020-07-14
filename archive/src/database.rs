@@ -54,18 +54,20 @@ impl Database {
     /// Connect to the database
     pub async fn new(url: String) -> ArchiveResult<Self> {
         let pool = PgPool::builder()
-            .min_size(16)
-            .max_size(32)
+            .min_size(4)
+            .max_size(8)
             .build(url.as_str())
             .await?;
         Ok(Self { pool, url })
     }
 
     /// Start the database with a pre-defined pool
+    #[allow(unused)]
     pub fn with_pool(url: String, pool: PgPool) -> Self {
         Self { pool, url }
     }
 
+    #[allow(unused)]
     pub async fn insert(&self, data: impl Insert) -> ArchiveResult<u64> {
         let mut conn = self.pool.acquire().await?;
         let res = data.insert(&mut conn).await?;
@@ -74,8 +76,34 @@ impl Database {
         Ok(res)
     }
 
+    /// Inserts an some object into a database
+    ///
+    /// # Panics
+    /// panics if sql encounters an error
+    pub async fn insert_unchecked(&self, data: impl Insert) -> u64 {
+        let mut conn = self.conn_unchecked().await;
+        let res = match data.insert(&mut conn).await {
+            Ok(v) => v,
+            Err(e) => {
+                panic!("{}", e.to_string());
+            }
+        };
+        // we HAVE to ensure the connection is dropped, otherwise we may never reclaim it
+        std::mem::drop(conn);
+        res
+    }
+
     pub async fn conn(&self) -> ArchiveResult<DbConn> {
         self.pool.acquire().await.map_err(Into::into)
+    }
+
+    pub async fn conn_unchecked(&self) -> DbConn {
+        match self.pool.acquire().await {
+            Ok(v) => v,
+            Err(e) => {
+                panic!("{}", e.to_string());
+            }
+        }
     }
 }
 

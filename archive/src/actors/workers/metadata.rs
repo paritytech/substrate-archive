@@ -63,11 +63,12 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+    async fn handle(&mut self, blk: Block<B>, c: &mut Context<Self>) {
         let hash = blk.inner.block.header().hash();
-        self.meta_checker(blk.spec, hash).await?;
-        self.addr.do_send(blk.into())?;
-        Ok(())
+        crate::p_err!(self.meta_checker(blk.spec, hash).await);
+        if let Err(_) = self.addr.do_send(blk.into()) {
+            c.stop();
+        }
     }
 }
 
@@ -77,7 +78,7 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blks: BatchBlock<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
+    async fn handle(&mut self, blks: BatchBlock<B>, c: &mut Context<Self>) {
         let versions = blks
             .inner()
             .iter()
@@ -85,9 +86,11 @@ where
             .collect::<Vec<&Block<B>>>();
 
         for b in versions.iter() {
-            self.meta_checker(b.spec, b.inner.block.hash()).await?;
+            crate::p_err!(self.meta_checker(b.spec, b.inner.block.hash()).await);
         }
-        self.addr.do_send(blks.into())?;
-        Ok(())
+
+        if let Err(_) = self.addr.do_send(blks.into()) {
+            c.stop()
+        }
     }
 }

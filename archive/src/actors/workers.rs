@@ -19,12 +19,11 @@ mod database;
 mod metadata;
 
 pub use self::aggregator::Aggregator;
+pub use self::database::GetState;
 pub use self::metadata::Metadata;
 
-use super::{
-    actor_pool::{ActorPool, PoolMessage},
-    connect, ActorContext,
-};
+pub use super::generators::Generator;
+use super::{actor_pool::ActorPool, connect, ActorContext};
 pub use crate::database::Database;
 
 /// any messages defined in the workers

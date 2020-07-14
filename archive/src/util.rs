@@ -154,18 +154,14 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
 
 /// log an error without doing anything else
 #[macro_export]
-macro_rules! print_on_err {
+macro_rules! p_err {
     ($e: expr) => {
         match $e {
-            Ok(_) => (),
-            Err(e) => log::error!("{:?}", e),
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("{}", e.to_string());
+                panic!();
+            }
         };
-    };
-}
-
-#[macro_export]
-macro_rules! archive_answer {
-    ($ctx: expr, $ans: expr) => {
-        answer!($ctx, $ans).map_err(|_| crate::error::Error::from("Could not answer"))
     };
 }

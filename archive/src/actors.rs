@@ -21,7 +21,6 @@ mod actor_pool;
 mod generators;
 mod workers;
 
-use self::generators::{fill_storage, missing_blocks};
 pub use self::workers::msg;
 use super::{
     backend::{ApiAccess, GetRuntimeVersion, ReadOnlyBackend},
@@ -34,7 +33,6 @@ use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-use sqlx::postgres::PgPool;
 use std::marker::PhantomData;
 use std::sync::Arc;
 pub use workers::Aggregator;
@@ -144,22 +142,16 @@ where
 
     /// Start the actors and begin driving their execution
     pub async fn drive(&mut self) -> ArchiveResult<()> {
-        let pool = PgPool::builder()
-            .min_size(4)
-            .max_size(8)
-            .build(self.context.psql_url())
-            .await?;
         let ctx = self.context.clone();
-
-        let tx = self.executor.sender();
         let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
         let subscription = rpc.subscribe_finalized_heads().await?;
-        let (conn0, conn1) = (pool.acquire().await?, pool.acquire().await?);
-        crate::util::spawn(fill_storage(conn0, tx.clone()));
-        let ag = Aggregator::new(ctx.clone(), tx, pool).await?.spawn();
+
+        let (tx_block, tx_num) = (self.executor.sender(), self.fetcher.sender());
+        let ag = Aggregator::new(ctx.clone(), tx_block, tx_num)
+            .await?
+            .spawn();
         self.fetcher
             .attach_stream(subscription.map(|h| (*h.number()).into()));
-        crate::util::spawn(missing_blocks(conn1, self.fetcher.sender()));
         let exec_stream = self.executor.get_stream().map(|c| Either::Left(c));
         let fetch_stream = self.fetcher.get_stream().map(|b| Either::Right(b));
         let comb_stream = futures::stream::select(exec_stream, fetch_stream);

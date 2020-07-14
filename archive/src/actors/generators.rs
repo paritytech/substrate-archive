@@ -14,63 +14,98 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::{actor_pool::ActorPool, workers::GetState};
 use crate::{
-    error::ArchiveResult, queries, sql_block_builder::BlockBuilder, threadpools::BlockData,
+    database::Database, error::ArchiveResult, queries, sql_block_builder::BlockBuilder,
+    threadpools::BlockData,
 };
-use futures::StreamExt;
+use flume::Sender;
 use sp_runtime::traits::Block as BlockT;
 use sqlx::{pool::PoolConnection, Postgres};
-/// Gets missing blocks from the SQL database
-pub async fn missing_blocks(
-    mut conn: PoolConnection<Postgres>,
-    sender: flume::Sender<u32>,
-) -> ArchiveResult<()> {
-    'gen: loop {
-        let mut stream = queries::missing_blocks_stream(&mut conn);
-        while let Some(num) = stream.next().await {
-            match num {
-                Ok(n) => {
-                    // if this is an error the threadpool has disconnected and we can shutdown
-                    if let Err(_) = sender.send(n.0 as u32) {
-                        break 'gen;
-                    }
-                }
-                Err(e) => {
-                    // if an error occurs we should kill the loop
-                    log::error!("{}", e.to_string());
+use std::sync::Arc;
+use xtra::prelude::*;
+
+pub struct Generator<B: BlockT> {
+    last_block_max: u32,
+    addr: Address<ActorPool<Database>>,
+    tx_block: Sender<BlockData<B>>,
+    tx_num: Sender<u32>,
+}
+
+type Conn = PoolConnection<Postgres>;
+
+impl<B: BlockT> Generator<B> {
+    pub fn new(
+        actor_pool: Address<ActorPool<Database>>,
+        tx_block: Sender<BlockData<B>>,
+        tx_num: Sender<u32>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            last_block_max: 0,
+            addr: actor_pool,
+            tx_block,
+            tx_num,
+        })
+    }
+
+    pub async fn start(self: Arc<Self>) -> ArchiveResult<()> {
+        let conn = self.addr.send(GetState::Conn.into()).await?.await?.conn();
+        crate::util::spawn(self.clone().missing_blocks(conn));
+        let conn = self.addr.send(GetState::Conn.into()).await?.await?.conn();
+        crate::util::spawn(self.clone().storage(conn));
+        Ok(())
+    }
+
+    /// Every second gets blocks missing from database
+    async fn missing_blocks(mut self: Arc<Self>, mut conn: Conn) -> ArchiveResult<()> {
+        'gen: loop {
+            let numbers = queries::missing_blocks_min_max(&mut conn, self.last_block_max).await?;
+            let max = if !numbers.is_empty() {
+                log::info!(
+                    "Indexing {} missing blocks, from {} to {}...",
+                    numbers.len(),
+                    numbers.first().unwrap(),
+                    numbers.last().unwrap()
+                );
+                numbers[numbers.len() - 1]
+            } else {
+                self.last_block_max
+            };
+            for num in numbers.iter() {
+                if let Err(_) = self.tx_num.send(*num) {
+                    // threadpool has disconnected so we can stop
                     break 'gen;
                 }
             }
-        }
-        timer::Delay::new(std::time::Duration::from_secs(1)).await;
-    }
-    std::mem::drop(conn);
-    Ok(())
-}
+            if let Some(this) = std::sync::Arc::<Generator<B>>::get_mut(&mut self) {
+                log::debug!("new max: {}", max);
+                this.last_block_max = max;
+            }
 
-/// Gets storage that is missing from the storage table
-/// by querying it against the blocks table
-/// This fills in storage that might've been missed by a shutdown
-pub async fn fill_storage<B: BlockT>(
-    mut conn: PoolConnection<Postgres>,
-    tx: flume::Sender<BlockData<B>>,
-) -> ArchiveResult<()> {
-    if queries::blocks_count(&mut conn).await? == 0 {
-        // no blocks means we haven't indexed anything yet
-        return Ok(());
+            if numbers.is_empty() {
+                timer::Delay::new(std::time::Duration::from_secs(5)).await;
+            } else {
+                timer::Delay::new(std::time::Duration::from_secs(1)).await;
+            }
+        }
+        Ok(())
     }
-    let now = std::time::Instant::now();
-    let blocks = queries::blocks_storage_intersection(&mut conn).await?;
-    let blocks = BlockBuilder::<B>::new().with_vec(blocks)?;
-    let elapsed = now.elapsed();
-    log::info!(
-        "TOOK {} seconds, {} milli-seconds to get and build {} blocks",
-        elapsed.as_secs(),
-        elapsed.as_millis(),
-        blocks.len()
-    );
-    log::info!("indexing {} blocks of storage ... ", blocks.len());
-    tx.send(BlockData::Batch(blocks))?;
-    std::mem::drop(conn);
-    Ok(())
+
+    /// Gets storage that is missing from the storage table
+    /// by querying it against the blocks table
+    /// This fills in storage that might've been missed by a shutdown
+    async fn storage(self: Arc<Self>, mut conn: Conn) -> ArchiveResult<()> {
+        if queries::blocks_count(&mut conn).await? == 0 {
+            // no blocks means we haven't indexed anything yet
+            return Ok(());
+        }
+        let now = std::time::Instant::now();
+        let blocks = queries::blocks_storage_intersection(&mut conn).await?;
+        let blocks = BlockBuilder::<B>::new().with_vec(blocks)?;
+        log::info!("took {:?} to get and build blocks", now.elapsed());
+
+        log::info!("indexing {} blocks of storage ... ", blocks.len());
+        self.tx_block.send(BlockData::Batch(blocks))?;
+        Ok(())
+    }
 }
