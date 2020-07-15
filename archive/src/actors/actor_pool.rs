@@ -24,6 +24,10 @@ use std::pin::Pin;
 use xtra::prelude::*;
 use xtra::{Disconnected, WeakAddress};
 
+// TODO: Could restart actors which have panicked
+
+/// A pool of one type of Actor
+/// will distribute work to all actors in the pool
 pub struct ActorPool<A: Actor> {
     queue: VecDeque<Address<A>>,
     pure_actor: A,
