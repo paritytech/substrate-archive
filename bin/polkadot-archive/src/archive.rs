@@ -22,8 +22,7 @@ use polkadot_service::polkadot_runtime as dot_rt;
 use polkadot_service::westend_runtime as westend_rt;
 use polkadot_service::Block;
 use sc_chain_spec::ChainSpec;
-use substrate_archive::{ArchiveBuilder, ArchiveConfig, Archive};
-
+use substrate_archive::{Archive, ArchiveBuilder, ArchiveConfig};
 
 pub async fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
     let mut db_path = config.polkadot_path();

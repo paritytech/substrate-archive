@@ -55,9 +55,9 @@ impl<B: BlockT> Metadata<B> {
         Ok(())
     }
 
-    async fn block_handler(&mut self, blk: Block<B>) -> ArchiveResult<()> 
+    async fn block_handler(&mut self, blk: Block<B>) -> ArchiveResult<()>
     where
-        NumberFor<B>: Into<u32> 
+        NumberFor<B>: Into<u32>,
     {
         let hash = blk.inner.block.header().hash();
         self.meta_checker(blk.spec, hash).await?;
@@ -65,18 +65,18 @@ impl<B: BlockT> Metadata<B> {
         Ok(())
     }
 
-    async fn batch_block_handler(&mut self, blks: BatchBlock<B>) -> ArchiveResult<()> 
+    async fn batch_block_handler(&mut self, blks: BatchBlock<B>) -> ArchiveResult<()>
     where
-        NumberFor<B>: Into<u32>
+        NumberFor<B>: Into<u32>,
     {
         let versions = blks
             .inner()
             .iter()
             .unique_by(|b| b.spec)
             .collect::<Vec<&Block<B>>>();
-        
+
         for b in versions.iter() {
-           self.meta_checker(b.spec, b.inner.block.hash()).await?;
+            self.meta_checker(b.spec, b.inner.block.hash()).await?;
         }
         self.addr.do_send(blks.into())?;
         Ok(())
@@ -108,6 +108,5 @@ where
         if let Err(e) = self.batch_block_handler(blks).await {
             log::error!("{}", e.to_string());
         }
-      
     }
 }
