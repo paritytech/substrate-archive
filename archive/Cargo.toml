@@ -15,7 +15,7 @@ timer = { version = "3.0", package = "futures-timer" }
 serde = { version = "1.0", features = ["derive"] }
 # enabling arbitrary_precision for serde_json may cause rpc requests to fail
 serde_json = "1.0"
-dirs = { version = "2", package = "directories" }
+dirs = { version = "3", package = "directories" }
 sqlx = { git = "https://github.com/launchbadge/sqlx", branch = "master", version = "0.4.0-pre", default-features = false, features = ["postgres", "macros", "runtime-tokio"] }
 # sqlx = { version = "0.3", features = ["postgres", "tls", "macros"] }
 async-trait = "0.1"
@@ -72,8 +72,8 @@ polkadot-service = { package = "polkadot-service", git = "https://github.com/par
 
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
-flate2 = "1.0.14"
-bincode = "1.2.1"
+flate2 = "1.0"
+bincode = "1.3"
 tempfile = "3.1"
 
 [features]
