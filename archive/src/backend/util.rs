@@ -29,6 +29,7 @@ use sp_runtime::{
     traits::{Block as BlockT, Header as HeaderT, UniqueSaturatedFrom, UniqueSaturatedInto, Zero},
 };
 use std::convert::TryInto;
+use std::path::PathBuf;
 
 pub const NUM_COLUMNS: u32 = 11;
 
@@ -41,12 +42,11 @@ pub fn open_database(
     chain: &str,
     id: &str,
 ) -> sp_blockchain::Result<ReadOnlyDatabase> {
-    let db_path = crate::util::create_secondary_db_dir(chain, id);
+    let db_path = create_secondary_db_dir(chain, id);
     // need to make sure this is `Some` to open secondary instance
     let db_path = db_path.as_path().to_str().expect("Creating db path failed");
     let mut db_config = DatabaseConfig {
         secondary: Some(db_path.to_string()),
-        enable_statistics: true,
         ..DatabaseConfig::with_columns(NUM_COLUMNS)
     };
     let state_col_budget = (cache_size as f64 * 0.9) as usize;
@@ -71,6 +71,23 @@ pub fn open_database(
     );
     super::database::ReadOnlyDatabase::open(&db_config, &path)
         .map_err(|err| sp_blockchain::Error::Backend(format!("{}", err)))
+}
+
+/// Create rocksdb secondary directory if it doesn't exist yet
+/// Return path to that directory
+pub fn create_secondary_db_dir(chain: &str, id: &str) -> PathBuf {
+    let path = if let Some(base_dirs) = dirs::BaseDirs::new() {
+        let mut path = base_dirs.data_local_dir().to_path_buf();
+        path.push("substrate_archive");
+        path.push("rocksdb_secondary");
+        path.push(chain);
+        path.push(id);
+        path
+    } else {
+        panic!("Couldn't establish substrate data local path");
+    };
+    std::fs::create_dir_all(path.as_path()).expect("Unable to create rocksdb secondary directory");
+    path
 }
 
 #[allow(unused)]

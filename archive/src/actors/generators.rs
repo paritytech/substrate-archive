@@ -72,20 +72,23 @@ impl<B: BlockT> Generator<B> {
                 self.last_block_max
             };
 
-            for num in numbers.iter() {
-                if let Err(_) = self.tx_num.send(*num) {
-                    // threadpool has disconnected so we can stop
-                    break 'gen;
+            if max != self.last_block_max {
+                for num in numbers.iter() {
+                    if let Err(_) = self.tx_num.send(*num) {
+                        // threadpool has disconnected so we can stop
+                        break 'gen;
+                    }
+                }
+                if let Some(this) = std::sync::Arc::<Generator<B>>::get_mut(&mut self) {
+                    log::debug!("new max: {}", max);
+                    this.last_block_max = max;
                 }
             }
-            
-            if self.last_block_max == max && if let Err(_) = self.tx_num.try_send(0) {
+
+            if self.tx_num.try_send(0).is_err() {
                 break 'gen;
-            } else if let Some(this) = std::sync::Arc::<Generator<B>>::get_mut(&mut self) {
-                log::debug!("new max: {}", max);
-                this.last_block_max = max;
-            }
-             
+            }              
+            
             if numbers.is_empty() {
                 timer::Delay::new(std::time::Duration::from_secs(5)).await;
             } else {

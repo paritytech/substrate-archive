@@ -199,7 +199,6 @@ where
     }
 
     fn shutdown(mut self) -> Result<(), ArchiveError> {
-        self.context.backend.backing_db().log_statistics();
         let ag = self.ag.take();
         if let Some(ag) = ag {
             ag.do_send(Die)?;
@@ -208,7 +207,6 @@ where
     }
 
    fn boxed_shutdown(mut self: Box<Self>) -> Result<(), ArchiveError> {
-        self.context.backend.backing_db().log_statistics();
         let ag = self.ag.take();
         if let Some(ag) = ag {
             ag.do_send(Die)?;

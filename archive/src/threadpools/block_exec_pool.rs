@@ -104,7 +104,7 @@ where
 
         let block = BlockExecutor::new(api, backend, block)?.block_into_storage()?;
 
-        sender.send(block).expect("Could not send");
+        sender.send(block)?;
         Ok(())
     }
 
