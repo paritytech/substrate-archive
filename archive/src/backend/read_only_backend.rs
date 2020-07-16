@@ -58,7 +58,7 @@ where
 
     /// get a reference to the backing database
     pub fn backing_db(&self) -> Arc<ReadOnlyDatabase> {
-        self.db.clone() 
+        self.db.clone()
     }
 
     fn state_at(&self, hash: Block::Hash) -> Option<TrieState<Block>> {

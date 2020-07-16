@@ -14,10 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{actor_pool::ActorPool, workers::{GetState, DatabaseActor}};
+use super::{
+    actor_pool::ActorPool,
+    workers::{DatabaseActor, GetState},
+};
 use crate::{
-    error::ArchiveResult, queries, sql_block_builder::BlockBuilder,
-    threadpools::BlockData,
+    error::ArchiveResult, queries, sql_block_builder::BlockBuilder, threadpools::BlockData,
 };
 use flume::Sender;
 use sp_runtime::traits::Block as BlockT;
@@ -87,8 +89,8 @@ impl<B: BlockT> Generator<B> {
 
             if self.tx_num.try_send(0).is_err() {
                 break 'gen;
-            }              
-            
+            }
+
             if numbers.is_empty() {
                 timer::Delay::new(std::time::Duration::from_secs(5)).await;
             } else {
@@ -109,7 +111,11 @@ impl<B: BlockT> Generator<B> {
         let now = std::time::Instant::now();
         let blocks = queries::blocks_storage_intersection(&mut conn).await?;
         let blocks = BlockBuilder::<B>::new().with_vec(blocks)?;
-        log::info!("took {:?} to get and build {} blocks. Adding to queue...", now.elapsed(), blocks.len());
+        log::info!(
+            "took {:?} to get and build {} blocks. Adding to queue...",
+            now.elapsed(),
+            blocks.len()
+        );
 
         if let Err(_) = self.tx_block.send(BlockData::Batch(blocks)) {
             log::warn!("Block Executor channel disconnected before any missing storage-blocks could be sent")

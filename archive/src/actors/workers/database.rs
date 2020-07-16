@@ -25,7 +25,7 @@ use xtra::prelude::*;
 #[derive(Clone)]
 pub struct DatabaseActor<B: BlockT> {
     db: Database,
-    _marker: PhantomData<B>
+    _marker: PhantomData<B>,
 }
 
 impl<B: BlockT> DatabaseActor<B> {
@@ -40,11 +40,11 @@ impl<B: BlockT> DatabaseActor<B> {
     pub fn with_db(db: Database) -> Self {
         Self {
             db,
-            _marker: PhantomData
-        }     
+            _marker: PhantomData,
+        }
     }
 
-    async fn block_handler(&self, blk: Block<B>) -> ArchiveResult<()> 
+    async fn block_handler(&self, blk: Block<B>) -> ArchiveResult<()>
     where
         NumberFor<B>: Into<u32>,
     {
@@ -57,7 +57,7 @@ impl<B: BlockT> DatabaseActor<B> {
         Ok(())
     }
 
-    async fn batch_block_handler(&self, mut blks: BatchBlock<B>) -> ArchiveResult<()> 
+    async fn batch_block_handler(&self, mut blks: BatchBlock<B>) -> ArchiveResult<()>
     where
         NumberFor<B>: Into<u32>,
     {
@@ -172,11 +172,7 @@ impl<B: BlockT> Message for VecStorageWrap<B> {
 
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<VecStorageWrap<B>> for DatabaseActor<B> {
-    async fn handle(
-        &mut self,
-        storage: VecStorageWrap<B>,
-        _ctx: &mut Context<Self>,
-    ) {
+    async fn handle(&mut self, storage: VecStorageWrap<B>, _ctx: &mut Context<Self>) {
         let now = std::time::Instant::now();
         if let Err(e) = self.batch_storage_handler(storage.0).await {
             log::error!("{}", e.to_string());

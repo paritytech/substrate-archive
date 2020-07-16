@@ -163,7 +163,8 @@ where
         let exec_stream = self.executor.get_stream().map(|c| Either::Left(c));
         let fetch_stream = self.fetcher.get_stream().map(|b| Either::Right(b));
         let comb_stream = futures::stream::select(exec_stream, fetch_stream);
-        ag.clone().attach_stream(comb_stream.map(|d| msg::IncomingData::from(d)));
+        ag.clone()
+            .attach_stream(comb_stream.map(|d| msg::IncomingData::from(d)));
         self.ag = Some(ag);
         Ok(())
     }
@@ -206,7 +207,7 @@ where
         Ok(())
     }
 
-   fn boxed_shutdown(mut self: Box<Self>) -> Result<(), ArchiveError> {
+    fn boxed_shutdown(mut self: Box<Self>) -> Result<(), ArchiveError> {
         let ag = self.ag.take();
         if let Some(ag) = ag {
             ag.do_send(Die)?;

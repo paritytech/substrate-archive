@@ -314,10 +314,10 @@ where
     }
 }
 
-impl<B> SyncHandler<Die> for Aggregator<B> 
+impl<B> SyncHandler<Die> for Aggregator<B>
 where
     B: BlockT,
-    NumberFor<B>: Into<u32>
+    NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, _: Die, c: &mut Context<Self>) -> ArchiveResult<()> {
         c.stop();
