@@ -24,7 +24,7 @@ pub use self::metadata::Metadata;
 
 pub use super::generators::Generator;
 use super::{actor_pool::ActorPool, connect, ActorContext};
-pub use crate::database::Database;
+pub use database::DatabaseActor;
 
 /// any messages defined in the workers
 pub mod msg {

@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{actor_pool::ActorPool, workers::GetState};
+use super::{actor_pool::ActorPool, workers::{GetState, DatabaseActor}};
 use crate::{
-    database::Database, error::ArchiveResult, queries, sql_block_builder::BlockBuilder,
+    error::ArchiveResult, queries, sql_block_builder::BlockBuilder,
     threadpools::BlockData,
 };
 use flume::Sender;
@@ -27,7 +27,7 @@ use xtra::prelude::*;
 
 pub struct Generator<B: BlockT> {
     last_block_max: u32,
-    addr: Address<ActorPool<Database>>,
+    addr: Address<ActorPool<DatabaseActor<B>>>,
     tx_block: Sender<BlockData<B>>,
     tx_num: Sender<u32>,
 }
@@ -36,7 +36,7 @@ type Conn = PoolConnection<Postgres>;
 
 impl<B: BlockT> Generator<B> {
     pub fn new(
-        actor_pool: Address<ActorPool<Database>>,
+        actor_pool: Address<ActorPool<DatabaseActor<B>>>,
         tx_block: Sender<BlockData<B>>,
         tx_num: Sender<u32>,
     ) -> Arc<Self> {

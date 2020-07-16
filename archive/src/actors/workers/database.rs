@@ -16,109 +16,88 @@
 
 use crate::database::{models::StorageModel, Database, DbConn};
 use crate::error::ArchiveResult;
-use crate::p_err;
 use crate::queries;
 use crate::types::*;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
+use std::marker::PhantomData;
 use xtra::prelude::*;
 
-impl Actor for Database {}
+#[derive(Clone)]
+pub struct DatabaseActor<B: BlockT> {
+    db: Database,
+    _marker: PhantomData<B>
+}
 
-#[async_trait::async_trait]
-impl<B> Handler<Block<B>> for Database
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) {
-        let mut conn = self.conn_unchecked().await;
-        while !p_err!(queries::check_if_meta_exists(blk.spec, &mut conn).await) {
+impl<B: BlockT> DatabaseActor<B> {
+    pub async fn new(url: String) -> ArchiveResult<Self> {
+        Ok(Self {
+            db: Database::new(url).await?,
+            _marker: PhantomData,
+        })
+    }
+
+    #[allow(unused)]
+    pub fn with_db(db: Database) -> Self {
+        Self {
+            db,
+            _marker: PhantomData
+        }     
+    }
+
+    async fn block_handler(&self, blk: Block<B>) -> ArchiveResult<()> 
+    where
+        NumberFor<B>: Into<u32>,
+    {
+        let mut conn = self.db.conn().await?;
+        while !queries::check_if_meta_exists(blk.spec, &mut conn).await? {
             timer::Delay::new(std::time::Duration::from_millis(20)).await;
         }
         std::mem::drop(conn);
-        self.insert_unchecked(blk).await;
+        self.db.insert(blk).await?;
+        Ok(())
     }
-}
 
-#[async_trait::async_trait]
-impl<B> Handler<BatchBlock<B>> for Database
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    async fn handle(&mut self, mut blks: BatchBlock<B>, _ctx: &mut Context<Self>) {
+    async fn batch_block_handler(&self, mut blks: BatchBlock<B>) -> ArchiveResult<()> 
+    where
+        NumberFor<B>: Into<u32>,
+    {
         let specs = blks.mut_inner();
         specs.sort_by_key(|b| b.spec);
         let mut specs = specs.iter_mut().map(|b| b.spec).collect::<Vec<u32>>();
         specs.dedup();
-        let mut conn = self.conn_unchecked().await;
+        let mut conn = self.db.conn().await?;
         loop {
-            let versions = p_err!(queries::get_versions(&mut conn).await);
+            let versions = queries::get_versions(&mut conn).await?;
             if db_contains_metadata(specs.as_slice(), versions) {
                 break;
             }
             timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
         std::mem::drop(conn);
-        let now = std::time::Instant::now();
-        self.insert_unchecked(blks).await;
-        let elapsed = now.elapsed();
-        log::debug!(
-            "TOOK {} seconds, {} milli-seconds, {} micro-seconds, to insert blocks",
-            elapsed.as_secs(),
-            elapsed.as_millis(),
-            elapsed.as_micros(),
-        );
+        self.db.insert(blks).await?;
+        Ok(())
     }
-}
 
-#[async_trait::async_trait]
-impl Handler<Metadata> for Database {
-    async fn handle(&mut self, meta: Metadata, _ctx: &mut Context<Self>) {
-        self.insert_unchecked(meta).await;
-    }
-}
-
-#[async_trait::async_trait]
-impl<B: BlockT> Handler<Storage<B>> for Database {
-    async fn handle(&mut self, storage: Storage<B>, _ctx: &mut Context<Self>) {
-        let mut conn = self.conn_unchecked().await;
-        while !p_err!(queries::contains_block::<B>(*storage.hash(), &mut conn).await) {
+    async fn storage_handler(&self, storage: Storage<B>) -> ArchiveResult<()> {
+        let mut conn = self.db.conn().await?;
+        while !queries::contains_block::<B>(*storage.hash(), &mut conn).await? {
             timer::Delay::new(std::time::Duration::from_millis(10)).await;
         }
         let storage = Vec::<StorageModel<B>>::from(storage);
-        self.insert_unchecked(storage).await;
+        std::mem::drop(conn);
+        self.db.insert(storage).await?;
+        Ok(())
     }
-}
 
-pub struct VecStorageWrap<B: BlockT>(pub Vec<Storage<B>>);
-
-impl<B: BlockT> Message for VecStorageWrap<B> {
-    type Result = ArchiveResult<()>;
-}
-
-#[async_trait::async_trait]
-impl<B: BlockT> Handler<VecStorageWrap<B>> for Database {
-    async fn handle(
-        &mut self,
-        storage: VecStorageWrap<B>,
-        _ctx: &mut Context<Self>,
-    ) -> ArchiveResult<()> {
-        let mut conn = self.conn_unchecked().await;
-        let block_nums: Vec<u32> = storage.0.iter().map(|s| s.block_num()).collect();
-        while !p_err!(queries::contains_blocks::<B>(block_nums.as_slice(), &mut conn).await) {
+    async fn batch_storage_handler(&self, storage: Vec<Storage<B>>) -> ArchiveResult<()> {
+        let mut conn = self.db.conn().await?;
+        let block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
+        while !queries::contains_blocks::<B>(block_nums.as_slice(), &mut conn).await? {
             timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
-        let now = std::time::Instant::now();
-        let storage = Vec::<StorageModel<B>>::from(storage);
-        self.insert_unchecked(storage).await;
-        let elapsed = now.elapsed();
-        log::debug!(
-            "TOOK {} seconds, {} milli-seconds, {} micro-seconds, to insert storage",
-            elapsed.as_secs(),
-            elapsed.as_millis(),
-            elapsed.as_micros(),
-        );
+        let storage = Vec::<StorageModel<B>>::from(VecStorageWrap(storage));
+        std::mem::drop(conn);
+        self.db.insert(storage).await?;
         Ok(())
     }
 }
@@ -136,6 +115,74 @@ fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -
         }
     }
     true
+}
+
+impl<B: BlockT> Actor for DatabaseActor<B> {}
+
+#[async_trait::async_trait]
+impl<B> Handler<Block<B>> for DatabaseActor<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
+    async fn handle(&mut self, blk: Block<B>, _: &mut Context<Self>) {
+        if let Err(e) = self.block_handler(blk).await {
+            log::error!("{}", e.to_string())
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl<B> Handler<BatchBlock<B>> for DatabaseActor<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
+    async fn handle(&mut self, blks: BatchBlock<B>, _: &mut Context<Self>) {
+        let now = std::time::Instant::now();
+        if let Err(e) = self.batch_block_handler(blks).await {
+            log::error!("{}", e.to_string());
+        }
+        log::debug!("TOOK {:?} to insert blocks", now.elapsed());
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT> Handler<Metadata> for DatabaseActor<B> {
+    async fn handle(&mut self, meta: Metadata, _ctx: &mut Context<Self>) {
+        if let Err(e) = self.db.insert(meta).await {
+            log::error!("{}", e.to_string());
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT> Handler<Storage<B>> for DatabaseActor<B> {
+    async fn handle(&mut self, storage: Storage<B>, _ctx: &mut Context<Self>) {
+        if let Err(e) = self.storage_handler(storage).await {
+            log::error!("{}", e.to_string())
+        }
+    }
+}
+pub struct VecStorageWrap<B: BlockT>(pub Vec<Storage<B>>);
+
+impl<B: BlockT> Message for VecStorageWrap<B> {
+    type Result = ();
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT> Handler<VecStorageWrap<B>> for DatabaseActor<B> {
+    async fn handle(
+        &mut self,
+        storage: VecStorageWrap<B>,
+        _ctx: &mut Context<Self>,
+    ) {
+        let now = std::time::Instant::now();
+        if let Err(e) = self.batch_storage_handler(storage.0).await {
+            log::error!("{}", e.to_string());
+        }
+        log::debug!("took {:?} to insert storage", now.elapsed());
+    }
 }
 
 // this is an enum in case there is some more state
@@ -169,7 +216,7 @@ impl Message for GetState {
 }
 
 #[async_trait::async_trait]
-impl Handler<GetState> for Database {
+impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
     async fn handle(
         &mut self,
         msg: GetState,
@@ -177,7 +224,7 @@ impl Handler<GetState> for Database {
     ) -> ArchiveResult<StateResponse> {
         match msg {
             GetState::Conn => {
-                let conn = self.conn().await?;
+                let conn = self.db.conn().await?;
                 Ok(StateResponse::Conn(conn))
             }
         }

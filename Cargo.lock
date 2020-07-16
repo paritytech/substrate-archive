@@ -2303,8 +2303,8 @@ dependencies = [
 
 [[package]]
 name = "kusama-runtime"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -4249,8 +4249,8 @@ dependencies = [
 
 [[package]]
 name = "polkadot-availability-store"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "derive_more 0.99.9",
  "exit-future",
@@ -4277,7 +4277,7 @@ dependencies = [
 [[package]]
 name = "polkadot-core-primitives"
 version = "0.7.30"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "parity-scale-codec",
  "sp-core",
@@ -4287,8 +4287,8 @@ dependencies = [
 
 [[package]]
 name = "polkadot-erasure-coding"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "derive_more 0.15.0",
  "parity-scale-codec",
@@ -4300,8 +4300,8 @@ dependencies = [
 
 [[package]]
 name = "polkadot-network"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "arrayvec 0.4.12",
  "bytes 0.5.5",
@@ -4328,8 +4328,8 @@ dependencies = [
 
 [[package]]
 name = "polkadot-parachain"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "derive_more 0.99.9",
  "log 0.4.8",
@@ -4348,8 +4348,8 @@ dependencies = [
 
 [[package]]
 name = "polkadot-primitives"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "bitvec",
  "frame-system",
@@ -4370,8 +4370,8 @@ dependencies = [
 
 [[package]]
 name = "polkadot-rpc"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "jsonrpc-core",
  "pallet-transaction-payment-rpc",
@@ -4397,8 +4397,8 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -4448,6 +4448,7 @@ dependencies = [
  "sp-consensus-babe",
  "sp-core",
  "sp-inherents",
+ "sp-io",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
@@ -4461,8 +4462,8 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-common"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "bitvec",
  "frame-support",
@@ -4494,8 +4495,8 @@ dependencies = [
 
 [[package]]
 name = "polkadot-service"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "frame-benchmarking",
  "frame-system-rpc-runtime-api",
@@ -4553,8 +4554,8 @@ dependencies = [
 
 [[package]]
 name = "polkadot-statement-table"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
@@ -4563,8 +4564,8 @@ dependencies = [
 
 [[package]]
 name = "polkadot-validation"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "ansi_term 0.12.1",
  "bitvec",
@@ -8432,8 +8433,8 @@ dependencies = [
 
 [[package]]
 name = "westend-runtime"
-version = "0.8.14"
-source = "git+https://github.com/paritytech/polkadot#8845df228f6db595a76885e2ee25e58a598c9233"
+version = "0.8.15"
+source = "git+https://github.com/paritytech/polkadot#228010ea0302fcfba1ec7799511f85ca11f20e5f"
 dependencies = [
  "bitvec",
  "frame-executive",

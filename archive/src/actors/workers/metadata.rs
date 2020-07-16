@@ -28,7 +28,7 @@ use xtra::prelude::*;
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
 pub struct Metadata<B: BlockT> {
-    addr: Address<ActorPool<super::Database>>,
+    addr: Address<ActorPool<super::DatabaseActor<B>>>,
     conn: DbConn,
     rpc: Rpc<B>,
 }
@@ -36,7 +36,7 @@ pub struct Metadata<B: BlockT> {
 impl<B: BlockT> Metadata<B> {
     pub async fn new(
         url: String,
-        addr: Address<ActorPool<super::Database>>,
+        addr: Address<ActorPool<super::DatabaseActor<B>>>,
     ) -> ArchiveResult<Self> {
         let rpc = super::connect::<B>(url.as_str()).await;
         let conn = addr.send(GetState::Conn.into()).await?.await?.conn();
@@ -54,20 +54,46 @@ impl<B: BlockT> Metadata<B> {
         }
         Ok(())
     }
+
+    async fn block_handler(&mut self, blk: Block<B>) -> ArchiveResult<()> 
+    where
+        NumberFor<B>: Into<u32> 
+    {
+        let hash = blk.inner.block.header().hash();
+        self.meta_checker(blk.spec, hash).await?;
+        self.addr.do_send(blk.into())?;
+        Ok(())
+    }
+
+    async fn batch_block_handler(&mut self, blks: BatchBlock<B>) -> ArchiveResult<()> 
+    where
+        NumberFor<B>: Into<u32>
+    {
+        let versions = blks
+            .inner()
+            .iter()
+            .unique_by(|b| b.spec)
+            .collect::<Vec<&Block<B>>>();
+        
+        for b in versions.iter() {
+           self.meta_checker(b.spec, b.inner.block.hash()).await?;
+        }
+        self.addr.do_send(blks.into())?;
+        Ok(())
+    }
 }
 
 impl<B: BlockT> Actor for Metadata<B> {}
+
 #[async_trait::async_trait]
 impl<B> Handler<Block<B>> for Metadata<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blk: Block<B>, c: &mut Context<Self>) {
-        let hash = blk.inner.block.header().hash();
-        crate::p_err!(self.meta_checker(blk.spec, hash).await);
-        if let Err(_) = self.addr.do_send(blk.into()) {
-            c.stop();
+    async fn handle(&mut self, blk: Block<B>, _: &mut Context<Self>) {
+        if let Err(e) = self.block_handler(blk).await {
+            log::error!("{}", e.to_string());
         }
     }
 }
@@ -78,19 +104,10 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blks: BatchBlock<B>, c: &mut Context<Self>) {
-        let versions = blks
-            .inner()
-            .iter()
-            .unique_by(|b| b.spec)
-            .collect::<Vec<&Block<B>>>();
-
-        for b in versions.iter() {
-            crate::p_err!(self.meta_checker(b.spec, b.inner.block.hash()).await);
+    async fn handle(&mut self, blks: BatchBlock<B>, _: &mut Context<Self>) {
+        if let Err(e) = self.batch_block_handler(blks).await {
+            log::error!("{}", e.to_string());
         }
-
-        if let Err(_) = self.addr.do_send(blks.into()) {
-            c.stop()
-        }
+      
     }
 }
