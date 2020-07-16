@@ -44,7 +44,7 @@ where
     senders: Senders<B>,
     recvs: Option<Receivers<B>>,
     /// actor which inserts blocks into the database
-    db_pool: Address<super::ActorPool<super::Database>>,
+    db_pool: Address<super::ActorPool<super::DatabaseActor<B>>>,
     /// Actor which manages getting the runtime metadata for blocks
     /// and sending them to the database actor
     meta_addr: Address<super::Metadata<B>>,
@@ -122,16 +122,18 @@ where
 {
     pub async fn new(
         ctx: ActorContext<B>,
-        tx: Sender<BlockData<B>>,
-        pool: sqlx::PgPool,
+        tx_block: Sender<BlockData<B>>,
+        tx_num: Sender<u32>,
     ) -> ArchiveResult<Self> {
         let (psql_url, rpc_url) = (ctx.psql_url().to_string(), ctx.rpc_url().to_string());
-        let conn = pool.acquire().await?;
-        let db = super::Database::with_pool(psql_url, pool);
-        let db_pool = super::ActorPool::new(db.clone(), 4).spawn();
-        let meta_addr = super::Metadata::new(rpc_url, conn, db_pool.clone())
-            .await
+        let db = super::DatabaseActor::new(psql_url).await?;
+        let db_pool = super::ActorPool::new(db, 4).spawn();
+        let meta_addr = super::Metadata::new(rpc_url, db_pool.clone())
+            .await?
             .spawn();
+        super::Generator::new(db_pool.clone(), tx_block.clone(), tx_num)
+            .start()
+            .await?;
         let (senders, recvs) = queues();
 
         Ok(Self {
@@ -139,7 +141,7 @@ where
             db_pool,
             recvs: Some(recvs),
             meta_addr,
-            exec: tx,
+            exec: tx_block,
             last_count_was_0: false,
         })
     }
@@ -186,9 +188,14 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, block: Block<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
-        self.exec.send(BlockData::Single(block.clone()))?;
-        self.senders.push_back(BlockOrStorage::Block(block))
+    fn handle(&mut self, block: Block<B>, c: &mut Context<Self>) {
+        if let Err(_) = self.exec.send(BlockData::Single(block.clone())) {
+            c.stop();
+        }
+        let block = BlockOrStorage::Block(block);
+        if let Err(_) = self.senders.push_back(block) {
+            c.stop();
+        }
     }
 }
 
@@ -197,9 +204,14 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, blocks: BatchBlock<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
-        self.exec.send(BlockData::Batch(blocks.inner.clone()))?;
-        self.senders.push_back(BlockOrStorage::BatchBlock(blocks))
+    fn handle(&mut self, blocks: BatchBlock<B>, c: &mut Context<Self>) {
+        if let Err(_) = self.exec.send(BlockData::Batch(blocks.inner.clone())) {
+            c.stop();
+        }
+        let blocks = BlockOrStorage::BatchBlock(blocks);
+        if let Err(_) = self.senders.push_back(blocks) {
+            c.stop();
+        }
     }
 }
 

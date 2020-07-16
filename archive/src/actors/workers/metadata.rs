@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::ActorPool;
+use super::{database::GetState, ActorPool};
 use crate::{
     database::DbConn,
     error::ArchiveResult,
@@ -28,15 +28,19 @@ use xtra::prelude::*;
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
 pub struct Metadata<B: BlockT> {
+    addr: Address<ActorPool<super::DatabaseActor<B>>>,
     conn: DbConn,
-    addr: Address<ActorPool<super::Database>>,
     rpc: Rpc<B>,
 }
 
 impl<B: BlockT> Metadata<B> {
-    pub async fn new(url: String, conn: DbConn, addr: Address<ActorPool<super::Database>>) -> Self {
+    pub async fn new(
+        url: String,
+        addr: Address<ActorPool<super::DatabaseActor<B>>>,
+    ) -> ArchiveResult<Self> {
         let rpc = super::connect::<B>(url.as_str()).await;
-        Self { conn, addr, rpc }
+        let conn = addr.send(GetState::Conn.into()).await?.await?.conn();
+        Ok(Self { conn, addr, rpc })
     }
 
     // checks if the metadata exists in the database
@@ -50,6 +54,33 @@ impl<B: BlockT> Metadata<B> {
         }
         Ok(())
     }
+
+    async fn block_handler(&mut self, blk: Block<B>) -> ArchiveResult<()> 
+    where
+        NumberFor<B>: Into<u32> 
+    {
+        let hash = blk.inner.block.header().hash();
+        self.meta_checker(blk.spec, hash).await?;
+        self.addr.do_send(blk.into())?;
+        Ok(())
+    }
+
+    async fn batch_block_handler(&mut self, blks: BatchBlock<B>) -> ArchiveResult<()> 
+    where
+        NumberFor<B>: Into<u32>
+    {
+        let versions = blks
+            .inner()
+            .iter()
+            .unique_by(|b| b.spec)
+            .collect::<Vec<&Block<B>>>();
+        
+        for b in versions.iter() {
+           self.meta_checker(b.spec, b.inner.block.hash()).await?;
+        }
+        self.addr.do_send(blks.into())?;
+        Ok(())
+    }
 }
 
 impl<B: BlockT> Actor for Metadata<B> {}
@@ -60,11 +91,10 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blk: Block<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        let hash = blk.inner.block.header().hash();
-        self.meta_checker(blk.spec, hash).await?;
-        self.addr.do_send(blk.into())?;
-        Ok(())
+    async fn handle(&mut self, blk: Block<B>, _: &mut Context<Self>) {
+        if let Err(e) = self.block_handler(blk).await {
+            log::error!("{}", e.to_string());
+        }
     }
 }
 
@@ -74,17 +104,10 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    async fn handle(&mut self, blks: BatchBlock<B>, _ctx: &mut Context<Self>) -> ArchiveResult<()> {
-        let versions = blks
-            .inner()
-            .iter()
-            .unique_by(|b| b.spec)
-            .collect::<Vec<&Block<B>>>();
-
-        for b in versions.iter() {
-            self.meta_checker(b.spec, b.inner.block.hash()).await?;
+    async fn handle(&mut self, blks: BatchBlock<B>, _: &mut Context<Self>) {
+        if let Err(e) = self.batch_block_handler(blks).await {
+            log::error!("{}", e.to_string());
         }
-        self.addr.do_send(blks.into())?;
-        Ok(())
+      
     }
 }

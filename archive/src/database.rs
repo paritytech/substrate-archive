@@ -54,8 +54,8 @@ impl Database {
     /// Connect to the database
     pub async fn new(url: String) -> ArchiveResult<Self> {
         let pool = PgPool::builder()
-            .min_size(16)
-            .max_size(32)
+            .min_size(4)
+            .max_size(8)
             .build(url.as_str())
             .await?;
         Ok(Self { pool, url })
@@ -67,15 +67,10 @@ impl Database {
         Self { pool, url }
     }
 
-    pub fn pool(&self) -> &sqlx::Pool<Postgres> {
-        &self.pool
-    }
-
+    #[allow(unused)]
     pub async fn insert(&self, data: impl Insert) -> ArchiveResult<u64> {
         let mut conn = self.pool.acquire().await?;
         let res = data.insert(&mut conn).await?;
-        // we HAVE to ensure the connection is dropped, otherwise we may never reclaim it
-        std::mem::drop(conn);
         Ok(res)
     }
 

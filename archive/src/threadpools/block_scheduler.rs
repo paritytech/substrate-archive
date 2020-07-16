@@ -31,9 +31,14 @@ use codec::{Decode, Encode};
 use hashbrown::HashSet;
 use std::{collections::BinaryHeap, fmt::Debug};
 
+// TODO Get rid of the HashSet redundant checking for duplicates if possible.
+// Or only store hashes and not the full bytes of the struct.
+// TODO Just store generic strut instead of the encoded version of the struct.
+// I doubt that it is much more memory efficient
+
 /// Encoded version of the data coming in
 /// the and identifier is kept decoded so that it may be sorted
-/// this is more memory efficient than keeping the rust representation in memory
+/// this could be more memory efficient than keeping the rust representation in memory
 #[derive(Clone)]
 struct EncodedIn<I: PriorityIdent> {
     enc: Vec<u8>,
@@ -81,6 +86,7 @@ where
     O: Send + Sync + Debug,
     T: ThreadPool<In = I, Out = O>,
 {
+    name: String,
     /// sorted prioritized queue of blocks
     queue: BinaryHeap<EncodedIn<I>>,
     /// A HashSet of the data to be inserted. Used for checking against duplicates
@@ -109,9 +115,10 @@ where
     O: Send + Sync + Debug + Clone,
     T: ThreadPool<In = I, Out = O>,
 {
-    pub fn new(exec: T, max_size: usize, ord: Ordering) -> Self {
+    pub fn new(name: &str, exec: T, max_size: usize, ord: Ordering) -> Self {
         let (tx, rx) = flume::unbounded();
         Self {
+            name: name.to_string(),
             queue: BinaryHeap::new(),
             dups: HashSet::new(),
             exec,
@@ -144,7 +151,6 @@ where
     }
 
     pub fn check_work(&mut self) -> ArchiveResult<Vec<O>> {
-        log::trace!("Queue Length: {}", self.queue.len());
         // we try to maintain a MAX queue of max_size tasks at a time in the threadpool
         let delta = self.added - self.finished;
         if self.finished == 0 && self.added == 0 {
@@ -155,8 +161,16 @@ where
             self.add_work(self.max_size)?;
         } else if delta == 0 && self.queue.len() <= self.max_size {
             self.add_work(self.queue.len())?;
+        } else {
+            log::debug!(
+                "sched-{}: Queue Length: {}, Delta: {}, added: {}, finished: {}",
+                self.name,
+                self.queue.len(),
+                delta,
+                self.added,
+                self.finished
+            );
         }
-        log::trace!("finished: {}, added: {}", self.finished, self.added);
 
         let out = self.rx.drain().collect::<Vec<O>>();
         self.finished += out.len();
@@ -194,46 +208,3 @@ where
         Ok(())
     }
 }
-
-/*
-/// Denomination of bytes/megabytes/kilobytes
-enum Deno {
-    #[allow(unused)]
-    Bytes,
-    KB,
-    MB,
-}
-
-fn size_of_encoded<I: PriorityIdent>(deno: Deno, items: &[EncodedIn<I>]) -> usize {
-    let byte_size = || {
-        let mut total_size = 0;
-        for i in items.iter() {
-            let vec_size_bytes = i.enc.len();
-            let ident_size = std::mem::size_of::<I::Ident>();
-            total_size += vec_size_bytes + ident_size;
-        }
-        total_size
-    };
-    match deno {
-        Deno::Bytes => byte_size(),
-        Deno::KB => byte_size() / 1024,
-        Deno::MB => byte_size() / 1024 / 1024,
-    }
-}
-
-fn size_of_decoded<I: PriorityIdent>(deno: Deno, items: &[I]) -> usize {
-    let byte_size = || {
-        let mut total_size = 0;
-        for _ in items.iter() {
-            let item_size_bytes = std::mem::size_of::<I>();
-            total_size += item_size_bytes;
-        }
-        total_size
-    };
-    match deno {
-        Deno::Bytes => byte_size(),
-        Deno::KB => byte_size() / 1024,
-        Deno::MB => byte_size() / 1024 / 1024,
-    }
-}
-*/
