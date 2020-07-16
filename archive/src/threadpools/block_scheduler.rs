@@ -138,7 +138,10 @@ where
             .map(EncodedIn::from)
             .filter(|d| !self.dups.contains(&d.enc))
             .collect::<Vec<_>>();
+        let old_len = self.dups.len(); 
         self.dups.extend(data.iter().map(|d| d.enc.clone()));
+        let new_len = self.dups.len();
+        assert_eq!(old_len + data.len(), new_len);
         self.queue.extend(data.into_iter());
     }
 

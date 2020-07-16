@@ -63,18 +63,18 @@ impl<B: BlockT> Generator<B> {
         'gen: loop {
             let numbers = queries::missing_blocks_min_max(&mut conn, self.last_block_max).await?;
             let max = if !numbers.is_empty() {
-                log::info!(
-                    "Indexing {} missing blocks, from {} to {}...",
-                    numbers.len(),
-                    numbers.first().unwrap(),
-                    numbers.last().unwrap()
-                );
                 numbers[numbers.len() - 1]
             } else {
                 self.last_block_max
             };
 
             if max != self.last_block_max {
+                log::info!(
+                    "Indexing {} missing blocks, from {} to {}...",
+                    numbers.len(),
+                    numbers.first().unwrap(),
+                    numbers.last().unwrap()
+                );
                 for num in numbers.iter() {
                     if let Err(_) = self.tx_num.send(*num) {
                         // threadpool has disconnected so we can stop
