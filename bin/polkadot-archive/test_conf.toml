@@ -17,7 +17,7 @@ polkadot_path = "/home/insipx/.local/share/polkadot/"
 rpc_url = "ws://127.0.0.1:9944"
 
 # How much should the read-only database keep in cache (MB) (required)
-cache_size = 128
+cache_size = 0
 
 # Number of threads to dedicate for executing blocks
 # Optional. If not specified, threads will be set
@@ -26,9 +26,9 @@ cache_size = 128
 # else the wasm executor will run out of memory. This also increases substrate-archives
 # Generally, you want 32 pages per block worker
 # memory usage
-block_workers = 2
+block_workers = 8
 # Number of 64KB Heap Pages to allocate for WASM execution
-wasm_pages = 64
+wasm_pages = 512
 
 db_host = "localhost"
 db_port = "5432"

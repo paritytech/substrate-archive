@@ -70,23 +70,6 @@ pub fn substrate_dir() -> PathBuf {
     }
 }
 
-/// Create rocksdb secondary directory if it doesn't exist yet
-/// Return path to that directory
-pub fn create_secondary_db_dir(chain: &str, id: &str) -> PathBuf {
-    let path = if let Some(base_dirs) = dirs::BaseDirs::new() {
-        let mut path = base_dirs.data_local_dir().to_path_buf();
-        path.push("substrate_archive");
-        path.push("rocksdb_secondary");
-        path.push(chain);
-        path.push(id);
-        path
-    } else {
-        panic!("Couldn't establish substrate adata local path");
-    };
-    std::fs::create_dir_all(path.as_path()).expect("Unable to create rocksdb secondary directory");
-    path
-}
-
 #[cfg(feature = "logging")]
 pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
     let colors = ColoredLevelConfig::new()
@@ -116,8 +99,6 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
                 chrono::Local::now().format("[%H:%M]"),
                 colors.color(record.level()),
                 message,
-                // format_opt(record.file().map(|s| s.to_string())),
-                // format_opt(record.line().map(|n| n.to_string()))
             ))
         })
         .chain(fern::Dispatch::new().level(std).chain(std::io::stdout()));
@@ -136,11 +117,13 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
         .format(move |out, message, record| {
             out.finish(format_args!(
-                "{} [{}][{}] {}",
+                "{} [{}][{}] {}::{};{}",
                 chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
                 record.target(),
                 record.level(),
                 message,
+                format_opt(record.file().map(|s| s.to_string())),
+                format_opt(record.line().map(|n| n.to_string()))
             ))
         })
         .chain(fern::log_file(log_dir).expect("Failed to create substrate_archive.logs file"));
@@ -164,4 +147,11 @@ macro_rules! p_err {
             }
         };
     };
+}
+
+fn format_opt(file: Option<String>) -> String {
+    match file {
+        None => "".to_string(),
+        Some(f) => f.to_string(),
+    }
 }

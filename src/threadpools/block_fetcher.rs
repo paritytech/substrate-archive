@@ -43,7 +43,7 @@ where
 {
     pub fn new(context: ActorContext<B>, num_threads: Option<usize>) -> ArchiveResult<Self> {
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_threads.unwrap_or(0))
+            .num_threads(num_threads.unwrap_or(1))
             .thread_name(|i| format!("blk-fetch-{}", i))
             .build()?;
         let api = context.api();
