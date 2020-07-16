@@ -34,9 +34,8 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
 
 // TODO Get rid of the HashSet redundant checking for duplicates if possible.
-// Or only store hashes and not the full bytes of the struct.
 // TODO Just store generic strut instead of the encoded version of the struct.
-// I doubt that it is much more memory efficient
+// I doubt that it is much more memory efficient to temporarily store encoded version
 
 /// Encoded version of the data coming in
 /// the and identifier is kept decoded so that it may be sorted
@@ -91,7 +90,8 @@ where
     name: String,
     /// sorted prioritized queue of blocks
     queue: BinaryHeap<EncodedIn<I>>,
-    /// A HashSet of the data to be inserted. Used for checking against duplicates
+    /// A HashSet of the data to be inserted (hashed before inserted into the HashSet). 
+    /// Used to check for duplicates
     dups: HashSet<u64>,
     /// the threadpool
     exec: T,
@@ -148,8 +148,9 @@ where
 
     pub fn add_data_single(&mut self, data: I) {
         let data = EncodedIn::from(data);
-        if !self.dups.contains(&make_hash(&data.enc)) {
-            self.dups.insert(make_hash(data.enc.as_slice()));
+        let hash = make_hash(&data.enc);
+        if !self.dups.contains(&hash) {
+            self.dups.insert(hash);
             self.queue.push(data)
         }
     }

@@ -17,7 +17,7 @@ polkadot_path = "/home/insipx/.local/share/polkadot/"
 rpc_url = "ws://127.0.0.1:9944"
 
 # How much should the read-only database keep in cache (MB) (required)
-cache_size = 0
+cache_size = 128
 
 # Number of threads to dedicate for executing blocks
 # Optional. If not specified, threads will be set
