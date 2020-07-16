@@ -16,6 +16,7 @@
 
 use super::ActorContext;
 use crate::{
+    actors::Die,
     backend::BlockChanges,
     error::ArchiveResult,
     threadpools::BlockData,
@@ -48,7 +49,7 @@ where
     /// Actor which manages getting the runtime metadata for blocks
     /// and sending them to the database actor
     meta_addr: Address<super::Metadata<B>>,
-    /// Pooled Postgres Database Connections
+    /// channel for sending blocks to be executed
     exec: Sender<BlockData<B>>,
     /// just a switch so we know not to print redundant messages
     last_count_was_0: bool,
@@ -310,5 +311,16 @@ where
         if let Err(_) = r() {
             c.stop()
         }
+    }
+}
+
+impl<B> SyncHandler<Die> for Aggregator<B> 
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>
+{
+    fn handle(&mut self, _: Die, c: &mut Context<Self>) -> ArchiveResult<()> {
+        c.stop();
+        Ok(())
     }
 }

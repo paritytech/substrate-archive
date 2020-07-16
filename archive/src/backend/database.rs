@@ -65,6 +65,12 @@ impl ReadOnlyDatabase {
         }
     }
 
+    pub fn log_statistics(&self) {
+        let stats = self.inner.get_statistics();
+
+        log::debug!("RocksDB Statistics: {:#?}", stats);
+    }
+
     pub fn try_catch_up_with_primary(&self) -> Option<()> {
         self.inner.try_catch_up_with_primary().ok()?;
         Some(())

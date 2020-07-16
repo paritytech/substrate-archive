@@ -71,17 +71,21 @@ impl<B: BlockT> Generator<B> {
             } else {
                 self.last_block_max
             };
+
             for num in numbers.iter() {
                 if let Err(_) = self.tx_num.send(*num) {
                     // threadpool has disconnected so we can stop
                     break 'gen;
                 }
             }
-            if let Some(this) = std::sync::Arc::<Generator<B>>::get_mut(&mut self) {
+            
+            if self.last_block_max == max && if let Err(_) = self.tx_num.try_send(0) {
+                break 'gen;
+            } else if let Some(this) = std::sync::Arc::<Generator<B>>::get_mut(&mut self) {
                 log::debug!("new max: {}", max);
                 this.last_block_max = max;
             }
-
+             
             if numbers.is_empty() {
                 timer::Delay::new(std::time::Duration::from_secs(5)).await;
             } else {
@@ -102,10 +106,11 @@ impl<B: BlockT> Generator<B> {
         let now = std::time::Instant::now();
         let blocks = queries::blocks_storage_intersection(&mut conn).await?;
         let blocks = BlockBuilder::<B>::new().with_vec(blocks)?;
-        log::info!("took {:?} to get and build blocks", now.elapsed());
+        log::info!("took {:?} to get and build {} blocks. Adding to queue...", now.elapsed(), blocks.len());
 
-        log::info!("indexing {} blocks of storage ... ", blocks.len());
-        self.tx_block.send(BlockData::Batch(blocks))?;
+        if let Err(_) = self.tx_block.send(BlockData::Batch(blocks)) {
+            log::warn!("Block Executor channel disconnected before any missing storage-blocks could be sent")
+        }
         Ok(())
     }
 }

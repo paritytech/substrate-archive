@@ -24,9 +24,9 @@ pub async fn main() -> Result<()> {
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
 
-    archive::run_archive(config.clone()).await?;
+    let archive = archive::run_archive(config.clone()).await?;
     ctrlc().await?;
-
+    archive.boxed_shutdown()?;
     Ok(())
 }
 

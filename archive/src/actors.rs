@@ -38,6 +38,10 @@ use std::sync::Arc;
 pub use workers::Aggregator;
 use xtra::prelude::*;
 
+struct Die;
+impl Message for Die {
+    type Result = ArchiveResult<()>;
+}
 /// Context that every actor may use
 #[derive(Clone)]
 pub struct ActorContext<Block: BlockT> {
@@ -87,6 +91,7 @@ where
     // workers: Option<usize>,
     executor: ThreadedBlockExecutor<Block>,
     fetcher: BlockFetcher<Block>,
+    ag: Option<Address<Aggregator<Block>>>,
     // api: Arc<C>,
     _marker: PhantomData<(R, C)>,
 }
@@ -135,6 +140,7 @@ where
             // api,
             executor,
             fetcher,
+            ag: None,
             _marker: PhantomData,
         })
     }
@@ -157,7 +163,8 @@ where
         let exec_stream = self.executor.get_stream().map(|c| Either::Left(c));
         let fetch_stream = self.fetcher.get_stream().map(|b| Either::Right(b));
         let comb_stream = futures::stream::select(exec_stream, fetch_stream);
-        ag.attach_stream(comb_stream.map(|d| msg::IncomingData::from(d)));
+        ag.clone().attach_stream(comb_stream.map(|d| msg::IncomingData::from(d)));
+        self.ag = Some(ag);
         Ok(())
     }
 
@@ -191,7 +198,21 @@ where
         System::block_until_stopped(self).await
     }
 
-    fn shutdown(self) -> Result<(), ArchiveError> {
+    fn shutdown(mut self) -> Result<(), ArchiveError> {
+        self.context.backend.backing_db().log_statistics();
+        let ag = self.ag.take();
+        if let Some(ag) = ag {
+            ag.do_send(Die)?;
+        }
+        Ok(())
+    }
+
+   fn boxed_shutdown(mut self: Box<Self>) -> Result<(), ArchiveError> {
+        self.context.backend.backing_db().log_statistics();
+        let ag = self.ag.take();
+        if let Some(ag) = ag {
+            ag.do_send(Die)?;
+        }
         Ok(())
     }
 

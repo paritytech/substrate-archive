@@ -46,6 +46,7 @@ pub fn open_database(
     let db_path = db_path.as_path().to_str().expect("Creating db path failed");
     let mut db_config = DatabaseConfig {
         secondary: Some(db_path.to_string()),
+        enable_statistics: true,
         ..DatabaseConfig::with_columns(NUM_COLUMNS)
     };
     let state_col_budget = (cache_size as f64 * 0.9) as usize;

@@ -16,7 +16,7 @@ cache_size = 128
 # memory usage
 block_workers = 2
 # Number of 64KB Heap Pages to allocate for WASM execution
-wasm_pages = 256
+wasm_pages = 64
 
 db_host = "localhost"
 db_port = "5432"
