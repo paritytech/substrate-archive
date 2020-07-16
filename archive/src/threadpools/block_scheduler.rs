@@ -29,7 +29,9 @@ use crate::{
 };
 use codec::{Decode, Encode};
 use hashbrown::HashSet;
-use std::{collections::BinaryHeap, fmt::Debug};
+use std::{collections::BinaryHeap, fmt::Debug, hash::Hash};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::Hasher;
 
 // TODO Get rid of the HashSet redundant checking for duplicates if possible.
 // Or only store hashes and not the full bytes of the struct.
@@ -90,7 +92,7 @@ where
     /// sorted prioritized queue of blocks
     queue: BinaryHeap<EncodedIn<I>>,
     /// A HashSet of the data to be inserted. Used for checking against duplicates
-    dups: HashSet<Vec<u8>>,
+    dups: HashSet<u64>,
     /// the threadpool
     exec: T,
     /// internal sender for gauging how much work
@@ -131,24 +133,23 @@ where
         }
     }
 
-    pub fn add_data(&mut self, data: Vec<I>) {
-        // filter for duplicates
+    pub fn add_data(&mut self, data: Vec<I>) 
+    where
+        I::Ident: Debug 
+    {
         let data = data
             .into_iter()
             .map(EncodedIn::from)
-            .filter(|d| !self.dups.contains(&d.enc))
+            .filter(|d| !self.dups.contains(&make_hash(&d.enc)))
             .collect::<Vec<_>>();
-        let old_len = self.dups.len(); 
-        self.dups.extend(data.iter().map(|d| d.enc.clone()));
-        let new_len = self.dups.len();
-        assert_eq!(old_len + data.len(), new_len);
+        self.dups.extend(data.iter().map(|d| make_hash(d.enc.as_slice())));
         self.queue.extend(data.into_iter());
     }
 
     pub fn add_data_single(&mut self, data: I) {
         let data = EncodedIn::from(data);
-        if !self.dups.contains(&data.enc) {
-            self.dups.insert(data.enc.clone());
+        if !self.dups.contains(&make_hash(&data.enc)) {
+            self.dups.insert(make_hash(data.enc.as_slice()));
             self.queue.push(data)
         }
     }
@@ -210,4 +211,10 @@ where
         self.added += self.exec.add_task(to_insert, self.tx.clone())?;
         Ok(())
     }
+}
+
+fn make_hash<K: Hash + ?Sized>(val: &K) -> u64 {
+    let mut state = DefaultHasher::new();
+    val.hash(&mut state);
+    state.finish()
 }
