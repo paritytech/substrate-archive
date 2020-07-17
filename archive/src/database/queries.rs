@@ -153,13 +153,14 @@ pub(crate) async fn contains_block<B: BlockT>(
     Ok(row.0)
 }
 
+/// Returns a list of block_numbers, out of the passed-in blocknumbers which exist
 pub(crate) async fn contains_blocks<B: BlockT>(
     nums: &[u32],
     conn: &mut PgConnection,
-) -> Result<bool, ArchiveError> {
-    let query = String::from("SELECT EXISTS(SELECT block_num FROM blocks WHERE block_num = ANY ($1))");
-    let row: (bool,) = sqlx::query_as(query.as_str()).bind(nums).fetch_one(conn).await?;
-    Ok(row.0)
+) -> Result<Vec<u32>, ArchiveError> {
+    let query = String::from("SELECT block_num FROM blocks WHERE block_num = ANY ($1)");
+    let row = sqlx::query_as::<_, (i32, )>(query.as_str()).bind(nums).fetch_all(conn).await?;
+    Ok(row.into_iter().map(|r| r.0 as u32).collect())
 }
 
 #[derive(sqlx::FromRow, Debug)]
