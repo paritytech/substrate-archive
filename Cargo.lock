@@ -7325,7 +7325,6 @@ dependencies = [
  "log 0.4.11",
  "num_cpus",
  "parity-scale-codec",
- "parity-util-mem",
  "parking_lot 0.10.2",
  "polkadot-service",
  "pretty_env_logger",
