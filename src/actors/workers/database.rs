@@ -107,11 +107,7 @@ impl<B: BlockT> DatabaseActor<B> {
 
 // Returns true if all versions are in database
 // false if versions are missing
-fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -> bool {
-    let versions = versions
-        .into_iter()
-        .map(|v| v.version as u32)
-        .collect::<Vec<u32>>();
+fn db_contains_metadata(specs: &[u32], versions: Vec<u32>) -> bool {
     for spec in specs.iter() {
         if !versions.contains(spec) {
             return false;
