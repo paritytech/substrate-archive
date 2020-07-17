@@ -31,7 +31,8 @@ mod block_exec_pool;
 mod block_fetcher;
 mod block_scheduler;
 
-// TODO: Can abstract these two structs into just something that implements a trait
+// TODO: Can abstract these two structs into just something that implements a trait. Or
+// create another generic struct that creates a thread and schedules tasks. This is mostly redundant code.
 // this follows a similar API to xtra's Actor/Address api (attach_stream)
 // maybe we could create an extension trait that is like Actix's Threadpooled Actors, but for xtra?
 // that is essentially what this is trying to be.

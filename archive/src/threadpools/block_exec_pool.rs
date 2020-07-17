@@ -104,7 +104,11 @@ where
 
         let block = BlockExecutor::new(api, backend, block)?.block_into_storage()?;
 
-        sender.send(block)?;
+        // TODO: Should bubble up this disconnect
+        // This would make shutdown faster and it can occur in `scheduler`
+        if let Err(_) = sender.send(block) {
+            log::trace!("Channel Disconnecting..");
+        }
         Ok(())
     }
 

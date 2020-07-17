@@ -157,15 +157,8 @@ pub(crate) async fn contains_blocks<B: BlockT>(
     nums: &[u32],
     conn: &mut PgConnection,
 ) -> Result<bool, ArchiveError> {
-    let mut query = String::from("SELECT EXISTS(SELECT block_num FROM blocks WHERE block_num IN (");
-    for (i, num) in nums.iter().enumerate() {
-        itoa::fmt(&mut query, *num)?;
-        if i != nums.len() - 1 {
-            query.push_str(",");
-        }
-    }
-    query.push_str("))");
-    let row: (bool,) = sqlx::query_as(query.as_str()).fetch_one(conn).await?;
+    let query = String::from("SELECT EXISTS(SELECT block_num FROM blocks WHERE block_num = ANY ($1))");
+    let row: (bool,) = sqlx::query_as(query.as_str()).bind(nums).fetch_one(conn).await?;
     Ok(row.0)
 }
 
