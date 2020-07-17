@@ -118,7 +118,6 @@ where
     /// Get a block from the canon chain
     /// This also tries to catch up with the primary rocksdb instance
     pub fn block(&self, id: &BlockId<Block>) -> Option<SignedBlock<Block>> {
-        self.db.try_catch_up_with_primary();
         match (
             self.header(*id).ok()?,
             self.body(*id).ok()?,

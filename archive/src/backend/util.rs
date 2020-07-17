@@ -17,7 +17,7 @@
 //! various utilities that make interfacing with substrate easier
 
 use crate::{
-    backend::database::ReadOnlyDatabase,
+    backend::database::{ReadOnlyDatabase, Config},
     error::{ArchiveResult, Error as ArchiveError},
 };
 use codec::Decode;
@@ -45,9 +45,12 @@ pub fn open_database(
     let db_path = create_secondary_db_dir(chain, id);
     // need to make sure this is `Some` to open secondary instance
     let db_path = db_path.as_path().to_str().expect("Creating db path failed");
-    let mut db_config = DatabaseConfig {
-        secondary: Some(db_path.to_string()),
-        ..DatabaseConfig::with_columns(NUM_COLUMNS)
+    let mut db_config = Config {
+        track_catchups: false,
+        config: DatabaseConfig {
+            secondary: Some(db_path.to_string()),
+            ..DatabaseConfig::with_columns(NUM_COLUMNS)
+        }
     };
     let state_col_budget = (cache_size as f64 * 0.9) as usize;
     let other_col_budget = (cache_size - state_col_budget) / (NUM_COLUMNS as usize - 1);
@@ -60,7 +63,7 @@ pub fn open_database(
             memory_budget.insert(i, other_col_budget);
         }
     }
-    db_config.memory_budget = memory_budget;
+    db_config.config.memory_budget = memory_budget;
     log::info!(
         target: "db",
         "Open RocksDB at {}, state column budget: {} MiB, others({}) column cache: {} MiB",
@@ -69,7 +72,7 @@ pub fn open_database(
         NUM_COLUMNS,
         other_col_budget,
     );
-    super::database::ReadOnlyDatabase::open(&db_config, &path)
+    super::database::ReadOnlyDatabase::open(db_config, &path)
         .map_err(|err| sp_blockchain::Error::Backend(format!("{}", err)))
 }
 
