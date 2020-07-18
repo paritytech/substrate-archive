@@ -75,7 +75,7 @@ impl<I: Encode + PriorityIdent> From<I> for EncodedIn<I> {
         }
     }
 }
-
+/// The ordering in which items are given to the threadpool
 pub enum Ordering {
     Ascending,
     Descending,

@@ -92,25 +92,6 @@ pub struct ArchiveConfig {
     pub wasm_pages: Option<u64>,
 }
 
-/*
-fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
-    // TODO
-    // refinery creates a current-thread tokio runtime that calls 'block_on', so we need to run possibly in its own thread
-    // in case the user creates another runtime with tokio
-    // Once SQLx 0.4 releases, we can replace refinery with embedded SQLx migrations
-    #[cfg(feature = "with-tokio")]
-    {
-        std::thread::spawn(move || crate::migrations::migrate(conf))
-            .join()
-            .expect("Migrations failed to run")
-    }
-    #[cfg(not(feature = "with-tokio"))]
-    {
-        crate::migrations::migrate(conf)
-    }
-}
-*/
-
 impl<B, R, D> ArchiveBuilder<B, R, D>
 where
     B: BlockT + Unpin,
@@ -167,6 +148,7 @@ where
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
     pub async fn run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
+        let psql_url = crate::migrations::migrate(&self.psql_conf).await?;
         let cpus = num_cpus::get();
         let client0 = Arc::new(
             backend::runtime_api::<B, R, D>(
@@ -189,7 +171,7 @@ where
             backend,
             self.block_workers,
             self.rpc_url.clone(),
-            self.psql_conf.url().as_str(),
+            psql_url.as_str(),
         )?;
         ctx.drive().await?;
         Ok(ctx)
