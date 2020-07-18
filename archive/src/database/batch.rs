@@ -111,15 +111,17 @@ impl Batch {
         self.chunks[self.index].bind(value)
     }
 
-    pub async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<()> {
+    pub async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<u64> {
+        let mut rows_affected = 0;
         if self.len > 0 {
             for mut chunk in self.chunks {
                 chunk.append(&self.trailing);
-                chunk.execute(conn).await?;
+                let done = chunk.execute(conn).await?;
+                rows_affected += done;
             }
         }
 
-        Ok(())
+        Ok(rows_affected)
     }
 
     // TODO: Better name?
@@ -156,10 +158,10 @@ impl Chunk {
         Ok(())
     }
 
-    async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<()> {
-        sqlx::query_with(&*self.query, self.arguments.into_arguments())
+    async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<u64> {
+        let done = sqlx::query_with(&*self.query, self.arguments.into_arguments())
             .execute(conn)
             .await?;
-        Ok(())
+        Ok(done.rows_affected())
     }
 }
