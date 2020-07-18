@@ -69,11 +69,11 @@ use std::{marker::PhantomData, sync::Arc};
 /// ```
 pub struct ArchiveBuilder<Block, Runtime, Dispatch> {
     rpc_url: String,
-    psql_url: String,
     db: Arc<ReadOnlyDatabase>,
     // spec: Box<dyn ChainSpec>,
     block_workers: Option<usize>,
     wasm_pages: Option<u64>,
+    psql_conf: MigrationConfig,
     _marker: PhantomData<(Block, Runtime, Dispatch)>,
 }
 
@@ -92,6 +92,7 @@ pub struct ArchiveConfig {
     pub wasm_pages: Option<u64>,
 }
 
+/*
 fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
     // TODO
     // refinery creates a current-thread tokio runtime that calls 'block_on', so we need to run possibly in its own thread
@@ -108,6 +109,7 @@ fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
         crate::migrations::migrate(conf)
     }
 }
+*/
 
 impl<B, R, D> ArchiveBuilder<B, R, D>
 where
@@ -128,7 +130,7 @@ where
     /// and run Postgres Migrations
     /// Should not be run within a futures runtime
     pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self, ArchiveError> {
-        let psql_url = migrate(conf.psql_conf.clone())?;
+        // let psql_url = migrate(conf.psql_conf.clone())?;
 
         let db = Arc::new(backend::util::open_database(
             conf.db_url.as_str(),
@@ -138,7 +140,7 @@ where
         )?);
         Ok(Self {
             db,
-            psql_url,
+            psql_conf: conf.psql_conf,
             // spec,
             rpc_url: conf.rpc_url,
             block_workers: conf.block_workers,
@@ -187,7 +189,7 @@ where
             backend,
             self.block_workers,
             self.rpc_url.clone(),
-            self.psql_url.as_str(),
+            self.psql_conf.url().as_str(),
         )?;
         ctx.drive().await?;
         Ok(ctx)

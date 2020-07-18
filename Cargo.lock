@@ -503,6 +503,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "build_const"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39092a32794787acd8525ee150305ff051b0aa6cc2abaf193924f5ab05425f39"
+
+[[package]]
 name = "bumpalo"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -828,6 +834,15 @@ dependencies = [
  "serde",
  "thiserror",
  "wasmparser 0.51.4",
+]
+
+[[package]]
+name = "crc"
+version = "1.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d663548de7f5cca343f1e0a48d14dcfb0e9eb4e079ec58883b7251539fa10aeb"
+dependencies = [
+ "build_const",
 ]
 
 [[package]]
@@ -2172,6 +2187,30 @@ version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ef5550a42e3740a0e71f909d4c861056a284060af885ae7aa6242820f920d9d"
 dependencies = [
+ "proc-macro2 1.0.18",
+ "quote 1.0.7",
+ "syn 1.0.33",
+]
+
+[[package]]
+name = "include_dir"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23d58bdeb22b1c4691106c084b1063781904c35d0f22eda2a283598968eac61a"
+dependencies = [
+ "glob",
+ "include_dir_impl",
+ "proc-macro-hack",
+]
+
+[[package]]
+name = "include_dir_impl"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "327869970574819d24d1dca25c891856144d29159ab797fa9dc725c5c3f57215"
+dependencies = [
+ "anyhow",
+ "proc-macro-hack",
  "proc-macro2 1.0.18",
  "quote 1.0.7",
  "syn 1.0.33",
@@ -7614,7 +7653,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.4.0-pre"
-source = "git+https://github.com/launchbadge/sqlx#c327e63f4675f9f6fae9125eb1fa4ce01632b061"
+source = "git+https://github.com/launchbadge/sqlx#c7f55f7ed6d77e6775303a78b8efd421782a307e"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -7623,13 +7662,14 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.4.0-pre"
-source = "git+https://github.com/launchbadge/sqlx#c327e63f4675f9f6fae9125eb1fa4ce01632b061"
+source = "git+https://github.com/launchbadge/sqlx#c7f55f7ed6d77e6775303a78b8efd421782a307e"
 dependencies = [
  "atoi",
  "base64 0.12.3",
  "bitflags",
  "byteorder",
  "bytes 0.5.5",
+ "crc",
  "crossbeam-channel",
  "crossbeam-queue",
  "crossbeam-utils",
@@ -7665,7 +7705,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.4.0-pre"
-source = "git+https://github.com/launchbadge/sqlx#c327e63f4675f9f6fae9125eb1fa4ce01632b061"
+source = "git+https://github.com/launchbadge/sqlx#c7f55f7ed6d77e6775303a78b8efd421782a307e"
 dependencies = [
  "dotenv",
  "either",
@@ -7682,7 +7722,7 @@ dependencies = [
 [[package]]
 name = "sqlx-rt"
 version = "0.1.0-pre"
-source = "git+https://github.com/launchbadge/sqlx#c327e63f4675f9f6fae9125eb1fa4ce01632b061"
+source = "git+https://github.com/launchbadge/sqlx#c7f55f7ed6d77e6775303a78b8efd421782a307e"
 dependencies = [
  "native-tls",
  "once_cell",
@@ -7816,6 +7856,7 @@ dependencies = [
  "hash-db",
  "hashbrown 0.8.0",
  "hex",
+ "include_dir",
  "itertools 0.9.0",
  "itoa",
  "jod-thread",
@@ -8626,7 +8667,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
 dependencies = [
- "rand 0.3.23",
+ "rand 0.7.3",
 ]
 
 [[package]]

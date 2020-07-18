@@ -15,13 +15,12 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::error::Error as ArchiveError;
-use refinery::config::{Config, ConfigDbType};
 use std::env;
+use sqlx::{migrate::Migrator, postgres::PgConnection};
+use std::path::Path;
+use include_dir::{include_dir, Dir};
 
-mod embedded {
-    use refinery::embed_migrations;
-    embed_migrations!("src/migrations");
-}
+const MIGRATIONS_DIR: Dir = include_dir!("src/migrations");
 
 /// Run all the migrations
 /// Returns the database URL
@@ -29,24 +28,13 @@ mod embedded {
 /// # Panics
 /// Panics if a required environment variable is not found
 /// or if the environment variable contains invalid unicode
-pub fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
+pub async fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
     let parsed = parse(conf);
-    let mut conn = Config::new(ConfigDbType::Postgres)
-        .set_db_host(parsed.host.as_str())
-        .set_db_port(parsed.port.as_str())
-        .set_db_name(parsed.name.as_str());
-
-    if let Some(u) = &parsed.user {
-        conn = conn.set_db_user(u.as_str());
-    }
-    if let Some(p) = &parsed.pass {
-        conn = conn.set_db_pass(p.as_str())
-    }
-
+    let url = parsed.url();
+    let connection = PgConnection::connect(url.as_str()).await?;
     log::info!("Running migrations for database {}", parsed.name.as_str());
-
-    embedded::migrations::runner().run(&mut conn)?;
-    Ok(parsed.build_url())
+    Migrator::new(MIGRATIONS_DIR.path())?.run(&connection).await?;
+    Ok(url)
 }
 
 #[derive(Debug, Clone)]
@@ -178,7 +166,7 @@ mod test {
             pass: Some("default".to_string()),
             name: "archive".to_string(),
         };
-        let url = conf.build_url(&conf);
+        let url = conf.build_url();
         assert_eq!(url, "postgres://archive:default@localhost:5432/archive");
     }
 }
