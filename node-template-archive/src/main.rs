@@ -21,19 +21,20 @@ use anyhow::Result;
 use futures::future::FutureExt;
 use std::{thread, time::Duration};
 
-pub fn main() -> Result<()> {
+#[tokio::main]
+pub async fn main() -> Result<()> {
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
+    
+    let archive = archive::run_archive(config.clone()).await?;
+    ctrlc().await?;
+    Ok(())
+}
 
-    let archive = archive::run_archive(config.clone())?;
-
-    let ctrlc = async_ctrlc::CtrlC::new().expect("Couldn't create ctrlc handler");
-    println!("Waiting on ctrlc");
-    /*
-    async_std::task::block_on(ctrlc.then(|_| async {
-        println!("\nShutting down ...");
-        archive.shutdown().await.unwrap();
-    }));
-    */
+async fn ctrlc() -> Result<()> {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("failed to listen on ctrlc");
+    println!("\nShutting down ...");
     Ok(())
 }
