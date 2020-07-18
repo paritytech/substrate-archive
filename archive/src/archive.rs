@@ -69,11 +69,11 @@ use std::{marker::PhantomData, sync::Arc};
 /// ```
 pub struct ArchiveBuilder<Block, Runtime, Dispatch> {
     rpc_url: String,
-    psql_url: String,
     db: Arc<ReadOnlyDatabase>,
     // spec: Box<dyn ChainSpec>,
     block_workers: Option<usize>,
     wasm_pages: Option<u64>,
+    psql_conf: MigrationConfig,
     _marker: PhantomData<(Block, Runtime, Dispatch)>,
 }
 
@@ -90,23 +90,6 @@ pub struct ArchiveConfig {
     pub block_workers: Option<usize>,
     /// Number of 64KB Heap pages to allocate for wasm execution
     pub wasm_pages: Option<u64>,
-}
-
-fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
-    // TODO
-    // refinery creates a current-thread tokio runtime that calls 'block_on', so we need to run possibly in its own thread
-    // in case the user creates another runtime with tokio
-    // Once SQLx 0.4 releases, we can replace refinery with embedded SQLx migrations
-    #[cfg(feature = "with-tokio")]
-    {
-        std::thread::spawn(move || crate::migrations::migrate(conf))
-            .join()
-            .expect("Migrations failed to run")
-    }
-    #[cfg(not(feature = "with-tokio"))]
-    {
-        crate::migrations::migrate(conf)
-    }
 }
 
 impl<B, R, D> ArchiveBuilder<B, R, D>
@@ -128,7 +111,7 @@ where
     /// and run Postgres Migrations
     /// Should not be run within a futures runtime
     pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self, ArchiveError> {
-        let psql_url = migrate(conf.psql_conf.clone())?;
+        // let psql_url = migrate(conf.psql_conf.clone())?;
 
         let db = Arc::new(backend::util::open_database(
             conf.db_url.as_str(),
@@ -138,7 +121,7 @@ where
         )?);
         Ok(Self {
             db,
-            psql_url,
+            psql_conf: conf.psql_conf,
             // spec,
             rpc_url: conf.rpc_url,
             block_workers: conf.block_workers,
@@ -165,6 +148,7 @@ where
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
     pub async fn run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
+        let psql_url = crate::migrations::migrate(&self.psql_conf).await?;
         let cpus = num_cpus::get();
         let client0 = Arc::new(
             backend::runtime_api::<B, R, D>(
@@ -187,7 +171,7 @@ where
             backend,
             self.block_workers,
             self.rpc_url.clone(),
-            self.psql_url.as_str(),
+            psql_url.as_str(),
         )?;
         ctx.drive().await?;
         Ok(ctx)
