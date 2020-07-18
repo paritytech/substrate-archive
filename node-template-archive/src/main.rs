@@ -18,8 +18,6 @@ mod cli_opts;
 mod config;
 
 use anyhow::Result;
-use futures::future::FutureExt;
-use std::{thread, time::Duration};
 
 #[tokio::main]
 pub async fn main() -> Result<()> {

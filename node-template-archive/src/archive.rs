@@ -16,7 +16,6 @@
 
 use anyhow::Result;
 use node_template_runtime::{self as runtime, opaque::Block};
-use std::sync::Arc;
 use substrate_archive::{Archive, ArchiveConfig, ArchiveBuilder};
 
 pub async fn run_archive(config: super::config::Config) -> Result<impl Archive<Block>> {
