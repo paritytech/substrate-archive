@@ -1,7 +1,7 @@
-name: kusama-archive 
-version: "0.1"
+name: node-template-archive 
+version: "0.2.1"
 author: Andrew P. <andrew.plaza@parity.io>
-about: Indexes the Kusama Canary Network 
+about: Indexes Substrate Data
 args:
     - config:
         short: c

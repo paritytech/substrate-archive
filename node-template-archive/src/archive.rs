@@ -16,10 +16,9 @@
 
 use anyhow::Result;
 use node_template_runtime::{self as runtime, opaque::Block};
-use std::sync::Arc;
-use substrate_archive::{Archive, ArchiveConfig, ArchiveContext};
+use substrate_archive::{Archive, ArchiveConfig, ArchiveBuilder};
 
-pub fn run_archive(config: super::config::Config) -> Result<ArchiveContext<runtime::Runtime>> {
+pub async fn run_archive(config: super::config::Config) -> Result<impl Archive<Block>> {
     let spec = config.cli().chain_spec.clone();
 
     let conf = ArchiveConfig {
@@ -31,11 +30,6 @@ pub fn run_archive(config: super::config::Config) -> Result<ArchiveContext<runti
         psql_conf: config.psql_conf(),
     };
 
-    let archive = Archive::new(conf, Box::new(spec))?;
-
-    let api_client =
-        archive.api_client::<runtime::RuntimeApi, node_template::service::Executor>()?;
-    let archive = archive.run_with::<runtime::Runtime, runtime::RuntimeApi, _>(api_client)?;
-
-    Ok(archive)
+    let archive = ArchiveBuilder::<Block, runtime::RuntimeApi, node_template::service::Executor>::new(conf, Box::new(spec))?;
+    Ok(archive.run().await?)
 }

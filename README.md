@@ -47,6 +47,26 @@ Read the [Doc](https://github.com/paritytech/substrate-archive/blob/master/CONTR
 You can build the documentation for this crate by running `cargo doc` in the `archive` directory.
 More Docs [here]( https://github.com/paritytech/substrate-archive/wiki)
 
+# Troubleshooting
+- Archive fails to start with a `too many open files` error
+  - Because of the way a [RocksDB Secondary Instance](https://github.com/facebook/rocksdb/wiki/Secondary-instance) works, it requires that all the files of the primary instance remain open in the secondary instance. This could trigger the error on linux, but simply requires that you raise the max open files limit (`ulimit`)
+    - With Docker: `$ docker run --ulimit nofile=90000:90000 <image-tag>`
+    - For Current Shell Session: `ulimit -a 90000`
+    - Permanantly Per-User
+      - Edit `/etc/security/limits.conf`
+        ```
+        # /etc/security/limits.conf
+        *           hard    nofile      4096
+        *           soft    nofile      1024
+        some_usr    hard    nofile      90000
+        some_usr    soft    nofile      90000
+        insipx      hard    nofile      90000
+        insipx      soft    nofile      90000
+        root        hard    nofile      90000
+        root        soft    nofile      90000
+        ```
+  
+
 # Contact
 
 You can contact me on
