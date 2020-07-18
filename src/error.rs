@@ -39,8 +39,6 @@ pub enum Error {
     RpcRequest(#[from] jsonrpsee::client::RequestError),
     #[error("DNS error")]
     Dns(#[from] jsonrpsee::transport::ws::WsNewDnsError),
-    #[error("couldn't run migrations")]
-    SqlMigration(#[from] refinery::Error),
     #[error("could not build threadpool")]
     ThreadPool(#[from] rayon::ThreadPoolBuildError),
     #[error(

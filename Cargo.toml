@@ -13,12 +13,8 @@ serde = { version = "1.0", features = ["derive"] }
 # enabling arbitrary_precision for serde_json may cause rpc requests to fail
 serde_json = "1.0"
 dirs = { version = "3", package = "directories" }
-<<<<<<< HEAD:Cargo.toml
 sqlx = { git = "https://github.com/launchbadge/sqlx", branch = "master", version = "0.4.0-beta.1", default-features = false, features = ["postgres", "macros", "runtime-tokio"] }
 # sqlx = { version = "0.3", features = ["postgres", "tls", "macros"] }
-=======
-sqlx = { git = "https://github.com/launchbadge/sqlx", version = "0.4.0-pre", branch = "master", default-features = false, features = ["postgres", "macros", "runtime-tokio"] }
->>>>>>> begin preparations for sqlx 0.4:archive/Cargo.toml
 async-trait = "0.1"
 hex = "0.4"
 itertools = "0.9"
@@ -63,6 +59,7 @@ sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "mas
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
 itoa = "0.4.6"
+include_dir = "0.6.0"
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
