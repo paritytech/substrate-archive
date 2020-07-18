@@ -33,6 +33,8 @@ pub enum Error {
     Serialization(#[from] serde_json::Error),
     #[error("sqlx error: {0}")]
     Sql(#[from] sqlx::Error),
+    #[error("migration error: {0}")]
+    Migration(#[from] sqlx::migrate::MigrateError),
     #[error("blockchain error: {0}")]
     Blockchain(String),
     #[error("JSONRPC request failed")]

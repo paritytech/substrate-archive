@@ -17,7 +17,7 @@
 use crate::error::Error as ArchiveError;
 use std::env;
 use sqlx::{migrate::Migrator, postgres::PgConnection};
-use std::path::Path;
+use sqlx::prelude::*;
 use include_dir::{include_dir, Dir};
 
 const MIGRATIONS_DIR: Dir = include_dir!("src/migrations");
@@ -28,12 +28,12 @@ const MIGRATIONS_DIR: Dir = include_dir!("src/migrations");
 /// # Panics
 /// Panics if a required environment variable is not found
 /// or if the environment variable contains invalid unicode
-pub async fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
-    let parsed = parse(conf);
-    let url = parsed.url();
-    let connection = PgConnection::connect(url.as_str()).await?;
+pub async fn migrate(conf: &MigrationConfig) -> Result<String, ArchiveError> {
+    let parsed = parse(conf.clone());
+    let url = parsed.build_url();
+    let mut connection = PgConnection::connect(url.as_str()).await?;
     log::info!("Running migrations for database {}", parsed.name.as_str());
-    Migrator::new(MIGRATIONS_DIR.path())?.run(&connection).await?;
+    Migrator::new(MIGRATIONS_DIR.path()).await?.run(&mut connection).await?;
     Ok(url)
 }
 
