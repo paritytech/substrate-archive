@@ -10,13 +10,19 @@ cache_size = 128
 # Number of threads to dedicate for executing blocks
 # Optional. If not specified, threads will be set
 # to the default number of logical system threads
-# block_workers = 16
+block_workers = 4
 # Number of 64KB Heap Pages to allocate for WASM execution
-wasm_pages = 1024
+wasm_pages = 512
 
+# Optional Database Parameters. 
+
+# Can also be specified with DB_HOST environment variable
 db_host = "localhost"
+# Can also be specified with DB_PORT environment variable
 db_port = "5432"
+# Can also be specified with DB_USER environment variable
 db_user = "archive"
 # Can also be specified with DB_PASS environment variable
 db_pass = "default"
+# Can also be specified with DB_NAME environment variable
 db_name = "node-template-archive"
