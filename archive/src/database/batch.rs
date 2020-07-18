@@ -19,7 +19,6 @@
 //! This is sortof temporary until SQLx develops their dynamic query builder: https://github.com/launchbadge/sqlx/issues/291
 //! and `Quaint` switches to SQLx as a backend: https://github.com/prisma/quaint/issues/138
 use crate::error::ArchiveResult;
-// use futures::future::try_join_all;
 use sqlx::prelude::*;
 use sqlx::{
     encode::Encode,
