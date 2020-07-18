@@ -15,8 +15,8 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A simple example
-use polkadot_service::{kusama_runtime::RuntimeApi as RApi, Block, KusamaExecutor as KExec};
-use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
+use polkadot_service::{kusama_runtime::RuntimeApi, Block, KusamaExecutor};
+use substrate_archive::{Archive, ArchiveConfig, MigrationConfig, ArchiveBuilder};
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Info, log::LevelFilter::Info);
@@ -41,7 +41,7 @@ pub fn main() {
 
     let mut rt = tokio::runtime::Runtime::new().unwrap();
 
-    let archive = Archive::<Block, RApi, KExec>::new(conf, Box::new(spec)).unwrap();
+    let archive = ArchiveBuilder::<Block, RuntimeApi, KusamaExecutor>::new(conf, Box::new(spec)).unwrap();
 
     // start running the archive
     let context = rt.block_on(archive.run()).unwrap();
