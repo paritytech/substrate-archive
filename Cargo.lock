@@ -3090,12 +3090,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "md5"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
-
-[[package]]
 name = "memchr"
 version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4920,49 +4914,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "postgres"
-version = "0.17.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd103028bf26298ed2960de650a0a3bb62804abebedb8e496f7d51c75aeefcdb"
-dependencies = [
- "bytes 0.5.5",
- "fallible-iterator",
- "futures 0.3.5",
- "log 0.4.8",
- "tokio 0.2.21",
- "tokio-postgres",
-]
-
-[[package]]
-name = "postgres-protocol"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81c5b25980f9a9b5ad36e9cdc855530575396d8a57f67e14691a2440ed0d9a90"
-dependencies = [
- "base64 0.12.3",
- "byteorder",
- "bytes 0.5.5",
- "fallible-iterator",
- "hmac 0.8.1",
- "md5",
- "memchr",
- "rand 0.7.3",
- "sha2 0.9.1",
- "stringprep",
-]
-
-[[package]]
-name = "postgres-types"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d14b0a4f433b0e0b565bb0fbc0ac9fc3d79ca338ba265ad0e7eef0f3bcc5e94"
-dependencies = [
- "bytes 0.5.5",
- "fallible-iterator",
- "postgres-protocol",
-]
-
-[[package]]
 name = "ppv-lite86"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5479,49 +5430,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "refinery"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "432021bd2eb60a8851757fdd145907be1a96c70961da167a3fb362001f2f397c"
-dependencies = [
- "refinery-core",
- "refinery-macros",
-]
-
-[[package]]
-name = "refinery-core"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9f670a4f4d6450ce53ecf0dd55324e0a3b684c24693e5cd68fdeca2294b875a"
-dependencies = [
- "async-trait",
- "cfg-if",
- "chrono",
- "lazy_static",
- "log 0.4.8",
- "postgres",
- "regex",
- "serde",
- "siphasher",
- "thiserror",
- "toml",
- "walkdir",
-]
-
-[[package]]
-name = "refinery-macros"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f397c4dfbcf0b298e8b10e5702d69852829636ee121215c42efe421dd16126e1"
-dependencies = [
- "proc-macro2 1.0.18",
- "quote 1.0.7",
- "refinery-core",
- "regex",
- "syn 1.0.33",
-]
-
-[[package]]
 name = "regalloc"
 version = "0.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5746,15 +5654,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d3d055a2582e6b00ed7a31c1524040aa391092bf636328350813f3a0605215c"
 dependencies = [
  "rustc_version",
-]
-
-[[package]]
-name = "same-file"
-version = "1.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
-dependencies = [
- "winapi-util",
 ]
 
 [[package]]
@@ -7932,7 +7831,6 @@ dependencies = [
  "pretty_env_logger",
  "primitive-types",
  "rayon",
- "refinery",
  "sc-chain-spec",
  "sc-client-api",
  "sc-executor",
@@ -8498,28 +8396,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-postgres"
-version = "0.5.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55a2482c9fe4dd481723cf5c0616f34afc710e55dcda0944e12e7b3316117892"
-dependencies = [
- "async-trait",
- "byteorder",
- "bytes 0.5.5",
- "fallible-iterator",
- "futures 0.3.5",
- "log 0.4.8",
- "parking_lot 0.11.0",
- "percent-encoding 2.1.0",
- "phf",
- "pin-project-lite",
- "postgres-protocol",
- "postgres-types",
- "tokio 0.2.21",
- "tokio-util",
-]
-
-[[package]]
 name = "tokio-reactor"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8913,17 +8789,6 @@ name = "waker-fn"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9571542c2ce85ce642e6b58b3364da2fb53526360dfb7c211add4f5c23105ff7"
-
-[[package]]
-name = "walkdir"
-version = "2.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "777182bc735b6424e1a57516d35ed72cb8019d85c8c9bf536dccb3445c1a2f7d"
-dependencies = [
- "same-file",
- "winapi 0.3.9",
- "winapi-util",
-]
 
 [[package]]
 name = "want"

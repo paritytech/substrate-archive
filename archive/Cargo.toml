@@ -28,8 +28,6 @@ thiserror = "1.0"
 rayon = "1.3"
 num_cpus = "1"
 xtra = "0.4"
-# Sql migrations
-refinery = { version = "0.3.0", features = ["postgres"] }
 # Just a simple wrapper around std::thread that `joins on drop`
 jod-thread = "0.1.2"
 
