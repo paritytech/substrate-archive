@@ -25,7 +25,8 @@ use async_trait::async_trait;
 use batch::Batch;
 use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-use sqlx::{PgPool, Postgres};
+use sqlx::{PgPool, postgres::PgPoolOptions, Postgres};
+use sqlx::prelude::*;
 
 use self::models::*;
 use crate::{
@@ -53,10 +54,11 @@ pub struct Database {
 impl Database {
     /// Connect to the database
     pub async fn new(url: String) -> ArchiveResult<Self> {
-        let pool = PgPool::builder()
-            .min_size(4)
-            .max_size(8)
-            .build(url.as_str())
+        let pool = PgPoolOptions::new()
+            .min_connections(4)
+            .max_connections(8)
+            .idle_timeout(std::time::Duration::from_secs(3600)) // kill connections after 5 minutes of idle
+            .connect(url.as_str())
             .await?;
         Ok(Self { pool, url })
     }
@@ -118,6 +120,7 @@ where
             .bind(self.spec)
             .execute(conn)
             .await
+            .map(|d| d.rows_affected())
             .map_err(Into::into)
     }
 }
@@ -145,6 +148,7 @@ impl<B: BlockT> Insert for StorageModel<B> {
         .bind(self.data().map(|d| d.0.as_slice()))
         .execute(conn)
         .await
+        .map(|d| d.rows_affected())
         .map_err(Into::into)
     }
 }
@@ -185,8 +189,7 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
             batch.bind(s.data().map(|d| d.0.as_slice()))?;
             batch.append(")");
         }
-        batch.execute(conn).await?;
-        Ok(0)
+        Ok(batch.execute(conn).await?)
     }
 }
 
@@ -205,6 +208,7 @@ impl Insert for Metadata {
         .bind(self.meta())
         .execute(conn)
         .await
+        .map(|d| d.rows_affected())
         .map_err(Into::into)
     }
 }
@@ -257,8 +261,7 @@ where
             batch.bind(b.spec)?;
             batch.append(")");
         }
-        batch.execute(conn).await?;
-        Ok(0)
+        Ok(batch.execute(conn).await?)
     }
 }
 
