@@ -2,4 +2,5 @@
 members = [
     "archive",
     "polkadot-archive",
+    "node-template-archive"
 ]

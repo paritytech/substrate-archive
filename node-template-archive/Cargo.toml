@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-substrate-archive = { version = "0.5", path = "../archive", features = ["logging"] }
+substrate-archive = { version = "0.5.0-pre", path = "../archive", features = ["logging"] }
 node-template-runtime = { git = "https://github.com/paritytech/substrate", branch="master", default-features = false, package = "node-template-runtime" }
 node-template = { git = "https://github.com/paritytech/substrate", branch="master", package = "node-template" }
 clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }

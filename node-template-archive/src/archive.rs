@@ -14,14 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use anyhow::Result;
-use node_template_runtime::{self as runtime, opaque::Block};
-use std::sync::Arc;
-use substrate_archive::{Archive, ArchiveConfig, ArchiveContext};
+use super::config::Config;
 
-pub fn run_archive(config: super::config::Config) -> Result<ArchiveContext<runtime::Runtime>> {
+use anyhow::{
+    Result
+};
+use node_template_runtime::{
+    self as runtime,
+    opaque::Block
+};
+use substrate_archive::{
+    ArchiveBuilder,
+    ArchiveConfig
+};
+
+pub async fn run_archive(config: Config) -> Result<()> {
+
+    // get spec from file
     let spec = config.cli().chain_spec.clone();
 
+    // get config from file
     let conf = ArchiveConfig {
         db_url: config.db_path().to_str().unwrap().to_string(),
         rpc_url: config.rpc_url().into(),
@@ -31,11 +43,16 @@ pub fn run_archive(config: super::config::Config) -> Result<ArchiveContext<runti
         psql_conf: config.psql_conf(),
     };
 
-    let archive = Archive::new(conf, Box::new(spec))?;
+    let archive =
+        ArchiveBuilder::<
+            Block,
+            runtime::RuntimeApi,
+            node_template::service::Executor
+        >::new(
+            conf,
+            Box::new(spec),
+        )?;
+    archive.run().await?;
+    Ok(())
 
-    let api_client =
-        archive.api_client::<runtime::RuntimeApi, node_template::service::Executor>()?;
-    let archive = archive.run_with::<runtime::Runtime, runtime::RuntimeApi, _>(api_client)?;
-
-    Ok(archive)
 }
