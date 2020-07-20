@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::{Error as ArchiveError, ArchiveResult};
+use crate::error::Error as ArchiveError;
 use std::{env, path::PathBuf};
 use sqlx::{migrate::Migrator, postgres::PgConnection};
 use sqlx::prelude::*;
