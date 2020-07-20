@@ -17,13 +17,11 @@
 //! Custom Read-Only Database Instance using RocksDB Secondary features
 //! Will try catching up with primary database on every `get()`
 
-use kvdb::{DBTransaction, DBValue, KeyValueDB};
+use kvdb::KeyValueDB as _;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::io;
-
-pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
 
 pub struct Config {
     /// track how many times try_catch_up_with_primary is called

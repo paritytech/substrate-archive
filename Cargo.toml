@@ -32,7 +32,7 @@ jod-thread = "0.1.2"
 fern = { version = "0.6", features = ["colored"], optional = true }
 chrono = { version = "0.4", optional = true }
 tokio = { version = "0.2", features = ["sync", "rt-threaded", "blocking", "time"], optional = true }
-smol = { version = "0.1", optional = true }
+smol = { version = "0.2", optional = true }
 async-std = { version = "1", features = ["unstable"], optional = true}
 
 # Parity
@@ -60,6 +60,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", 
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
 itoa = "0.4.6"
 include_dir = "0.6.0"
+tempfile = "3.1.0"
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }

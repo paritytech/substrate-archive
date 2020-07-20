@@ -217,6 +217,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-io"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a0fc2017a5cca12763bb5636092a7786b52789c23c5838a392db2eb99963fd3"
+dependencies = [
+ "cfg-if",
+ "concurrent-queue",
+ "futures-lite",
+ "libc",
+ "once_cell",
+ "parking",
+ "socket2",
+ "vec-arena",
+ "wepoll-sys-stjepang",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "async-std"
 version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -236,7 +254,7 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
- "smol",
+ "smol 0.1.18",
  "wasm-bindgen-futures",
 ]
 
@@ -3394,6 +3412,17 @@ dependencies = [
  "pin-project",
  "smallvec 1.4.1",
  "unsigned-varint 0.4.0",
+]
+
+[[package]]
+name = "multitask"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c09c35271e7dcdb5f709779111f2c8e8ab8e06c1b587c1c6a9e179d865aaa5b4"
+dependencies = [
+ "async-task",
+ "concurrent-queue",
+ "fastrand",
 ]
 
 [[package]]
@@ -7421,6 +7450,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "smol"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "346a94824d48ed7c5fc7247f3cbbf0317bdfe15fc39d08f9262609cccce61254"
+dependencies = [
+ "async-io",
+ "blocking",
+ "multitask",
+ "num_cpus",
+ "once_cell",
+]
+
+[[package]]
 name = "snow"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8314,7 +8356,7 @@ dependencies = [
  "sc-executor",
  "serde",
  "serde_json",
- "smol",
+ "smol 0.2.0",
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
@@ -9246,6 +9288,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6454029bf181f092ad1b853286f23e2c507d8e8194d01d92da4a55c274a5508c"
 
 [[package]]
+name = "vec-arena"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17dfb54bf57c9043f4616cb03dab30eff012cc26631b797d8354b916708db919"
+
+[[package]]
 name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9766,7 +9814,7 @@ checksum = "34642ed56e27b2167ebd252e1bb121cd45fe86f54685d8f1ed7337df2d40059f"
 dependencies = [
  "async-std",
  "futures 0.3.5",
- "smol",
+ "smol 0.1.18",
  "tokio 0.2.21",
 ]
 
