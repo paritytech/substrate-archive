@@ -46,7 +46,7 @@ pub fn open_database(
     // need to make sure this is `Some` to open secondary instance
     let db_path = db_path.as_path().to_str().expect("Creating db path failed");
     let mut db_config = Config {
-        track_catchups: false,
+        track_catchups: true,
         config: DatabaseConfig {
             secondary: Some(db_path.to_string()),
             ..DatabaseConfig::with_columns(NUM_COLUMNS)

@@ -20,8 +20,8 @@
 use kvdb::KeyValueDB as _;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
+use crate::error::{Error, ArchiveResult};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::io;
 
 pub struct Config {
     /// track how many times try_catch_up_with_primary is called
@@ -43,8 +43,9 @@ impl std::fmt::Debug for ReadOnlyDatabase {
 }
 
 impl ReadOnlyDatabase {
-    pub fn open(config: Config, path: &str) -> io::Result<Self> {
+    pub fn open(config: Config, path: &str) -> ArchiveResult<Self> {
         let inner = Database::open(&config.config, path)?;
+        inner.try_catch_up_with_primary()?;
         Ok(Self { 
             inner,
             catch_counter: AtomicUsize::new(0),
@@ -53,40 +54,37 @@ impl ReadOnlyDatabase {
     }
 
     pub fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
-        let val = match self.inner.get(col, key) {
+       match self.inner.get(col, key) {
             Ok(v) => v,
             Err(e) => {
-                log::warn!("{:?}, Catching up with primary and trying again...", e);
-                None
-            }
-        };
-        if val.is_none() {
-            self.try_catch_up_with_primary()?;
-            match self.inner.get(col, key) {
-                Ok(v) => v,
-                Err(e) => {
-                    log::error!("{:?}", e);
-                    None
+                log::debug!("{}, Catching up with primary and trying again...", e.to_string());
+                self.try_catch_up_with_primary().ok()?;
+                match self.inner.get(col, key) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        log::error!("{}", e.to_string());
+                        None
+                    }
                 }
             }
-        } else {
-            val
         }
     }
 
-    fn try_catch_up_with_primary(&self) -> Option<()> {
+    fn try_catch_up_with_primary(&self) -> ArchiveResult<()> {
         if self.config.track_catchups {
             self.catch_counter.fetch_add(1, Ordering::Relaxed);
         }
-        self.inner.try_catch_up_with_primary().ok()?;
-        Some(())
+        self.inner.try_catch_up_with_primary()?;
+        Ok(())
     }
 
     pub fn catch_up_count(&self) -> Option<usize> {
         if !self.config.track_catchups {
             log::warn!("catchup tracking is not enabled");
+            None
+        } else {
+            Some(self.catch_counter.fetch_add(0, Ordering::Relaxed))
         }
-        self.catch_counter.fetch_add(0, Ordering::Relaxed)
     }
 }
 
@@ -103,7 +101,7 @@ impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
     }
 
     fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
-        self.get(col, key)
+       self.get(col, key)
     }
     // with_get -> default is fine
 
