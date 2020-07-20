@@ -1,0 +1,22 @@
+# Must be an absolute path to db (no ~/)
+db_path = "/home/insipx/.local/share/node-template/chains/dev/db"
+
+# URL to chain running in --pruning=archive
+rpc_url = "ws://127.0.0.1:9944"
+
+# How much should the read-only database keep in cache (MB) (required)
+cache_size = 128
+
+# Number of threads to dedicate for executing blocks
+# Optional. If not specified, threads will be set
+# to the default number of logical system threads
+# block_workers = 16
+# Number of 64KB Heap Pages to allocate for WASM execution
+wasm_pages = 1024
+
+db_host = "localhost"
+db_port = "5432"
+db_user = "archive"
+# Can also be specified with DB_PASS environment variable
+db_pass = "default"
+db_name = "node-template-archive"
