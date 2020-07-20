@@ -200,6 +200,9 @@ where
     }
 
     fn shutdown(mut self) -> Result<(), ArchiveError> {
+        if let Some(c) = self.context.backend().backing_db().catch_up_count() {
+            log::info!("Caught Up {} times", c);
+        }
         let ag = self.ag.take();
         if let Some(ag) = ag {
             ag.do_send(Die)?;
@@ -208,7 +211,9 @@ where
     }
 
     fn boxed_shutdown(mut self: Box<Self>) -> Result<(), ArchiveError> {
-        log::info!("Caught up: {} times", self.context.backend().backing_db().catch_up_count());
+        if let Some(c) = self.context.backend().backing_db().catch_up_count() {
+            log::info!("Caught Up {} times", c);
+        }
         let ag = self.ag.take();
         if let Some(ag) = ag {
             ag.do_send(Die)?;

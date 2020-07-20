@@ -82,7 +82,7 @@ impl ReadOnlyDatabase {
         Some(())
     }
 
-    pub fn catch_up_count(&self) -> usize {
+    pub fn catch_up_count(&self) -> Option<usize> {
         if !self.config.track_catchups {
             log::warn!("catchup tracking is not enabled");
         }
