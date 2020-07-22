@@ -25,8 +25,8 @@ use async_trait::async_trait;
 use batch::Batch;
 use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-use sqlx::{PgPool, postgres::PgPoolOptions, Postgres};
 use sqlx::prelude::*;
+use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 
 use self::models::*;
 use crate::{

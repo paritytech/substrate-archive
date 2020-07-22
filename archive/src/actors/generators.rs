@@ -5,7 +5,6 @@
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-
 // substrate-archive is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -28,6 +27,7 @@ use sp_runtime::traits::Block as BlockT;
 use sqlx::{pool::PoolConnection, Postgres};
 use xtra::prelude::*;
 
+#[derive(Clone)]
 pub struct Generator<B: BlockT> {
     last_block_max: u32,
     addr: Address<ActorPool<DatabaseActor<B>>>,
@@ -43,7 +43,7 @@ impl<B: BlockT> Generator<B> {
         tx_block: Sender<BlockData<B>>,
         tx_num: Sender<u32>,
     ) -> Self {
-       Self {
+        Self {
             last_block_max: 0,
             addr: actor_pool,
             tx_block,
@@ -52,11 +52,14 @@ impl<B: BlockT> Generator<B> {
     }
 
     ///  Spawn the tasks which collect un-indexed data
-    pub async fn start(self) -> ArchiveResult<()> {
+    pub fn start(self) -> ArchiveResult<()> {
+        let tx_num = self.tx_num.clone();
+        let tx_block = self.tx_block.clone();
         crate::util::spawn(async move {
-            let mut conn = self.addr.send(GetState::Conn.into()).await?.await?.conn();
-            self.storage(&mut conn).await?;
-            crate::util::spawn(self.missing_blocks(conn));
+            let conn0 = self.addr.send(GetState::Conn.into()).await?.await?.conn();
+            let conn1 = self.addr.send(GetState::Conn.into()).await?.await?.conn();
+            crate::util::spawn(Self::storage(conn0, self.tx_block));
+            Self::missing_blocks(conn1, self.tx_num).await?;
             Ok(())
         });
         Ok(())
@@ -64,16 +67,17 @@ impl<B: BlockT> Generator<B> {
 
     /// gets blocks from the database on a 1-seconds interval
     /// if the last query returned no missing blocks, the next interval will be 5 seconds
-    async fn missing_blocks(mut self, mut conn: Conn) -> ArchiveResult<()> {
+    async fn missing_blocks(mut conn: Conn, tx_num: Sender<u32>) -> ArchiveResult<()> {
+        let mut last_block_max = 0;
         'gen: loop {
-            let numbers = queries::missing_blocks_min_max(&mut conn, self.last_block_max).await?;
+            let numbers = queries::missing_blocks_min_max(&mut conn, last_block_max).await?;
             let max = if !numbers.is_empty() {
                 numbers[numbers.len() - 1]
             } else {
-                self.last_block_max
+                last_block_max
             };
 
-            if max != self.last_block_max {
+            if max != last_block_max {
                 log::info!(
                     "Indexing {} missing blocks, from {} to {}...",
                     numbers.len(),
@@ -81,16 +85,16 @@ impl<B: BlockT> Generator<B> {
                     numbers.last().unwrap()
                 );
                 for num in numbers.iter() {
-                    if let Err(_) = self.tx_num.send(*num) {
+                    if let Err(_) = tx_num.send(*num) {
                         // threadpool has disconnected so we can stop
                         break 'gen;
                     }
                 }
                 log::debug!("new max: {}", max);
-                self.last_block_max = max;
+                last_block_max = max;
             }
 
-            if self.tx_num.try_send(0).is_err() {
+            if tx_num.try_send(0).is_err() {
                 break 'gen;
             }
 
@@ -106,13 +110,13 @@ impl<B: BlockT> Generator<B> {
     /// Gets storage that is missing from the storage table
     /// by querying it against the blocks table
     /// This fills in storage that might've been missed by a shutdown
-    async fn storage(&self, conn: &mut Conn) -> ArchiveResult<()> {
-        if queries::blocks_count(conn).await? == 0 {
+    async fn storage(mut conn: Conn, tx_block: Sender<BlockData<B>>) -> ArchiveResult<()> {
+        if queries::blocks_count(&mut conn).await? == 0 {
             // no blocks means we haven't indexed anything yet
             return Ok(());
         }
         let now = std::time::Instant::now();
-        let blocks = queries::blocks_storage_intersection(conn).await?;
+        let blocks = queries::blocks_storage_intersection(&mut conn).await?;
         let blocks = BlockBuilder::<B>::new().with_vec(blocks)?;
         log::info!(
             "took {:?} to get and build {} blocks. Adding to queue...",
@@ -120,7 +124,7 @@ impl<B: BlockT> Generator<B> {
             blocks.len()
         );
 
-        if let Err(_) = self.tx_block.send(BlockData::Batch(blocks)) {
+        if let Err(_) = tx_block.send(BlockData::Batch(blocks)) {
             log::warn!("Block Executor channel disconnected before any missing storage-blocks could be sent")
         }
         Ok(())

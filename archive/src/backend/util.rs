@@ -17,7 +17,7 @@
 //! various utilities that make interfacing with substrate easier
 
 use crate::{
-    backend::database::{ReadOnlyDatabase, Config},
+    backend::database::{Config, ReadOnlyDatabase},
     error::{ArchiveResult, Error as ArchiveError},
 };
 use codec::Decode;
@@ -50,7 +50,7 @@ pub fn open_database(
         config: DatabaseConfig {
             secondary: Some(db_path.to_string()),
             ..DatabaseConfig::with_columns(NUM_COLUMNS)
-        }
+        },
     };
     let state_col_budget = (cache_size as f64 * 0.9) as usize;
     let other_col_budget = (cache_size - state_col_budget) / (NUM_COLUMNS as usize - 1);

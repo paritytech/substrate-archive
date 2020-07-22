@@ -18,6 +18,7 @@
 //! chain defined with the passed-in Client and URL.
 
 mod actor_pool;
+mod blocks;
 mod generators;
 mod workers;
 
