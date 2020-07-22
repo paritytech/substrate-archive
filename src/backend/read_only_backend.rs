@@ -33,7 +33,7 @@ use self::state_backend::{DbState, StateVault};
 use super::database::ReadOnlyDatabase;
 use super::util::columns;
 use hash_db::Prefix;
-use kvdb::DBValue; // need
+use kvdb::DBValue;
 use sc_client_api::backend::StateBackend;
 use sp_blockchain::{Backend as _, HeaderBackend as _};
 use sp_runtime::{
@@ -131,17 +131,26 @@ where
             (Some(h), None, j) => {
                 log::info!("body is none");
                 None
-            },
+            }
             (None, Some(e), j) => {
                 log::info!("Header is none");
                 None
-            },
+            }
             (None, None, _) => {
                 log::info!("Everything is None");
                 None
-            },
+            }
             _ => None,
         }
+    }
+
+    pub fn iter_blocks<N: Into<u32>>(
+        &self,
+        fun: impl Fn(N) -> bool,
+    ) -> impl Iterator<Item = Block> {
+        self.db
+            .iter(super::util::columns::KEY_LOOKUP)
+            .filter(|(key, value)| {})
     }
 }
 

@@ -132,9 +132,7 @@ where
         let meta_addr = super::Metadata::new(rpc_url, db_pool.clone())
             .await?
             .spawn();
-        super::Generator::new(db_pool.clone(), tx_block.clone(), tx_num)
-            .start()
-            .await?;
+        super::Generator::new(db_pool.clone(), tx_block.clone(), tx_num).start()?;
         let (senders, recvs) = queues();
 
         Ok(Self {

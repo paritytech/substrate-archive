@@ -19,16 +19,19 @@
 
 use crate::error::{ArchiveResult, Error};
 use codec::Decode;
-use kvdb::KeyValueDB as _;
+use kvdb::{DBTransaction, DBValue, KeyValueDB};
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
 use sp_runtime::traits::Block as BlockT;
 use std::{
     convert::TryInto,
     sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-}};
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
+
+pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
 
 pub struct Config {
     /// track how many times try_catch_up_with_primary is called
@@ -36,10 +39,11 @@ pub struct Config {
     pub config: DatabaseConfig,
 }
 
+#[derive(parity_util_mem::MallocSizeOf)]
 pub struct ReadOnlyDatabase {
     inner: Database,
     catch_counter: AtomicUsize,
-    config: Config,
+    track_catchups: bool,
 }
 
 impl std::fmt::Debug for ReadOnlyDatabase {
@@ -56,7 +60,7 @@ impl ReadOnlyDatabase {
         Ok(Self {
             inner,
             catch_counter: AtomicUsize::new(0),
-            config,
+            track_catchups: config.track_catchups,
         })
     }
 
@@ -80,16 +84,16 @@ impl ReadOnlyDatabase {
         }
     }
 
-    pub fn iter_headers<Block: BlockT, F>(
-        self: Arc<Self>,
-        fun: F,
-    ) 
+    pub fn iter<'a>(&'a self, col: u32) -> impl Iterator<Item = KeyValuePair> + 'a {
+        self.inner.iter(col)
+    }
+
+    pub fn iter_headers<Block: BlockT, F>(self: Arc<Self>, fun: F)
     where
-        F: Fn(Option<Block::Header>)
+        F: Fn(Option<Block::Header>),
     {
         let db = self.clone();
-        self
-            .inner
+        self.inner
             .iter(super::util::columns::KEY_LOOKUP)
             .map(move |(key, value)| {
                 println!("KEY: {:#X?}", key);
@@ -103,24 +107,18 @@ impl ReadOnlyDatabase {
                         None
                     }
                 },
-                None => None
-            }).for_each(|h| {
-                fun(h)
-            });
+                None => None,
+            })
+            .for_each(|h| fun(h));
     }
 
-    pub fn iter_from_headers<Block: BlockT, F>(
-        self: Arc<Self>,
-        block_num: u32,
-        fun: F,
-    ) 
+    pub fn iter_from_headers<Block: BlockT, F>(self: Arc<Self>, block_num: u32, fun: F)
     where
-        F: Fn(Option<Block::Header>)
+        F: Fn(Option<Block::Header>),
     {
         let db = self.clone();
         let key = super::util::number_index_key(block_num).unwrap();
-        self
-            .inner
+        self.inner
             .iter_with_prefix(super::util::columns::KEY_LOOKUP, &key)
             .filter(|(key, value)| {
                 // println!("Key length: {}", key.len());
@@ -128,7 +126,7 @@ impl ReadOnlyDatabase {
                 let arr: &[u8; 4] = key[0..4].try_into().unwrap();
                 let num = u32::from_be_bytes(*arr);
                 // println!("NUM: {}", num);
-                key.len() == 4 
+                key.len() == 4
             })
             .map(move |(key, value)| {
                 println!("KEY: {:#X?}", key);
@@ -142,14 +140,13 @@ impl ReadOnlyDatabase {
                         None
                     }
                 },
-                None => None
-            }).for_each(|h| {
-                fun(h)
-            });
+                None => None,
+            })
+            .for_each(|h| fun(h));
     }
 
     pub fn try_catch_up_with_primary(&self) -> ArchiveResult<()> {
-        if self.config.track_catchups {
+        if self.track_catchups {
             self.catch_counter.fetch_add(1, Ordering::Relaxed);
         }
         self.inner.try_catch_up_with_primary()?;
@@ -157,7 +154,7 @@ impl ReadOnlyDatabase {
     }
 
     pub fn catch_up_count(&self) -> Option<usize> {
-        if !self.config.track_catchups {
+        if !self.track_catchups {
             log::warn!("catchup tracking is not enabled");
             None
         } else {
@@ -198,3 +195,35 @@ impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
         }
     */
 }
+
+/*
+impl KeyValueDB for ReadOnlyDatabase {
+    fn get(&self, col: u32, key: &[u8]) -> std::io::Result<Option<DBValue>> {
+        self.inner.get(col, key)
+    }
+
+    fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Option<Box<[u8]>> {
+        self.inner.get_by_prefix(col, prefix)
+    }
+
+    fn write(&self, _: DBTransaction) -> std::io::Result<()> {
+        panic!("Can't write to a read-only database")
+    }
+
+    fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
+        Box::new(self.inner.iter(col))
+    }
+
+    fn iter_with_prefix<'a>(&'a self, col: u32, prefix: &'a [u8]) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
+        self.inner.iter_with_prefix(col, prefix)
+    }
+
+    fn restore(&self, new_db: &str) -> std::io::Result<()> {
+        self.inner.restore(new_db)
+    }
+
+    fn io_stats(&self, kind: kvdb::IoStatsKind) -> kvdb::IoStats {
+        self.io_stats(kind)
+    }
+}
+*/

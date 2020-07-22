@@ -161,7 +161,7 @@ pub(crate) async fn contains_blocks<B: BlockT>(
 }
 
 pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>, ArchiveError> {
-    let rows = sqlx::query_as::<_, (i32, )>("SELECT version FROM metadata")
+    let rows = sqlx::query_as::<_, (i32,)>("SELECT version FROM metadata")
         .fetch_all(conn)
         .await?;
     Ok(rows.into_iter().map(|r| r.0 as u32).collect())

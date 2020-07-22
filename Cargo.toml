@@ -18,8 +18,10 @@ sqlx = { git = "https://github.com/launchbadge/sqlx", branch = "master", version
 async-trait = "0.1"
 hex = "0.4"
 itertools = "0.9"
-flume = "0.7.1"
+# 0.7.2 introduces breaking changes with Send/Sync bounds
+flume = "^0.7.1"
 parking_lot = "0.10"
+parity-util-mem = "0.7"
 hashbrown = { version = "0.8", features = ["inline-more"] }
 thiserror = "1.0"
 rayon = "1.3"

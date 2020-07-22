@@ -15,10 +15,10 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::error::Error as ArchiveError;
-use std::{env, path::PathBuf};
-use sqlx::{migrate::Migrator, postgres::PgConnection};
-use sqlx::prelude::*;
 use include_dir::{include_dir, Dir};
+use sqlx::prelude::*;
+use sqlx::{migrate::Migrator, postgres::PgConnection};
+use std::{env, path::PathBuf};
 
 const MIGRATIONS_DIR: Dir = include_dir!("src/migrations");
 
@@ -34,14 +34,17 @@ pub async fn migrate(conf: &MigrationConfig) -> Result<String, ArchiveError> {
     let mut connection = PgConnection::connect(url.as_str()).await?;
     log::info!("Running migrations for database {}", parsed.name.as_str());
     let dir = tempfile::tempdir()?;
-    // FIXME: This should be async 
-    let files = MIGRATIONS_DIR.files(); 
+    // FIXME: This should be async
+    let files = MIGRATIONS_DIR.files();
     for file in files.iter() {
         let mut path: PathBuf = dir.path().into();
         path.push(file.path());
         std::fs::write(path, file.contents())?
-    } 
-    Migrator::new(dir.path()).await?.run(&mut connection).await?;
+    }
+    Migrator::new(dir.path())
+        .await?
+        .run(&mut connection)
+        .await?;
     dir.close()?;
     Ok(url)
 }

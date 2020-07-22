@@ -29,9 +29,9 @@ use crate::{
 };
 use codec::{Decode, Encode};
 use hashbrown::HashSet;
-use std::{collections::BinaryHeap, fmt::Debug, hash::Hash};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
+use std::{collections::BinaryHeap, fmt::Debug, hash::Hash};
 
 // TODO Get rid of the HashSet redundant checking for duplicates if possible.
 // TODO Just store generic strut instead of the encoded version of the struct.
@@ -90,7 +90,7 @@ where
     name: String,
     /// sorted prioritized queue of blocks
     queue: BinaryHeap<EncodedIn<I>>,
-    /// A HashSet of the data to be inserted (hashed before inserted into the HashSet). 
+    /// A HashSet of the data to be inserted (hashed before inserted into the HashSet).
     /// Used to check for duplicates
     dups: HashSet<u64>,
     /// the threadpool
@@ -133,16 +133,17 @@ where
         }
     }
 
-    pub fn add_data(&mut self, data: Vec<I>) 
+    pub fn add_data(&mut self, data: Vec<I>)
     where
-        I::Ident: Debug 
+        I::Ident: Debug,
     {
         let data = data
             .into_iter()
             .map(EncodedIn::from)
             .filter(|d| !self.dups.contains(&make_hash(&d.enc)))
             .collect::<Vec<_>>();
-        self.dups.extend(data.iter().map(|d| make_hash(d.enc.as_slice())));
+        self.dups
+            .extend(data.iter().map(|d| make_hash(d.enc.as_slice())));
         self.queue.extend(data.into_iter());
     }
 
