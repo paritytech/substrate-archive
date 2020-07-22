@@ -118,15 +118,28 @@ where
     /// Get a block from the canon chain
     /// This also tries to catch up with the primary rocksdb instance
     pub fn block(&self, id: &BlockId<Block>) -> Option<SignedBlock<Block>> {
-        match (
-            self.header(*id).ok()?,
-            self.body(*id).ok()?,
-            self.justification(*id).ok()?,
-        ) {
+        let header = self.header(*id).ok()?;
+        let body = self.body(*id).ok()?;
+        let justification = self.justification(*id).ok()?;
+        log::info!("Justification is {}", justification.is_some());
+
+        match (header, body, justification) {
             (Some(header), Some(extrinsics), justification) => Some(SignedBlock {
                 block: Block::new(header, extrinsics),
                 justification,
             }),
+            (Some(h), None, j) => {
+                log::info!("body is none");
+                None
+            },
+            (None, Some(e), j) => {
+                log::info!("Header is none");
+                None
+            },
+            (None, None, _) => {
+                log::info!("Everything is None");
+                None
+            },
             _ => None,
         }
     }

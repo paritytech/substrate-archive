@@ -175,6 +175,11 @@ where
     })
 }
 
+/// Convert block number into short lookup key (LE representation) for
+// blocks that are in the canonical chain
+
+/// In the current database schema, this kind of key is only used for
+/// lookups into an index, NOT for storing header data or others
 pub fn number_index_key<N: TryInto<u32>>(n: N) -> ArchiveResult<NumberIndexKey> {
     let n = n
         .try_into()
