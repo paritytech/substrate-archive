@@ -59,12 +59,12 @@ impl<B: BlockT> Generator<B> {
             let conn0 = self.addr.send(GetState::Conn.into()).await?.await?.conn();
             let conn1 = self.addr.send(GetState::Conn.into()).await?.await?.conn();
             crate::util::spawn(Self::storage(conn0, self.tx_block));
-            Self::missing_blocks(conn1, self.tx_num).await?;
+            // Self::missing_blocks(conn1, self.tx_num).await?;
             Ok(())
         });
         Ok(())
     }
-
+    /*
     /// gets blocks from the database on a 1-seconds interval
     /// if the last query returned no missing blocks, the next interval will be 5 seconds
     async fn missing_blocks(mut conn: Conn, tx_num: Sender<u32>) -> ArchiveResult<()> {
@@ -106,6 +106,7 @@ impl<B: BlockT> Generator<B> {
         }
         Ok(())
     }
+    */
 
     /// Gets storage that is missing from the storage table
     /// by querying it against the blocks table

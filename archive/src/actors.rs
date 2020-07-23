@@ -146,19 +146,6 @@ where
 
     /// Start the actors and begin driving their execution
     pub async fn drive(&mut self) -> ArchiveResult<()> {
-        /*
-        let db = self.context.backend().backing_db().clone();
-        std::thread::spawn(move || {
-            loop {
-                std::thread::sleep(std::time::Duration::from_secs(5));
-                db.try_catch_up_with_primary().ok().unwrap();
-                println!("Caught up");
-            }
-        });
-        let backend = self.context.backend().backing_db().iter_from_headers::<B, _>(3_200_000, |h| {
-            println!("{:#?}", h);
-        });
-        */
         let ctx = self.context.clone();
         let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
         let subscription = rpc

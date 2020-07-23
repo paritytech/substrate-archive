@@ -32,6 +32,8 @@ pub use self::state_backend::TrieState;
 use self::state_backend::{DbState, StateVault};
 use super::database::ReadOnlyDatabase;
 use super::util::columns;
+use crate::error::ArchiveResult;
+use codec::Decode;
 use hash_db::Prefix;
 use kvdb::DBValue;
 use sc_client_api::backend::StateBackend;
@@ -39,8 +41,13 @@ use sp_blockchain::{Backend as _, HeaderBackend as _};
 use sp_runtime::{
     generic::{BlockId, SignedBlock},
     traits::{Block as BlockT, HashFor, Header},
+    Justification,
 };
-use std::sync::Arc;
+use std::{
+    convert::{TryFrom, TryInto},
+    marker::PhantomData,
+    sync::Arc,
+};
 
 pub struct ReadOnlyBackend<Block: BlockT> {
     db: Arc<ReadOnlyDatabase>,
@@ -121,44 +128,78 @@ where
         let header = self.header(*id).ok()?;
         let body = self.body(*id).ok()?;
         let justification = self.justification(*id).ok()?;
-        log::info!("Justification is {}", justification.is_some());
-
-        match (header, body, justification) {
-            (Some(header), Some(extrinsics), justification) => Some(SignedBlock {
-                block: Block::new(header, extrinsics),
-                justification,
-            }),
-            (Some(h), None, j) => {
-                log::info!("body is none");
-                None
-            }
-            (None, Some(e), j) => {
-                log::info!("Header is none");
-                None
-            }
-            (None, None, _) => {
-                log::info!("Everything is None");
-                None
-            }
-            _ => None,
-        }
+        construct_block(header, body, justification)
     }
 
-    pub fn iter_blocks<N: Into<u32>>(
-        &self,
-        fun: impl Fn(N) -> bool,
-    ) -> impl Iterator<Item = Block> {
-        self.db
+    /// Iterate over all blocks that match the predicate `fun`
+    /// Iterates over the latest version of the database.
+    /// The predicate exists to reduce database reads
+    pub fn iter_blocks<'a>(
+        &'a self,
+        fun: impl Fn(u32) -> bool + 'a,
+    ) -> ArchiveResult<impl Iterator<Item = SignedBlock<Block>> + 'a> {
+        let readable_db = self.db.clone();
+        self.db.try_catch_up_with_primary()?;
+        Ok(self
+            .db
             .iter(super::util::columns::KEY_LOOKUP)
-            .filter(|(key, value)| {})
+            .filter_map(move |(key, value)| {
+                let arr: &[u8; 4] = key[0..4].try_into().ok()?;
+                let num = u32::from_be_bytes(*arr);
+                if key.len() == 4 && fun(num) {
+                    let head: Option<Block::Header> = readable_db
+                        .get(super::util::columns::HEADER, &value)
+                        .map(|bytes| Decode::decode(&mut &bytes[..]).ok())
+                        .flatten();
+                    let body: Option<Vec<Block::Extrinsic>> = readable_db
+                        .get(super::util::columns::BODY, &value)
+                        .map(|bytes| Decode::decode(&mut &bytes[..]).ok())
+                        .flatten();
+                    let justif: Option<Justification> = readable_db
+                        .get(super::util::columns::JUSTIFICATION, &value)
+                        .map(|bytes| Decode::decode(&mut &bytes[..]).ok())
+                        .flatten();
+                    construct_block(head, body, justif)
+                } else {
+                    None
+                }
+            }))
     }
 }
 
 struct DbGenesisStorage<Block: BlockT>(pub Block::Hash);
-
 impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for DbGenesisStorage<Block> {
     fn get(&self, _key: &Block::Hash, _prefix: Prefix) -> Result<Option<DBValue>, String> {
         Ok(None)
+    }
+}
+
+fn construct_block<Block: BlockT>(
+    header: Option<Block::Header>,
+    body: Option<Vec<Block::Extrinsic>>,
+    justification: Option<Justification>,
+) -> Option<SignedBlock<Block>> {
+    match (header, body, justification) {
+        (Some(header), Some(extrinsics), justification) => Some(SignedBlock {
+            block: Block::new(header, extrinsics),
+            justification,
+        }),
+        _ => None,
+    }
+}
+
+/// a bytestring that represents some part of a Block
+struct BlockBytes<B: BlockT> {
+    bytes: Vec<u8>,
+    _marker: PhantomData<B>,
+}
+
+impl<B: BlockT> From<Vec<u8>> for BlockBytes<B> {
+    fn from(bytes: Vec<u8>) -> BlockBytes<B> {
+        BlockBytes {
+            bytes,
+            _marker: PhantomData,
+        }
     }
 }
 

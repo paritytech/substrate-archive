@@ -21,6 +21,7 @@ use crate::{
     sql_block_builder::SqlBlock,
 };
 use futures::Stream;
+use hashbrown::HashSet;
 use sp_runtime::traits::Block as BlockT;
 use sqlx::PgConnection;
 
@@ -61,7 +62,7 @@ pub(crate) async fn missing_blocks(conn: &mut PgConnection) -> ArchiveResult<Vec
 pub(crate) async fn missing_blocks_min_max(
     conn: &mut PgConnection,
     min: u32,
-) -> ArchiveResult<Vec<u32>> {
+) -> ArchiveResult<HashSet<u32>> {
     Ok(sqlx::query_as::<_, (i32,)>(
         "SELECT generate_series
         FROM (SELECT $1 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)

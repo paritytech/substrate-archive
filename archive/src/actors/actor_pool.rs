@@ -108,7 +108,7 @@ where
     // we create a channel with a capacity of one so that
     // the send does not block the runtime
     let (tx, mut rx) = flume::bounded(1);
-    crate::util::spawn(async move {
+    smol::Task::spawn(async move {
         match fut.await {
             Ok(v) => {
                 if let Err(e) = tx.try_send(v) {
@@ -130,7 +130,6 @@ where
                 panic!("Actor Disconnected");
             }
         };
-        Ok(())
     });
     // the expect won't even be called if we call `do_send`
     async move { rx.recv_async().map(|r| r.expect("One shot")).await }.boxed()
