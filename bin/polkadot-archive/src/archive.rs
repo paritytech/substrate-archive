@@ -24,7 +24,7 @@ use polkadot_service::Block;
 use sc_chain_spec::ChainSpec;
 use substrate_archive::{Archive, ArchiveBuilder, ArchiveConfig};
 
-pub async fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
+pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
     let mut db_path = config.polkadot_path();
 
     let path = config.polkadot_path();
@@ -64,7 +64,7 @@ pub async fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                 ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor>::new(
                     conf, spec,
                 )?;
-            Ok(Box::new(archive.run().await?))
+            Ok(Box::new(archive.run()?))
         }
         "westend" => {
             let archive = ArchiveBuilder::<
@@ -72,7 +72,7 @@ pub async fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                 westend_rt::RuntimeApi,
                 polkadot_service::WestendExecutor,
             >::new(conf, spec)?;
-            Ok(Box::new(archive.run().await?))
+            Ok(Box::new(archive.run()?))
         }
         "polkadot" | "dot" => {
             let archive = ArchiveBuilder::<
@@ -80,7 +80,7 @@ pub async fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                 dot_rt::RuntimeApi,
                 polkadot_service::PolkadotExecutor,
             >::new(conf, spec)?;
-            Ok(Box::new(archive.run().await?))
+            Ok(Box::new(archive.run()?))
         }
         c => Err(anyhow!("unknown chain {}", c)),
     }

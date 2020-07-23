@@ -21,6 +21,7 @@ use futures::Future;
 use log::*;
 use std::path::{Path, PathBuf};
 
+/// convenience function to log any errors from a detached task
 pub fn spawn(fut: impl Future<Output = ArchiveResult<()>> + Send + 'static) {
     let fut = async move {
         match fut.await {
@@ -28,19 +29,7 @@ pub fn spawn(fut: impl Future<Output = ArchiveResult<()>> + Send + 'static) {
             Err(e) => log::error!("{}", e.to_string()),
         }
     };
-
-    #[cfg(feature = "with-tokio")]
-    {
-        tokio::spawn(fut);
-    }
-    #[cfg(feature = "with-async-std")]
-    {
-        async_std::task::spawn(fut);
-    }
-    #[cfg(feature = "with-smol")]
-    {
-        smol::Task::spawn(fut).detach();
-    }
+    smol::Task::spawn(fut).detach();
 }
 
 /// create an arbitrary directory on disk

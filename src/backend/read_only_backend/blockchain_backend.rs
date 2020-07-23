@@ -40,11 +40,7 @@ impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
         match res {
             Some(body) => match Decode::decode(&mut &body[..]) {
                 Ok(body) => Ok(Some(body)),
-                Err(e) => {
-                    // FIXME: just log error for now until thiserror
-                    log::error!("{:?}", e);
-                    Ok(None)
-                }
+                Err(_) => Err(BlockchainError::Msg("Could not decode extrinsics".into())),
             },
             None => Ok(None),
         }
@@ -57,10 +53,9 @@ impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
         match res {
             Some(justification) => match Decode::decode(&mut &justification[..]) {
                 Ok(justification) => Ok(Some(justification)),
-                Err(err) => {
-                    log::error!("{:?}", err);
-                    Ok(None)
-                }
+                Err(err) => Err(BlockchainError::Msg(
+                    "Could not decode block justification".into(),
+                )),
             },
             None => Ok(None),
         }

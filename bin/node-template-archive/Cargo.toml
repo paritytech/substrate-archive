@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-substrate-archive = { path = "../../", features = ["logging", "with-tokio"] }
+substrate-archive = { version = "0.5.0-pre", path = "../archive", features = ["logging"] }
 node-template-runtime = { git = "https://github.com/paritytech/substrate", branch="master", default-features = false, package = "node-template-runtime" }
 node-template = { git = "https://github.com/paritytech/substrate", branch="master", package = "node-template" }
 clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }
@@ -17,6 +17,5 @@ log = "0.4"
 pretty_env_logger = "0.4.0"
 anyhow = "1.0.31"
 serde = "1.0"
-tokio = { version = "0.2", features = ["full", "signal"] }
 
 [features]

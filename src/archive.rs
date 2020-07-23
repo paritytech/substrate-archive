@@ -147,7 +147,11 @@ where
 
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
-    pub async fn run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
+    pub fn run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
+        smol::run(async { self._run().await })
+    }
+
+    async fn _run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
         let psql_url = crate::migrations::migrate(&self.psql_conf).await?;
         let cpus = num_cpus::get();
         let client0 = Arc::new(
