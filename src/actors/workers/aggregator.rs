@@ -115,6 +115,8 @@ where
     }
 }
 
+type DatabaseAct<B> = Address<super::ActorPool<super::DatabaseActor<B>>>;
+
 impl<B> Aggregator<B>
 where
     B: BlockT,
@@ -124,15 +126,13 @@ where
     pub async fn new(
         ctx: ActorContext<B>,
         tx_block: Sender<BlockData<B>>,
-        tx_num: Sender<u32>,
+        db_pool: DatabaseAct<B>,
     ) -> ArchiveResult<Self> {
-        let (psql_url, rpc_url) = (ctx.psql_url().to_string(), ctx.rpc_url().to_string());
-        let db = super::DatabaseActor::new(psql_url).await?;
-        let db_pool = super::ActorPool::new(db, 4).spawn();
+        let rpc_url = ctx.rpc_url().to_string();
         let meta_addr = super::Metadata::new(rpc_url, db_pool.clone())
             .await?
             .spawn();
-        super::Generator::new(db_pool.clone(), tx_block.clone(), tx_num).start()?;
+        super::Generator::new(db_pool.clone(), tx_block.clone()).start()?;
         let (senders, recvs) = queues();
 
         Ok(Self {
@@ -147,7 +147,7 @@ where
 }
 
 impl<B: BlockT> Message for BlockChanges<B> {
-    type Result = ArchiveResult<()>;
+    type Result = bool;
 }
 
 impl<B> Actor for Aggregator<B>
@@ -177,8 +177,14 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, changes: BlockChanges<B>, _: &mut Context<Self>) -> ArchiveResult<()> {
-        self.senders.push_back(BlockOrStorage::Storage(changes))
+    fn handle(&mut self, changes: BlockChanges<B>, _: &mut Context<Self>) -> bool {
+        match self.senders.push_back(BlockOrStorage::Storage(changes)) {
+            Err(e) => {
+                log::error!("{}", e.to_string());
+                false
+            }
+            Ok(_) => true,
+        }
     }
 }
 

@@ -26,14 +26,13 @@ pub use self::workers::msg;
 use super::{
     backend::{ApiAccess, GetRuntimeVersion, ReadOnlyBackend},
     error::{ArchiveResult, Error as ArchiveError},
-    threadpools::{BlockFetcher, ThreadedBlockExecutor},
+    threadpools::ThreadedBlockExecutor,
     types::Archive,
 };
-use futures::{future::Either, StreamExt};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::sync::Arc;
 pub use workers::Aggregator;
@@ -85,14 +84,14 @@ impl<Block: BlockT> ActorContext<Block> {
 
 pub struct System<Block, R, C>
 where
-    Block: BlockT,
+    Block: BlockT + Unpin,
     NumberFor<Block>: Into<u32>,
 {
     context: ActorContext<Block>,
     // workers: Option<usize>,
     executor: ThreadedBlockExecutor<Block>,
-    fetcher: BlockFetcher<Block>,
     ag: Option<Address<Aggregator<Block>>>,
+    blocks: Option<Address<blocks::BlocksIndexer<Block>>>,
     // api: Arc<C>,
     _marker: PhantomData<(R, C)>,
 }
@@ -131,15 +130,13 @@ where
     ) -> ArchiveResult<Self> {
         let (api, blk_client) = client_api;
         let context = ActorContext::new(backend.clone(), url, psql_url.to_string(), blk_client);
-
         let executor = ThreadedBlockExecutor::new(api.clone(), backend, workers)?;
-        let fetcher = BlockFetcher::new(context.clone(), Some(3))?;
 
         Ok(Self {
             context,
             executor,
-            fetcher,
             ag: None,
+            blocks: None,
             _marker: PhantomData,
         })
     }
@@ -147,24 +144,26 @@ where
     /// Start the actors and begin driving their execution
     pub async fn drive(&mut self) -> ArchiveResult<()> {
         let ctx = self.context.clone();
-        let rpc = crate::rpc::Rpc::<B>::connect(ctx.rpc_url()).await?;
-        let subscription = rpc
-            .subscribe_finalized_heads()
-            .await?
-            .map(|h| (*h.number()).into());
 
-        let (tx_block, tx_num) = (self.executor.sender(), self.fetcher.sender());
-        let ag = Aggregator::new(ctx.clone(), tx_block, tx_num)
+        let db = workers::DatabaseActor::<B>::new(ctx.psql_url().into()).await?;
+        let db_pool = actor_pool::ActorPool::new(db, 4).spawn();
+
+        let tx_block = self.executor.sender();
+        let ag = Aggregator::new(ctx.clone(), tx_block.clone(), db_pool.clone())
             .await?
             .spawn();
-
-        self.fetcher.attach_stream(subscription);
-        let exec_stream = self.executor.get_stream().map(|c| Either::Left(c));
-        let fetch_stream = self.fetcher.get_stream().map(|b| Either::Right(b));
-        let comb_stream = futures::stream::select(exec_stream, fetch_stream);
-        ag.clone()
-            .attach_stream(comb_stream.map(|d| msg::IncomingData::from(d)));
+        let blocks_indexer = blocks::BlocksIndexer::new(
+            ctx.backend().clone(),
+            db_pool.clone(),
+            ag.clone(),
+            ctx.api().clone(),
+        )
+        .spawn();
+        let exec_stream = self.executor.get_stream();
+        ag.clone().attach_stream(exec_stream);
         self.ag = Some(ag);
+        self.blocks = Some(blocks_indexer);
+
         Ok(())
     }
 

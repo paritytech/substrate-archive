@@ -148,7 +148,13 @@ where
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
     pub fn run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
-        smol::run(async { self._run().await })
+        smol::run(async {
+            let ctx = self._run().await?;
+            loop {
+                smol::Timer::new(std::time::Duration::from_secs(10)).await;
+            }
+            Ok(ctx)
+        })
     }
 
     async fn _run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
@@ -165,7 +171,6 @@ where
         let client1 = Arc::new(
             backend::runtime_api::<B, R, D>(self.db.clone(), 3, 64).map_err(ArchiveError::from)?,
         );
-
         let rt = client1.runtime_version_at(&BlockId::Number(0.into()))?;
         self.verify_same_chain(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));

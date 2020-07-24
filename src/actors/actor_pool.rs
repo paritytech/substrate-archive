@@ -130,7 +130,8 @@ where
                 panic!("Actor Disconnected");
             }
         };
-    });
+    })
+    .detach();
     // the expect won't even be called if we call `do_send`
     async move { rx.recv_async().map(|r| r.expect("One shot")).await }.boxed()
 }
