@@ -29,7 +29,7 @@ db_pass = "default"
 # A fully synced Kusama PostgreSQL database (~2.8Million blocks) takes up around 70GB
 # These variables can also be exposed with DB_NAME environment variable
 westend_db = "westend-archive"
-kusama_db = "kusama-archive"
+kusama_db = "kusama-db"
 polkadot_db = "polkadot-archive"
 
 
