@@ -218,9 +218,9 @@ dependencies = [
 
 [[package]]
 name = "async-executor"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a963e087ca93ab95de899c0095251958ca1c947d7a7a331e255a7cadf3535e3"
+checksum = "90f47c78ea98277cb1f5e6f60ba4fc762f5eafe9f6511bc2f7dfd8b75c225650"
 dependencies = [
  "async-io",
  "futures-lite",
@@ -8383,6 +8383,7 @@ dependencies = [
 name = "substrate-archive"
 version = "0.5.0-pre"
 dependencies = [
+ "async-executor",
  "async-trait",
  "bincode",
  "chrono",
@@ -9844,12 +9845,12 @@ dependencies = [
 
 [[package]]
 name = "xtra"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34642ed56e27b2167ebd252e1bb121cd45fe86f54685d8f1ed7337df2d40059f"
+version = "0.5.0-beta.2"
+source = "git+https://github.com/insipx/xtra?branch=insipx/bump-smol#67030d94fe51fd0dad9d34cdf949f21f39609c6a"
 dependencies = [
+ "async-trait",
  "futures 0.3.5",
- "smol 0.1.18",
+ "smol 0.3.1",
 ]
 
 [[package]]

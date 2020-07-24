@@ -43,11 +43,7 @@ use sp_runtime::{
     traits::{Block as BlockT, HashFor, Header},
     Justification,
 };
-use std::{
-    convert::{TryFrom, TryInto},
-    marker::PhantomData,
-    sync::Arc,
-};
+use std::{convert::TryInto, marker::PhantomData, sync::Arc};
 
 pub struct ReadOnlyBackend<Block: BlockT> {
     db: Arc<ReadOnlyDatabase>,
@@ -132,7 +128,7 @@ where
     }
 
     /// Iterate over all blocks that match the predicate `fun`
-    /// Iterates over the latest version of the database.
+    /// Tries to iterates over the latest version of the database.
     /// The predicate exists to reduce database reads
     pub fn iter_blocks<'a>(
         &'a self,
@@ -146,6 +142,7 @@ where
             .filter_map(move |(key, value)| {
                 let arr: &[u8; 4] = key[0..4].try_into().ok()?;
                 let num = u32::from_be_bytes(*arr);
+                log::trace!("[block-crawler] {}", num);
                 if key.len() == 4 && fun(num) {
                     let head: Option<Block::Header> = readable_db
                         .get(super::util::columns::HEADER, &value)

@@ -17,15 +17,20 @@ use super::{
     actor_pool::ActorPool,
     workers::{Aggregator, DatabaseActor, GetState},
 };
-use crate::{backend::ReadOnlyBackend, error::ArchiveResult, queries};
-use sp_runtime::generic::SignedBlock;
-use sp_runtime::traits::{Block as BlockT, NumberFor};
-use sqlx::{pool::PoolConnection, Postgres};
-use std::{marker::PhantomData, sync::Arc};
+use crate::{
+    backend::{GetRuntimeVersion, ReadOnlyBackend},
+    error::ArchiveResult,
+    queries,
+    threadpools::BlockData,
+    types::{BatchBlock, Block},
+};
+use futures::Stream;
+use sp_runtime::generic::BlockId;
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use std::sync::Arc;
 use xtra::prelude::*;
 
 type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
-type Conn = PoolConnection<Postgres>;
 
 pub struct BlocksIndexer<B: BlockT>
 where
@@ -35,37 +40,95 @@ where
     backend: Arc<ReadOnlyBackend<B>>,
     db: DatabaseAct<B>,
     ag: Address<Aggregator<B>>,
+    api: Arc<dyn GetRuntimeVersion<B>>,
+    last_max: u32,
 }
 
 impl<B: BlockT> BlocksIndexer<B>
 where
     NumberFor<B>: Into<u32>,
 {
-    pub async fn new(
+    pub fn new(
         backend: Arc<ReadOnlyBackend<B>>,
         addr: DatabaseAct<B>,
         ag: Address<Aggregator<B>>,
-    ) -> ArchiveResult<Self> {
-        Ok(Self {
+        api: Arc<dyn GetRuntimeVersion<B>>,
+    ) -> Self {
+        Self {
             backend,
             db: addr,
             ag,
-        })
-    }
-
-    pub async fn crawl_blocks(&self) -> ArchiveResult<()> {
-        let last_max = 0;
-        let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
-
-        loop {
-            let numbers = queries::missing_blocks_min_max(&mut conn, last_max).await?;
-            let backend = self.backend.clone();
-            let blocks = smol::unblock!(move || -> ArchiveResult<Vec<SignedBlock<B>>> {
-                Ok(backend
-                    .iter_blocks(|n| numbers.contains(&n))?
-                    .collect::<Vec<SignedBlock<B>>>())
-            });
+            api,
+            last_max: 0,
         }
-        Ok(())
     }
+
+    async fn crawl(&mut self) -> ArchiveResult<Vec<Block<B>>> {
+        let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
+        let numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
+        let now = std::time::Instant::now();
+        let copied_last_max = self.last_max;
+        // rocksdb iteration is a blocking IO task
+        let blocks = collect_blocks(self.backend.clone(), self.api.clone(), move |n| {
+            numbers.contains(&n) || n > copied_last_max
+        })
+        .await?;
+        log::info!("Took {:#?} to crawl", now.elapsed());
+        self.last_max = blocks
+            .iter()
+            .map(|b| (*b.inner.block.header().number()).into())
+            .fold(0, |ac, e| if e > ac { e } else { ac });
+        Ok(blocks)
+    }
+}
+
+struct Crawl;
+impl Message for Crawl {
+    type Result = ();
+}
+
+impl<B: BlockT> Actor for BlocksIndexer<B>
+where
+    NumberFor<B>: Into<u32>,
+    B: Unpin,
+{
+    fn started(&mut self, ctx: &mut Context<Self>) {
+        ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl);
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT + Unpin> Handler<Crawl> for BlocksIndexer<B>
+where
+    NumberFor<B>: Into<u32>,
+{
+    async fn handle(&mut self, _: Crawl, ctx: &mut Context<Self>) {
+        log::info!("Crawling for blocks");
+        match self.crawl().await {
+            Err(e) => log::error!("{}", e.to_string()),
+            Ok(b) => {
+                if let Err(_) = self.ag.do_send(BatchBlock::new(b)) {
+                    ctx.stop();
+                }
+            }
+        }
+    }
+}
+
+/// A wrapper around the backend fn `iter_blocks` which
+/// runs in a `spawn_blocking` async task (it's own thread)
+async fn collect_blocks<B: BlockT>(
+    backend: Arc<ReadOnlyBackend<B>>,
+    api: Arc<dyn GetRuntimeVersion<B>>,
+    fun: impl Fn(u32) -> bool + Send + 'static,
+) -> ArchiveResult<impl Stream<Item = Block<B>>> {
+    let gather_blocks = move || -> ArchiveResult<Box<dyn Iterator<Item = Block<B>>>> {
+        log::info!("HELLO FROM GATHER BLOCKS");
+        Ok(Box::new(backend.iter_blocks(|n| fun(n))?.map(|b| {
+            let ver = api.runtime_version(&BlockId::Number(*b.block.header().number()))?;
+            Ok(Block::new(b, ver.spec_version))
+        })))
+    };
+    log::info!("Gathering blocks");
+    smol::unblock!(gather_blocks())
 }

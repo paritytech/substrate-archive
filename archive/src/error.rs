@@ -15,6 +15,7 @@
 
 use std::{env, io};
 use thiserror::Error;
+use xtra::prelude::*;
 
 pub type ArchiveResult<T> = std::result::Result<T, Error>;
 

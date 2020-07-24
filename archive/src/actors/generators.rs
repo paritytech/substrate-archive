@@ -32,7 +32,6 @@ pub struct Generator<B: BlockT> {
     last_block_max: u32,
     addr: Address<ActorPool<DatabaseActor<B>>>,
     tx_block: Sender<BlockData<B>>,
-    tx_num: Sender<u32>,
 }
 
 type Conn = PoolConnection<Postgres>;
@@ -41,72 +40,25 @@ impl<B: BlockT> Generator<B> {
     pub fn new(
         actor_pool: Address<ActorPool<DatabaseActor<B>>>,
         tx_block: Sender<BlockData<B>>,
-        tx_num: Sender<u32>,
     ) -> Self {
         Self {
             last_block_max: 0,
             addr: actor_pool,
             tx_block,
-            tx_num,
         }
     }
 
     ///  Spawn the tasks which collect un-indexed data
     pub fn start(self) -> ArchiveResult<()> {
-        let tx_num = self.tx_num.clone();
         let tx_block = self.tx_block.clone();
         crate::util::spawn(async move {
             let conn0 = self.addr.send(GetState::Conn.into()).await?.await?.conn();
             let conn1 = self.addr.send(GetState::Conn.into()).await?.await?.conn();
             crate::util::spawn(Self::storage(conn0, self.tx_block));
-            // Self::missing_blocks(conn1, self.tx_num).await?;
             Ok(())
         });
         Ok(())
     }
-    /*
-    /// gets blocks from the database on a 1-seconds interval
-    /// if the last query returned no missing blocks, the next interval will be 5 seconds
-    async fn missing_blocks(mut conn: Conn, tx_num: Sender<u32>) -> ArchiveResult<()> {
-        let mut last_block_max = 0;
-        'gen: loop {
-            let numbers = queries::missing_blocks_min_max(&mut conn, last_block_max).await?;
-            let max = if !numbers.is_empty() {
-                numbers[numbers.len() - 1]
-            } else {
-                last_block_max
-            };
-
-            if max != last_block_max {
-                log::info!(
-                    "Indexing {} missing blocks, from {} to {}...",
-                    numbers.len(),
-                    numbers.first().unwrap(),
-                    numbers.last().unwrap()
-                );
-                for num in numbers.iter() {
-                    if let Err(_) = tx_num.send(*num) {
-                        // threadpool has disconnected so we can stop
-                        break 'gen;
-                    }
-                }
-                log::debug!("new max: {}", max);
-                last_block_max = max;
-            }
-
-            if tx_num.try_send(0).is_err() {
-                break 'gen;
-            }
-
-            if numbers.is_empty() {
-                timer::Delay::new(std::time::Duration::from_secs(5)).await;
-            } else {
-                timer::Delay::new(std::time::Duration::from_secs(1)).await;
-            }
-        }
-        Ok(())
-    }
-    */
 
     /// Gets storage that is missing from the storage table
     /// by querying it against the blocks table
