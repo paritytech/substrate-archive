@@ -85,7 +85,6 @@ impl<B: BlockT> Generator<B> {
                 log::debug!("new max: {}", max);
                 *old_max = max;
             }
-            log::info!("new max: {}", *self.last_block_max);
             if numbers.is_empty() {
                 timer::Delay::new(std::time::Duration::from_secs(5)).await;
             } else {

@@ -72,7 +72,7 @@ pub(crate) async fn missing_blocks_min_max(
         FROM (SELECT $1 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
         WHERE
         NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
-        ORDER BY generate_series DESC
+        ORDER BY generate_series ASC
         ",
     )
     .bind(min as i32)
