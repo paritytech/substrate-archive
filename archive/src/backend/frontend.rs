@@ -69,7 +69,7 @@ where
         block_workers as usize,
     );
 
-    let executor = ArchiveExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()));
+    let executor = ArchiveExecutor::new(backend.clone(), executor, TaskExecutor::new());
 
     let client = Client::new(
         backend,

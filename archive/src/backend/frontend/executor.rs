@@ -18,6 +18,7 @@
 //! A slimmed down changes-trie-disabled, offchain changes disabled, cache disabled, LocalExecutor
 
 use codec::{Decode, Encode};
+use futures::Future;
 use sc_client_api::{backend, call_executor::CallExecutor};
 use sc_executor::{NativeVersion, RuntimeInfo, RuntimeVersion};
 use sp_api::{InitializeBlock, ProofRecorder, StorageTransactionCache};
@@ -36,21 +37,47 @@ use sp_state_machine::{
 };
 use std::{cell::RefCell, panic::UnwindSafe, result, sync::Arc};
 
+// SpawnNamed is not implemented for Arc<dyn SpawnNamed>
+#[derive(Clone)]
+struct SpawnWrapper(Arc<dyn SpawnNamed + Send + Sync>);
+
+impl SpawnNamed for SpawnWrapper {
+    fn spawn(
+        &self,
+        n: &'static str,
+        fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
+    ) {
+        self.0.spawn(n, fut)
+    }
+
+    fn spawn_blocking(
+        &self,
+        n: &'static str,
+        fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
+    ) {
+        self.0.spawn_blocking(n, fut)
+    }
+}
+
 /// Call executor that executes methods locally, querying all required
 /// data from local backend.
 pub struct ArchiveExecutor<B, E> {
     backend: Arc<B>,
     executor: E,
-    spawn_handle: Box<dyn SpawnNamed>,
+    spawn_handle: SpawnWrapper,
 }
 
 impl<B, E> ArchiveExecutor<B, E> {
     /// Creates new instance of local call executor.
-    pub fn new(backend: Arc<B>, executor: E, spawn_handle: Box<dyn SpawnNamed>) -> Self {
+    pub fn new(
+        backend: Arc<B>,
+        executor: E,
+        spawn_handle: impl SpawnNamed + Send + Sync + 'static,
+    ) -> Self {
         ArchiveExecutor {
             backend,
             executor,
-            spawn_handle,
+            spawn_handle: SpawnWrapper(Arc::new(spawn_handle)),
         }
     }
 }
