@@ -41,6 +41,7 @@ where
     db: DatabaseAct<B>,
     ag: Address<Aggregator<B>>,
     api: Arc<dyn GetRuntimeVersion<B>>,
+    /// the last maximum block number from which we are sure every block before then is indexed
     last_max: u32,
 }
 
@@ -63,28 +64,64 @@ where
         }
     }
 
-    async fn crawl(&mut self) -> ArchiveResult<Vec<Block<B>>> {
+    /// A async wrapper around the backend fn `iter_blocks` which
+    /// runs in a `spawn_blocking` async task (it's own thread)
+    async fn collect_blocks(
+        &self,
+        fun: impl Fn(u32) -> bool + Send + 'static,
+    ) -> ArchiveResult<Vec<Block<B>>> {
+        let backend = self.backend.clone();
+        let api = self.api.clone();
+        let gather_blocks = move || -> ArchiveResult<Vec<Block<B>>> {
+            backend
+                .iter_blocks(|n| fun(n))?
+                .map(|b| {
+                    // let ver = api.runtime_version(&BlockId::Number(*b.block.header().number()))?;
+                    Ok(Block::new(b, 0 /*ver.spec_version*/))
+                })
+                .collect()
+        };
+        smol::unblock!(gather_blocks()).unwrap();
+        panic!("Finished it");
+    }
+
+    /// First run of indexing
+    /// gets any blocks that are missing from database and indexes those
+    /// sets the `last_max` value.
+    async fn re_index(&mut self) -> ArchiveResult<Vec<Block<B>>> {
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
         let numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
+
+        log::info!("{} missing blocks", numbers.len());
+
+        let now = std::time::Instant::now();
+        let blocks = self.collect_blocks(move |n| numbers.contains(&n)).await?;
+        log::info!("Took {:#?} to crawl {} blocks", now.elapsed(), blocks.len());
+        if blocks.is_empty() {
+            self.last_max = queries::max_block(&mut conn).await?;
+        } else {
+            log::info!("{}", blocks[blocks.len() - 1].inner.block.header().number());
+            self.last_max = blocks
+                .iter()
+                .map(|b| (*b.inner.block.header().number()).into())
+                .fold(0, |ac, e| if e > ac { e } else { ac });
+        }
+        log::info!("New max: {}", self.last_max);
+        Ok(blocks)
+    }
+
+    async fn crawl(&mut self) -> ArchiveResult<Vec<Block<B>>> {
         let now = std::time::Instant::now();
         let copied_last_max = self.last_max;
-        // rocksdb iteration is a blocking IO task
-        let blocks = collect_blocks(self.backend.clone(), self.api.clone(), move |n| {
-            numbers.contains(&n) || n > copied_last_max
-        })
-        .await?;
-        log::info!("Took {:#?} to crawl", now.elapsed());
+        let blocks = self.collect_blocks(move |n| n > copied_last_max).await?;
+        log::info!("Took {:#?} to crawl {} blocks", now.elapsed(), blocks.len());
         self.last_max = blocks
             .iter()
             .map(|b| (*b.inner.block.header().number()).into())
-            .fold(0, |ac, e| if e > ac { e } else { ac });
+            .fold(self.last_max, |ac, e| if e > ac { e } else { ac });
+        log::info!("New max: {}", self.last_max);
         Ok(blocks)
     }
-}
-
-struct Crawl;
-impl Message for Crawl {
-    type Result = ();
 }
 
 impl<B: BlockT> Actor for BlocksIndexer<B>
@@ -93,8 +130,18 @@ where
     B: Unpin,
 {
     fn started(&mut self, ctx: &mut Context<Self>) {
+        let this = ctx.address().expect("Actor just started");
+        // using this instead of notify_immediately because
+        // ReIndexing is a Asyncronous process
+        this.do_send(ReIndex)
+            .expect("Actor cannot be disconnected; just started");
         ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl);
     }
+}
+
+struct Crawl;
+impl Message for Crawl {
+    type Result = ();
 }
 
 #[async_trait::async_trait]
@@ -115,20 +162,25 @@ where
     }
 }
 
-/// A wrapper around the backend fn `iter_blocks` which
-/// runs in a `spawn_blocking` async task (it's own thread)
-async fn collect_blocks<B: BlockT>(
-    backend: Arc<ReadOnlyBackend<B>>,
-    api: Arc<dyn GetRuntimeVersion<B>>,
-    fun: impl Fn(u32) -> bool + Send + 'static,
-) -> ArchiveResult<impl Stream<Item = Block<B>>> {
-    let gather_blocks = move || -> ArchiveResult<Box<dyn Iterator<Item = Block<B>>>> {
-        log::info!("HELLO FROM GATHER BLOCKS");
-        Ok(Box::new(backend.iter_blocks(|n| fun(n))?.map(|b| {
-            let ver = api.runtime_version(&BlockId::Number(*b.block.header().number()))?;
-            Ok(Block::new(b, ver.spec_version))
-        })))
-    };
-    log::info!("Gathering blocks");
-    smol::unblock!(gather_blocks())
+struct ReIndex;
+impl Message for ReIndex {
+    type Result = ();
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT + Unpin> Handler<ReIndex> for BlocksIndexer<B>
+where
+    NumberFor<B>: Into<u32>,
+{
+    async fn handle(&mut self, _: ReIndex, ctx: &mut Context<Self>) {
+        log::info!("Beginning to index blocks..");
+        match self.re_index().await {
+            Err(e) => log::error!("{}", e.to_string()),
+            Ok(b) => {
+                if let Err(_) = self.ag.do_send(BatchBlock::new(b)) {
+                    ctx.stop();
+                }
+            }
+        }
+    }
 }

@@ -101,6 +101,7 @@ where
         header.map(|h| *h.state_root())
     }
 
+    /// gets storage for some block hash
     pub fn storage(&self, hash: Block::Hash, key: &[u8]) -> Option<Vec<u8>> {
         match self.state_at(hash) {
             Some(state) => state
@@ -139,10 +140,10 @@ where
         Ok(self
             .db
             .iter(super::util::columns::KEY_LOOKUP)
+            .take_while(|(_, value)| !value.is_empty())
             .filter_map(move |(key, value)| {
                 let arr: &[u8; 4] = key[0..4].try_into().ok()?;
                 let num = u32::from_be_bytes(*arr);
-                log::trace!("[block-crawler] {}", num);
                 if key.len() == 4 && fun(num) {
                     let head: Option<Block::Header> = readable_db
                         .get(super::util::columns::HEADER, &value)
