@@ -18,7 +18,7 @@ use super::{
     workers::{Aggregator, DatabaseActor, GetState},
 };
 use crate::{
-    backend::{GetRuntimeVersion, ReadOnlyBackend},
+    backend::{GetRuntimeVersion, ReadOnlyBackend, RuntimeVersionCache},
     error::ArchiveResult,
     queries,
     threadpools::BlockData,
@@ -40,7 +40,8 @@ where
     backend: Arc<ReadOnlyBackend<B>>,
     db: DatabaseAct<B>,
     ag: Address<Aggregator<B>>,
-    api: Arc<dyn GetRuntimeVersion<B>>,
+    rt_cache: RuntimeVersionCache<B>,
+    // api: Arc<dyn GetRuntimeVersion<B>>,
     /// the last maximum block number from which we are sure every block before then is indexed
     last_max: u32,
 }
@@ -56,11 +57,11 @@ where
         api: Arc<dyn GetRuntimeVersion<B>>,
     ) -> Self {
         Self {
+            rt_cache: RuntimeVersionCache::new(backend.clone()),
+            last_max: 0,
             backend,
             db: addr,
             ag,
-            api,
-            last_max: 0,
         }
     }
 
@@ -71,18 +72,19 @@ where
         fun: impl Fn(u32) -> bool + Send + 'static,
     ) -> ArchiveResult<Vec<Block<B>>> {
         let backend = self.backend.clone();
-        let api = self.api.clone();
+        let rt_cache = self.rt_cache.clone();
+        // let api = self.api.clone();
         let gather_blocks = move || -> ArchiveResult<Vec<Block<B>>> {
             backend
                 .iter_blocks(|n| fun(n))?
                 .map(|b| {
-                    // let ver = api.runtime_version(&BlockId::Number(*b.block.header().number()))?;
-                    Ok(Block::new(b, 0 /*ver.spec_version*/))
+                    let ver = rt_cache.get(b.block.header().hash()).unwrap();
+                    Ok(Block::new(b, ver.spec_version))
                 })
                 .collect()
         };
-        smol::unblock!(gather_blocks()).unwrap();
-        panic!("Finished it");
+        smol::unblock!(gather_blocks())
+        // panic!("Finished it");
     }
 
     /// First run of indexing
@@ -97,6 +99,7 @@ where
         let now = std::time::Instant::now();
         let blocks = self.collect_blocks(move |n| numbers.contains(&n)).await?;
         log::info!("Took {:#?} to crawl {} blocks", now.elapsed(), blocks.len());
+        panic!("Collected blocks!");
         if blocks.is_empty() {
             self.last_max = queries::max_block(&mut conn).await?;
         } else {

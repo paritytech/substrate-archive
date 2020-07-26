@@ -20,6 +20,7 @@ mod block_exec;
 mod database;
 pub mod frontend;
 mod read_only_backend;
+mod runtime_version_cache;
 #[cfg(test)]
 pub mod test_util;
 pub mod util;
@@ -28,6 +29,7 @@ pub mod util;
 pub use self::block_exec::{BlockChanges, BlockExecutor};
 pub use self::frontend::{GetRuntimeVersion, TArchiveClient};
 pub use self::read_only_backend::{ReadOnlyBackend, TrieState};
+pub use self::runtime_version_cache::RuntimeVersionCache;
 pub use self::{database::ReadOnlyDatabase, frontend::runtime_api, util::open_database};
 
 use sc_client_api::Backend as BackendT;

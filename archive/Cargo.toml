@@ -60,10 +60,12 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" } 
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-io" }
 itoa = "0.4.6"
 include_dir = "0.6.0"
 tempfile = "3.1.0"
 async-executor = "0.1.2"
+arc-swap = "0.4.7"
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }

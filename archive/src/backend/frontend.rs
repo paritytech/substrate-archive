@@ -24,9 +24,10 @@ use sc_client_api::{
 // use sc_client_db::Backend;
 use self::executor::ArchiveExecutor;
 use crate::{backend::database::ReadOnlyDatabase, error::Error as ArchiveError};
+use futures::Future;
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
 use sp_api::ConstructRuntimeApi;
-use sp_core::traits::CloneableSpawn;
+use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
 
@@ -101,10 +102,22 @@ impl futures::task::Spawn for TaskExecutor {
         self.pool.spawn_obj(future)
     }
 }
+// FIXME use smol
+impl SpawnNamed for TaskExecutor {
+    fn spawn(
+        &self,
+        _: &'static str,
+        fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
+    ) {
+        self.pool.spawn_ok(fut)
+    }
 
-impl CloneableSpawn for TaskExecutor {
-    fn clone(&self) -> Box<dyn CloneableSpawn> {
-        Box::new(Clone::clone(self))
+    fn spawn_blocking(
+        &self,
+        _: &'static str,
+        fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
+    ) {
+        self.pool.spawn_ok(fut)
     }
 }
 

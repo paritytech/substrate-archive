@@ -26,6 +26,7 @@
 use crate::{
     error::{ArchiveResult, Error as ArchiveError},
     types::*,
+    util::make_hash,
 };
 use codec::{Decode, Encode};
 use hashbrown::HashSet;
@@ -213,10 +214,4 @@ where
         self.added += self.exec.add_task(to_insert, self.tx.clone())?;
         Ok(())
     }
-}
-
-fn make_hash<K: Hash + ?Sized>(val: &K) -> u64 {
-    let mut state = DefaultHasher::new();
-    val.hash(&mut state);
-    state.finish()
 }
