@@ -60,7 +60,7 @@ impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for StateVault<Blo
 }
 
 /// TrieState
-/// Returns a reference that implements Statebackend
+/// Returns a reference that implements StateBackend
 /// It makes sure that the hash we are using stays pinned in storage
 pub struct TrieState<Block: BlockT> {
     state: DbState<Block>,

@@ -79,6 +79,14 @@ pub(crate) async fn missing_blocks_min_max(
     .collect())
 }
 
+pub(crate) async fn max_block(conn: &mut PgConnection) -> ArchiveResult<u32> {
+    let row = sqlx::query_as::<_, (i32,)>("SELECT MAX(block_num) FROM blocks")
+        .fetch_one(conn)
+        .await?;
+
+    Ok(row.0 as u32)
+}
+
 /// Will get blocks such that they exist in the `blocks` table but they
 /// do not exist in the `storage` table
 /// blocks are ordered by spec version
