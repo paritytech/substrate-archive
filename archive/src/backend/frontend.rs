@@ -27,7 +27,7 @@ use crate::{backend::database::ReadOnlyDatabase, error::Error as ArchiveError};
 use futures::Future;
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
 use sp_api::ConstructRuntimeApi;
-use sp_core::traits::SpawnNamed;
+use sp_core::traits::{CloneableSpawn, SpawnNamed};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
 
@@ -69,7 +69,7 @@ where
         block_workers as usize,
     );
 
-    let executor = ArchiveExecutor::new(backend.clone(), executor, TaskExecutor::new());
+    let executor = ArchiveExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()));
 
     let client = Client::new(
         backend,
@@ -102,6 +102,13 @@ impl futures::task::Spawn for TaskExecutor {
         self.pool.spawn_obj(future)
     }
 }
+
+impl CloneableSpawn for TaskExecutor {
+    fn clone(&self) -> Box<dyn CloneableSpawn> {
+        Box::new(Clone::clone(self))
+    }
+}
+
 // FIXME use smol
 impl SpawnNamed for TaskExecutor {
     fn spawn(

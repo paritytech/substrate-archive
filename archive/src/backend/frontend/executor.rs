@@ -24,7 +24,7 @@ use sc_executor::{NativeVersion, RuntimeInfo, RuntimeVersion};
 use sp_api::{InitializeBlock, ProofRecorder, StorageTransactionCache};
 use sp_core::{
     offchain::storage::OffchainOverlayedChanges,
-    traits::{CodeExecutor, SpawnNamed},
+    traits::{CloneableSpawn, CodeExecutor /*, SpawnNamed*/},
     NativeOrEncoded, NeverNativeValue,
 };
 use sp_externalities::Extensions;
@@ -38,9 +38,9 @@ use sp_state_machine::{
 use std::{cell::RefCell, panic::UnwindSafe, result, sync::Arc};
 
 // SpawnNamed is not implemented for Arc<dyn SpawnNamed>
-#[derive(Clone)]
-struct SpawnWrapper(Arc<dyn SpawnNamed + Send + Sync>);
-
+// #[derive(Clone)]
+// struct SpawnWrapper(Arc<dyn SpawnNamed + Send + Sync>);
+/*
 impl SpawnNamed for SpawnWrapper {
     fn spawn(
         &self,
@@ -58,26 +58,22 @@ impl SpawnNamed for SpawnWrapper {
         self.0.spawn_blocking(n, fut)
     }
 }
-
+*/
 /// Call executor that executes methods locally, querying all required
 /// data from local backend.
 pub struct ArchiveExecutor<B, E> {
     backend: Arc<B>,
     executor: E,
-    spawn_handle: SpawnWrapper,
+    spawn_handle: Box<dyn CloneableSpawn>,
 }
 
 impl<B, E> ArchiveExecutor<B, E> {
     /// Creates new instance of local call executor.
-    pub fn new(
-        backend: Arc<B>,
-        executor: E,
-        spawn_handle: impl SpawnNamed + Send + Sync + 'static,
-    ) -> Self {
+    pub fn new(backend: Arc<B>, executor: E, spawn_handle: Box<dyn CloneableSpawn>) -> Self {
         ArchiveExecutor {
             backend,
             executor,
-            spawn_handle: SpawnWrapper(Arc::new(spawn_handle)),
+            spawn_handle,
         }
     }
 }
@@ -236,7 +232,7 @@ where
         method: &str,
         call_data: &[u8],
     ) -> Result<(Vec<u8>, StorageProof), sp_blockchain::Error> {
-        sp_state_machine::prove_execution_on_trie_backend::<_, _, NumberFor<Block>, _, _>(
+        sp_state_machine::prove_execution_on_trie_backend::<_, _, NumberFor<Block>, _>(
             trie_state,
             overlay,
             &self.executor,
