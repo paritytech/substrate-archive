@@ -27,7 +27,7 @@ use crate::{backend::database::ReadOnlyDatabase, error::Error as ArchiveError};
 use futures::Future;
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
 use sp_api::ConstructRuntimeApi;
-use sp_core::traits::{CloneableSpawn, SpawnNamed};
+use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
 
@@ -69,7 +69,7 @@ where
         block_workers as usize,
     );
 
-    let executor = ArchiveExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()));
+    let executor = ArchiveExecutor::new(backend.clone(), executor, TaskExecutor);
 
     let client = Client::new(
         backend,
@@ -80,43 +80,25 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct TaskExecutor {
-    pool: futures::executor::ThreadPool,
-}
-
-impl TaskExecutor {
-    fn new() -> Self {
-        let pool = futures::executor::ThreadPool::builder()
-            .pool_size(1)
-            .create()
-            .unwrap();
-        Self { pool }
-    }
-}
+pub struct TaskExecutor;
 
 impl futures::task::Spawn for TaskExecutor {
     fn spawn_obj(
         &self,
         future: futures::task::FutureObj<'static, ()>,
     ) -> Result<(), futures::task::SpawnError> {
-        self.pool.spawn_obj(future)
+        smol::Task::spawn(future).detach();
+        Ok(())
     }
 }
 
-impl CloneableSpawn for TaskExecutor {
-    fn clone(&self) -> Box<dyn CloneableSpawn> {
-        Box::new(Clone::clone(self))
-    }
-}
-
-// FIXME use smol
 impl SpawnNamed for TaskExecutor {
     fn spawn(
         &self,
         _: &'static str,
         fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
     ) {
-        self.pool.spawn_ok(fut)
+        smol::Task::spawn(fut).detach()
     }
 
     fn spawn_blocking(
@@ -124,7 +106,7 @@ impl SpawnNamed for TaskExecutor {
         _: &'static str,
         fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
     ) {
-        self.pool.spawn_ok(fut)
+        smol::Task::spawn(async move { smol::unblock!(fut) }).detach();
     }
 }
 
