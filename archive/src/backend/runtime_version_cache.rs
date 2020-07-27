@@ -19,7 +19,7 @@
 use super::ReadOnlyBackend;
 use crate::error::{ArchiveResult, Error};
 use arc_swap::ArcSwap;
-use codec::{Decode, Encode};
+use codec::Decode;
 use hashbrown::HashMap;
 use sc_executor::sp_wasm_interface::HostFunctions;
 use sc_executor::{WasmExecutionMethod, WasmExecutor};
@@ -41,7 +41,28 @@ pub struct RuntimeVersionCache<B: BlockT> {
 
 impl<B: BlockT> RuntimeVersionCache<B> {
     pub fn new(backend: Arc<ReadOnlyBackend<B>>) -> Self {
-        let funs = sp_io::SubstrateHostFunctions::host_functions();
+        // all _available_ functions
+        // sp_io::storage::HostFunctions
+        // sp_io::default_child_storage
+        // sp_io::misc::HostFunctions
+        // sp_io::offchain::HostFunctions
+        // sp_io::crypto::HostFunctions
+        // sp_io::hashing::HostFunctions
+        // sp_io::logging::HostFunctions
+        // sp_io::sandbox::HostFunctions
+        // sp_io::trie::HostFunctions
+        // sp_io::offchain_index::HostFunctions
+
+        // remove some unnecessary host functions
+        let funs = sp_io::SubstrateHostFunctions::host_functions()
+            .into_iter()
+            .filter(|f| !(f.name().matches("wasm_tracing").count() > 0))
+            .filter(|f| !(f.name().matches("ext_offchain").count() > 0))
+            .filter(|f| !(f.name().matches("ext_storage").count() > 0))
+            .filter(|f| !(f.name().matches("ext_default_child_storage").count() > 0))
+            .filter(|f| !(f.name().matches("ext_logging").count() > 0))
+            .collect::<Vec<_>>();
+
         let exec = WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(128), funs, 1);
         Self {
             versions: ArcSwap::from_pointee(HashMap::new()),
@@ -55,18 +76,19 @@ impl<B: BlockT> RuntimeVersionCache<B> {
             .backend
             .storage(hash, well_known_keys::CODE)
             .ok_or(Error::from("storage does not exist"))?;
+
         let code_hash = crate::util::make_hash(&code);
         if self.versions.load().contains_key(&code_hash) {
             Ok(self.versions.load().get(&code_hash).map(|v| v.clone()))
         } else {
-            log::info!("new code hash: {:#X?}", code_hash);
+            log::debug!("new code hash: {:#X?}", code_hash);
             let mut ext: BasicExternalities = BasicExternalities::default();
             ext.register_extension(CallInWasmExt::new(self.exec.clone()));
             let v: RuntimeVersion = ext.execute_with(|| {
                 let ver = sp_io::misc::runtime_version(&code).ok_or(Error::WasmExecutionError)?;
-                decode_version(ver)
+                decode_version(ver.as_slice())
             })?;
-            log::info!("VERSION: {:?}", v);
+            log::info!("Registered New Runtime Version: {:#?}", v);
             self.versions.rcu(|cache| {
                 let mut cache = HashMap::clone(&cache);
                 cache.insert(code_hash, v.clone().into());
@@ -77,17 +99,12 @@ impl<B: BlockT> RuntimeVersionCache<B> {
     }
 }
 
-fn decode_version(bytes: Vec<u8>) -> ArchiveResult<sp_version::RuntimeVersion> {
-    let version: RuntimeVersion = match Decode::decode(&mut bytes.as_slice()) {
-        Ok(v) => v,
-        Err(e) => {
-            log::debug!(
-                "{} latest runtime version did not decode, trying older..",
-                e.to_string()
-            );
-            let version: OldRuntimeVersion = Decode::decode(&mut bytes.as_slice())?;
-            version.into()
-        }
-    };
-    Ok(version)
+fn decode_version(version: &[u8]) -> ArchiveResult<sp_version::RuntimeVersion> {
+    let v: RuntimeVersion = sp_api::OldRuntimeVersion::decode(&mut &version[..])?.into();
+    let core_api_id = sp_core::hashing::blake2_64(b"Core");
+    if v.has_api_with(&core_api_id, |v| v >= 3) {
+        sp_api::RuntimeVersion::decode(&mut &version[..]).map_err(Into::into)
+    } else {
+        Ok(v)
+    }
 }

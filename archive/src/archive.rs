@@ -160,7 +160,7 @@ where
     async fn _run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
         let psql_url = crate::migrations::migrate(&self.psql_conf).await?;
         let cpus = num_cpus::get();
-        let client0 = Arc::new(
+        let client = Arc::new(
             backend::runtime_api::<B, R, D>(
                 self.db.clone(),
                 self.block_workers.unwrap_or(cpus),
@@ -168,15 +168,12 @@ where
             )
             .map_err(ArchiveError::from)?,
         );
-        let client1 = Arc::new(
-            backend::runtime_api::<B, R, D>(self.db.clone(), 3, 64).map_err(ArchiveError::from)?,
-        );
-        let rt = client1.runtime_version_at(&BlockId::Number(0.into()))?;
+        let rt = client.runtime_version_at(&BlockId::Number(0.into()))?;
         self.verify_same_chain(rt)?;
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
 
         let mut ctx = System::<_, R, _>::new(
-            (client0, client1),
+            client,
             backend,
             self.block_workers,
             self.rpc_url.clone(),

@@ -42,26 +42,21 @@ struct Die;
 impl Message for Die {
     type Result = ArchiveResult<()>;
 }
+
 /// Context that every actor may use
 #[derive(Clone)]
 pub struct ActorContext<Block: BlockT> {
     backend: Arc<ReadOnlyBackend<Block>>,
-    api: Arc<dyn GetRuntimeVersion<Block>>,
     rpc_url: String,
     psql_url: String,
 }
+
 impl<Block: BlockT> ActorContext<Block> {
-    pub fn new(
-        backend: Arc<ReadOnlyBackend<Block>>,
-        rpc_url: String,
-        psql_url: String,
-        api: Arc<dyn GetRuntimeVersion<Block>>,
-    ) -> Self {
+    pub fn new(backend: Arc<ReadOnlyBackend<Block>>, rpc_url: String, psql_url: String) -> Self {
         Self {
             backend,
             rpc_url,
             psql_url,
-            api,
         }
     }
 
@@ -71,10 +66,6 @@ impl<Block: BlockT> ActorContext<Block> {
 
     pub fn rpc_url(&self) -> &str {
         self.rpc_url.as_str()
-    }
-
-    pub fn api(&self) -> Arc<dyn GetRuntimeVersion<Block>> {
-        self.api.clone()
     }
 
     pub fn psql_url(&self) -> &str {
@@ -92,7 +83,6 @@ where
     executor: ThreadedBlockExecutor<Block>,
     ag: Option<Address<Aggregator<Block>>>,
     blocks: Option<Address<blocks::BlocksIndexer<Block>>>,
-    // api: Arc<C>,
     _marker: PhantomData<(R, C)>,
 }
 
@@ -122,15 +112,14 @@ where
     pub fn new(
         // one client per-threadpool. This way we don't have conflicting cache resources
         // for WASM runtime-instances
-        client_api: (Arc<C>, Arc<C>),
+        client_api: Arc<C>,
         backend: Arc<ReadOnlyBackend<B>>,
         workers: Option<usize>,
         url: String,
         psql_url: &str,
     ) -> ArchiveResult<Self> {
-        let (api, blk_client) = client_api;
-        let context = ActorContext::new(backend.clone(), url, psql_url.to_string(), blk_client);
-        let executor = ThreadedBlockExecutor::new(api.clone(), backend, workers)?;
+        let context = ActorContext::new(backend.clone(), url, psql_url.to_string());
+        let executor = ThreadedBlockExecutor::new(client_api.clone(), backend, workers)?;
 
         Ok(Self {
             context,

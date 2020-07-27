@@ -16,7 +16,7 @@
 
 pub use self::block_exec_pool::BlockData;
 use self::block_exec_pool::BlockExecPool;
-use self::block_fetcher::ThreadedBlockFetcher;
+// use self::block_fetcher::ThreadedBlockFetcher;
 use self::block_scheduler::BlockScheduler;
 use crate::backend::{ApiAccess, BlockChanges, ReadOnlyBackend as Backend};
 use crate::{actors::ActorContext, error::ArchiveResult, types::Block};
@@ -28,7 +28,7 @@ use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::{sync::Arc, thread, time::Duration};
 mod block_exec_pool;
-mod block_fetcher;
+// mod block_fetcher;
 mod block_scheduler;
 
 // TODO: Can abstract these two structs into just something that implements a trait. Or
@@ -36,7 +36,7 @@ mod block_scheduler;
 // this follows a similar API to xtra's Actor/Address api (attach_stream)
 // maybe we could create an extension trait that is like Actix's Threadpooled Actors, but for xtra?
 // that is essentially what this is trying to be.
-
+/*
 /// A threadpool that gets blocks and their runtime versions from the rocksdb backend
 pub struct BlockFetcher<B>
 where
@@ -114,6 +114,7 @@ where
         self.sender.clone()
     }
 }
+*/
 
 /// Threadpool that executes blocks
 pub struct ThreadedBlockExecutor<B>

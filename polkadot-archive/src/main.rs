@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 pub fn main() -> Result<()> {
     let config = config::Config::new()?;
-    substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Trace);
+    substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
 
     let archive = archive::run_archive(config.clone())?;
 
