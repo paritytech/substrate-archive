@@ -26,7 +26,7 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error("environment variable for `DATABASE_URL` not found")]
     Env(#[from] env::VarError),
-    #[error("decode")]
+    #[error("decode {0}")]
     Codec(#[from] codec::Error),
     #[error("Formatting {0}")]
     Fmt(#[from] std::fmt::Error),
@@ -48,6 +48,8 @@ pub enum Error {
         "the chain given to substrate-archive is different then the running chain. Trying to run {0}, running {1}"
     )]
     MismatchedChains(String, String),
+    #[error("wasm exists but could not extract runtime version")]
+    WasmExecutionError,
     #[error("sending on disconnected channel")]
     Channel,
     #[error("Trying to send to disconnected actor")]

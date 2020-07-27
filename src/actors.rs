@@ -152,13 +152,8 @@ where
         let ag = Aggregator::new(ctx.clone(), tx_block.clone(), db_pool.clone())
             .await?
             .spawn();
-        let blocks_indexer = blocks::BlocksIndexer::new(
-            ctx.backend().clone(),
-            db_pool.clone(),
-            ag.clone(),
-            ctx.api().clone(),
-        )
-        .spawn();
+        let blocks_indexer =
+            blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), ag.clone()).spawn();
         let exec_stream = self.executor.get_stream();
         ag.clone().attach_stream(exec_stream);
         self.ag = Some(ag);

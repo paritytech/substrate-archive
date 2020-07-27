@@ -18,14 +18,11 @@ use super::{
     workers::{Aggregator, DatabaseActor, GetState},
 };
 use crate::{
-    backend::{GetRuntimeVersion, ReadOnlyBackend, RuntimeVersionCache},
-    error::ArchiveResult,
+    backend::{ReadOnlyBackend, RuntimeVersionCache},
+    error::{ArchiveResult, Error},
     queries,
-    threadpools::BlockData,
     types::{BatchBlock, Block},
 };
-use futures::Stream;
-use sp_runtime::generic::BlockId;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use std::sync::Arc;
 use xtra::prelude::*;
@@ -54,7 +51,6 @@ where
         backend: Arc<ReadOnlyBackend<B>>,
         addr: DatabaseAct<B>,
         ag: Address<Aggregator<B>>,
-        api: Arc<dyn GetRuntimeVersion<B>>,
     ) -> Self {
         Self {
             rt_cache: RuntimeVersionCache::new(backend.clone()),
@@ -78,13 +74,14 @@ where
             backend
                 .iter_blocks(|n| fun(n))?
                 .map(|b| {
-                    let ver = rt_cache.get(b.block.header().hash()).unwrap();
+                    let ver = rt_cache
+                        .get(b.block.header().hash())?
+                        .ok_or(Error::from("Version Error"))?;
                     Ok(Block::new(b, ver.spec_version))
                 })
                 .collect()
         };
         smol::unblock!(gather_blocks())
-        // panic!("Finished it");
     }
 
     /// First run of indexing
