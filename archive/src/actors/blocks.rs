@@ -38,7 +38,6 @@ where
     db: DatabaseAct<B>,
     ag: Address<Aggregator<B>>,
     rt_cache: RuntimeVersionCache<B>,
-    // api: Arc<dyn GetRuntimeVersion<B>>,
     /// the last maximum block number from which we are sure every block before then is indexed
     last_max: u32,
 }
@@ -69,7 +68,6 @@ where
     ) -> ArchiveResult<Vec<Block<B>>> {
         let backend = self.backend.clone();
         let rt_cache = self.rt_cache.clone();
-        // let api = self.api.clone();
         let gather_blocks = move || -> ArchiveResult<Vec<Block<B>>> {
             backend
                 .iter_blocks(|n| fun(n))?

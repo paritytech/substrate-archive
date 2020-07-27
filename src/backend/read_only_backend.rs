@@ -111,6 +111,15 @@ where
         }
     }
 
+    pub fn storage_hash(&self, hash: Block::Hash, key: &[u8]) -> Option<Block::Hash> {
+        match self.state_at(hash) {
+            Some(state) => state
+                .storage_hash(key)
+                .unwrap_or_else(|_| panic!("No storage found for {:?}", hash)),
+            None => None,
+        }
+    }
+
     /// get storage keys for a prefix at a block in time
     pub fn storage_keys(&self, hash: Block::Hash, prefix: &[u8]) -> Option<Vec<Vec<u8>>> {
         match self.state_at(hash) {
