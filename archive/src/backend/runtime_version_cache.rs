@@ -17,15 +17,20 @@
 //! Will only call the `runtime_version` function once per wasm blob
 
 use super::ReadOnlyBackend;
-use crate::error::{ArchiveResult, Error};
+use crate::{
+    error::{ArchiveResult, Error},
+    types::Block,
+};
 use arc_swap::ArcSwap;
 use codec::Decode;
 use hashbrown::HashMap;
 use sc_executor::sp_wasm_interface::HostFunctions;
 use sc_executor::{WasmExecutionMethod, WasmExecutor};
-use sp_api::OldRuntimeVersion;
 use sp_core::traits::CallInWasmExt;
-use sp_runtime::traits::Block as BlockT;
+use sp_runtime::{
+    generic::SignedBlock,
+    traits::{Block as BlockT, Header as _, NumberFor},
+};
 use sp_state_machine::BasicExternalities;
 use sp_storage::well_known_keys;
 use sp_version::RuntimeVersion;
@@ -72,6 +77,7 @@ impl<B: BlockT> RuntimeVersionCache<B> {
     }
 
     pub fn get(&self, hash: B::Hash) -> ArchiveResult<Option<RuntimeVersion>> {
+        // Getting code from the backend is the slowest part of this
         let code = self
             .backend
             .storage(hash, well_known_keys::CODE)
@@ -88,13 +94,79 @@ impl<B: BlockT> RuntimeVersionCache<B> {
                 let ver = sp_io::misc::runtime_version(&code).ok_or(Error::WasmExecutionError)?;
                 decode_version(ver.as_slice())
             })?;
-            log::info!("Registered New Runtime Version: {:#?}", v);
+            log::info!("Registered New Runtime Version: {:?}", v);
             self.versions.rcu(|cache| {
                 let mut cache = HashMap::clone(&cache);
                 cache.insert(code_hash, v.clone().into());
                 cache
             });
             Ok(Some(v.into()))
+        }
+    }
+
+    /// Recursively finds the versions of all the blocks while minimizing reads/calls to the backend
+    /// Returns built blocks
+    pub fn find_versions(&self, blocks: &[SignedBlock<B>]) -> ArchiveResult<Vec<VersionRange<B>>> {
+        let mut versions = Vec::new();
+        self.find_pivot(blocks, &mut versions)?;
+        Ok(versions)
+    }
+
+    /// This can be thought of as similiar to a recursive Binary Search
+    fn find_pivot(
+        &self,
+        blocks: &[SignedBlock<B>],
+        versions: &mut Vec<VersionRange<B>>,
+    ) -> ArchiveResult<()> {
+        if blocks.is_empty() {
+            return Ok(());
+        } else if blocks.len() == 1 {
+            let version = self
+                .get(blocks[0].block.header().hash())?
+                .ok_or(Error::from("Version not found"))?;
+            versions.push(VersionRange::new(&blocks[0], &blocks[0], version));
+            return Ok(());
+        }
+
+        let first = self
+            .get(blocks[0].block.header().hash())?
+            .ok_or(Error::from("Version not found"))?;
+        let last = self
+            .get(blocks[blocks.len() - 1].block.header().hash())?
+            .ok_or(Error::from("Version not found"))?;
+
+        if first.spec_version != last.spec_version && blocks.len() > 2 {
+            let half = blocks.len() / 2;
+            let (first_half, last_half) = (&blocks[0..half], &blocks[half..blocks.len() - 1]);
+            self.find_pivot(first_half, versions)?;
+            self.find_pivot(last_half, versions)?;
+        } else if first.spec_version != last.spec_version && blocks.len() == 2 {
+            versions.push(VersionRange::new(&blocks[0], &blocks[0], first));
+            versions.push(VersionRange::new(&blocks[1], &blocks[1], last));
+        } else {
+            versions.push(VersionRange::new(
+                &blocks[0],
+                &blocks[blocks.len() - 1],
+                first,
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct VersionRange<B: BlockT> {
+    pub start: NumberFor<B>,
+    pub end: NumberFor<B>,
+    pub version: RuntimeVersion,
+}
+
+impl<B: BlockT> VersionRange<B> {
+    fn new(first: &SignedBlock<B>, last: &SignedBlock<B>, version: RuntimeVersion) -> Self {
+        Self {
+            start: *first.block.header().number(),
+            end: *last.block.header().number(),
+            version,
         }
     }
 }
