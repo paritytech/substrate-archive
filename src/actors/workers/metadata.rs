@@ -49,11 +49,14 @@ impl<B: BlockT> Metadata<B> {
     // if it doesn't exist yet, fetch metadata and insert it
     async fn meta_checker(&mut self, ver: u32, hash: B::Hash) -> ArchiveResult<()> {
         if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
+            log::info!("META DONT EXIST BOI {}", ver);
             let meta = self.meta.clone();
+            log::info!("Getting metadata for hash {}", hex::encode(hash.as_ref()));
             let meta = smol::unblock!(meta.metadata(&BlockId::hash(hash)))?;
+            log::info!("Got metadata for version {}", ver);
             let meta: sp_core::Bytes = meta.into();
             let meta = MetadataT::new(ver, meta.0);
-            self.addr.do_send(meta.into())?;
+            self.addr.send(meta.into()).await?;
         }
         Ok(())
     }
@@ -77,8 +80,13 @@ impl<B: BlockT> Metadata<B> {
             .iter()
             .unique_by(|b| b.spec)
             .collect::<Vec<&Block<B>>>();
-        log::info!("GETTING METADATA");
+        log::info!("GETTING METADATA for {} versions", versions.len());
         for b in versions.iter() {
+            log::info!(
+                "Getting metadata for block {}, version: {}",
+                b.inner.block.header().number(),
+                b.spec
+            );
             self.meta_checker(b.spec, b.inner.block.hash()).await?;
         }
         log::info!("GOT METADATA");

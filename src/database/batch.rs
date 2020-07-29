@@ -26,7 +26,7 @@ use sqlx::{
     Arguments,
 };
 
-const CHUNK_MAX: usize = 50_000;
+const CHUNK_MAX: usize = 30_000;
 
 pub struct Chunk {
     query: String,
