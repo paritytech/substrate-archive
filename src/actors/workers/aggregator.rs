@@ -126,12 +126,10 @@ where
     pub async fn new(
         ctx: ActorContext<B>,
         tx_block: Sender<BlockData<B>>,
+        meta: Address<super::Metadata<B>>,
         db_pool: DatabaseAct<B>,
     ) -> ArchiveResult<Self> {
         let rpc_url = ctx.rpc_url().to_string();
-        let meta_addr = super::Metadata::new(rpc_url, db_pool.clone())
-            .await?
-            .spawn();
         super::Generator::new(db_pool.clone(), tx_block.clone()).start()?;
         let (senders, recvs) = queues();
 
@@ -139,7 +137,7 @@ where
             senders,
             db_pool,
             recvs: Some(recvs),
-            meta_addr,
+            meta_addr: meta,
             exec: tx_block,
             last_count_was_0: false,
         })

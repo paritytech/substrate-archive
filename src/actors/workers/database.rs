@@ -57,24 +57,28 @@ impl<B: BlockT> DatabaseActor<B> {
         Ok(())
     }
 
-    async fn batch_block_handler(&self, mut blks: BatchBlock<B>) -> ArchiveResult<()>
+    // Returns true if all versions are in database
+    // false if versions are missing
+    async fn db_contains_metadata(blocks: &[Block<B>], conn: &mut DbConn) -> ArchiveResult<bool> {
+        let specs: hashbrown::HashSet<u32> = blocks.iter().map(|b| b.spec).collect();
+        let versions: hashbrown::HashSet<u32> =
+            queries::get_versions(conn).await?.into_iter().collect();
+        Ok(specs.is_subset(&versions))
+    }
+
+    async fn batch_block_handler(&self, blks: BatchBlock<B>) -> ArchiveResult<()>
     where
         NumberFor<B>: Into<u32>,
     {
-        let specs = blks.mut_inner();
-        specs.sort_by_key(|b| b.spec);
-        let mut specs = specs.iter_mut().map(|b| b.spec).collect::<Vec<u32>>();
-        specs.dedup();
         let mut conn = self.db.conn().await?;
-        loop {
-            let versions = queries::get_versions(&mut conn).await?;
-            if db_contains_metadata(specs.as_slice(), versions) {
-                break;
-            }
+        while !Self::db_contains_metadata(blks.inner(), &mut conn).await? {
+            log::warn!("DB NOT CONTAIN META");
             timer::Delay::new(std::time::Duration::from_millis(50)).await;
         }
         std::mem::drop(conn);
+        log::info!("Awaiting insert...");
         self.db.insert(blks).await?;
+        log::info!("Inserted");
         Ok(())
     }
 
@@ -109,17 +113,6 @@ impl<B: BlockT> DatabaseActor<B> {
     }
 }
 
-// Returns true if all versions are in database
-// false if versions are missing
-fn db_contains_metadata(specs: &[u32], versions: Vec<u32>) -> bool {
-    for spec in specs.iter() {
-        if !versions.contains(spec) {
-            return false;
-        }
-    }
-    true
-}
-
 impl<B: BlockT> Actor for DatabaseActor<B> {}
 
 #[async_trait::async_trait]
@@ -142,11 +135,12 @@ where
     NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, blks: BatchBlock<B>, _: &mut Context<Self>) {
+        let len = blks.inner.len();
         let now = std::time::Instant::now();
         if let Err(e) = self.batch_block_handler(blks).await {
             log::error!("{}", e.to_string());
         }
-        log::debug!("TOOK {:?} to insert blocks", now.elapsed());
+        log::debug!("TOOK {:?} to insert {} blocks", now.elapsed(), len);
     }
 }
 

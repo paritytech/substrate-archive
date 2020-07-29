@@ -23,7 +23,7 @@ use crate::{
 };
 use arc_swap::ArcSwap;
 use codec::Decode;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use sc_executor::sp_wasm_interface::HostFunctions;
 use sc_executor::{WasmExecutionMethod, WasmExecutor};
 use sp_core::traits::CallInWasmExt;
@@ -76,8 +76,12 @@ impl<B: BlockT> RuntimeVersionCache<B> {
         }
     }
 
+    /// Get a version of the runtime for some Block Hash
+    /// Prefer `find_versions` when trying to get the runtime versions for
+    /// many consecutive blocks
     pub fn get(&self, hash: B::Hash) -> ArchiveResult<Option<RuntimeVersion>> {
-        // Getting code from the backend is the slowest part of this
+        // Getting code from the backend is the slowest part of this. Takes an average of
+        // 6ms
         let code = self
             .backend
             .storage(hash, well_known_keys::CODE)
@@ -94,7 +98,7 @@ impl<B: BlockT> RuntimeVersionCache<B> {
                 let ver = sp_io::misc::runtime_version(&code).ok_or(Error::WasmExecutionError)?;
                 decode_version(ver.as_slice())
             })?;
-            log::info!("Registered New Runtime Version: {:?}", v);
+            log::debug!("Registered New Runtime Version: {:?}", v);
             self.versions.rcu(|cache| {
                 let mut cache = HashMap::clone(&cache);
                 cache.insert(code_hash, v.clone().into());
@@ -104,12 +108,38 @@ impl<B: BlockT> RuntimeVersionCache<B> {
         }
     }
 
-    /// Recursively finds the versions of all the blocks while minimizing reads/calls to the backend
-    /// Returns built blocks
+    /// Recursively finds the versions of all the blocks while minimizing reads/calls to the backend.
     pub fn find_versions(&self, blocks: &[SignedBlock<B>]) -> ArchiveResult<Vec<VersionRange<B>>> {
         let mut versions = Vec::new();
         self.find_pivot(blocks, &mut versions)?;
         Ok(versions)
+    }
+
+    /// Finds the versions of all the blocks.
+    /// Returns a new set of type `Block`.
+    ///
+    /// # Panics
+    /// panics if our search fails to get the version for a block
+    pub fn find_versions_as_blocks(
+        &self,
+        blocks: Vec<SignedBlock<B>>,
+    ) -> ArchiveResult<Vec<Block<B>>>
+    where
+        NumberFor<B>: Into<u32>,
+    {
+        let versions = self.find_versions(blocks.as_slice())?;
+        Ok(blocks
+            .into_iter()
+            .map(|b| {
+                let v = versions
+                    .iter()
+                    .find(|v| v.contains_block(*b.block.header().number()))
+                    .unwrap_or_else(|| {
+                        panic!("No range for {}", b.block.header().number());
+                    });
+                Block::new(b, v.version.spec_version)
+            })
+            .collect())
     }
 
     /// This can be thought of as similiar to a recursive Binary Search
@@ -129,15 +159,15 @@ impl<B: BlockT> RuntimeVersionCache<B> {
         }
 
         let first = self
-            .get(blocks[0].block.header().hash())?
+            .get(blocks.first().unwrap().block.header().hash())?
             .ok_or(Error::from("Version not found"))?;
         let last = self
-            .get(blocks[blocks.len() - 1].block.header().hash())?
+            .get(blocks.last().unwrap().block.header().hash())?
             .ok_or(Error::from("Version not found"))?;
 
         if first.spec_version != last.spec_version && blocks.len() > 2 {
             let half = blocks.len() / 2;
-            let (first_half, last_half) = (&blocks[0..half], &blocks[half..blocks.len() - 1]);
+            let (first_half, last_half) = (&blocks[0..half], &blocks[half..blocks.len()]);
             self.find_pivot(first_half, versions)?;
             self.find_pivot(last_half, versions)?;
         } else if first.spec_version != last.spec_version && blocks.len() == 2 {
@@ -168,6 +198,10 @@ impl<B: BlockT> VersionRange<B> {
             end: *last.block.header().number(),
             version,
         }
+    }
+
+    fn contains_block(&self, b: NumberFor<B>) -> bool {
+        (b > self.start && b < self.end) || b == self.start || b == self.end
     }
 }
 

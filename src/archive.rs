@@ -97,6 +97,7 @@ where
     B: BlockT + Unpin,
     R: ConstructRuntimeApi<B, TArchiveClient<B, R, D>> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
+        + sp_api::Metadata<B, Error = sp_blockchain::Error>
         + ApiExt<B, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<B>, B>>
         + Send
         + Sync

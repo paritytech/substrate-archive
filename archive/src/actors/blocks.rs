@@ -18,7 +18,7 @@ use super::{
     workers::{Aggregator, DatabaseActor, GetState},
 };
 use crate::{
-    backend::{ReadOnlyBackend, RuntimeVersionCache},
+    backend::{ReadOnlyBackend, RuntimeVersionCache, VersionRange},
     error::{ArchiveResult, Error},
     queries,
     types::{BatchBlock, Block},
@@ -72,13 +72,14 @@ where
         fun: impl Fn(u32) -> bool + Send + 'static,
     ) -> ArchiveResult<Vec<Block<B>>> {
         let backend = self.backend.clone();
+        log::info!("Loading blocks from the chain...");
         let now = std::time::Instant::now();
         let gather_blocks = move || -> ArchiveResult<Vec<SignedBlock<B>>> {
             Ok(backend
                 .iter_blocks(|n| fun(n))?
                 .enumerate()
                 .inspect(|(i, b)| {
-                    if i % 50_000 == 0 {
+                    if i % 100_000 == 0 {
                         log::info!("Last block loaded {}", b.block.header().number());
                     }
                 })
@@ -87,65 +88,43 @@ where
         };
         let blocks = smol::unblock!(gather_blocks())?;
         log::info!("Took {:?} to get blocks", now.elapsed());
-        let now = std::time::Instant::now();
         let cache = self.rt_cache.clone();
-        let versions = smol::unblock!(cache.find_versions(blocks.as_slice()))?;
-        let elapsed = now.elapsed();
-        for ver in versions.iter() {
-            println!("Start: {}, End: {}", ver.start, ver.end);
-        }
-        println!("Took {:?} seconds to get all versions", elapsed);
-        panic!("Versions found");
+        let blocks = smol::unblock!(cache.find_versions_as_blocks(blocks))?;
+        Ok(blocks)
     }
 
     /// First run of indexing
     /// gets any blocks that are missing from database and indexes those
     /// sets the `last_max` value.
-    async fn re_index(&mut self) -> ArchiveResult<()> {
+    async fn re_index(&mut self) -> ArchiveResult<Vec<Block<B>>> {
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
         let numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
         let len = numbers.len();
         log::info!("{} missing blocks", len);
 
-        let mut max: u32 = self.last_max;
-        let now = std::time::Instant::now();
-        let mut stream = self.collect_blocks(move |n| numbers.contains(&n)).await?;
-        panic!("Done");
-        /*
-        while let Some(block) = stream.next().await {
-            let block = block?;
-            if (*block.inner.block.header().number()).into() > max {
-                max = (*block.inner.block.header().number()).into();
-            }
-            self.ag.send(block).await?;
-        }
-        */
-        log::info!("Took {:#?} to crawl {} blocks", now.elapsed(), len);
-
+        let max: u32 = self.last_max;
+        let blocks = self.collect_blocks(move |n| numbers.contains(&n)).await?;
         if max == 0 {
             self.last_max = queries::max_block(&mut conn).await?;
         } else {
-            self.last_max = max;
+            self.last_max = blocks
+                .iter()
+                .map(|b| (*b.inner.block.header().number()).into())
+                .fold(0, |ac, e| if e > ac { e } else { ac })
         }
         log::info!("New max: {}", self.last_max);
-        Ok(())
+        Ok(blocks)
     }
 
-    async fn crawl(&mut self) -> ArchiveResult<()> {
+    async fn crawl(&mut self) -> ArchiveResult<Vec<Block<B>>> {
         let copied_last_max = self.last_max;
-        let mut stream = self.collect_blocks(move |n| n > copied_last_max).await?;
-        let mut max: u32 = self.last_max;
-        /*
-        for block in stream.next().await.unwrap() {
-            if (*block.inner.block.header().number()).into() > max {
-                max = (*block.inner.block.header().number()).into();
-            }
-            self.ag.send(block).await?;
-        }
-        */
-        self.last_max = max;
+        let blocks = self.collect_blocks(move |n| n > copied_last_max).await?;
+        self.last_max = blocks
+            .iter()
+            .map(|b| (*b.inner.block.header().number()).into())
+            .fold(self.last_max, |ac, e| if e > ac { e } else { ac });
         log::info!("New max: {}", self.last_max);
-        Ok(())
+        Ok(blocks)
     }
 }
 
@@ -160,7 +139,7 @@ where
         // ReIndexing is async process
         this.do_send(ReIndex)
             .expect("Actor cannot be disconnected; just started");
-        // ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl);
+        ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl);
     }
 }
 
@@ -178,18 +157,12 @@ where
         log::info!("Crawling for blocks");
         match self.crawl().await {
             Err(e) => log::error!("{}", e.to_string()),
-            Ok(_) => (),
-        }
-        /*
-                match self.crawl().await {
-                    Err(e) => log::error!("{}", e.to_string()),
-                    Ok(b) => {
-                        if let Err(_) = self.ag.do_send(BatchBlock::new(b)) {
-                            ctx.stop();
-                        }
-                    }
+            Ok(b) => {
+                if let Err(_) = self.ag.send(BatchBlock::new(b)).await {
+                    ctx.stop();
                 }
-        */
+            }
+        }
     }
 }
 
@@ -207,17 +180,11 @@ where
         log::info!("Beginning to index blocks..");
         match self.re_index().await {
             Err(e) => log::error!("{}", e.to_string()),
-            Ok(_) => (),
-        }
-        /*
-        match self.re_index().await {
-            Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
-                if let Err(_) = self.ag.do_send(BatchBlock::new(b)) {
+                if let Err(_) = self.ag.send(BatchBlock::new(b)).await {
                     ctx.stop();
                 }
             }
         }
-        */
     }
 }
