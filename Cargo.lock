@@ -7957,6 +7957,7 @@ name = "substrate-archive"
 version = "0.5.0-pre"
 dependencies = [
  "arc-swap",
+ "async-channel",
  "async-trait",
  "bincode",
  "chrono",

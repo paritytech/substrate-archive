@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+//flume Copyright 2019-2020 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 use crate::{
     backend::{ApiAccess, BlockChanges, BlockExecutor, ReadOnlyBackend as Backend},
-    error::{ArchiveResult, Error as ArchiveError},
+    error::{ArchiveResult, Error},
     types::{self, PriorityIdent, ThreadPool},
 };
 use sc_client_api::backend;
@@ -64,7 +64,7 @@ where
         num_threads: Option<usize>,
         client: Arc<Api>,
         backend: Arc<Backend<B>>,
-    ) -> Result<Self, ArchiveError> {
+    ) -> Result<Self, Error> {
         // channel pair for sending and receiving BlockChanges
 
         let pool = rayon::ThreadPoolBuilder::new()
@@ -84,8 +84,8 @@ where
         block: B,
         client: &Arc<Api>,
         backend: &Arc<Backend<B>>,
-        sender: &flume::Sender<BlockChanges<B>>,
-    ) -> Result<(), ArchiveError> {
+        sender: &async_channel::Sender<BlockChanges<B>>,
+    ) -> Result<(), Error> {
         let api = client.runtime_api();
 
         // don't execute genesis block
@@ -104,10 +104,8 @@ where
 
         let block = BlockExecutor::new(api, backend, block)?.block_into_storage()?;
 
-        // TODO: Should bubble up this disconnect
-        // This would make shutdown faster and it can occur in `scheduler`
-        if let Err(_) = sender.send(block) {
-            log::trace!("Channel Disconnecting..");
+        if let Err(_) = sender.try_send(block) {
+            return Err(Error::Disconnected);
         }
         Ok(())
     }
@@ -117,8 +115,8 @@ where
     pub fn add_vec_task(
         &self,
         blocks: Vec<types::Block<B>>,
-        sender: flume::Sender<BlockChanges<B>>,
-    ) -> Result<usize, ArchiveError> {
+        sender: async_channel::Sender<BlockChanges<B>>,
+    ) -> Result<usize, Error> {
         let len = blocks.len();
 
         for blocks in blocks.chunks(5) {
@@ -154,7 +152,7 @@ where
     fn add_task(
         &self,
         d: Vec<types::Block<B>>,
-        tx: flume::Sender<BlockChanges<B>>,
+        tx: async_channel::Sender<BlockChanges<B>>,
     ) -> ArchiveResult<usize> {
         self.add_vec_task(d, tx)
     }

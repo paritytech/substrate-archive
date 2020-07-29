@@ -88,8 +88,8 @@ impl From<xtra::Disconnected> for Error {
     }
 }
 
-impl<T> From<flume::SendError<T>> for Error {
-    fn from(_: flume::SendError<T>) -> Error {
+impl<T> From<async_channel::SendError<T>> for Error {
+    fn from(_: async_channel::SendError<T>) -> Error {
         Error::Channel
     }
 }

@@ -24,14 +24,12 @@
 //! that are being streamed
 
 use crate::{
-    error::{ArchiveResult, Error as ArchiveError},
+    error::{ArchiveResult, Error},
     types::*,
     util::make_hash,
 };
 use codec::{Decode, Encode};
 use hashbrown::HashSet;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::Hasher;
 use std::{collections::BinaryHeap, fmt::Debug, hash::Hash};
 
 // TODO Get rid of the HashSet redundant checking for duplicates if possible.
@@ -98,10 +96,10 @@ where
     exec: T,
     /// internal sender for gauging how much work
     /// the threadpool has finished
-    tx: flume::Sender<O>,
+    tx: async_channel::Sender<O>,
     /// internal receiver for gauging how much work
     /// the threadpool has finished
-    rx: flume::Receiver<O>,
+    rx: async_channel::Receiver<O>,
     /// how many total items have been added to the threadpool
     added: usize,
     /// how many tasks has the threadpool already finished
@@ -119,7 +117,7 @@ where
     T: ThreadPool<In = I, Out = O>,
 {
     pub fn new(name: &str, exec: T, max_size: usize, ord: Ordering) -> Self {
-        let (tx, rx) = flume::unbounded();
+        let (tx, rx) = async_channel::unbounded();
         Self {
             name: name.to_string(),
             queue: BinaryHeap::new(),
@@ -179,7 +177,15 @@ where
             );
         }
 
-        let out = self.rx.drain().collect::<Vec<O>>();
+        let mut out: Vec<O> = Vec::new();
+        for _ in 0..self.rx.len() {
+            match self.rx.try_recv() {
+                Ok(v) => out.push(v),
+                Err(_) => {
+                    return Err(Error::Disconnected);
+                }
+            }
+        }
         self.finished += out.len();
         Ok(out)
     }
@@ -199,12 +205,12 @@ where
         let to_insert = if sorted.len() > to_add {
             sorted
                 .drain(0..to_add)
-                .map(|b| Decode::decode(&mut b.enc.as_slice()).map_err(ArchiveError::from))
+                .map(|b| Decode::decode(&mut b.enc.as_slice()).map_err(Error::from))
                 .collect::<ArchiveResult<Vec<I>>>()?
         } else {
             sorted
                 .drain(0..)
-                .map(|b| Decode::decode(&mut b.enc.as_slice()).map_err(ArchiveError::from))
+                .map(|b| Decode::decode(&mut b.enc.as_slice()).map_err(Error::from))
                 .collect::<ArchiveResult<Vec<I>>>()?
         };
         if matches!(self.ordering, Ordering::Descending) {

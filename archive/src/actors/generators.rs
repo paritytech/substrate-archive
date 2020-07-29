@@ -22,7 +22,7 @@ use super::{
 use crate::{
     error::ArchiveResult, queries, sql_block_builder::BlockBuilder, threadpools::BlockData,
 };
-use flume::Sender;
+use async_channel::Sender;
 use sp_runtime::traits::Block as BlockT;
 use sqlx::{pool::PoolConnection, Postgres};
 use xtra::prelude::*;
@@ -77,8 +77,8 @@ impl<B: BlockT> Generator<B> {
             blocks.len()
         );
 
-        if let Err(_) = tx_block.send(BlockData::Batch(blocks)) {
-            log::warn!("Block Executor channel disconnected before any missing storage-blocks could be sent")
+        if let Err(_) = tx_block.send(BlockData::Batch(blocks)).await {
+            log::warn!("Block Executor closed before any missing storage-blocks could be sent")
         }
         Ok(())
     }

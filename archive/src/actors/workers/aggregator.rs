@@ -22,7 +22,7 @@ use crate::{
     threadpools::BlockData,
     types::{BatchBlock, Block, Storage},
 };
-use flume::Sender;
+use async_channel::Sender;
 use futures::future::Either;
 use itertools::{EitherOrBoth, Itertools};
 use sp_runtime::traits::{Block as BlockT, NumberFor};
@@ -60,8 +60,8 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    let (storage_tx, storage_rx) = flume::unbounded();
-    let (block_tx, block_rx) = flume::unbounded();
+    let (storage_tx, storage_rx) = async_channel::unbounded();
+    let (block_tx, block_rx) = async_channel::unbounded();
     (
         Senders {
             storage_queue: storage_tx,
@@ -85,9 +85,9 @@ struct Senders<B: BlockT> {
 
 struct Receivers<B: BlockT> {
     /// receiving end of an internal queue to send batches of storage to actors
-    storage_recv: flume::Receiver<BlockChanges<B>>,
+    storage_recv: async_channel::Receiver<BlockChanges<B>>,
     /// receiving end of an internal queue to send batches of blocks to actors
-    block_recv: flume::Receiver<Block<B>>,
+    block_recv: async_channel::Receiver<Block<B>>,
 }
 
 enum BlockOrStorage<B: BlockT> {
@@ -101,13 +101,13 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn push_back(&self, t: BlockOrStorage<B>) -> ArchiveResult<()> {
+    async fn push_back(&self, t: BlockOrStorage<B>) -> ArchiveResult<()> {
         match t {
-            BlockOrStorage::Block(b) => self.block_queue.send(b)?,
-            BlockOrStorage::Storage(s) => self.storage_queue.send(s)?,
+            BlockOrStorage::Block(b) => self.block_queue.send(b).await?,
+            BlockOrStorage::Storage(s) => self.storage_queue.send(s).await?,
             BlockOrStorage::BatchBlock(v) => {
                 for b in v.inner.into_iter() {
-                    self.block_queue.send(b)?;
+                    self.block_queue.send(b).await?;
                 }
             }
         }
@@ -161,22 +161,41 @@ where
         }
         let this = self.recvs.take().expect("checked for none; qed");
         ctx.notify_interval(Duration::from_millis(SYSTEM_TICK), move || {
-            this.storage_recv
-                .drain()
+            let mut storage = Vec::new();
+            for _ in 0..this.storage_recv.len() {
+                match this.storage_recv.try_recv() {
+                    Ok(v) => storage.push(v),
+                    Err(_) => (),
+                }
+            }
+            let mut blocks = Vec::new();
+            for _ in 0..this.block_recv.len() {
+                match this.block_recv.try_recv() {
+                    Ok(v) => blocks.push(v),
+                    Err(_) => (),
+                }
+            }
+            storage
+                .into_iter()
                 .map(Storage::from)
-                .zip_longest(this.block_recv.drain())
+                .zip_longest(blocks.into_iter())
                 .collect::<BlockStorageCombo<B>>()
         });
     }
 }
 
-impl<B> SyncHandler<BlockChanges<B>> for Aggregator<B>
+#[async_trait::async_trait]
+impl<B> Handler<BlockChanges<B>> for Aggregator<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, changes: BlockChanges<B>, _: &mut Context<Self>) -> bool {
-        match self.senders.push_back(BlockOrStorage::Storage(changes)) {
+    async fn handle(&mut self, changes: BlockChanges<B>, _: &mut Context<Self>) -> bool {
+        match self
+            .senders
+            .push_back(BlockOrStorage::Storage(changes))
+            .await
+        {
             Err(e) => {
                 log::error!("{}", e.to_string());
                 false
@@ -186,33 +205,35 @@ where
     }
 }
 
-impl<B> SyncHandler<Block<B>> for Aggregator<B>
+#[async_trait::async_trait]
+impl<B> Handler<Block<B>> for Aggregator<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, block: Block<B>, c: &mut Context<Self>) {
-        if let Err(_) = self.exec.send(BlockData::Single(block.clone())) {
+    async fn handle(&mut self, block: Block<B>, c: &mut Context<Self>) {
+        if let Err(_) = self.exec.send(BlockData::Single(block.clone())).await {
             c.stop();
         }
         let block = BlockOrStorage::Block(block);
-        if let Err(_) = self.senders.push_back(block) {
+        if let Err(_) = self.senders.push_back(block).await {
             c.stop();
         }
     }
 }
 
-impl<B> SyncHandler<BatchBlock<B>> for Aggregator<B>
+#[async_trait::async_trait]
+impl<B> Handler<BatchBlock<B>> for Aggregator<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, blocks: BatchBlock<B>, c: &mut Context<Self>) {
-        if let Err(_) = self.exec.send(BlockData::Batch(blocks.inner.clone())) {
+    async fn handle(&mut self, blocks: BatchBlock<B>, c: &mut Context<Self>) {
+        if let Err(_) = self.exec.send(BlockData::Batch(blocks.inner.clone())).await {
             c.stop();
         }
         let blocks = BlockOrStorage::BatchBlock(blocks);
-        if let Err(_) = self.senders.push_back(blocks) {
+        if let Err(_) = self.senders.push_back(blocks).await {
             c.stop();
         }
     }
@@ -295,22 +316,27 @@ impl<B: BlockT> Message for IncomingData<B> {
     type Result = ();
 }
 
-impl<B> SyncHandler<IncomingData<B>> for Aggregator<B>
+#[async_trait::async_trait]
+impl<B> Handler<IncomingData<B>> for Aggregator<B>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, data: IncomingData<B>, c: &mut Context<Self>) {
-        let r = || -> ArchiveResult<()> {
+    async fn handle(&mut self, data: IncomingData<B>, c: &mut Context<Self>) {
+        let fut = async move {
             match data.0 {
-                Either::Left(changes) => self.senders.push_back(BlockOrStorage::Storage(changes)),
+                Either::Left(changes) => {
+                    self.senders
+                        .push_back(BlockOrStorage::Storage(changes))
+                        .await
+                }
                 Either::Right(block) => {
-                    self.exec.send(BlockData::Single(block.clone()))?;
-                    self.senders.push_back(BlockOrStorage::Block(block))
+                    self.exec.send(BlockData::Single(block.clone())).await?;
+                    self.senders.push_back(BlockOrStorage::Block(block)).await
                 }
             }
         };
-        if let Err(_) = r() {
+        if let Err(_) = fut.await {
             c.stop()
         }
     }

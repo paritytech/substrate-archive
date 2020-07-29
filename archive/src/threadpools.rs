@@ -28,93 +28,7 @@ use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::{sync::Arc, thread, time::Duration};
 mod block_exec_pool;
-// mod block_fetcher;
 mod block_scheduler;
-
-// TODO: Can abstract these two structs into just something that implements a trait. Or
-// create another generic struct that creates a thread and schedules tasks. This is mostly redundant code.
-// this follows a similar API to xtra's Actor/Address api (attach_stream)
-// maybe we could create an extension trait that is like Actix's Threadpooled Actors, but for xtra?
-// that is essentially what this is trying to be.
-/*
-/// A threadpool that gets blocks and their runtime versions from the rocksdb backend
-pub struct BlockFetcher<B>
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    sender: flume::Sender<u32>,
-    pair: (flume::Sender<Block<B>>, Option<flume::Receiver<Block<B>>>),
-    _handle: jod_thread::JoinHandle<ArchiveResult<()>>,
-}
-
-impl<B> BlockFetcher<B>
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    pub fn new(ctx: ActorContext<B>, threads: Option<usize>) -> ArchiveResult<Self> {
-        let (tx, rx) = flume::unbounded();
-        let (sender, receiver) = flume::unbounded();
-        let res_sender = sender.clone();
-        let handle = jod_thread::spawn(move || -> ArchiveResult<()> {
-            let pool = ThreadedBlockFetcher::new(ctx, threads)?;
-            let mut pool = BlockScheduler::new("fetch", pool, 1000, Ordering::Ascending);
-            'sched: loop {
-                // ideally, there should be a way to check if senders
-                // have dropped: https://github.com/zesterer/flume/issues/32
-                // instead we just recv one message and see if it's disconnected
-                // before draining the queue
-                thread::sleep(Duration::from_millis(50));
-                match rx.try_recv() {
-                    Ok(v) => pool.add_data_single(v),
-                    Err(e) => match e {
-                        flume::TryRecvError::Disconnected => break 'sched,
-                        _ => (),
-                    },
-                }
-                pool.add_data(rx.drain().collect());
-                let work = pool.check_work()?;
-                for w in work.into_iter() {
-                    res_sender.send(w)?;
-                }
-            }
-            Ok(())
-        });
-
-        Ok(Self {
-            pair: (sender, Some(receiver)),
-            sender: tx,
-            _handle: handle,
-        })
-    }
-
-    /// attach a stream to this threadpool
-    /// Forwards all messages from the stream to the threadpool
-    pub fn attach_stream(&self, mut stream: impl Stream<Item = u32> + Send + Unpin + 'static) {
-        let tx = self.sender.clone();
-        crate::util::spawn(async move {
-            while let Some(m) = stream.next().await {
-                tx.send(m)?;
-            }
-            Ok(())
-        });
-    }
-
-    /// Convert this Threadpool into a stream of its outputs
-    ///
-    /// # Panics
-    /// panics if the stream has already been taken
-    pub fn get_stream(&mut self) -> impl Stream<Item = Block<B>> {
-        self.pair.1.take().unwrap()
-    }
-
-    /// get the channel to send work to this threadpool
-    pub fn sender(&self) -> flume::Sender<u32> {
-        self.sender.clone()
-    }
-}
-*/
 
 /// Threadpool that executes blocks
 pub struct ThreadedBlockExecutor<B>
@@ -123,11 +37,11 @@ where
     NumberFor<B>: Into<u32>,
 {
     /// The main sender
-    sender: flume::Sender<BlockData<B>>,
+    sender: async_channel::Sender<BlockData<B>>,
     _handle: jod_thread::JoinHandle<ArchiveResult<()>>,
     pair: (
-        flume::Sender<BlockChanges<B>>,
-        Option<flume::Receiver<BlockChanges<B>>>,
+        async_channel::Sender<BlockChanges<B>>,
+        Option<async_channel::Receiver<BlockChanges<B>>>,
     ),
 }
 
@@ -147,34 +61,34 @@ where
             + ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B>, B>>,
         A: ApiAccess<B, Backend<B>, R> + 'static,
     {
-        let (tx, rx) = flume::unbounded();
-        let (sender, receiver) = flume::unbounded();
+        let (tx, rx) = async_channel::unbounded();
+        let (sender, receiver) = async_channel::unbounded();
         let res_sender = sender.clone();
         let handle = jod_thread::spawn(move || -> ArchiveResult<()> {
             let pool = BlockExecPool::<B, R, A>::new(threads, client, backend)?;
             let mut pool = BlockScheduler::new("exec", pool, 256, Ordering::Ascending);
             'sched: loop {
                 thread::sleep(Duration::from_millis(50));
-                // ideally, there should be a way to check if senders
-                // have dropped: https://github.com/zesterer/flume/issues/32
-                // instead we just recv one message and see if it's disconnected
-                // before draining the queue
-                match rx.try_recv() {
-                    Ok(v) => match v {
-                        BlockData::Batch(v) => pool.add_data(v),
-                        BlockData::Single(v) => pool.add_data_single(v),
-                    },
-                    Err(e) => match e {
-                        flume::TryRecvError::Disconnected => break 'sched,
-                        _ => (),
-                    },
+                for _ in 0..rx.len() {
+                    match rx.try_recv() {
+                        Ok(v) => match v {
+                            BlockData::Batch(v) => pool.add_data(v),
+                            BlockData::Single(v) => pool.add_data_single(v),
+                        },
+                        Err(e) => match e {
+                            async_channel::TryRecvError::Closed => break 'sched,
+                            _ => (),
+                        },
+                    }
                 }
-                rx.drain().for_each(|v| match v {
-                    BlockData::Batch(v) => pool.add_data(v),
-                    BlockData::Single(v) => pool.add_data_single(v),
-                });
                 for w in pool.check_work()?.into_iter() {
-                    res_sender.send(w)?;
+                    match res_sender.try_send(w) {
+                        Ok(_) => (),
+                        Err(e) => match e {
+                            async_channel::TrySendError::Closed(_) => break 'sched,
+                            _ => (), // Channels are unbounded so should never be full
+                        },
+                    }
                 }
             }
             Ok(())
@@ -197,7 +111,9 @@ where
         let tx = self.sender.clone();
         crate::util::spawn(async move {
             while let Some(m) = stream.next().await {
-                tx.send(m)?;
+                if let Err(_) = tx.send(m).await {
+                    break;
+                }
             }
             Ok(())
         });
@@ -211,7 +127,7 @@ where
     }
 
     /// Get the sender for this threadpool
-    pub fn sender(&self) -> flume::Sender<BlockData<B>> {
+    pub fn sender(&self) -> async_channel::Sender<BlockData<B>> {
         self.sender.clone()
     }
 }
