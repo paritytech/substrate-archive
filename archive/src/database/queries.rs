@@ -137,7 +137,7 @@ pub(crate) async fn check_if_meta_exists(
     conn: &mut PgConnection,
 ) -> Result<bool, ArchiveError> {
     let row: (bool,) =
-        sqlx::query_as(r#"SELECT EXISTS(SELECT version FROM metadata WHERE version=$1)"#)
+        sqlx::query_as(r#"SELECT EXISTS(SELECT version FROM metadata WHERE version = $1)"#)
             .bind(spec)
             .fetch_one(conn)
             .await?;
@@ -149,7 +149,7 @@ pub(crate) async fn contains_block<B: BlockT>(
     conn: &mut PgConnection,
 ) -> Result<bool, ArchiveError> {
     let hash = hash.as_ref();
-    let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash=$1)"#)
+    let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash = $1)"#)
         .bind(hash)
         .fetch_one(conn)
         .await?;

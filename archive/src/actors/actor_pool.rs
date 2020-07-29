@@ -114,6 +114,7 @@ where
                 if let Err(e) = tx.try_send(v) {
                     match e {
                         flume::TrySendError::Disconnected(_) => {
+                            log::warn!("channel disconnected");
                             // Receiver might just want to throw out the value (IE `do_send`)
                             // we do nothing.
                         }

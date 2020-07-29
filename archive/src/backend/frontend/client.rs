@@ -32,7 +32,8 @@ use sc_client_api::{
 };
 use sc_executor::RuntimeVersion;
 use sp_api::{
-    ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi,
+    ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Core as CoreApi, Metadata,
+    ProvideRuntimeApi,
 };
 use sp_blockchain::HeaderBackend as _;
 use sp_core::NativeOrEncoded;
@@ -46,6 +47,12 @@ use std::{marker::PhantomData, panic::UnwindSafe, sync::Arc};
 // but that returns a String for an error
 pub trait GetRuntimeVersion<Block: BlockT>: Send + Sync {
     fn runtime_version(&self, at: &BlockId<Block>) -> ArchiveResult<sp_version::RuntimeVersion>;
+}
+
+// This trait allows circumvents putting <R, C> on an object that just needs to get the metadata
+/// Trait to get the opaque metadata from the Runtime Api
+pub trait GetMetadata<Block: BlockT>: Send + Sync {
+    fn metadata(&self, id: &BlockId<Block>) -> ArchiveResult<sp_core::OpaqueMetadata>;
 }
 
 /// Archive Client
@@ -115,6 +122,18 @@ where
 {
     fn runtime_version(&self, at: &BlockId<Block>) -> ArchiveResult<sp_version::RuntimeVersion> {
         self.runtime_version_at(at)
+    }
+}
+
+impl<Exec, Block, RA> GetMetadata<Block> for Client<Exec, Block, RA>
+where
+    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block>> + Send + Sync,
+    Block: BlockT,
+    RA: ConstructRuntimeApi<Block, Self> + Send + Sync,
+    RA::RuntimeApi: sp_api::Metadata<Block, Error = sp_blockchain::Error> + Send + Sync + 'static,
+{
+    fn metadata(&self, id: &BlockId<Block>) -> ArchiveResult<sp_core::OpaqueMetadata> {
+        self.runtime_api().metadata(id).map_err(Into::into)
     }
 }
 

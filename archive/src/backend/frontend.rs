@@ -16,7 +16,7 @@
 
 mod client;
 mod executor;
-pub use self::client::{Client, GetRuntimeVersion};
+pub use self::client::{Client, GetMetadata, GetRuntimeVersion};
 use sc_client_api::{
     execution_extensions::{ExecutionExtensions, ExecutionStrategies},
     ExecutionStrategy,

@@ -24,12 +24,13 @@ mod workers;
 
 pub use self::workers::msg;
 use super::{
-    backend::{ApiAccess, GetRuntimeVersion, ReadOnlyBackend},
+    backend::{ApiAccess, Meta, ReadOnlyBackend},
     error::{ArchiveResult, Error as ArchiveError},
     threadpools::ThreadedBlockExecutor,
     types::Archive,
 };
 use sc_client_api::backend;
+use sp_api::Metadata;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
@@ -79,8 +80,8 @@ where
     NumberFor<Block>: Into<u32>,
 {
     context: ActorContext<Block>,
-    // workers: Option<usize>,
     executor: ThreadedBlockExecutor<Block>,
+    meta: Meta<Block>,
     ag: Option<Address<Aggregator<Block>>>,
     blocks: Option<Address<blocks::BlocksIndexer<Block>>>,
     _marker: PhantomData<(R, C)>,
@@ -91,11 +92,12 @@ where
     B: BlockT + Unpin,
     R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
+        + sp_api::Metadata<B, Error = sp_blockchain::Error>
         + ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B>, B>>
         + Send
         + Sync
         + 'static,
-    C: ApiAccess<B, ReadOnlyBackend<B>, R> + GetRuntimeVersion<B> + 'static,
+    C: ApiAccess<B, ReadOnlyBackend<B>, R> + 'static,
     NumberFor<B>: Into<u32> + From<u32> + Unpin,
     B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,
@@ -120,10 +122,13 @@ where
     ) -> ArchiveResult<Self> {
         let context = ActorContext::new(backend.clone(), url, psql_url.to_string());
         let executor = ThreadedBlockExecutor::new(client_api.clone(), backend, workers)?;
-
+        let metad = client_api
+            .runtime_api()
+            .metadata(&sp_runtime::generic::BlockId::Number(0.into()));
         Ok(Self {
             context,
             executor,
+            meta: client_api,
             ag: None,
             blocks: None,
             _marker: PhantomData,
@@ -138,9 +143,13 @@ where
         let db_pool = actor_pool::ActorPool::new(db, 4).spawn();
 
         let tx_block = self.executor.sender();
-        let ag = Aggregator::new(ctx.clone(), tx_block.clone(), db_pool.clone())
+        let meta_addr = workers::Metadata::new(db_pool.clone(), self.meta.clone())
             .await?
             .spawn();
+        let ag = Aggregator::new(ctx.clone(), tx_block.clone(), meta_addr, db_pool.clone())
+            .await?
+            .spawn();
+
         let blocks_indexer =
             blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), ag.clone()).spawn();
         let exec_stream = self.executor.get_stream();
@@ -164,11 +173,12 @@ where
     B: BlockT + Unpin,
     R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
+        + sp_api::Metadata<B, Error = sp_blockchain::Error>
         + ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B>, B>>
         + Send
         + Sync
         + 'static,
-    C: ApiAccess<B, ReadOnlyBackend<B>, R> + GetRuntimeVersion<B> + 'static,
+    C: ApiAccess<B, ReadOnlyBackend<B>, R> + 'static,
     NumberFor<B>: Into<u32> + From<u32> + Unpin,
     B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,

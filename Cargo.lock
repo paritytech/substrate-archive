@@ -7964,7 +7964,6 @@ dependencies = [
  "fern",
  "flate2",
  "flume",
- "frame-benchmarking",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "hash-db",
