@@ -77,8 +77,9 @@ impl<B: BlockT> DatabaseActor<B> {
         }
         std::mem::drop(conn);
         log::info!("Awaiting insert...");
+        let len = blks.inner().len();
         self.db.insert(blks).await?;
-        log::info!("Inserted");
+        log::info!("Inserted {} blocks", len);
         Ok(())
     }
 

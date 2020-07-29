@@ -122,9 +122,18 @@ where
     ) -> ArchiveResult<Self> {
         let context = ActorContext::new(backend.clone(), url, psql_url.to_string());
         let executor = ThreadedBlockExecutor::new(client_api.clone(), backend, workers)?;
+
+        /*
+        let version =
+            client_api.runtime_version(&sp_runtime::generic::BlockId::Number(1491596.into()));
+        log::info!("{:?}", version);
+
         let metad = client_api
             .runtime_api()
-            .metadata(&sp_runtime::generic::BlockId::Number(0.into()));
+            .metadata(&sp_runtime::generic::BlockId::Number(1491596.into()));
+        log::info!("Got metadata for ver");
+        */
+
         Ok(Self {
             context,
             executor,

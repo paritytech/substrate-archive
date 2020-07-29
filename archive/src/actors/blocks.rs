@@ -99,20 +99,15 @@ where
     async fn re_index(&mut self) -> ArchiveResult<Vec<Block<B>>> {
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
         let numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
+        if numbers.is_empty() {
+            return Ok(Vec::new());
+        }
         let len = numbers.len();
         log::info!("{} missing blocks", len);
 
-        let max: u32 = self.last_max;
         let blocks = self.collect_blocks(move |n| numbers.contains(&n)).await?;
-        if max == 0 {
-            self.last_max = queries::max_block(&mut conn).await?;
-        } else {
-            self.last_max = blocks
-                .iter()
-                .map(|b| (*b.inner.block.header().number()).into())
-                .fold(0, |ac, e| if e > ac { e } else { ac })
-        }
-        log::info!("New max: {}", self.last_max);
+        self.last_max = queries::max_block(&mut conn).await?;
+        log::info!("new max: {}", self.last_max);
         Ok(blocks)
     }
 
@@ -123,7 +118,7 @@ where
             .iter()
             .map(|b| (*b.inner.block.header().number()).into())
             .fold(self.last_max, |ac, e| if e > ac { e } else { ac });
-        log::info!("New max: {}", self.last_max);
+        log::info!("new max: {}", self.last_max);
         Ok(blocks)
     }
 }

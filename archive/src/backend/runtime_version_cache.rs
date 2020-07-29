@@ -170,13 +170,13 @@ impl<B: BlockT> RuntimeVersionCache<B> {
             let (first_half, last_half) = (&blocks[0..half], &blocks[half..blocks.len()]);
             self.find_pivot(first_half, versions)?;
             self.find_pivot(last_half, versions)?;
-        } else if first.spec_version != last.spec_version && blocks.len() == 2 {
+        } else if (first.spec_version != last.spec_version) && (blocks.len() == 2) {
             versions.push(VersionRange::new(&blocks[0], &blocks[0], first));
             versions.push(VersionRange::new(&blocks[1], &blocks[1], last));
         } else {
             versions.push(VersionRange::new(
-                &blocks[0],
-                &blocks[blocks.len() - 1],
+                blocks.first().unwrap(),
+                blocks.last().unwrap(),
                 first,
             ));
         }
