@@ -23,7 +23,7 @@ use sc_client_api::{
 };
 // use sc_client_db::Backend;
 use self::executor::ArchiveExecutor;
-use crate::{backend::database::ReadOnlyDatabase, error::Error as ArchiveError};
+use crate::{backend::database::ReadOnlyDatabase, error::Error as Error};
 use futures::Future;
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
 use sp_api::ConstructRuntimeApi;
@@ -45,7 +45,7 @@ pub fn runtime_api<Block, Runtime, Dispatch>(
     db: Arc<ReadOnlyDatabase>,
     block_workers: usize,
     wasm_pages: u64,
-) -> Result<TArchiveClient<Block, Runtime, Dispatch>, ArchiveError>
+) -> Result<TArchiveClient<Block, Runtime, Dispatch>, Error>
 where
     Block: BlockT,
     Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>>

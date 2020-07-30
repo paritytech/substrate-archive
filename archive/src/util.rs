@@ -14,7 +14,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! logging and general utilities
-use crate::error::ArchiveResult;
+use crate::error::Result;
 #[cfg(feature = "logging")]
 use fern::colors::{Color, ColoredLevelConfig};
 use futures::Future;
@@ -22,7 +22,7 @@ use log::*;
 use std::path::{Path, PathBuf};
 
 /// convenience function to log any errors from a detached task
-pub fn spawn(fut: impl Future<Output = ArchiveResult<()>> + Send + 'static) {
+pub fn spawn(fut: impl Future<Output = Result<()>> + Send + 'static) {
     let fut = async move {
         match fut.await {
             Ok(_) => (),

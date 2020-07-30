@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::Error as ArchiveError;
+use crate::error::Error as Error;
 use include_dir::{include_dir, Dir};
 use sqlx::prelude::*;
 use sqlx::{migrate::Migrator, postgres::PgConnection};
@@ -28,7 +28,7 @@ const MIGRATIONS_DIR: Dir = include_dir!("src/migrations");
 /// # Panics
 /// Panics if a required environment variable is not found
 /// or if the environment variable contains invalid unicode
-pub async fn migrate(conf: &MigrationConfig) -> Result<String, ArchiveError> {
+pub async fn migrate(conf: &MigrationConfig) -> Result<String, Error> {
     let parsed = parse(conf.clone());
     let url = parsed.build_url();
     let mut connection = PgConnection::connect(url.as_str()).await?;

@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::database::{models::StorageModel, Database, DbConn};
-use crate::error::ArchiveResult;
+use crate::error::Result;
 use crate::queries;
 use crate::types::*;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
@@ -29,7 +29,7 @@ pub struct DatabaseActor<B: BlockT> {
 }
 
 impl<B: BlockT> DatabaseActor<B> {
-    pub async fn new(url: String) -> ArchiveResult<Self> {
+    pub async fn new(url: String) -> Result<Self> {
         Ok(Self {
             db: Database::new(url).await?,
             _marker: PhantomData,
@@ -44,7 +44,7 @@ impl<B: BlockT> DatabaseActor<B> {
         }
     }
 
-    async fn block_handler(&self, blk: Block<B>) -> ArchiveResult<()>
+    async fn block_handler(&self, blk: Block<B>) -> Result<()>
     where
         NumberFor<B>: Into<u32>,
     {
@@ -59,14 +59,14 @@ impl<B: BlockT> DatabaseActor<B> {
 
     // Returns true if all versions are in database
     // false if versions are missing
-    async fn db_contains_metadata(blocks: &[Block<B>], conn: &mut DbConn) -> ArchiveResult<bool> {
+    async fn db_contains_metadata(blocks: &[Block<B>], conn: &mut DbConn) -> Result<bool> {
         let specs: hashbrown::HashSet<u32> = blocks.iter().map(|b| b.spec).collect();
         let versions: hashbrown::HashSet<u32> =
             queries::get_versions(conn).await?.into_iter().collect();
         Ok(specs.is_subset(&versions))
     }
 
-    async fn batch_block_handler(&self, blks: BatchBlock<B>) -> ArchiveResult<()>
+    async fn batch_block_handler(&self, blks: BatchBlock<B>) -> Result<()>
     where
         NumberFor<B>: Into<u32>,
     {
@@ -83,7 +83,7 @@ impl<B: BlockT> DatabaseActor<B> {
         Ok(())
     }
 
-    async fn storage_handler(&self, storage: Storage<B>) -> ArchiveResult<()> {
+    async fn storage_handler(&self, storage: Storage<B>) -> Result<()> {
         let mut conn = self.db.conn().await?;
         while !queries::contains_block::<B>(*storage.hash(), &mut conn).await? {
             timer::Delay::new(std::time::Duration::from_millis(10)).await;
@@ -94,7 +94,7 @@ impl<B: BlockT> DatabaseActor<B> {
         Ok(())
     }
 
-    async fn batch_storage_handler(&self, storage: Vec<Storage<B>>) -> ArchiveResult<()> {
+    async fn batch_storage_handler(&self, storage: Vec<Storage<B>>) -> Result<()> {
         let mut conn = self.db.conn().await?;
         let block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
         log::trace!("Inserting: {:#?}", block_nums);
@@ -210,7 +210,7 @@ impl StateResponse {
 }
 
 impl Message for GetState {
-    type Result = ArchiveResult<StateResponse>;
+    type Result = Result<StateResponse>;
 }
 
 #[async_trait::async_trait]
@@ -219,7 +219,7 @@ impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
         &mut self,
         msg: GetState,
         _: &mut Context<Self>,
-    ) -> ArchiveResult<StateResponse> {
+    ) -> Result<StateResponse> {
         match msg {
             GetState::Conn => {
                 let conn = self.db.conn().await?;

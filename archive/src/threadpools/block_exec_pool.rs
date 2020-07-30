@@ -18,7 +18,7 @@
 
 use crate::{
     backend::{ApiAccess, BlockChanges, BlockExecutor, ReadOnlyBackend as Backend},
-    error::{ArchiveResult, Error as ArchiveError},
+    error::{Error, Result},
     types::{self, PriorityIdent, ThreadPool},
 };
 use sc_client_api::backend;
@@ -64,7 +64,7 @@ where
         num_threads: Option<usize>,
         client: Arc<Api>,
         backend: Arc<Backend<B>>,
-    ) -> Result<Self, ArchiveError> {
+    ) -> Result<Self> {
         // channel pair for sending and receiving BlockChanges
 
         let pool = rayon::ThreadPoolBuilder::new()
@@ -85,7 +85,7 @@ where
         client: &Arc<Api>,
         backend: &Arc<Backend<B>>,
         sender: &flume::Sender<BlockChanges<B>>,
-    ) -> Result<(), ArchiveError> {
+    ) -> Result<()> {
         let api = client.runtime_api();
 
         // don't execute genesis block
@@ -118,7 +118,7 @@ where
         &self,
         blocks: Vec<types::Block<B>>,
         sender: flume::Sender<BlockChanges<B>>,
-    ) -> Result<usize, ArchiveError> {
+    ) -> Result<usize> {
         let len = blocks.len();
 
         for blocks in blocks.chunks(5) {
@@ -155,7 +155,7 @@ where
         &self,
         d: Vec<types::Block<B>>,
         tx: flume::Sender<BlockChanges<B>>,
-    ) -> ArchiveResult<usize> {
+    ) -> Result<usize> {
         self.add_vec_task(d, tx)
     }
 }

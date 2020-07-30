@@ -18,7 +18,7 @@
 
 use super::ReadOnlyBackend;
 use crate::{
-    error::{ArchiveResult, Error},
+    error::{Error, Result},
     types::Block,
 };
 use arc_swap::ArcSwap;
@@ -79,7 +79,7 @@ impl<B: BlockT> RuntimeVersionCache<B> {
     /// Get a version of the runtime for some Block Hash
     /// Prefer `find_versions` when trying to get the runtime versions for
     /// many consecutive blocks
-    pub fn get(&self, hash: B::Hash) -> ArchiveResult<Option<RuntimeVersion>> {
+    pub fn get(&self, hash: B::Hash) -> Result<Option<RuntimeVersion>> {
         // Getting code from the backend is the slowest part of this. Takes an average of
         // 6ms
         let code = self
@@ -109,7 +109,7 @@ impl<B: BlockT> RuntimeVersionCache<B> {
     }
 
     /// Recursively finds the versions of all the blocks while minimizing reads/calls to the backend.
-    pub fn find_versions(&self, blocks: &[SignedBlock<B>]) -> ArchiveResult<Vec<VersionRange<B>>> {
+    pub fn find_versions(&self, blocks: &[SignedBlock<B>]) -> Result<Vec<VersionRange<B>>> {
         let mut versions = Vec::new();
         self.find_pivot(blocks, &mut versions)?;
         Ok(versions)
@@ -120,10 +120,7 @@ impl<B: BlockT> RuntimeVersionCache<B> {
     ///
     /// # Panics
     /// panics if our search fails to get the version for a block
-    pub fn find_versions_as_blocks(
-        &self,
-        blocks: Vec<SignedBlock<B>>,
-    ) -> ArchiveResult<Vec<Block<B>>>
+    pub fn find_versions_as_blocks(&self, blocks: Vec<SignedBlock<B>>) -> Result<Vec<Block<B>>>
     where
         NumberFor<B>: Into<u32>,
     {
@@ -147,7 +144,7 @@ impl<B: BlockT> RuntimeVersionCache<B> {
         &self,
         blocks: &[SignedBlock<B>],
         versions: &mut Vec<VersionRange<B>>,
-    ) -> ArchiveResult<()> {
+    ) -> Result<()> {
         if blocks.is_empty() {
             return Ok(());
         } else if blocks.len() == 1 {
@@ -205,7 +202,7 @@ impl<B: BlockT> VersionRange<B> {
     }
 }
 
-fn decode_version(version: &[u8]) -> ArchiveResult<sp_version::RuntimeVersion> {
+fn decode_version(version: &[u8]) -> Result<sp_version::RuntimeVersion> {
     let v: RuntimeVersion = sp_api::OldRuntimeVersion::decode(&mut &version[..])?.into();
     let core_api_id = sp_core::hashing::blake2_64(b"Core");
     if v.has_api_with(&core_api_id, |v| v >= 3) {

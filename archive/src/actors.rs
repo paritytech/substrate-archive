@@ -25,7 +25,7 @@ mod workers;
 pub use self::workers::msg;
 use super::{
     backend::{ApiAccess, Meta, ReadOnlyBackend},
-    error::{ArchiveResult, Error as ArchiveError},
+    error::{Error, Result},
     threadpools::ThreadedBlockExecutor,
     types::Archive,
 };
@@ -41,7 +41,7 @@ use xtra::prelude::*;
 
 struct Die;
 impl Message for Die {
-    type Result = ArchiveResult<()>;
+    type Result = Result<()>;
 }
 
 /// Context that every actor may use
@@ -126,7 +126,7 @@ where
         workers: Option<usize>,
         url: String,
         psql_url: &str,
-    ) -> ArchiveResult<Self> {
+    ) -> Result<Self> {
         let context = ActorContext::new(backend.clone(), url, psql_url.to_string());
         let executor = ThreadedBlockExecutor::new(client_api.clone(), backend, workers)?;
 
@@ -152,7 +152,7 @@ where
     }
 
     /// Start the actors and begin driving their execution
-    pub async fn drive(&mut self) -> ArchiveResult<()> {
+    pub async fn drive(&mut self) -> Result<()> {
         let ctx = self.context.clone();
 
         let db = workers::DatabaseActor::<B>::new(ctx.psql_url().into()).await?;
@@ -199,7 +199,7 @@ where
     B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,
 {
-    async fn drive(&mut self) -> Result<(), ArchiveError> {
+    async fn drive(&mut self) -> Result<()> {
         System::drive(self).await
     }
 
@@ -207,7 +207,7 @@ where
         System::block_until_stopped(self).await
     }
 
-    fn shutdown(mut self) -> Result<(), ArchiveError> {
+    fn shutdown(mut self) -> Result<()> {
         if let Some(c) = self.context.backend().backing_db().catch_up_count() {
             log::info!("Caught Up {} times", c);
         }
@@ -218,7 +218,7 @@ where
         Ok(())
     }
 
-    fn boxed_shutdown(mut self: Box<Self>) -> Result<(), ArchiveError> {
+    fn boxed_shutdown(mut self: Box<Self>) -> Result<()> {
         if let Some(c) = self.context.backend().backing_db().catch_up_count() {
             log::info!("Caught Up {} times", c);
         }
@@ -229,7 +229,7 @@ where
         Ok(())
     }
 
-    fn context(&self) -> Result<super::actors::ActorContext<B>, ArchiveError> {
+    fn context(&self) -> Result<super::actors::ActorContext<B>> {
         Ok(self.context.clone())
     }
 }

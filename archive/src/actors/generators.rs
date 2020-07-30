@@ -19,9 +19,7 @@ use super::{
     actor_pool::ActorPool,
     workers::{DatabaseActor, GetState},
 };
-use crate::{
-    error::ArchiveResult, queries, sql_block_builder::BlockBuilder, threadpools::BlockData,
-};
+use crate::{error::Result, queries, sql_block_builder::BlockBuilder, threadpools::BlockData};
 use flume::Sender;
 use sp_runtime::traits::Block as BlockT;
 use sqlx::{pool::PoolConnection, Postgres};
@@ -49,7 +47,7 @@ impl<B: BlockT> Generator<B> {
     }
 
     ///  Spawn the tasks which collect un-indexed data
-    pub fn start(self) -> ArchiveResult<()> {
+    pub fn start(self) -> Result<()> {
         let tx_block = self.tx_block.clone();
         crate::util::spawn(async move {
             let conn0 = self.addr.send(GetState::Conn.into()).await?.await?.conn();
@@ -63,7 +61,7 @@ impl<B: BlockT> Generator<B> {
     /// Gets storage that is missing from the storage table
     /// by querying it against the blocks table
     /// This fills in storage that might've been missed by a shutdown
-    async fn storage(mut conn: Conn, tx_block: Sender<BlockData<B>>) -> ArchiveResult<()> {
+    async fn storage(mut conn: Conn, tx_block: Sender<BlockData<B>>) -> Result<()> {
         if queries::blocks_count(&mut conn).await? == 0 {
             // no blocks means we haven't indexed anything yet
             return Ok(());

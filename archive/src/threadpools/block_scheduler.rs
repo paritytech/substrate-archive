@@ -24,7 +24,7 @@
 //! that are being streamed
 
 use crate::{
-    error::{ArchiveResult, Error as ArchiveError},
+    error::{Result, Error as Error},
     types::*,
     util::make_hash,
 };
@@ -157,7 +157,7 @@ where
         }
     }
 
-    pub fn check_work(&mut self) -> ArchiveResult<Vec<O>> {
+    pub fn check_work(&mut self) -> Result<Vec<O>> {
         // we try to maintain a MAX queue of max_size tasks at a time in the threadpool
         let delta = self.added - self.finished;
         if self.finished == 0 && self.added == 0 {
@@ -184,7 +184,7 @@ where
         Ok(out)
     }
 
-    fn add_work(&mut self, to_add: usize) -> ArchiveResult<()> {
+    fn add_work(&mut self, to_add: usize) -> Result<()> {
         let mut sorted = BinaryHeap::new();
         std::mem::swap(&mut self.queue, &mut sorted);
 
@@ -199,13 +199,13 @@ where
         let to_insert = if sorted.len() > to_add {
             sorted
                 .drain(0..to_add)
-                .map(|b| Decode::decode(&mut b.enc.as_slice()).map_err(ArchiveError::from))
-                .collect::<ArchiveResult<Vec<I>>>()?
+                .map(|b| Decode::decode(&mut b.enc.as_slice()).map_err(Error::from))
+                .collect::<Result<Vec<I>>>()?
         } else {
             sorted
                 .drain(0..)
-                .map(|b| Decode::decode(&mut b.enc.as_slice()).map_err(ArchiveError::from))
-                .collect::<ArchiveResult<Vec<I>>>()?
+                .map(|b| Decode::decode(&mut b.enc.as_slice()).map_err(Error::from))
+                .collect::<Result<Vec<I>>>()?
         };
         if matches!(self.ordering, Ordering::Descending) {
             sorted.reverse();
