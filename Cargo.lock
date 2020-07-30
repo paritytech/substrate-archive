@@ -292,24 +292,12 @@ checksum = "c17772156ef2829aadc587461c7753af20b7e8db1529bc66855add962a3b35d3"
 
 [[package]]
 name = "async-tls"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95fd83426b89b034bf4e9ceb9c533c2f2386b813fd3dcae0a425ec6f1837d78a"
-dependencies = [
- "futures 0.3.5",
- "rustls 0.17.0",
- "webpki",
- "webpki-roots 0.19.0",
-]
-
-[[package]]
-name = "async-tls"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df097e3f506bec0e1a24f06bb3c962c228f36671de841ff579cb99f371772634"
 dependencies = [
  "futures 0.3.5",
- "rustls 0.18.0",
+ "rustls",
  "webpki",
  "webpki-roots 0.19.0",
 ]
@@ -2032,16 +2020,6 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96282e96bfcd3da0d3aa9938bedf1e50df3269b6db08b4876d2da0bb1a0841cf"
-dependencies = [
- "ahash 0.3.8",
- "autocfg 1.0.0",
-]
-
-[[package]]
-name = "hashbrown"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34f595585f103464d8d2f6e9864682d74c1601fed5e07d62b1c9058dba8246fb"
@@ -2248,7 +2226,7 @@ dependencies = [
  "futures-util",
  "hyper 0.13.7",
  "log 0.4.11",
- "rustls 0.18.0",
+ "rustls",
  "rustls-native-certs",
  "tokio 0.2.22",
  "tokio-rustls",
@@ -2570,49 +2548,6 @@ dependencies = [
  "parking_lot 0.10.2",
  "slab",
  "ws",
-]
-
-[[package]]
-name = "jsonrpsee"
-version = "1.0.0"
-source = "git+https://github.com/dt665m/jsonrpsee?branch=feature/client-error-handling#50b610b32245d8b2adc127079a8fa5c97cb36473"
-dependencies = [
- "async-std",
- "async-tls 0.7.0",
- "bs58",
- "bytes 0.5.6",
- "fnv",
- "futures 0.3.5",
- "futures-timer 3.0.2",
- "globset",
- "hashbrown 0.7.2",
- "hyper 0.13.7",
- "jsonrpsee-proc-macros",
- "lazy_static",
- "log 0.4.11",
- "parking_lot 0.10.2",
- "pin-project",
- "rand 0.7.3",
- "serde",
- "serde_json",
- "smallvec 1.4.1",
- "soketto",
- "thiserror",
- "tokio 0.2.22",
- "unicase",
- "url 2.1.1",
- "webpki",
-]
-
-[[package]]
-name = "jsonrpsee-proc-macros"
-version = "1.0.0"
-source = "git+https://github.com/dt665m/jsonrpsee?branch=feature/client-error-handling#50b610b32245d8b2adc127079a8fa5c97cb36473"
-dependencies = [
- "Inflector",
- "proc-macro2 1.0.19",
- "quote 1.0.7",
- "syn 1.0.36",
 ]
 
 [[package]]
@@ -3058,13 +2993,13 @@ version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "046a5201f6e471f22b22b394e4d084269ed1e28cf7300f7b49874385db84c7bd"
 dependencies = [
- "async-tls 0.8.0",
+ "async-tls",
  "either",
  "futures 0.3.5",
  "libp2p-core",
  "log 0.4.11",
  "quicksink",
- "rustls 0.18.0",
+ "rustls",
  "rw-stream-sink",
  "soketto",
  "url 2.1.1",
@@ -5741,19 +5676,6 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0d4a31f5d68413404705d6982529b0e11a9aacd4839d1d6222ee3b8cb4015e1"
-dependencies = [
- "base64 0.11.0",
- "log 0.4.11",
- "ring",
- "sct",
- "webpki",
-]
-
-[[package]]
-name = "rustls"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cac94b333ee2aac3284c5b8a1b7fb4dd11cba88c244e3fe33cdbd047af0eb693"
@@ -5772,7 +5694,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "629d439a7672da82dd955498445e496ee2096fe2117b9f796558a43fdb9e59b8"
 dependencies = [
  "openssl-probe",
- "rustls 0.18.0",
+ "rustls",
  "schannel",
  "security-framework 1.0.0",
 ]
@@ -7973,7 +7895,6 @@ dependencies = [
  "itertools 0.9.0",
  "itoa",
  "jod-thread",
- "jsonrpsee",
  "kvdb",
  "kvdb-rocksdb",
  "log 0.4.11",
@@ -8488,7 +8409,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "228139ddd4fea3fa345a29233009635235833e52807af7ea6448ead03890d6a9"
 dependencies = [
  "futures-core",
- "rustls 0.18.0",
+ "rustls",
  "tokio 0.2.22",
  "webpki",
 ]

@@ -162,6 +162,8 @@ impl<B: BlockT> Handler<Storage<B>> for DatabaseActor<B> {
         }
     }
 }
+
+#[derive(Debug)]
 pub struct VecStorageWrap<B: BlockT>(pub Vec<Storage<B>>);
 
 impl<B: BlockT> Message for VecStorageWrap<B> {
@@ -182,13 +184,15 @@ impl<B: BlockT> Handler<VecStorageWrap<B>> for DatabaseActor<B> {
 // this is an enum in case there is some more state
 // that might be needed in the future
 /// Get Some State from the Database Actor
+#[derive(Debug)]
 pub enum GetState {
     Conn,
 }
 
-/// A resposne to `GetState`
+/// A response to `GetState`
 /// it is callers responsiblity to make sure to call the
 /// correct method on the implement after receiving the message
+#[derive(Debug)]
 pub enum StateResponse {
     Conn(DbConn),
 }

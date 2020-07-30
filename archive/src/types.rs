@@ -34,7 +34,10 @@ pub trait PriorityIdent {
 }
 
 #[async_trait::async_trait(?Send)]
-pub trait Archive<B: BlockT> {
+pub trait Archive<B: BlockT + Unpin>
+where
+    B::Hash: Unpin,
+{
     /// start driving the execution of the archive
     async fn drive(&mut self) -> Result<(), ArchiveError>;
 

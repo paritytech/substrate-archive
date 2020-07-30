@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 // #![allow(warnings)]
-#![forbid(unsafe_code)]
+// #![forbid(unsafe_code)]
 
 mod actors;
 pub mod archive;
@@ -23,7 +23,7 @@ pub mod backend;
 mod database;
 mod error;
 mod migrations;
-mod rpc;
+// mod rpc;
 #[cfg(test)]
 mod simple_db;
 mod sql_block_builder;

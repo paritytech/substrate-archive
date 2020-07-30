@@ -46,13 +46,19 @@ impl Message for Die {
 
 /// Context that every actor may use
 #[derive(Clone)]
-pub struct ActorContext<Block: BlockT> {
+pub struct ActorContext<Block: BlockT + Unpin>
+where
+    Block::Hash: Unpin,
+{
     backend: Arc<ReadOnlyBackend<Block>>,
     rpc_url: String,
     psql_url: String,
 }
 
-impl<Block: BlockT> ActorContext<Block> {
+impl<Block: BlockT + Unpin> ActorContext<Block>
+where
+    Block::Hash: Unpin,
+{
     pub fn new(backend: Arc<ReadOnlyBackend<Block>>, rpc_url: String, psql_url: String) -> Self {
         Self {
             backend,
@@ -77,6 +83,7 @@ impl<Block: BlockT> ActorContext<Block> {
 pub struct System<Block, R, C>
 where
     Block: BlockT + Unpin,
+    Block::Hash: Unpin,
     NumberFor<Block>: Into<u32>,
 {
     context: ActorContext<Block>,
@@ -158,7 +165,6 @@ where
         let ag = Aggregator::new(ctx.clone(), tx_block.clone(), meta_addr, db_pool.clone())
             .await?
             .spawn();
-
         let blocks_indexer =
             blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), ag.clone()).spawn();
         let exec_stream = self.executor.get_stream();
@@ -180,6 +186,7 @@ where
 impl<B, R, C> Archive<B> for System<B, R, C>
 where
     B: BlockT + Unpin,
+    B::Hash: Unpin,
     R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + sp_api::Metadata<B, Error = sp_blockchain::Error>
@@ -226,7 +233,7 @@ where
         Ok(self.context.clone())
     }
 }
-
+/*
 /// connect to the substrate RPC
 /// each actor may potentially have their own RPC connections
 async fn connect<Block: BlockT>(url: &str) -> crate::rpc::Rpc<Block> {
@@ -234,3 +241,4 @@ async fn connect<Block: BlockT>(url: &str) -> crate::rpc::Rpc<Block> {
         .await
         .expect("Couldn't connect to rpc")
 }
+*/

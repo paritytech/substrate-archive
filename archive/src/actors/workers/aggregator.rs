@@ -119,9 +119,9 @@ type DatabaseAct<B> = Address<super::ActorPool<super::DatabaseActor<B>>>;
 
 impl<B> Aggregator<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
+    B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
-    NumberFor<B>: From<u32>,
 {
     pub async fn new(
         ctx: ActorContext<B>,
@@ -129,7 +129,6 @@ where
         meta: Address<super::Metadata<B>>,
         db_pool: DatabaseAct<B>,
     ) -> ArchiveResult<Self> {
-        let rpc_url = ctx.rpc_url().to_string();
         super::Generator::new(db_pool.clone(), tx_block.clone()).start()?;
         let (senders, recvs) = queues();
 
@@ -150,7 +149,8 @@ impl<B: BlockT> Message for BlockChanges<B> {
 
 impl<B> Actor for Aggregator<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
+    B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
     fn started(&mut self, ctx: &mut Context<Self>) {
@@ -159,20 +159,30 @@ where
             self.senders = sends;
             self.recvs = Some(recvs);
         }
+        let addr = ctx.address().expect("Just started actor");
         let this = self.recvs.take().expect("checked for none; qed");
-        ctx.notify_interval(Duration::from_millis(SYSTEM_TICK), move || {
-            this.storage_recv
-                .drain()
-                .map(Storage::from)
-                .zip_longest(this.block_recv.drain())
-                .collect::<BlockStorageCombo<B>>()
-        });
+        smol::Task::spawn(async move {
+            loop {
+                smol::Timer::new(Duration::from_millis(SYSTEM_TICK)).await;
+                let msg = this
+                    .storage_recv
+                    .drain()
+                    .map(Storage::from)
+                    .zip_longest(this.block_recv.drain())
+                    .collect::<BlockStorageCombo<B>>();
+                if let Err(_) = addr.send(msg).await {
+                    break;
+                }
+            }
+        })
+        .detach();
     }
 }
 
 impl<B> SyncHandler<BlockChanges<B>> for Aggregator<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
+    B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, changes: BlockChanges<B>, _: &mut Context<Self>) -> bool {
@@ -188,7 +198,8 @@ where
 
 impl<B> SyncHandler<Block<B>> for Aggregator<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
+    B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, block: Block<B>, c: &mut Context<Self>) {
@@ -204,7 +215,8 @@ where
 
 impl<B> SyncHandler<BatchBlock<B>> for Aggregator<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
+    B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, blocks: BatchBlock<B>, c: &mut Context<Self>) {
@@ -245,7 +257,8 @@ impl<B: BlockT> FromIterator<EitherOrBoth<Storage<B>, Block<B>>> for BlockStorag
 #[async_trait::async_trait]
 impl<B> Handler<BlockStorageCombo<B>> for Aggregator<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
+    B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, data: BlockStorageCombo<B>, _: &mut Context<Self>) {
@@ -271,7 +284,8 @@ where
                 self.db_pool
                     .send(storage.into())
                     .await
-                    .expect("Actor Disconnected");
+                    .expect("Actor Disconnected")
+                    .await;
                 log::info!("Indexing Storage {} bps", s);
                 self.last_count_was_0 = false;
             }
@@ -279,7 +293,8 @@ where
                 self.db_pool
                     .send(storage.into())
                     .await
-                    .expect("Actor Disconnected");
+                    .expect("Actor Disconnected")
+                    .await;
                 self.meta_addr
                     .send(blocks)
                     .await
@@ -305,7 +320,8 @@ impl<B: BlockT> Message for IncomingData<B> {
 
 impl<B> SyncHandler<IncomingData<B>> for Aggregator<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
+    B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, data: IncomingData<B>, c: &mut Context<Self>) {
@@ -326,7 +342,8 @@ where
 
 impl<B> SyncHandler<Die> for Aggregator<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
+    B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, _: Die, c: &mut Context<Self>) -> ArchiveResult<()> {

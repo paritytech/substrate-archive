@@ -18,13 +18,11 @@ use super::{
     workers::{Aggregator, DatabaseActor, GetState},
 };
 use crate::{
-    backend::{ReadOnlyBackend, RuntimeVersionCache, VersionRange},
+    backend::{ReadOnlyBackend, RuntimeVersionCache},
     error::{ArchiveResult, Error},
     queries,
     types::{BatchBlock, Block},
 };
-use futures::{Stream, StreamExt};
-use rayon::prelude::*;
 use sp_runtime::{
     generic::SignedBlock,
     traits::{Block as BlockT, Header as _, NumberFor},
@@ -37,6 +35,8 @@ type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
 pub struct BlocksIndexer<B: BlockT>
 where
     NumberFor<B>: Into<u32>,
+    B: Unpin,
+    B::Hash: Unpin,
 {
     /// background task to crawl blocks
     backend: Arc<ReadOnlyBackend<B>>,
@@ -49,6 +49,7 @@ where
 
 impl<B: BlockT + Unpin> BlocksIndexer<B>
 where
+    B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
     pub fn new(
@@ -72,22 +73,24 @@ where
         fun: impl Fn(u32) -> bool + Send + 'static,
     ) -> ArchiveResult<Vec<Block<B>>> {
         let backend = self.backend.clone();
-        log::info!("Loading blocks from the chain...");
         let now = std::time::Instant::now();
         let gather_blocks = move || -> ArchiveResult<Vec<SignedBlock<B>>> {
             Ok(backend
                 .iter_blocks(|n| fun(n))?
                 .enumerate()
-                .inspect(|(i, b)| {
+                .inspect(|(i, _)| {
                     if i % 100_000 == 0 {
-                        log::info!("Last block loaded {}", b.block.header().number());
+                        log::info!("Loaded {} blocks from chain backend", i);
                     }
                 })
                 .map(|(_, b)| b)
                 .collect())
         };
         let blocks = smol::unblock!(gather_blocks())?;
-        log::info!("Took {:?} to get blocks", now.elapsed());
+        let elapsed = now.elapsed();
+        if elapsed > std::time::Duration::from_secs(5) {
+            log::info!("Took {:?} to get blocks", now.elapsed());
+        }
         let cache = self.rt_cache.clone();
         let blocks = smol::unblock!(cache.find_versions_as_blocks(blocks))?;
         Ok(blocks)
@@ -99,15 +102,13 @@ where
     async fn re_index(&mut self) -> ArchiveResult<Vec<Block<B>>> {
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
         let numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
+        let len = numbers.len();
+        log::info!("{} missing blocks", len);
+        self.last_max = queries::max_block(&mut conn).await?;
         if numbers.is_empty() {
             return Ok(Vec::new());
         }
-        let len = numbers.len();
-        log::info!("{} missing blocks", len);
-
         let blocks = self.collect_blocks(move |n| numbers.contains(&n)).await?;
-        self.last_max = queries::max_block(&mut conn).await?;
-        log::info!("new max: {}", self.last_max);
         Ok(blocks)
     }
 
@@ -127,12 +128,14 @@ impl<B: BlockT> Actor for BlocksIndexer<B>
 where
     NumberFor<B>: Into<u32>,
     B: Unpin,
+    B::Hash: Unpin,
 {
     fn started(&mut self, ctx: &mut Context<Self>) {
-        let this = ctx.address().expect("Actor just started");
         // using this instead of notify_immediately because
         // ReIndexing is async process
-        this.do_send(ReIndex)
+        ctx.address()
+            .expect("Actor just started")
+            .do_send(ReIndex)
             .expect("Actor cannot be disconnected; just started");
         ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl);
     }
@@ -147,9 +150,9 @@ impl Message for Crawl {
 impl<B: BlockT + Unpin> Handler<Crawl> for BlocksIndexer<B>
 where
     NumberFor<B>: Into<u32>,
+    B::Hash: Unpin,
 {
     async fn handle(&mut self, _: Crawl, ctx: &mut Context<Self>) {
-        log::info!("Crawling for blocks");
         match self.crawl().await {
             Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
@@ -170,6 +173,7 @@ impl Message for ReIndex {
 impl<B: BlockT + Unpin> Handler<ReIndex> for BlocksIndexer<B>
 where
     NumberFor<B>: Into<u32>,
+    B::Hash: Unpin,
 {
     async fn handle(&mut self, _: ReIndex, ctx: &mut Context<Self>) {
         log::info!("Beginning to index blocks..");
