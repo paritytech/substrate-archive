@@ -29,7 +29,7 @@ use xtra::prelude::*;
 use xtra::{Disconnected, WeakAddress};
 
 // TODO: Could restart actors which have panicked
-
+// TODO: If an actor disconnects remove it from the queue
 /// A pool of one type of Actor
 /// will distribute work to all actors in the pool
 pub struct ActorPool<A: Actor> {
@@ -115,25 +115,16 @@ where
     // `Sync` Cell<bool>
     let (mut tx, mut rx) = futures::channel::mpsc::channel(0);
 
-    let handle = smol::Task::spawn(async move {
-        // log::info!("RECEIVED SUCCESSFULLY");
-        rx.next().await.map(|r: R| r).expect("One Shot")
-    });
+    let handle = smol::Task::spawn(async move { rx.next().await.map(|r: R| r).expect("One Shot") });
     let fut = async move {
         match fut.await {
             Ok(v) => {
-                if let Err(_) = tx.send(v).await {
-                    // log::error!("{:?}", e);
-                    // log::warn!("channel disconnected");
-                } else {
-                    // log::info!("SENT SUCCESFULLY");
-                }
+                let _ = tx.send(v).await;
             }
             Err(_) => {
                 log::error!(
                     "One of the pooled db actors has disconnected. could not send message."
                 );
-                panic!("Actor Disconnected");
             }
         };
     };
