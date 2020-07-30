@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::{Error, Result};
+use crate::error::Result;
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
@@ -111,10 +111,6 @@ impl<B: BlockT> BatchBlock<B> {
 
     pub fn inner(&self) -> &Vec<Block<B>> {
         &self.inner
-    }
-
-    pub fn mut_inner(&mut self) -> &mut [Block<B>] {
-        self.inner.as_mut_slice()
     }
 }
 

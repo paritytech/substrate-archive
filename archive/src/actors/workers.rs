@@ -22,8 +22,8 @@ pub use self::aggregator::Aggregator;
 pub use self::database::GetState;
 pub use self::metadata::Metadata;
 
+use super::actor_pool::ActorPool;
 pub use super::generators::Generator;
-use super::{actor_pool::ActorPool, ActorContext};
 pub use database::DatabaseActor;
 
 /// any messages defined in the workers

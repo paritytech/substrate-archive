@@ -43,7 +43,7 @@ use sp_runtime::{
     traits::{Block as BlockT, HashFor, Header},
     Justification,
 };
-use std::{convert::TryInto, marker::PhantomData, sync::Arc};
+use std::{convert::TryInto, sync::Arc};
 
 pub struct ReadOnlyBackend<Block: BlockT> {
     db: Arc<ReadOnlyDatabase>,
@@ -196,21 +196,6 @@ fn construct_block<Block: BlockT>(
             justification,
         }),
         _ => None,
-    }
-}
-
-/// a bytestring that represents some part of a Block
-struct BlockBytes<B: BlockT> {
-    bytes: Vec<u8>,
-    _marker: PhantomData<B>,
-}
-
-impl<B: BlockT> From<Vec<u8>> for BlockBytes<B> {
-    fn from(bytes: Vec<u8>) -> BlockBytes<B> {
-        BlockBytes {
-            bytes,
-            _marker: PhantomData,
-        }
     }
 }
 

@@ -53,7 +53,7 @@ impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
         match res {
             Some(justification) => match Decode::decode(&mut &justification[..]) {
                 Ok(justification) => Ok(Some(justification)),
-                Err(err) => Err(BlockchainError::Msg(
+                Err(_) => Err(BlockchainError::Msg(
                     "Could not decode block justification".into(),
                 )),
             },

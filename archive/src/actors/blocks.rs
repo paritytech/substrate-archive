@@ -19,7 +19,7 @@ use super::{
 };
 use crate::{
     backend::{ReadOnlyBackend, RuntimeVersionCache},
-    error::{Error, Result},
+    error::Result,
     queries,
     types::{BatchBlock, Block},
 };

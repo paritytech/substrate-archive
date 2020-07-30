@@ -16,10 +16,9 @@
 
 pub use self::block_exec_pool::BlockData;
 use self::block_exec_pool::BlockExecPool;
-// use self::block_fetcher::ThreadedBlockFetcher;
 use self::block_scheduler::BlockScheduler;
 use crate::backend::{ApiAccess, BlockChanges, ReadOnlyBackend as Backend};
-use crate::{actors::ActorContext, error::Result, types::Block};
+use crate::error::Result;
 use block_scheduler::Ordering;
 use futures::{Stream, StreamExt};
 use sc_client_api::backend;
@@ -28,93 +27,7 @@ use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::{sync::Arc, thread, time::Duration};
 mod block_exec_pool;
-// mod block_fetcher;
 mod block_scheduler;
-
-// TODO: Can abstract these two structs into just something that implements a trait. Or
-// create another generic struct that creates a thread and schedules tasks. This is mostly redundant code.
-// this follows a similar API to xtra's Actor/Address api (attach_stream)
-// maybe we could create an extension trait that is like Actix's Threadpooled Actors, but for xtra?
-// that is essentially what this is trying to be.
-/*
-/// A threadpool that gets blocks and their runtime versions from the rocksdb backend
-pub struct BlockFetcher<B>
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    sender: flume::Sender<u32>,
-    pair: (flume::Sender<Block<B>>, Option<flume::Receiver<Block<B>>>),
-    _handle: jod_thread::JoinHandle<Result<()>>,
-}
-
-impl<B> BlockFetcher<B>
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    pub fn new(ctx: ActorContext<B>, threads: Option<usize>) -> Result<Self> {
-        let (tx, rx) = flume::unbounded();
-        let (sender, receiver) = flume::unbounded();
-        let res_sender = sender.clone();
-        let handle = jod_thread::spawn(move || -> Result<()> {
-            let pool = ThreadedBlockFetcher::new(ctx, threads)?;
-            let mut pool = BlockScheduler::new("fetch", pool, 1000, Ordering::Ascending);
-            'sched: loop {
-                // ideally, there should be a way to check if senders
-                // have dropped: https://github.com/zesterer/flume/issues/32
-                // instead we just recv one message and see if it's disconnected
-                // before draining the queue
-                thread::sleep(Duration::from_millis(50));
-                match rx.try_recv() {
-                    Ok(v) => pool.add_data_single(v),
-                    Err(e) => match e {
-                        flume::TryRecvError::Disconnected => break 'sched,
-                        _ => (),
-                    },
-                }
-                pool.add_data(rx.drain().collect());
-                let work = pool.check_work()?;
-                for w in work.into_iter() {
-                    res_sender.send(w)?;
-                }
-            }
-            Ok(())
-        });
-
-        Ok(Self {
-            pair: (sender, Some(receiver)),
-            sender: tx,
-            _handle: handle,
-        })
-    }
-
-    /// attach a stream to this threadpool
-    /// Forwards all messages from the stream to the threadpool
-    pub fn attach_stream(&self, mut stream: impl Stream<Item = u32> + Send + Unpin + 'static) {
-        let tx = self.sender.clone();
-        crate::util::spawn(async move {
-            while let Some(m) = stream.next().await {
-                tx.send(m)?;
-            }
-            Ok(())
-        });
-    }
-
-    /// Convert this Threadpool into a stream of its outputs
-    ///
-    /// # Panics
-    /// panics if the stream has already been taken
-    pub fn get_stream(&mut self) -> impl Stream<Item = Block<B>> {
-        self.pair.1.take().unwrap()
-    }
-
-    /// get the channel to send work to this threadpool
-    pub fn sender(&self) -> flume::Sender<u32> {
-        self.sender.clone()
-    }
-}
-*/
 
 /// Threadpool that executes blocks
 pub struct ThreadedBlockExecutor<B>

@@ -48,11 +48,9 @@ impl<B: BlockT> Generator<B> {
 
     ///  Spawn the tasks which collect un-indexed data
     pub fn start(self) -> Result<()> {
-        let tx_block = self.tx_block.clone();
         crate::util::spawn(async move {
-            let conn0 = self.addr.send(GetState::Conn.into()).await?.await?.conn();
-            let conn1 = self.addr.send(GetState::Conn.into()).await?.await?.conn();
-            crate::util::spawn(Self::storage(conn0, self.tx_block));
+            let conn = self.addr.send(GetState::Conn.into()).await?.await?.conn();
+            crate::util::spawn(Self::storage(conn, self.tx_block));
             Ok(())
         });
         Ok(())
