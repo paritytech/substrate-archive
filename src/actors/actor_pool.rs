@@ -20,8 +20,8 @@
 
 use futures::{
     future::{Future, FutureExt},
-    sink::{Sink, SinkExt},
-    stream::{Stream, StreamExt},
+    sink::SinkExt,
+    stream::StreamExt,
 };
 use std::collections::VecDeque;
 use std::pin::Pin;

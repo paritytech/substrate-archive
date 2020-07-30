@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::ActorContext;
 use crate::{
     actors::Die,
     backend::BlockChanges,
@@ -124,7 +123,6 @@ where
     NumberFor<B>: Into<u32>,
 {
     pub async fn new(
-        ctx: ActorContext<B>,
         tx_block: Sender<BlockData<B>>,
         meta: Address<super::Metadata<B>>,
         db_pool: DatabaseAct<B>,

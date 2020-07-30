@@ -18,18 +18,10 @@
 //! Will try catching up with primary database on every `get()`
 
 use crate::error::Result;
-use codec::Decode;
-use kvdb::{DBTransaction, DBValue, KeyValueDB};
+use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
-use sp_runtime::traits::Block as BlockT;
-use std::{
-    convert::TryInto,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
 
@@ -86,63 +78,6 @@ impl ReadOnlyDatabase {
 
     pub fn iter<'a>(&'a self, col: u32) -> impl Iterator<Item = KeyValuePair> + 'a {
         self.inner.iter(col)
-    }
-
-    pub fn iter_headers<Block: BlockT, F>(self: Arc<Self>, fun: F)
-    where
-        F: Fn(Option<Block::Header>),
-    {
-        let db = self.clone();
-        self.inner
-            .iter(super::util::columns::KEY_LOOKUP)
-            .map(move |(key, value)| {
-                println!("KEY: {:#X?}", key);
-                db.get(super::util::columns::HEADER, value.as_ref())
-            })
-            .map(|h| match h {
-                Some(header) => match Block::Header::decode(&mut &header[..]) {
-                    Ok(header) => Some(header),
-                    Err(e) => {
-                        log::error!("{}", e.to_string());
-                        None
-                    }
-                },
-                None => None,
-            })
-            .for_each(|h| fun(h));
-    }
-
-    pub fn iter_from_headers<Block: BlockT, F>(self: Arc<Self>, block_num: u32, fun: F)
-    where
-        F: Fn(Option<Block::Header>),
-    {
-        let db = self.clone();
-        let key = super::util::number_index_key(block_num).unwrap();
-        self.inner
-            .iter_with_prefix(super::util::columns::KEY_LOOKUP, &key)
-            .filter(|(key, value)| {
-                // println!("Key length: {}", key.len());
-                // println!("Value (Header Query Key): {:#?}", value);
-                let arr: &[u8; 4] = key[0..4].try_into().unwrap();
-                let num = u32::from_be_bytes(*arr);
-                // println!("NUM: {}", num);
-                key.len() == 4
-            })
-            .map(move |(key, value)| {
-                println!("KEY: {:#X?}", key);
-                db.get(super::util::columns::HEADER, value.as_ref())
-            })
-            .map(|h| match h {
-                Some(header) => match Block::Header::decode(&mut &header[..]) {
-                    Ok(header) => Some(header),
-                    Err(e) => {
-                        log::error!("{}", e.to_string());
-                        None
-                    }
-                },
-                None => None,
-            })
-            .for_each(|h| fun(h));
     }
 
     pub fn try_catch_up_with_primary(&self) -> Result<()> {

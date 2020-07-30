@@ -25,12 +25,11 @@ mod workers;
 pub use self::workers::msg;
 use super::{
     backend::{ApiAccess, Meta, ReadOnlyBackend},
-    error::{Error, Result},
+    error::Result,
     threadpools::ThreadedBlockExecutor,
     types::Archive,
 };
 use sc_client_api::backend;
-use sp_api::Metadata;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
@@ -162,7 +161,7 @@ where
         let meta_addr = workers::Metadata::new(db_pool.clone(), self.meta.clone())
             .await?
             .spawn();
-        let ag = Aggregator::new(ctx.clone(), tx_block.clone(), meta_addr, db_pool.clone())
+        let ag = Aggregator::new(tx_block.clone(), meta_addr, db_pool.clone())
             .await?
             .spawn();
         let blocks_indexer =

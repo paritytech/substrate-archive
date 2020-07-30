@@ -23,7 +23,7 @@ use crate::{
 };
 use arc_swap::ArcSwap;
 use codec::Decode;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use sc_executor::sp_wasm_interface::HostFunctions;
 use sc_executor::{WasmExecutionMethod, WasmExecutor};
 use sp_core::traits::CallInWasmExt;

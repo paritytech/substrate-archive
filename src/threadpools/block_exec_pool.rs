@@ -18,7 +18,7 @@
 
 use crate::{
     backend::{ApiAccess, BlockChanges, BlockExecutor, ReadOnlyBackend as Backend},
-    error::{Error, Result},
+    error::Result,
     types::{self, PriorityIdent, ThreadPool},
 };
 use sc_client_api::backend;

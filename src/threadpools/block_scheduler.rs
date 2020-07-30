@@ -24,15 +24,13 @@
 //! that are being streamed
 
 use crate::{
-    error::{Result, Error as Error},
+    error::{Error, Result},
     types::*,
     util::make_hash,
 };
 use codec::{Decode, Encode};
 use hashbrown::HashSet;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::Hasher;
-use std::{collections::BinaryHeap, fmt::Debug, hash::Hash};
+use std::{collections::BinaryHeap, fmt::Debug};
 
 // TODO Get rid of the HashSet redundant checking for duplicates if possible.
 // TODO Just store generic strut instead of the encoded version of the struct.
