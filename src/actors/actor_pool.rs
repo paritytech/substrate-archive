@@ -18,7 +18,11 @@
 //! Messages that return nothing but an error may be sent to an asyncronous pool of actors
 //! if state is an actor may be pulled out of the pool
 
-use futures::future::{Future, FutureExt};
+use futures::{
+    future::{Future, FutureExt},
+    sink::{Sink, SinkExt},
+    stream::{Stream, StreamExt},
+};
 use std::collections::VecDeque;
 use std::pin::Pin;
 use xtra::prelude::*;
@@ -91,7 +95,8 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
         msg: M,
     ) -> Pin<Box<dyn Future<Output = M::Result> + Send + 'static>>
     where
-        M: Message,
+        M: Message + std::fmt::Debug + Send,
+        M::Result: std::fmt::Debug + Unpin + Send,
         A: Handler<M>,
     {
         self.queue.rotate_left(1);
@@ -103,19 +108,25 @@ fn spawn<R>(
     fut: impl Future<Output = Result<R, Disconnected>> + Send + 'static,
 ) -> Pin<Box<dyn Future<Output = R> + Send + 'static>>
 where
-    R: Send + 'static,
+    R: Send + 'static + Unpin + std::fmt::Debug,
 {
-    // we create a channel with a capacity of one so that
-    let (tx, mut rx) = flume::bounded(0);
+    // flume isn't used here because it doesn't allow sending across `await` bound after
+    // a move semantic (this might be a bug but i'm not sure), since every Sender includes a not
+    // `Sync` Cell<bool>
+    let (mut tx, mut rx) = futures::channel::mpsc::channel(0);
 
-    let handle =
-        smol::Task::spawn(async move { rx.recv_async().map(|r| r.expect("One shot")).await });
-    smol::Task::spawn(async move {
+    let handle = smol::Task::spawn(async move {
+        // log::info!("RECEIVED SUCCESSFULLY");
+        rx.next().await.map(|r: R| r).expect("One Shot")
+    });
+    let fut = async move {
         match fut.await {
             Ok(v) => {
-                if let Err(e) = smol::unblock!(tx.send(v)) {
-                    log::error!("{:?}", e);
-                    log::warn!("channel disconnected");
+                if let Err(_) = tx.send(v).await {
+                    // log::error!("{:?}", e);
+                    // log::warn!("channel disconnected");
+                } else {
+                    // log::info!("SENT SUCCESFULLY");
                 }
             }
             Err(_) => {
@@ -125,9 +136,8 @@ where
                 panic!("Actor Disconnected");
             }
         };
-    })
-    .detach();
-
+    };
+    smol::Task::spawn(fut).detach();
     handle.boxed()
 }
 
@@ -139,7 +149,7 @@ pub struct PoolMessage<M: Message + Send>(pub M);
 
 impl<M> Message for PoolMessage<M>
 where
-    M: Message + Send,
+    M: Message + Send + Unpin + std::fmt::Debug,
 {
     type Result = Pin<Box<dyn Future<Output = M::Result> + Send + 'static>>;
 }
@@ -147,7 +157,8 @@ where
 impl<A, M> SyncHandler<PoolMessage<M>> for ActorPool<A>
 where
     A: Actor + Send + Clone + Handler<M>,
-    M: Message + Send,
+    M: Message + Send + std::fmt::Debug + Unpin,
+    M::Result: Unpin + std::fmt::Debug,
 {
     fn handle(
         &mut self,

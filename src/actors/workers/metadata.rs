@@ -36,7 +36,7 @@ pub struct Metadata<B: BlockT> {
     meta: Meta<B>,
 }
 
-impl<B: BlockT> Metadata<B> {
+impl<B: BlockT + Unpin> Metadata<B> {
     pub async fn new(
         addr: Address<ActorPool<super::DatabaseActor<B>>>,
         meta: Meta<B>,
@@ -56,7 +56,7 @@ impl<B: BlockT> Metadata<B> {
             log::info!("Got metadata for version {}", ver);
             let meta: sp_core::Bytes = meta.into();
             let meta = MetadataT::new(ver, meta.0);
-            self.addr.send(meta.into()).await?;
+            self.addr.send(meta.into()).await?.await;
         }
         Ok(())
     }
@@ -67,7 +67,7 @@ impl<B: BlockT> Metadata<B> {
     {
         let hash = blk.inner.block.header().hash();
         self.meta_checker(blk.spec, hash).await?;
-        self.addr.send(blk.into()).await?;
+        self.addr.send(blk.into()).await?.await;
         Ok(())
     }
 
@@ -91,7 +91,7 @@ impl<B: BlockT> Metadata<B> {
         }
         log::info!("GOT METADATA");
         let len = blks.inner().len();
-        self.addr.send(blks.into()).await?;
+        self.addr.send(blks.into()).await?.await;
         log::info!("Sent {} blocks", len);
         Ok(())
     }
@@ -102,7 +102,7 @@ impl<B: BlockT> Actor for Metadata<B> {}
 #[async_trait::async_trait]
 impl<B> Handler<Block<B>> for Metadata<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
     NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, blk: Block<B>, _: &mut Context<Self>) {
@@ -115,7 +115,7 @@ where
 #[async_trait::async_trait]
 impl<B> Handler<BatchBlock<B>> for Metadata<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
     NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, blks: BatchBlock<B>, _: &mut Context<Self>) {

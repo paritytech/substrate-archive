@@ -23,7 +23,7 @@ pub use self::database::GetState;
 pub use self::metadata::Metadata;
 
 pub use super::generators::Generator;
-use super::{actor_pool::ActorPool, connect, ActorContext};
+use super::{actor_pool::ActorPool, ActorContext};
 pub use database::DatabaseActor;
 
 /// any messages defined in the workers

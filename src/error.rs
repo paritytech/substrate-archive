@@ -15,7 +15,6 @@
 
 use std::{env, io};
 use thiserror::Error;
-use xtra::prelude::*;
 
 pub type ArchiveResult<T> = std::result::Result<T, Error>;
 
@@ -38,10 +37,10 @@ pub enum Error {
     Migration(#[from] sqlx::migrate::MigrateError),
     #[error("blockchain error: {0}")]
     Blockchain(String),
-    #[error("JSONRPC request failed")]
-    RpcRequest(#[from] jsonrpsee::client::RequestError),
-    #[error("DNS error")]
-    Dns(#[from] jsonrpsee::transport::ws::WsNewDnsError),
+    // #[error("JSONRPC request failed")]
+    // RpcRequest(#[from] jsonrpsee::client::RequestError),
+    // #[error("DNS error")]
+    // Dns(#[from] jsonrpsee::transport::ws::WsNewDnsError),
     #[error("could not build threadpool")]
     ThreadPool(#[from] rayon::ThreadPoolBuildError),
     #[error(
