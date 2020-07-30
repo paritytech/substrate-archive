@@ -80,12 +80,12 @@ pub(crate) async fn missing_blocks_min_max(
     .collect())
 }
 
-pub(crate) async fn max_block(conn: &mut PgConnection) -> Result<u32> {
-    let row = sqlx::query_as::<_, (i32,)>("SELECT MAX(block_num) FROM blocks")
+pub(crate) async fn max_block(conn: &mut PgConnection) -> Result<Option<u32>> {
+    let row = sqlx::query_as::<_, (Option<i32>,)>("SELECT MAX(block_num) FROM blocks")
         .fetch_one(conn)
         .await?;
 
-    Ok(row.0 as u32)
+    Ok(row.0.map(|v| v as u32))
 }
 
 /// Will get blocks such that they exist in the `blocks` table but they
@@ -142,10 +142,7 @@ pub(crate) async fn check_if_meta_exists(spec: u32, conn: &mut PgConnection) -> 
     Ok(row.0)
 }
 
-pub(crate) async fn contains_block<B: BlockT>(
-    hash: B::Hash,
-    conn: &mut PgConnection,
-) -> Result<bool> {
+pub(crate) async fn has_block<B: BlockT>(hash: B::Hash, conn: &mut PgConnection) -> Result<bool> {
     let hash = hash.as_ref();
     let row: (bool,) = sqlx::query_as(r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash = $1)"#)
         .bind(hash)
@@ -155,7 +152,7 @@ pub(crate) async fn contains_block<B: BlockT>(
 }
 
 /// Returns a list of block_numbers, out of the passed-in blocknumbers, which exist in the database
-pub(crate) async fn contains_blocks<B: BlockT>(
+pub(crate) async fn has_blocks<B: BlockT>(
     nums: &[u32],
     conn: &mut PgConnection,
 ) -> Result<Vec<u32>> {

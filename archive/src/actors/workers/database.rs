@@ -20,6 +20,7 @@ use crate::queries;
 use crate::types::*;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
+use std::time::Duration;
 use xtra::prelude::*;
 
 #[derive(Clone)]
@@ -50,7 +51,7 @@ impl<B: BlockT> DatabaseActor<B> {
     {
         let mut conn = self.db.conn().await?;
         while !queries::check_if_meta_exists(blk.spec, &mut conn).await? {
-            timer::Delay::new(std::time::Duration::from_millis(20)).await;
+            smol::Timer::new(Duration::from_millis(20)).await;
         }
         std::mem::drop(conn);
         self.db.insert(blk).await?;
@@ -72,8 +73,7 @@ impl<B: BlockT> DatabaseActor<B> {
     {
         let mut conn = self.db.conn().await?;
         while !Self::db_contains_metadata(blks.inner(), &mut conn).await? {
-            log::warn!("DB NOT CONTAIN META");
-            timer::Delay::new(std::time::Duration::from_millis(50)).await;
+            smol::Timer::new(Duration::from_millis(50)).await;
         }
         std::mem::drop(conn);
         log::info!("Awaiting insert...");
@@ -85,8 +85,8 @@ impl<B: BlockT> DatabaseActor<B> {
 
     async fn storage_handler(&self, storage: Storage<B>) -> Result<()> {
         let mut conn = self.db.conn().await?;
-        while !queries::contains_block::<B>(*storage.hash(), &mut conn).await? {
-            timer::Delay::new(std::time::Duration::from_millis(10)).await;
+        while !queries::has_block::<B>(*storage.hash(), &mut conn).await? {
+            smol::Timer::new(Duration::from_millis(10)).await;
         }
         let storage = Vec::<StorageModel<B>>::from(storage);
         std::mem::drop(conn);
@@ -99,12 +99,12 @@ impl<B: BlockT> DatabaseActor<B> {
         let block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
         log::trace!("Inserting: {:#?}", block_nums);
         let len = block_nums.len();
-        while queries::contains_blocks::<B>(block_nums.as_slice(), &mut conn)
+        while queries::has_blocks::<B>(block_nums.as_slice(), &mut conn)
             .await?
             .len()
             != len
         {
-            timer::Delay::new(std::time::Duration::from_millis(50)).await;
+            smol::Timer::new(std::time::Duration::from_millis(50)).await;
         }
         // we drop the connection early so that the insert() has the use of all db connections
         std::mem::drop(conn);
@@ -141,7 +141,7 @@ where
         if let Err(e) = self.batch_block_handler(blks).await {
             log::error!("{}", e.to_string());
         }
-        log::debug!("TOOK {:?} to insert {} blocks", now.elapsed(), len);
+        log::debug!("Took {:?} to insert {} blocks", now.elapsed(), len);
     }
 }
 
@@ -215,11 +215,7 @@ impl Message for GetState {
 
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
-    async fn handle(
-        &mut self,
-        msg: GetState,
-        _: &mut Context<Self>,
-    ) -> Result<StateResponse> {
+    async fn handle(&mut self, msg: GetState, _: &mut Context<Self>) -> Result<StateResponse> {
         match msg {
             GetState::Conn => {
                 let conn = self.db.conn().await?;

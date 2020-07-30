@@ -99,17 +99,19 @@ where
     /// First run of indexing
     /// gets any blocks that are missing from database and indexes those
     /// sets the `last_max` value.
-    async fn re_index(&mut self) -> Result<Vec<Block<B>>> {
+    async fn re_index(&mut self) -> Result<Option<Vec<Block<B>>>> {
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
         let numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
         let len = numbers.len();
         log::info!("{} missing blocks", len);
-        self.last_max = queries::max_block(&mut conn).await?;
-        if numbers.is_empty() {
-            return Ok(Vec::new());
-        }
+        self.last_max = if let Some(m) = queries::max_block(&mut conn).await? {
+            m
+        } else {
+            // a `None` means that the blocks table is not populated yet
+            return Ok(None);
+        };
         let blocks = self.collect_blocks(move |n| numbers.contains(&n)).await?;
-        Ok(blocks)
+        Ok(Some(blocks))
     }
 
     async fn crawl(&mut self) -> Result<Vec<Block<B>>> {
@@ -119,7 +121,6 @@ where
             .iter()
             .map(|b| (*b.inner.block.header().number()).into())
             .fold(self.last_max, |ac, e| if e > ac { e } else { ac });
-        log::info!("new max: {}", self.last_max);
         Ok(blocks)
     }
 }
@@ -180,9 +181,11 @@ where
         match self.re_index().await {
             Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
-                if let Err(_) = self.ag.send(BatchBlock::new(b)).await {
-                    ctx.stop();
-                }
+                b.map(|b| {
+                    if let Err(_) = self.ag.do_send(BatchBlock::new(b)) {
+                        ctx.stop();
+                    }
+                });
             }
         }
     }

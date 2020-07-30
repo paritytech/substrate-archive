@@ -176,7 +176,7 @@ where
 
     pub async fn block_until_stopped(&self) {
         loop {
-            timer::Delay::new(std::time::Duration::from_secs(1)).await;
+            smol::Timer::new(std::time::Duration::from_millis(1000)).await;
         }
     }
 }

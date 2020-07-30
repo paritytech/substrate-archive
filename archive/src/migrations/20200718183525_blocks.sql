@@ -9,6 +9,6 @@ CREATE TABLE IF NOT EXISTS blocks (
   extrinsics_root bytea NOT NULL,
   digest bytea NOT NULL,
   ext bytea NOT NULL,
-  spec integer NOT NULL REFERENCES metadata(version) ON DELETE CASCADE ON UPDATE CASCADE
+  spec integer NOT NULL REFERENCES metadata(version)
 );
 

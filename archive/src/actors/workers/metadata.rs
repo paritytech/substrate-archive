@@ -67,7 +67,7 @@ impl<B: BlockT + Unpin> Metadata<B> {
     {
         let hash = blk.inner.block.header().hash();
         self.meta_checker(blk.spec, hash).await?;
-        self.addr.send(blk.into()).await?.await;
+        self.addr.send(blk.into()).await?;
         Ok(())
     }
 
@@ -91,7 +91,7 @@ impl<B: BlockT + Unpin> Metadata<B> {
         }
         log::info!("GOT METADATA");
         let len = blks.inner().len();
-        self.addr.send(blks.into()).await?.await;
+        self.addr.send(blks.into()).await?;
         log::info!("Sent {} blocks", len);
         Ok(())
     }

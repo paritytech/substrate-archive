@@ -282,8 +282,7 @@ where
                 self.db_pool
                     .send(storage.into())
                     .await
-                    .expect("Actor Disconnected")
-                    .await;
+                    .expect("Actor disconnected");
                 log::info!("Indexing Storage {} bps", s);
                 self.last_count_was_0 = false;
             }
@@ -291,8 +290,7 @@ where
                 self.db_pool
                     .send(storage.into())
                     .await
-                    .expect("Actor Disconnected")
-                    .await;
+                    .expect("Actor Disconnected");
                 self.meta_addr
                     .send(blocks)
                     .await
