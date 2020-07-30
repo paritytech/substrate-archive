@@ -106,22 +106,16 @@ where
     R: Send + 'static,
 {
     // we create a channel with a capacity of one so that
-    // the send does not block the runtime
-    let (tx, mut rx) = flume::bounded(1);
+    let (tx, mut rx) = flume::bounded(0);
+
+    let handle =
+        smol::Task::spawn(async move { rx.recv_async().map(|r| r.expect("One shot")).await });
     smol::Task::spawn(async move {
         match fut.await {
             Ok(v) => {
-                if let Err(e) = tx.try_send(v) {
-                    match e {
-                        flume::TrySendError::Disconnected(_) => {
-                            log::warn!("channel disconnected");
-                            // Receiver might just want to throw out the value (IE `do_send`)
-                            // we do nothing.
-                        }
-                        flume::TrySendError::Full(_) => {
-                            log::warn!("Oneshot channel full!"); // this should never happen
-                        }
-                    }
+                if let Err(e) = smol::unblock!(tx.send(v)) {
+                    log::error!("{:?}", e);
+                    log::warn!("channel disconnected");
                 }
             }
             Err(_) => {
@@ -133,8 +127,8 @@ where
         };
     })
     .detach();
-    // the expect won't even be called if we call `do_send`
-    async move { rx.recv_async().map(|r| r.expect("One shot")).await }.boxed()
+
+    handle.boxed()
 }
 
 impl<A: Actor> Actor for ActorPool<A> {}

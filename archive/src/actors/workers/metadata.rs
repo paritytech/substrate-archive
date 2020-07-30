@@ -67,7 +67,7 @@ impl<B: BlockT> Metadata<B> {
     {
         let hash = blk.inner.block.header().hash();
         self.meta_checker(blk.spec, hash).await?;
-        self.addr.do_send(blk.into())?;
+        self.addr.send(blk.into()).await?;
         Ok(())
     }
 

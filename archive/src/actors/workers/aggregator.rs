@@ -260,22 +260,30 @@ where
                 }
             }
             (b, 0) => {
-                self.meta_addr.do_send(blocks).expect("Actor Disconnected");
+                self.meta_addr
+                    .send(blocks)
+                    .await
+                    .expect("Actor Disconnected");
                 log::info!("Indexing Blocks {} bps", b);
                 self.last_count_was_0 = false;
             }
             (0, s) => {
                 self.db_pool
-                    .do_send(storage.into())
+                    .send(storage.into())
+                    .await
                     .expect("Actor Disconnected");
                 log::info!("Indexing Storage {} bps", s);
                 self.last_count_was_0 = false;
             }
             (b, s) => {
                 self.db_pool
-                    .do_send(storage.into())
+                    .send(storage.into())
+                    .await
                     .expect("Actor Disconnected");
-                self.meta_addr.do_send(blocks).expect("Actor Disconnected");
+                self.meta_addr
+                    .send(blocks)
+                    .await
+                    .expect("Actor Disconnected");
                 log::info!("Indexing Blocks {} bps, Indexing Storage {} bps", b, s);
                 self.last_count_was_0 = false;
             }
