@@ -29,12 +29,9 @@ use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 
 use self::models::*;
-use crate::{
-    error::{ArchiveResult, Error as ArchiveError},
-    types::*,
-};
+use crate::{error::Result, types::*};
 
-pub type DbReturn = Result<u64, ArchiveError>;
+pub type DbReturn = Result<u64>;
 pub type DbConn = sqlx::pool::PoolConnection<Postgres>;
 
 #[async_trait]
@@ -53,7 +50,7 @@ pub struct Database {
 
 impl Database {
     /// Connect to the database
-    pub async fn new(url: String) -> ArchiveResult<Self> {
+    pub async fn new(url: String) -> Result<Self> {
         let pool = PgPoolOptions::new()
             .min_connections(4)
             .max_connections(8)
@@ -70,13 +67,13 @@ impl Database {
     }
 
     #[allow(unused)]
-    pub async fn insert(&self, data: impl Insert) -> ArchiveResult<u64> {
+    pub async fn insert(&self, data: impl Insert) -> Result<u64> {
         let mut conn = self.pool.acquire().await?;
         let res = data.insert(&mut conn).await?;
         Ok(res)
     }
 
-    pub async fn conn(&self) -> ArchiveResult<DbConn> {
+    pub async fn conn(&self) -> Result<DbConn> {
         self.pool.acquire().await.map_err(Into::into)
     }
 }

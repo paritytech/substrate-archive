@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::{ArchiveResult, Error as ArchiveError};
+use crate::error::{Error, Result};
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
@@ -24,7 +24,7 @@ use xtra::prelude::*;
 pub trait ThreadPool: Send {
     type In: Clone + Send + Sync + Encode + Decode + PriorityIdent;
     type Out: Send + Sync + std::fmt::Debug;
-    fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> ArchiveResult<usize>;
+    fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> Result<usize>;
 }
 
 /// Get an identifier from data that can be used to sort it
@@ -39,19 +39,19 @@ where
     B::Hash: Unpin,
 {
     /// start driving the execution of the archive
-    async fn drive(&mut self) -> Result<(), ArchiveError>;
+    async fn drive(&mut self) -> Result<()>;
 
     /// this method will block indefinitely
     async fn block_until_stopped(&self) -> ();
 
     /// shutdown the system
-    fn shutdown(self) -> Result<(), ArchiveError>;
+    fn shutdown(self) -> Result<()>;
 
     /// Shutdown the system when self is boxed (useful when erasing the types of the runtime)
-    fn boxed_shutdown(self: Box<Self>) -> Result<(), ArchiveError>;
+    fn boxed_shutdown(self: Box<Self>) -> Result<()>;
 
     /// Get a reference to the context the actors are using
-    fn context(&self) -> Result<super::actors::ActorContext<B>, ArchiveError>;
+    fn context(&self) -> Result<super::actors::ActorContext<B>>;
 }
 
 #[derive(Debug)]

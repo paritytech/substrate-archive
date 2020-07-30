@@ -17,7 +17,7 @@ use super::{database::GetState, ActorPool};
 use crate::{
     backend::Meta,
     database::DbConn,
-    error::ArchiveResult,
+    error::Result,
     queries,
     types::{BatchBlock, Block, Metadata as MetadataT},
 };
@@ -40,14 +40,14 @@ impl<B: BlockT + Unpin> Metadata<B> {
     pub async fn new(
         addr: Address<ActorPool<super::DatabaseActor<B>>>,
         meta: Meta<B>,
-    ) -> ArchiveResult<Self> {
+    ) -> Result<Self> {
         let conn = addr.send(GetState::Conn.into()).await?.await?.conn();
         Ok(Self { conn, addr, meta })
     }
 
     // checks if the metadata exists in the database
     // if it doesn't exist yet, fetch metadata and insert it
-    async fn meta_checker(&mut self, ver: u32, hash: B::Hash) -> ArchiveResult<()> {
+    async fn meta_checker(&mut self, ver: u32, hash: B::Hash) -> Result<()> {
         if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
             log::info!("META DONT EXIST BOI {}", ver);
             let meta = self.meta.clone();
@@ -61,7 +61,7 @@ impl<B: BlockT + Unpin> Metadata<B> {
         Ok(())
     }
 
-    async fn block_handler(&mut self, blk: Block<B>) -> ArchiveResult<()>
+    async fn block_handler(&mut self, blk: Block<B>) -> Result<()>
     where
         NumberFor<B>: Into<u32>,
     {
@@ -71,7 +71,7 @@ impl<B: BlockT + Unpin> Metadata<B> {
         Ok(())
     }
 
-    async fn batch_block_handler(&mut self, blks: BatchBlock<B>) -> ArchiveResult<()>
+    async fn batch_block_handler(&mut self, blks: BatchBlock<B>) -> Result<()>
     where
         NumberFor<B>: Into<u32>,
     {

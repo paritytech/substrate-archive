@@ -19,7 +19,7 @@ use super::{
 };
 use crate::{
     backend::{ReadOnlyBackend, RuntimeVersionCache},
-    error::{ArchiveResult, Error},
+    error::{Error, Result},
     queries,
     types::{BatchBlock, Block},
 };
@@ -71,10 +71,10 @@ where
     async fn collect_blocks(
         &self,
         fun: impl Fn(u32) -> bool + Send + 'static,
-    ) -> ArchiveResult<Vec<Block<B>>> {
+    ) -> Result<Vec<Block<B>>> {
         let backend = self.backend.clone();
         let now = std::time::Instant::now();
-        let gather_blocks = move || -> ArchiveResult<Vec<SignedBlock<B>>> {
+        let gather_blocks = move || -> Result<Vec<SignedBlock<B>>> {
             Ok(backend
                 .iter_blocks(|n| fun(n))?
                 .enumerate()
@@ -99,7 +99,7 @@ where
     /// First run of indexing
     /// gets any blocks that are missing from database and indexes those
     /// sets the `last_max` value.
-    async fn re_index(&mut self) -> ArchiveResult<Vec<Block<B>>> {
+    async fn re_index(&mut self) -> Result<Vec<Block<B>>> {
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
         let numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
         let len = numbers.len();
@@ -112,7 +112,7 @@ where
         Ok(blocks)
     }
 
-    async fn crawl(&mut self) -> ArchiveResult<Vec<Block<B>>> {
+    async fn crawl(&mut self) -> Result<Vec<Block<B>>> {
         let copied_last_max = self.last_max;
         let blocks = self.collect_blocks(move |n| n > copied_last_max).await?;
         self.last_max = blocks

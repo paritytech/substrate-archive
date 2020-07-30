@@ -17,9 +17,8 @@
 use crate::{
     actors::System,
     backend::{self, frontend::TArchiveClient, ApiAccess, ReadOnlyBackend, ReadOnlyDatabase},
-    error::{ArchiveResult, Error as ArchiveError},
+    error::{Error, Result},
     migrations::MigrationConfig,
-    // rpc::Rpc,
     types,
 };
 
@@ -32,9 +31,7 @@ use sp_blockchain::Backend as BlockchainBackend;
 use sp_runtime::{
     generic::BlockId,
     traits::{BlakeTwo256, Block as BlockT, NumberFor},
-    RuntimeString,
 };
-use sp_version::RuntimeVersion;
 use std::{marker::PhantomData, sync::Arc};
 
 /// Main entrypoint for substrate-archive.
@@ -112,7 +109,7 @@ where
     /// Create a new instance of the Archive DB
     /// and run Postgres Migrations
     /// Should not be run within a futures runtime
-    pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self, ArchiveError> {
+    pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self> {
         // let psql_url = migrate(conf.psql_conf.clone())?;
 
         let db = Arc::new(backend::util::open_database(
@@ -137,7 +134,7 @@ where
         &self,
         block_workers: Option<usize>,
         wasm_pages: Option<usize>,
-    ) -> Result<Arc<impl ApiAccess<B, ReadOnlyBackend<B>, R>>, ArchiveError> {
+    ) -> Result<Arc<impl ApiAccess<B, ReadOnlyBackend<B>, R>>> {
         let cpus = num_cpus::get();
         let client = backend::runtime_api::<B, R, D>(
             self.db.clone(),
@@ -149,7 +146,7 @@ where
 
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
-    pub fn run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
+    pub fn run(&self) -> Result<impl types::Archive<B>> {
         smol::run(async {
             let ctx = self._run().await?;
             loop {
@@ -159,7 +156,7 @@ where
         })
     }
 
-    async fn _run(&self) -> Result<impl types::Archive<B>, ArchiveError> {
+    async fn _run(&self) -> Result<impl types::Archive<B>> {
         let psql_url = crate::migrations::migrate(&self.psql_conf).await?;
         let cpus = num_cpus::get();
 
@@ -168,13 +165,13 @@ where
             self.block_workers.unwrap_or(cpus),
             self.wasm_pages.unwrap_or(512),
         )
-        .map_err(ArchiveError::from)?;
+        .map_err(Error::from)?;
         let client = Arc::new(client);
         let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
         let last_finalized_block = backend.last_finalized()?;
         let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
         log::info!(
-            "Running Archive for Chain Spec {}, implemented by {}. Latest known Runtime Version: {}",
+            "Running Archive for Chain `{}`, implemention `{}`. Latest known Runtime Version: {}",
             rt.spec_name,
             rt.impl_name,
             rt.spec_version
@@ -190,25 +187,4 @@ where
         ctx.drive().await?;
         Ok(ctx)
     }
-    /*
-        /// Internal function to verify the running chain and the Runtime that was passed to us
-        /// are the same
-        fn verify_same_chain(&self, rt: RuntimeVersion) -> ArchiveResult<()> {
-            let rpc = smol::future::block_on(Rpc::<B>::connect(self.rpc_url.as_str()))?;
-            let node_runtime = smol::future::block_on(rpc.version(None))?;
-            let (rpc_rstr, backend_rstr) = match (node_runtime.spec_name, rt.spec_name) {
-                (RuntimeString::Borrowed(s0), RuntimeString::Borrowed(s1)) => {
-                    (s0.to_string(), s1.to_string())
-                }
-                (RuntimeString::Owned(s0), RuntimeString::Owned(s1)) => (s0, s1),
-                (RuntimeString::Borrowed(s0), RuntimeString::Owned(s1)) => (s0.to_string(), s1),
-                (RuntimeString::Owned(s0), RuntimeString::Borrowed(s1)) => (s0, s1.to_string()),
-            };
-            if rpc_rstr.to_ascii_lowercase().as_str() != backend_rstr.to_ascii_lowercase().as_str() {
-                Err(ArchiveError::MismatchedChains(backend_rstr, rpc_rstr))
-            } else {
-                Ok(())
-            }
-        }
-    */
 }

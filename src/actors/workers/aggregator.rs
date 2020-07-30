@@ -18,7 +18,7 @@ use super::ActorContext;
 use crate::{
     actors::Die,
     backend::BlockChanges,
-    error::ArchiveResult,
+    error::Result,
     threadpools::BlockData,
     types::{BatchBlock, Block, Storage},
 };
@@ -101,7 +101,7 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    fn push_back(&self, t: BlockOrStorage<B>) -> ArchiveResult<()> {
+    fn push_back(&self, t: BlockOrStorage<B>) -> Result<()> {
         match t {
             BlockOrStorage::Block(b) => self.block_queue.send(b)?,
             BlockOrStorage::Storage(s) => self.storage_queue.send(s)?,
@@ -128,7 +128,7 @@ where
         tx_block: Sender<BlockData<B>>,
         meta: Address<super::Metadata<B>>,
         db_pool: DatabaseAct<B>,
-    ) -> ArchiveResult<Self> {
+    ) -> Result<Self> {
         super::Generator::new(db_pool.clone(), tx_block.clone()).start()?;
         let (senders, recvs) = queues();
 
@@ -325,7 +325,7 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, data: IncomingData<B>, c: &mut Context<Self>) {
-        let r = || -> ArchiveResult<()> {
+        let r = || -> Result<()> {
             match data.0 {
                 Either::Left(changes) => self.senders.push_back(BlockOrStorage::Storage(changes)),
                 Either::Right(block) => {
@@ -346,7 +346,7 @@ where
     B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
-    fn handle(&mut self, _: Die, c: &mut Context<Self>) -> ArchiveResult<()> {
+    fn handle(&mut self, _: Die, c: &mut Context<Self>) -> Result<()> {
         c.stop();
         Ok(())
     }

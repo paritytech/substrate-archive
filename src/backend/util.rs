@@ -18,7 +18,7 @@
 
 use crate::{
     backend::database::{Config, ReadOnlyDatabase},
-    error::{ArchiveResult, Error as ArchiveError},
+    error::{Error, Result},
 };
 use codec::Decode;
 use kvdb::DBValue;
@@ -135,11 +135,11 @@ pub fn read_header<Block: BlockT>(
     col_index: u32,
     col: u32,
     id: BlockId<Block>,
-) -> ArchiveResult<Option<Block::Header>> {
+) -> Result<Option<Block::Header>> {
     match read_db(db, col_index, col, id)? {
         Some(header) => match Block::Header::decode(&mut &header[..]) {
             Ok(header) => Ok(Some(header)),
-            Err(_) => Err(ArchiveError::from("Error decoding header")),
+            Err(_) => Err(Error::from("Error decoding header")),
         },
         None => Ok(None),
     }
@@ -150,7 +150,7 @@ pub fn read_db<Block>(
     col_index: u32,
     col: u32,
     id: BlockId<Block>,
-) -> ArchiveResult<Option<DBValue>>
+) -> Result<Option<DBValue>>
 where
     Block: BlockT,
 {
@@ -164,7 +164,7 @@ pub fn block_id_to_lookup_key<Block>(
     db: &ReadOnlyDatabase,
     key_lookup_col: u32,
     id: BlockId<Block>,
-) -> Result<Option<Vec<u8>>, ArchiveError>
+) -> Result<Option<Vec<u8>>>
 where
     Block: BlockT,
     sp_runtime::traits::NumberFor<Block>: UniqueSaturatedFrom<u64> + UniqueSaturatedInto<u64>,
@@ -180,10 +180,10 @@ where
 
 /// In the current database schema, this kind of key is only used for
 /// lookups into an index, NOT for storing header data or others
-pub fn number_index_key<N: TryInto<u32>>(n: N) -> ArchiveResult<NumberIndexKey> {
+pub fn number_index_key<N: TryInto<u32>>(n: N) -> Result<NumberIndexKey> {
     let n = n
         .try_into()
-        .map_err(|_| ArchiveError::from("Block num cannot be converted to u32"))?;
+        .map_err(|_| Error::from("Block num cannot be converted to u32"))?;
 
     Ok([
         (n >> 24) as u8,
@@ -212,7 +212,7 @@ pub struct Meta<N, H> {
 pub fn read_meta<Block>(
     db: &ReadOnlyDatabase,
     col_header: u32,
-) -> Result<Meta<<<Block as BlockT>::Header as HeaderT>::Number, Block::Hash>, sp_blockchain::Error>
+) -> sp_blockchain::Result<Meta<<<Block as BlockT>::Header as HeaderT>::Number, Block::Hash>>
 where
     Block: BlockT,
 {
@@ -229,7 +229,7 @@ where
         }
     };
 
-    let load_meta_block = |desc, key| -> Result<_, sp_blockchain::Error> {
+    let load_meta_block = |desc, key| -> sp_blockchain::Result<_> {
         if let Some(Some(header)) = match db.get(columns::META, key) {
             Some(id) => db
                 .get(col_header, &id)

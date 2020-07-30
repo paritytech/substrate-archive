@@ -32,7 +32,7 @@ pub use self::state_backend::TrieState;
 use self::state_backend::{DbState, StateVault};
 use super::database::ReadOnlyDatabase;
 use super::util::columns;
-use crate::error::ArchiveResult;
+use crate::error::Result;
 use codec::Decode;
 use hash_db::Prefix;
 use kvdb::DBValue;
@@ -143,7 +143,7 @@ where
     pub fn iter_blocks<'a>(
         &'a self,
         fun: impl Fn(u32) -> bool + 'a,
-    ) -> ArchiveResult<impl Iterator<Item = SignedBlock<Block>> + 'a> {
+    ) -> Result<impl Iterator<Item = SignedBlock<Block>> + 'a> {
         let readable_db = self.db.clone();
         self.db.try_catch_up_with_primary()?;
         Ok(self
@@ -176,7 +176,11 @@ where
 
 struct DbGenesisStorage<Block: BlockT>(pub Block::Hash);
 impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for DbGenesisStorage<Block> {
-    fn get(&self, _key: &Block::Hash, _prefix: Prefix) -> Result<Option<DBValue>, String> {
+    fn get(
+        &self,
+        _key: &Block::Hash,
+        _prefix: Prefix,
+    ) -> std::result::Result<Option<DBValue>, String> {
         Ok(None)
     }
 }

@@ -17,7 +17,7 @@
 //! Custom Read-Only Database Instance using RocksDB Secondary features
 //! Will try catching up with primary database on every `get()`
 
-use crate::error::{ArchiveResult, Error};
+use crate::error::Result;
 use codec::Decode;
 use kvdb::{DBTransaction, DBValue, KeyValueDB};
 use kvdb_rocksdb::{Database, DatabaseConfig};
@@ -54,7 +54,7 @@ impl std::fmt::Debug for ReadOnlyDatabase {
 }
 
 impl ReadOnlyDatabase {
-    pub fn open(config: Config, path: &str) -> ArchiveResult<Self> {
+    pub fn open(config: Config, path: &str) -> Result<Self> {
         let inner = Database::open(&config.config, path)?;
         inner.try_catch_up_with_primary()?;
         Ok(Self {
@@ -145,7 +145,7 @@ impl ReadOnlyDatabase {
             .for_each(|h| fun(h));
     }
 
-    pub fn try_catch_up_with_primary(&self) -> ArchiveResult<()> {
+    pub fn try_catch_up_with_primary(&self) -> Result<()> {
         if self.track_catchups {
             self.catch_counter.fetch_add(1, Ordering::Relaxed);
         }
@@ -163,7 +163,7 @@ impl ReadOnlyDatabase {
     }
 }
 
-type DBError = Result<(), sp_database::error::DatabaseError>;
+type DBError = std::result::Result<(), sp_database::error::DatabaseError>;
 //TODO: Remove panics with a warning that database has not been written to / is read-only
 /// Preliminary trait for ReadOnlyDatabase
 impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
@@ -180,7 +180,11 @@ impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
     }
     // with_get -> default is fine
 
-    fn remove(&self, _col: ColumnId, _key: &[u8]) -> Result<(), sp_database::error::DatabaseError> {
+    fn remove(
+        &self,
+        _col: ColumnId,
+        _key: &[u8],
+    ) -> std::result::Result<(), sp_database::error::DatabaseError> {
         panic!("Read only db")
     }
 

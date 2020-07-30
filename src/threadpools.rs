@@ -19,7 +19,7 @@ use self::block_exec_pool::BlockExecPool;
 // use self::block_fetcher::ThreadedBlockFetcher;
 use self::block_scheduler::BlockScheduler;
 use crate::backend::{ApiAccess, BlockChanges, ReadOnlyBackend as Backend};
-use crate::{actors::ActorContext, error::ArchiveResult, types::Block};
+use crate::{actors::ActorContext, error::Result, types::Block};
 use block_scheduler::Ordering;
 use futures::{Stream, StreamExt};
 use sc_client_api::backend;
@@ -45,7 +45,7 @@ where
 {
     sender: flume::Sender<u32>,
     pair: (flume::Sender<Block<B>>, Option<flume::Receiver<Block<B>>>),
-    _handle: jod_thread::JoinHandle<ArchiveResult<()>>,
+    _handle: jod_thread::JoinHandle<Result<()>>,
 }
 
 impl<B> BlockFetcher<B>
@@ -53,11 +53,11 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    pub fn new(ctx: ActorContext<B>, threads: Option<usize>) -> ArchiveResult<Self> {
+    pub fn new(ctx: ActorContext<B>, threads: Option<usize>) -> Result<Self> {
         let (tx, rx) = flume::unbounded();
         let (sender, receiver) = flume::unbounded();
         let res_sender = sender.clone();
-        let handle = jod_thread::spawn(move || -> ArchiveResult<()> {
+        let handle = jod_thread::spawn(move || -> Result<()> {
             let pool = ThreadedBlockFetcher::new(ctx, threads)?;
             let mut pool = BlockScheduler::new("fetch", pool, 1000, Ordering::Ascending);
             'sched: loop {
@@ -124,7 +124,7 @@ where
 {
     /// The main sender
     sender: flume::Sender<BlockData<B>>,
-    _handle: jod_thread::JoinHandle<ArchiveResult<()>>,
+    _handle: jod_thread::JoinHandle<Result<()>>,
     pair: (
         flume::Sender<BlockChanges<B>>,
         Option<flume::Receiver<BlockChanges<B>>>,
@@ -140,7 +140,7 @@ where
         client: Arc<A>,
         backend: Arc<Backend<B>>,
         threads: Option<usize>,
-    ) -> ArchiveResult<Self>
+    ) -> Result<Self>
     where
         R: ConstructRuntimeApi<B, A> + Send + 'static,
         R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
@@ -150,7 +150,7 @@ where
         let (tx, rx) = flume::unbounded();
         let (sender, receiver) = flume::unbounded();
         let res_sender = sender.clone();
-        let handle = jod_thread::spawn(move || -> ArchiveResult<()> {
+        let handle = jod_thread::spawn(move || -> Result<()> {
             let pool = BlockExecPool::<B, R, A>::new(threads, client, backend)?;
             let mut pool = BlockScheduler::new("exec", pool, 256, Ordering::Ascending);
             'sched: loop {

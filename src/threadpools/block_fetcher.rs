@@ -18,7 +18,7 @@ use crate::types::*;
 use crate::{
     actors::ActorContext,
     backend::{GetRuntimeVersion, ReadOnlyBackend},
-    error::ArchiveResult,
+    error::Result,
 };
 use sp_runtime::{
     generic::BlockId,
@@ -41,7 +41,7 @@ where
     B: BlockT,
     NumberFor<B>: Into<u32>,
 {
-    pub fn new(context: ActorContext<B>, num_threads: Option<usize>) -> ArchiveResult<Self> {
+    pub fn new(context: ActorContext<B>, num_threads: Option<usize>) -> Result<Self> {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads.unwrap_or(1))
             .thread_name(|i| format!("blk-fetch-{}", i))
@@ -61,7 +61,7 @@ where
         api: &Arc<dyn GetRuntimeVersion<B>>,
         backend: &Arc<ReadOnlyBackend<B>>,
         tx: &flume::Sender<Block<B>>,
-    ) -> ArchiveResult<()> {
+    ) -> Result<()> {
         let num = NumberFor::<B>::from(block_num);
         let b = backend.block(&BlockId::Number(num));
         if b.is_none() {
@@ -74,7 +74,7 @@ where
         Ok(())
     }
 
-    fn add_task(&self, nums: &[u32], sender: flume::Sender<Block<B>>) -> ArchiveResult<usize> {
+    fn add_task(&self, nums: &[u32], sender: flume::Sender<Block<B>>) -> Result<usize> {
         for nums in nums.chunks(10) {
             let api = self.api.clone();
             let backend = self.backend.clone();
@@ -101,7 +101,7 @@ where
     type In = u32;
     type Out = Block<B>;
 
-    fn add_task(&self, d: Vec<u32>, tx: flume::Sender<Block<B>>) -> ArchiveResult<usize> {
+    fn add_task(&self, d: Vec<u32>, tx: flume::Sender<Block<B>>) -> Result<usize> {
         self.add_task(&d, tx)
     }
 }

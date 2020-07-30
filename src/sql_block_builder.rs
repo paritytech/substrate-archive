@@ -18,7 +18,7 @@
 //! Rather than fetching many blocks from RocksDB by number,
 //! this is a (much) faster alternative
 
-use crate::{error::Error as ArchiveError, types};
+use crate::{error::Error as Error, types};
 use codec::{Decode, Encode};
 use sp_runtime::{
     generic::SignedBlock,
@@ -50,7 +50,7 @@ impl<'a, B: BlockT> BlockBuilder<B> {
     }
 
     /// With a vector of SqlBlocks
-    pub fn with_vec(&self, blocks: Vec<SqlBlock>) -> Result<Vec<types::Block<B>>, ArchiveError> {
+    pub fn with_vec(&self, blocks: Vec<SqlBlock>) -> Result<Vec<types::Block<B>>, Error> {
         blocks
             .into_iter()
             .map(|b| {
@@ -64,7 +64,7 @@ impl<'a, B: BlockT> BlockBuilder<B> {
             .collect()
     }
 
-    pub fn with_single(&self, block: SqlBlock) -> Result<(B, u32), ArchiveError> {
+    pub fn with_single(&self, block: SqlBlock) -> Result<(B, u32), Error> {
         let digest: DigestFor<B> = Decode::decode(&mut block.digest.as_slice())?;
         let (parent_hash, state_root, extrinsics_root) = Self::into_generic(
             block.parent_hash.as_slice(),
@@ -91,7 +91,7 @@ impl<'a, B: BlockT> BlockBuilder<B> {
             <B::Header as HeaderT>::Hash,
             <B::Header as HeaderT>::Hash,
         ),
-        ArchiveError,
+        Error,
     > {
         Ok((
             Decode::decode(&mut parent_hash)?,
