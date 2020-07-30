@@ -27,7 +27,7 @@ use xtra::prelude::*;
 
 #[derive(Clone)]
 pub struct Generator<B: BlockT> {
-    last_block_max: u32,
+    // could just use an atomic here
     addr: Address<ActorPool<DatabaseActor<B>>>,
     tx_block: Sender<BlockData<B>>,
 }
@@ -40,7 +40,6 @@ impl<B: BlockT> Generator<B> {
         tx_block: Sender<BlockData<B>>,
     ) -> Self {
         Self {
-            last_block_max: 0,
             addr: actor_pool,
             tx_block,
         }
