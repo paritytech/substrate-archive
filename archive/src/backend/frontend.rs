@@ -23,7 +23,7 @@ use sc_client_api::{
 };
 // use sc_client_db::Backend;
 use self::executor::ArchiveExecutor;
-use crate::{backend::database::ReadOnlyDatabase, error::Error as Error};
+use crate::{backend::database::ReadOnlyDatabase, error::Error};
 use futures::Future;
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
 use sp_api::ConstructRuntimeApi;

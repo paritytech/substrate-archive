@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::Error as Error;
+use crate::error::Error;
 use include_dir::{include_dir, Dir};
 use sqlx::prelude::*;
 use sqlx::{migrate::Migrator, postgres::PgConnection};

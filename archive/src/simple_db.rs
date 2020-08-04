@@ -19,7 +19,7 @@
 //! and saves these entries to disk to be reloaded the next time a program starts
 //! avoids having to search for missing entries in PostgreSQL and re-fetching from running node
 
-use crate::error::Error as Error;
+use crate::error::Error;
 use flate2::{read::DeflateDecoder, write::DeflateEncoder, Compression};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
