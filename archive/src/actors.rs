@@ -21,7 +21,6 @@ mod actor_pool;
 mod blocks;
 mod generators;
 mod workers;
-mod exec_queue;
 
 pub use self::workers::msg;
 use super::{
@@ -36,10 +35,8 @@ use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::sync::Arc;
-pub use workers::Aggregator;
+// pub use workers::Aggregator;
 use xtra::prelude::*;
-
-pub type BlockExecActor<B> = exec_queue::ExecQueue<Block<B>, BlockChanges<B>, workers::DatabaseActor<B>>;
 
 struct Die;
 impl Message for Die {
@@ -91,7 +88,7 @@ where
     context: ActorContext<B>,
     executor: Arc<dyn ThreadPool<In=Block<B>, Out=BlockChanges<B>>>,
     meta: Meta<B>,
-    ag: Option<Address<Aggregator<B>>>,
+    // ag: Option<Address<Aggregator<B>>>,
     blocks: Option<Address<blocks::BlocksIndexer<B>>>,
     _marker: PhantomData<(R, C)>,
 }
@@ -130,13 +127,13 @@ where
         psql_url: &str,
     ) -> Result<Self> {
         let context = ActorContext::new(backend.clone(), url, psql_url.to_string());
-        let executor = Arc::new(BlockExecPool::new(workers, client_api.cloen(), backend.clone()));
+        let executor = Arc::new(BlockExecPool::new(workers, client_api.clone(), backend.clone())?);
 
         Ok(Self {
             context,
             executor,
             meta: client_api,
-            ag: None,
+            // ag: None,
             blocks: None,
             _marker: PhantomData,
         })
@@ -149,18 +146,18 @@ where
         let db = workers::DatabaseActor::<B>::new(ctx.psql_url().into()).await?;
         let db_pool = actor_pool::ActorPool::new(db, 4).spawn();
 
-        let tx_block = self.executor.sender();
+        // let tx_block = self.executor.sender();
         let meta_addr = workers::Metadata::new(db_pool.clone(), self.meta.clone())
             .await?
             .spawn();
-        let ag = Aggregator::new(tx_block.clone(), meta_addr, db_pool.clone())
-            .await?
-            .spawn();
+        
+        // super::Generator::new(db_pool.clone(), tx_block.clone()).start()?;
+
         let blocks_indexer =
-            blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), ag.clone()).spawn();
-        let exec_stream = self.executor.get_stream();
-        ag.clone().attach_stream(exec_stream);
-        self.ag = Some(ag);
+            blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone()).spawn();
+        
+        // let exec_stream = self.executor.get_stream();
+        // ag.clone().attach_stream(exec_stream);
         self.blocks = Some(blocks_indexer);
 
         Ok(())
@@ -202,10 +199,12 @@ where
         if let Some(c) = self.context.backend().backing_db().catch_up_count() {
             log::info!("Caught Up {} times", c);
         }
+        /*
         let ag = self.ag.take();
         if let Some(ag) = ag {
             ag.do_send(Die)?;
         }
+        */
         Ok(())
     }
 
@@ -213,10 +212,11 @@ where
         if let Some(c) = self.context.backend().backing_db().catch_up_count() {
             log::info!("Caught Up {} times", c);
         }
+        /*
         let ag = self.ag.take();
         if let Some(ag) = ag {
             ag.do_send(Die)?;
-        }
+        }*/
         Ok(())
     }
 

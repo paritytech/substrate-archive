@@ -91,6 +91,8 @@ pub(crate) async fn max_block(conn: &mut PgConnection) -> Result<Option<u32>> {
 /// Will get blocks such that they exist in the `blocks` table but they
 /// do not exist in the `storage` table
 /// blocks are ordered by spec version
+///
+/// # Returns full blocks 
 pub(crate) async fn blocks_storage_intersection(
     conn: &mut sqlx::PgConnection,
 ) -> Result<Vec<SqlBlock>> {
@@ -104,6 +106,28 @@ pub(crate) async fn blocks_storage_intersection(
     .fetch_all(conn)
     .await
     .map_err(Into::into)
+}
+
+/// Will get blocks such that they exist in the `blocks` table but they
+/// do not exist in the `storage` table
+/// blocks are ordered by spec version
+///
+/// # Returns a list of block numbers
+pub(crate) async fn blocks_storage_intersection_nums(
+    conn: &mut sqlx::PgConnection,
+) -> Result<Vec<u32>> {
+    Ok(sqlx::query_as::<_, (i32, )>(
+        "SELECT block_num
+        FROM blocks
+        WHERE NOT EXISTS (SELECT * FROM storage WHERE storage.block_num = blocks.block_num)
+        AND blocks.block_num != 0
+        ORDER BY blocks.spec",
+    )
+    .fetch_all(conn)
+    .await?
+    .iter()
+    .map(|b| b.0 as u32)
+    .collect())
 }
 
 #[cfg(test)]

@@ -42,6 +42,11 @@ pub struct BlockChanges<Block: BlockT> {
     pub block_num: NumberFor<Block>,
 }
 
+impl<B: BlockT> xtra::Message for BlockChanges<B> {
+    // TODO: possibly change this error
+    type Result = ();
+}
+
 impl<Block> From<BlockChanges<Block>> for Storage<Block>
 where
     Block: BlockT,
