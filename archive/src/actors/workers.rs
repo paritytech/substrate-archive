@@ -23,6 +23,8 @@ pub use self::database::GetState;
 pub use self::metadata::Metadata;
 
 use super::actor_pool::ActorPool;
+use super::BlockExecActor;
+use super::exec_queue;
 pub use super::generators::Generator;
 pub use database::DatabaseActor;
 

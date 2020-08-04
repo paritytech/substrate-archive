@@ -21,13 +21,14 @@ mod actor_pool;
 mod blocks;
 mod generators;
 mod workers;
+mod exec_queue;
 
 pub use self::workers::msg;
 use super::{
-    backend::{ApiAccess, Meta, ReadOnlyBackend},
+    backend::{ApiAccess, Meta, ReadOnlyBackend, BlockChanges},
     error::Result,
-    threadpools::ThreadedBlockExecutor,
-    types::Archive,
+    threadpools::BlockExecPool,
+    types::{Archive, ThreadPool, Block},
 };
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
@@ -38,6 +39,8 @@ use std::sync::Arc;
 pub use workers::Aggregator;
 use xtra::prelude::*;
 
+pub type BlockExecActor<B> = exec_queue::ExecQueue<Block<B>, BlockChanges<B>, workers::DatabaseActor<B>>;
+
 struct Die;
 impl Message for Die {
     type Result = Result<()>;
@@ -45,20 +48,20 @@ impl Message for Die {
 
 /// Context that every actor may use
 #[derive(Clone)]
-pub struct ActorContext<Block: BlockT + Unpin>
+pub struct ActorContext<B: BlockT + Unpin>
 where
-    Block::Hash: Unpin,
+    B::Hash: Unpin,
 {
-    backend: Arc<ReadOnlyBackend<Block>>,
+    backend: Arc<ReadOnlyBackend<B>>,
     rpc_url: String,
     psql_url: String,
 }
 
-impl<Block: BlockT + Unpin> ActorContext<Block>
+impl<B: BlockT + Unpin> ActorContext<B>
 where
-    Block::Hash: Unpin,
+    B::Hash: Unpin,
 {
-    pub fn new(backend: Arc<ReadOnlyBackend<Block>>, rpc_url: String, psql_url: String) -> Self {
+    pub fn new(backend: Arc<ReadOnlyBackend<B>>, rpc_url: String, psql_url: String) -> Self {
         Self {
             backend,
             rpc_url,
@@ -66,7 +69,7 @@ where
         }
     }
 
-    pub fn backend(&self) -> &Arc<ReadOnlyBackend<Block>> {
+    pub fn backend(&self) -> &Arc<ReadOnlyBackend<B>> {
         &self.backend
     }
 
@@ -79,17 +82,17 @@ where
     }
 }
 
-pub struct System<Block, R, C>
+pub struct System<B, R, C>
 where
-    Block: BlockT + Unpin,
-    Block::Hash: Unpin,
-    NumberFor<Block>: Into<u32>,
+    B: BlockT + Unpin,
+    B::Hash: Unpin,
+    NumberFor<B>: Into<u32>,
 {
-    context: ActorContext<Block>,
-    executor: ThreadedBlockExecutor<Block>,
-    meta: Meta<Block>,
-    ag: Option<Address<Aggregator<Block>>>,
-    blocks: Option<Address<blocks::BlocksIndexer<Block>>>,
+    context: ActorContext<B>,
+    executor: Arc<dyn ThreadPool<In=Block<B>, Out=BlockChanges<B>>>,
+    meta: Meta<B>,
+    ag: Option<Address<Aggregator<B>>>,
+    blocks: Option<Address<blocks::BlocksIndexer<B>>>,
     _marker: PhantomData<(R, C)>,
 }
 
@@ -127,7 +130,7 @@ where
         psql_url: &str,
     ) -> Result<Self> {
         let context = ActorContext::new(backend.clone(), url, psql_url.to_string());
-        let executor = ThreadedBlockExecutor::new(client_api.clone(), backend, workers)?;
+        let executor = Arc::new(BlockExecPool::new(workers, client_api.cloen(), backend.clone()));
 
         Ok(Self {
             context,

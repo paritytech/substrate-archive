@@ -21,16 +21,12 @@ use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
 use xtra::prelude::*;
 
-pub trait ThreadPool: Send {
-    type In: Clone + Send + Sync + Encode + Decode + PriorityIdent;
+pub trait ThreadPool: Send + Sync {
+    type In: Send + Sync + std::fmt::Debug;
     type Out: Send + Sync + std::fmt::Debug;
+    /// Adds a task to the threadpool.
+    /// Should not block!
     fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> Result<usize>;
-}
-
-/// Get an identifier from data that can be used to sort it
-pub trait PriorityIdent {
-    type Ident: Eq + PartialEq + Send + Sync + Copy + Ord + PartialOrd;
-    fn identifier(&self) -> Self::Ident;
 }
 
 #[async_trait::async_trait(?Send)]
