@@ -51,10 +51,7 @@ where
     B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
-    pub fn new(
-        backend: Arc<ReadOnlyBackend<B>>,
-        addr: DatabaseAct<B>,
-    ) -> Self {
+    pub fn new(backend: Arc<ReadOnlyBackend<B>>, addr: DatabaseAct<B>) -> Self {
         Self {
             rt_cache: RuntimeVersionCache::new(backend.clone()),
             last_max: 0,

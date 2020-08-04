@@ -148,4 +148,3 @@ where
         self.add_vec_task(d, tx)
     }
 }
-

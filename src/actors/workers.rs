@@ -16,13 +16,13 @@
 
 // mod aggregator;
 mod database;
-mod metadata;
 mod exec_queue;
+mod metadata;
 
 // pub use self::aggregator::Aggregator;
 pub use self::database::GetState;
-pub use self::metadata::Metadata;
 pub use self::exec_queue::BlockExecQueue;
+pub use self::metadata::Metadata;
 
 use super::actor_pool::ActorPool;
 pub use super::generators::Generator;
@@ -32,5 +32,5 @@ pub use database::DatabaseActor;
 pub mod msg {
     // pub use super::aggregator::IncomingData;
     pub use super::database::VecStorageWrap;
-    pub use super::exec_queue::{In, BatchIn};
+    pub use super::exec_queue::{BatchIn, In};
 }

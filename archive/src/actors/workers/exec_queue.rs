@@ -16,25 +16,26 @@
 
 /// An actor which manages a ThreadPool. Saturates a threadpool with items it receives, and sends
 /// them to the address provided. Buffers items into the threadpool queue according to some
-/// specified max size. 
-
-// on_started 
+/// specified max size.
+// on_started
 //      setup postgres notification on the blocks table.
 //      Spawn New Future
 //          Send block number of the new insert to this actor.
 //      Spawn New Future
-//          Tries to send 
+//          Tries to send
 //  on_block_number
 //      Inserts block number into queue
-//  
-
-use super::{ActorPool, GetState, DatabaseActor};
-use crate::{types::{ThreadPool, Block}, backend::BlockChanges};
-use xtra::prelude::*;
+//
+use super::{ActorPool, DatabaseActor, GetState};
+use crate::sql_block_builder::BlockBuilder;
+use crate::{
+    backend::BlockChanges,
+    types::{Block, ThreadPool},
+};
+use sp_runtime::traits::Block as BlockT;
 use std::fmt::Debug;
 use std::sync::Arc;
-use sp_runtime::traits::Block as BlockT;
-use crate::sql_block_builder::BlockBuilder;
+use xtra::prelude::*;
 
 pub struct BlockExecQueue<B: BlockT> {
     pool: Arc<dyn ThreadPool<In = Block<B>, Out = BlockChanges<B>> + 'static>,
@@ -47,10 +48,14 @@ pub struct BlockExecQueue<B: BlockT> {
 }
 
 impl<B: BlockT> BlockExecQueue<B> {
-    pub fn new(pool: impl ThreadPool<In = Block<B>, Out = BlockChanges<B>> + 'static, db: Address<ActorPool<DatabaseActor<B>>>, size: usize) -> Self {
+    pub fn new(
+        pool: impl ThreadPool<In = Block<B>, Out = BlockChanges<B>> + 'static,
+        db: Address<ActorPool<DatabaseActor<B>>>,
+        size: usize,
+    ) -> Self {
         let (tx, rx) = flume::bounded(size);
-        let queue = Vec::new(); 
-        
+        let queue = Vec::new();
+
         Self {
             pool: Arc::new(pool),
             tx,
@@ -70,27 +75,25 @@ impl<B: BlockT> Actor for BlockExecQueue<B> {
             let (work_tx, mut work_rx) = flume::unbounded();
             for change in work_rx.recv_async().await {
                 let new_work = rx.recv_async().await.unwrap();
-                pool.add_task(vec![new_work], work_tx.clone());
+                pool.add_task(vec![new_work], work_tx.clone()).unwrap();
                 if let Err(_) = addr.send(change).await {
                     break;
                 }
             }
         });
 
-        println!("Hello"); 
+        println!("Hello");
         // setup postgres notification on the blocks table
         // Block Number of the new insert to this actor
     }
 
-    fn stopped(&mut self, ctx: &mut Context<Self>) {
-        
-    }
+    fn stopped(&mut self, ctx: &mut Context<Self>) {}
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<BlockChanges<B>> for BlockExecQueue<B>  {
+impl<B: BlockT> Handler<BlockChanges<B>> for BlockExecQueue<B> {
     async fn handle(&mut self, changes: BlockChanges<B>, ctx: &mut Context<Self>) {
-        println!("Fuck yeah"); 
+        println!("Fuck yeah");
     }
 }
 
@@ -100,7 +103,7 @@ impl Message for In {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<In> for BlockExecQueue<B>  {
+impl<B: BlockT> Handler<In> for BlockExecQueue<B> {
     async fn handle(&mut self, num: In, ctx: &mut Context<Self>) {
         println!("Hello");
     }
@@ -111,11 +114,9 @@ impl Message for BatchIn {
     type Result = ();
 }
 
-
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<BatchIn> for BlockExecQueue<B> {
     async fn handle(&mut self, incoming: BatchIn, ctx: &mut Context<Self>) {
         println!("Hello");
     }
 }
-

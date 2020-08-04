@@ -17,7 +17,7 @@
 
 use super::{
     actor_pool::ActorPool,
-    workers::{DatabaseActor, GetState, BlockExecQueue, msg},
+    workers::{msg, BlockExecQueue, DatabaseActor, GetState},
 };
 
 use crate::{error::Result, queries, sql_block_builder::BlockBuilder};
@@ -29,7 +29,7 @@ use xtra::prelude::*;
 pub struct Generator<B: BlockT> {
     last_block_max: u32,
     addr: Address<ActorPool<DatabaseActor<B>>>,
-    executor: Address<BlockExecQueue<B>>
+    executor: Address<BlockExecQueue<B>>,
 }
 
 type Conn = PoolConnection<Postgres>;
@@ -38,11 +38,11 @@ impl<B: BlockT> Generator<B> {
     pub fn new(
         actor_pool: Address<ActorPool<DatabaseActor<B>>>,
         executor: Address<BlockExecQueue<B>>,
-        ) -> Self {
+    ) -> Self {
         Self {
             last_block_max: 0,
             addr: actor_pool,
-            executor
+            executor,
         }
     }
 
@@ -72,7 +72,7 @@ impl<B: BlockT> Generator<B> {
             now.elapsed(),
             blocks.len()
         );
-        
+
         if let Err(_) = exec.send(msg::BatchIn(blocks)).await {
             log::warn!("Block Executor channel disconnected before any missing storage-blocks could be sent")
         }

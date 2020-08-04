@@ -24,10 +24,10 @@ mod workers;
 
 pub use self::workers::msg;
 use super::{
-    backend::{ApiAccess, Meta, ReadOnlyBackend, BlockChanges},
+    backend::{ApiAccess, BlockChanges, Meta, ReadOnlyBackend},
     error::Result,
     threadpools::BlockExecPool,
-    types::{Archive, ThreadPool, Block},
+    types::{Archive, Block, ThreadPool},
 };
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
@@ -86,7 +86,7 @@ where
     NumberFor<B>: Into<u32>,
 {
     context: ActorContext<B>,
-    executor: Arc<dyn ThreadPool<In=Block<B>, Out=BlockChanges<B>>>,
+    executor: Arc<dyn ThreadPool<In = Block<B>, Out = BlockChanges<B>>>,
     meta: Meta<B>,
     // ag: Option<Address<Aggregator<B>>>,
     blocks: Option<Address<blocks::BlocksIndexer<B>>>,
@@ -127,7 +127,11 @@ where
         psql_url: &str,
     ) -> Result<Self> {
         let context = ActorContext::new(backend.clone(), url, psql_url.to_string());
-        let executor = Arc::new(BlockExecPool::new(workers, client_api.clone(), backend.clone())?);
+        let executor = Arc::new(BlockExecPool::new(
+            workers,
+            client_api.clone(),
+            backend.clone(),
+        )?);
 
         Ok(Self {
             context,
@@ -150,12 +154,12 @@ where
         let meta_addr = workers::Metadata::new(db_pool.clone(), self.meta.clone())
             .await?
             .spawn();
-        
+
         // super::Generator::new(db_pool.clone(), tx_block.clone()).start()?;
 
         let blocks_indexer =
             blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone()).spawn();
-        
+
         // let exec_stream = self.executor.get_stream();
         // ag.clone().attach_stream(exec_stream);
         self.blocks = Some(blocks_indexer);

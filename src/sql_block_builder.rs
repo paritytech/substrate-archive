@@ -18,7 +18,7 @@
 //! Rather than fetching many blocks from RocksDB by number,
 //! this is a (much) faster alternative
 
-use crate::{error::Error as Error, types};
+use crate::{error::Error, types};
 use codec::{Decode, Encode};
 use sp_runtime::{
     generic::SignedBlock,
