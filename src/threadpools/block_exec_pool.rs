@@ -19,7 +19,7 @@
 use crate::{
     backend::{ApiAccess, BlockChanges, BlockExecutor, ReadOnlyBackend as Backend},
     error::Result,
-    types::{self, PriorityIdent, ThreadPool},
+    types::{self, ThreadPool},
 };
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
@@ -29,17 +29,6 @@ use sp_runtime::{
     traits::{Block as BlockT, Header, NumberFor},
 };
 use std::{marker::PhantomData, sync::Arc};
-
-// pub type StorageKey = Vec<u8>;
-// pub type StorageValue = Vec<u8>;
-// pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
-// pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
-
-#[derive(Debug)]
-pub enum BlockData<B: BlockT> {
-    Batch(Vec<types::Block<B>>),
-    Single(types::Block<B>),
-}
 
 /// Executor that sends blocks to a thread pool for execution
 pub struct BlockExecPool<Block: BlockT, RA, Api> {
@@ -54,7 +43,7 @@ impl<B, RA, Api> BlockExecPool<B, RA, Api>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
-    RA: ConstructRuntimeApi<B, Api> + Send + 'static,
+    RA: ConstructRuntimeApi<B, Api> + Send + Sync + 'static,
     RA::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B>, B>>,
     Api: ApiAccess<B, Backend<B>, RA> + 'static,
@@ -143,7 +132,7 @@ impl<B, R, A> ThreadPool for BlockExecPool<B, R, A>
 where
     B: BlockT,
     NumberFor<B>: Into<u32>,
-    R: ConstructRuntimeApi<B, A> + Send + 'static,
+    R: ConstructRuntimeApi<B, A> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B>, B>>,
     A: ApiAccess<B, Backend<B>, R> + 'static,
@@ -160,9 +149,3 @@ where
     }
 }
 
-impl<B: BlockT> PriorityIdent for types::Block<B> {
-    type Ident = u32;
-    fn identifier(&self) -> u32 {
-        self.spec
-    }
-}

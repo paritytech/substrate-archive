@@ -18,7 +18,6 @@ use crate::{
     actors::Die,
     backend::BlockChanges,
     error::Result,
-    threadpools::BlockData,
     types::{BatchBlock, Block, Storage},
 };
 use flume::Sender;
@@ -49,7 +48,7 @@ where
     /// and sending them to the database actor
     meta_addr: Address<super::Metadata<B>>,
     /// channel for sending blocks to be executed
-    exec: Sender<BlockData<B>>,
+    exec: Address<super::BlockExecActor<B>>,
     /// just a switch so we know not to print redundant messages
     last_count_was_0: bool,
 }
@@ -123,7 +122,7 @@ where
     NumberFor<B>: Into<u32>,
 {
     pub async fn new(
-        tx_block: Sender<BlockData<B>>,
+        tx_block: Address<super::BlockExecActor<B>>,
         meta: Address<super::Metadata<B>>,
         db_pool: DatabaseAct<B>,
     ) -> Result<Self> {
@@ -201,7 +200,7 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, block: Block<B>, c: &mut Context<Self>) {
-        if let Err(_) = self.exec.send(BlockData::Single(block.clone())) {
+        if let Err(_) = self.exec.send(super::exec_queue::In(block.clone())) {
             c.stop();
         }
         let block = BlockOrStorage::Block(block);
@@ -218,7 +217,7 @@ where
     NumberFor<B>: Into<u32>,
 {
     fn handle(&mut self, blocks: BatchBlock<B>, c: &mut Context<Self>) {
-        if let Err(_) = self.exec.send(BlockData::Batch(blocks.inner.clone())) {
+        if let Err(_) = self.exec.send(super::exec_queue::BatchIn(blocks.inner.clone())) {
             c.stop();
         }
         let blocks = BlockOrStorage::BatchBlock(blocks);
@@ -325,7 +324,7 @@ where
             match data.0 {
                 Either::Left(changes) => self.senders.push_back(BlockOrStorage::Storage(changes)),
                 Either::Right(block) => {
-                    self.exec.send(BlockData::Single(block.clone()))?;
+                    self.exec.send(super::exec_queue::In(block.clone()))?;
                     self.senders.push_back(BlockOrStorage::Block(block))
                 }
             }

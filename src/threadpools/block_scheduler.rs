@@ -29,69 +29,24 @@ use crate::{
     util::make_hash,
 };
 use codec::{Decode, Encode};
-use hashbrown::HashSet;
 use std::{collections::BinaryHeap, fmt::Debug};
 
 // TODO Get rid of the HashSet redundant checking for duplicates if possible.
 // TODO Just store generic strut instead of the encoded version of the struct.
 // I doubt that it is much more memory efficient to temporarily store encoded version
 
-/// Encoded version of the data coming in
-/// the and identifier is kept decoded so that it may be sorted
-/// this could be more memory efficient than keeping the rust representation in memory
-#[derive(Clone)]
-struct EncodedIn<I: PriorityIdent> {
-    enc: Vec<u8>,
-    id: I::Ident,
-}
-
-impl<I: PriorityIdent> Ord for EncodedIn<I> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.id.cmp(&other.id)
-    }
-}
-
-impl<I: PriorityIdent> PartialEq for EncodedIn<I> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl<I: PriorityIdent> PartialOrd for EncodedIn<I> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<I: PriorityIdent> Eq for EncodedIn<I> {}
-
-impl<I: Encode + PriorityIdent> From<I> for EncodedIn<I> {
-    fn from(d: I) -> EncodedIn<I> {
-        let id = d.identifier();
-        EncodedIn {
-            enc: d.encode(),
-            id,
-        }
-    }
-}
-/// The ordering in which items are given to the threadpool
-pub enum Ordering {
-    Ascending,
-    Descending,
-}
-
 pub struct BlockScheduler<I, O, T>
 where
-    I: Clone + Send + Sync + Encode + Decode + PriorityIdent,
+    I: Clone + Send + Sync + Debug,
     O: Send + Sync + Debug,
     T: ThreadPool<In = I, Out = O>,
 {
     name: String,
     /// sorted prioritized queue of blocks
-    queue: BinaryHeap<EncodedIn<I>>,
+    queue: BinaryHeap<I>,
     /// A HashSet of the data to be inserted (hashed before inserted into the HashSet).
     /// Used to check for duplicates
-    dups: HashSet<u64>,
+    // dups: HashSet<u64>,
     /// the threadpool
     exec: T,
     /// internal sender for gauging how much work
@@ -106,35 +61,46 @@ where
     finished: usize,
     /// the maximum tasks we should have queued in the threadpool at any one time
     max_size: usize,
-    /// The order in which we should schedule based on the priority identifier
-    ordering: Ordering,
 }
 
 impl<I, O, T> BlockScheduler<I, O, T>
 where
-    I: Clone + Send + Sync + Encode + Decode + PriorityIdent + Debug,
-    O: Send + Sync + Debug + Clone,
+    I: Clone + Send + Sync + Debug,
+    O: Send + Sync + Clone + Debug,
     T: ThreadPool<In = I, Out = O>,
 {
-    pub fn new(name: &str, exec: T, max_size: usize, ord: Ordering) -> Self {
+    pub fn new(name: &str, exec: T, max_size: usize) -> Self {
         let (tx, rx) = flume::unbounded();
         Self {
             name: name.to_string(),
             queue: BinaryHeap::new(),
-            dups: HashSet::new(),
+            // dups: HashSet::new(),
             exec,
             tx,
             rx,
             added: 0,
             finished: 0,
             max_size,
-            ordering: ord,
         }
     }
+    
+    /// starts a background thread which saturated the threadpool from work in Sender 
+    pub fn start(self) -> flume::Sender<I> 
+    {
+        let (tx, rx) = flume::bounded(self.max_size);
+        let finished_work = self.rx;
+        jod_thread::spawn(move || {
+            for change in self.rx.recv() {
+                let new_work = rx.recv();
+                self.exec.add_task(vec![new_work]).unwrap();
+               
+            }
+        });
 
-    pub fn add_data(&mut self, data: Vec<I>)
-    where
-        I::Ident: Debug,
+        tx
+    }
+
+    fn add_data(&mut self, data: Vec<I>)
     {
         let data = data
             .into_iter()
@@ -146,7 +112,7 @@ where
         self.queue.extend(data.into_iter());
     }
 
-    pub fn add_data_single(&mut self, data: I) {
+    fn add_data_single(&mut self, data: I) {
         let data = EncodedIn::from(data);
         let hash = make_hash(&data.enc);
         if !self.dups.contains(&hash) {
@@ -155,7 +121,7 @@ where
         }
     }
 
-    pub fn check_work(&mut self) -> Result<Vec<O>> {
+    fn check_work(&mut self) -> Result<Vec<O>> {
         // we try to maintain a MAX queue of max_size tasks at a time in the threadpool
         let delta = self.added - self.finished;
         if self.finished == 0 && self.added == 0 {

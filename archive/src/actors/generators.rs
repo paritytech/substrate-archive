@@ -16,11 +16,13 @@
 //! Holds futures that generate data to be processed by threadpools/actors
 
 use super::{
+    BlockExecActor,
     actor_pool::ActorPool,
+    exec_queue,
     workers::{DatabaseActor, GetState},
 };
-use crate::{error::Result, queries, sql_block_builder::BlockBuilder, threadpools::BlockData};
-use flume::Sender;
+
+use crate::{error::Result, queries, sql_block_builder::BlockBuilder};
 use sp_runtime::traits::Block as BlockT;
 use sqlx::{pool::PoolConnection, Postgres};
 use xtra::prelude::*;
@@ -29,7 +31,7 @@ use xtra::prelude::*;
 pub struct Generator<B: BlockT> {
     last_block_max: u32,
     addr: Address<ActorPool<DatabaseActor<B>>>,
-    tx_block: Sender<BlockData<B>>,
+    executor: Address<BlockExecActor<B>>
 }
 
 type Conn = PoolConnection<Postgres>;
@@ -37,12 +39,12 @@ type Conn = PoolConnection<Postgres>;
 impl<B: BlockT> Generator<B> {
     pub fn new(
         actor_pool: Address<ActorPool<DatabaseActor<B>>>,
-        tx_block: Sender<BlockData<B>>,
-    ) -> Self {
+        executor: Address<BlockExecActor<B>>,
+        ) -> Self {
         Self {
             last_block_max: 0,
             addr: actor_pool,
-            tx_block,
+            executor
         }
     }
 
@@ -50,7 +52,7 @@ impl<B: BlockT> Generator<B> {
     pub fn start(self) -> Result<()> {
         crate::util::spawn(async move {
             let conn = self.addr.send(GetState::Conn.into()).await?.await?.conn();
-            crate::util::spawn(Self::storage(conn, self.tx_block));
+            crate::util::spawn(Self::storage(conn, self.executor));
             Ok(())
         });
         Ok(())
@@ -59,7 +61,7 @@ impl<B: BlockT> Generator<B> {
     /// Gets storage that is missing from the storage table
     /// by querying it against the blocks table
     /// This fills in storage that might've been missed by a shutdown
-    async fn storage(mut conn: Conn, tx_block: Sender<BlockData<B>>) -> Result<()> {
+    async fn storage(mut conn: Conn, exec: Address<BlockExecActor<B>>) -> Result<()> {
         if queries::blocks_count(&mut conn).await? == 0 {
             // no blocks means we haven't indexed anything yet
             return Ok(());
@@ -72,8 +74,8 @@ impl<B: BlockT> Generator<B> {
             now.elapsed(),
             blocks.len()
         );
-
-        if let Err(_) = tx_block.send(BlockData::Batch(blocks)) {
+        
+        if let Err(_) = exec.send(exec_queue::BatchIn(blocks)).await {
             log::warn!("Block Executor channel disconnected before any missing storage-blocks could be sent")
         }
         Ok(())
