@@ -15,7 +15,7 @@
 
 use super::{
     actor_pool::ActorPool,
-    workers::{Aggregator, DatabaseActor, GetState},
+    workers::{DatabaseActor, GetState},
 };
 use crate::{
     backend::{ReadOnlyBackend, RuntimeVersionCache},
@@ -41,7 +41,6 @@ where
     /// background task to crawl blocks
     backend: Arc<ReadOnlyBackend<B>>,
     db: DatabaseAct<B>,
-    ag: Address<Aggregator<B>>,
     rt_cache: RuntimeVersionCache<B>,
     /// the last maximum block number from which we are sure every block before then is indexed
     last_max: u32,
@@ -55,14 +54,12 @@ where
     pub fn new(
         backend: Arc<ReadOnlyBackend<B>>,
         addr: DatabaseAct<B>,
-        ag: Address<Aggregator<B>>,
     ) -> Self {
         Self {
             rt_cache: RuntimeVersionCache::new(backend.clone()),
             last_max: 0,
             backend,
             db: addr,
-            ag,
         }
     }
 
@@ -157,7 +154,7 @@ where
         match self.crawl().await {
             Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
-                if let Err(_) = self.ag.send(BatchBlock::new(b)).await {
+                if let Err(_) = self.db.send(BatchBlock::new(b).into()).await {
                     ctx.stop();
                 }
             }
@@ -182,7 +179,7 @@ where
             Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
                 b.map(|b| {
-                    if let Err(_) = self.ag.do_send(BatchBlock::new(b)) {
+                    if let Err(_) = self.db.do_send(BatchBlock::new(b).into()) {
                         ctx.stop();
                     }
                 });

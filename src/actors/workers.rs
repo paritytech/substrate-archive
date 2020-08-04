@@ -14,22 +14,23 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-mod aggregator;
+// mod aggregator;
 mod database;
 mod metadata;
+mod exec_queue;
 
-pub use self::aggregator::Aggregator;
+// pub use self::aggregator::Aggregator;
 pub use self::database::GetState;
 pub use self::metadata::Metadata;
+pub use self::exec_queue::BlockExecQueue;
 
 use super::actor_pool::ActorPool;
-use super::BlockExecActor;
-use super::exec_queue;
 pub use super::generators::Generator;
 pub use database::DatabaseActor;
 
 /// any messages defined in the workers
 pub mod msg {
-    pub use super::aggregator::IncomingData;
+    // pub use super::aggregator::IncomingData;
     pub use super::database::VecStorageWrap;
+    pub use super::exec_queue::{In, BatchIn};
 }

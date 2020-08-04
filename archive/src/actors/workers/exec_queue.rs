@@ -34,11 +34,12 @@ use xtra::prelude::*;
 use std::fmt::Debug;
 use std::sync::Arc;
 use sp_runtime::traits::Block as BlockT;
+use crate::sql_block_builder::BlockBuilder;
 
 pub struct BlockExecQueue<B: BlockT> {
-    pool: Arc<dyn ThreadPool<In = Block<B>, Out = BlockChanges<B>>>,
-    tx: flume::Sender<B>,
-    rx: Option<flume::Receiver<B>>,
+    pool: Arc<dyn ThreadPool<In = Block<B>, Out = BlockChanges<B>> + 'static>,
+    tx: flume::Sender<Block<B>>,
+    rx: Option<flume::Receiver<Block<B>>>,
     /// internal buffer holding all items that need to be built
     queue: Vec<u32>,
     /// Address to send outputs to
@@ -46,7 +47,7 @@ pub struct BlockExecQueue<B: BlockT> {
 }
 
 impl<B: BlockT> BlockExecQueue<B> {
-    pub fn new(pool: impl ThreadPool<In = Block<B>, Out = BlockChanges<B>>, db: Address<ActorPool<DatabaseActor<B>>>, size: usize) -> Self {
+    pub fn new(pool: impl ThreadPool<In = Block<B>, Out = BlockChanges<B>> + 'static, db: Address<ActorPool<DatabaseActor<B>>>, size: usize) -> Self {
         let (tx, rx) = flume::bounded(size);
         let queue = Vec::new(); 
         
@@ -62,14 +63,14 @@ impl<B: BlockT> BlockExecQueue<B> {
 
 impl<B: BlockT> Actor for BlockExecQueue<B> {
     fn started(&mut self, ctx: &mut Context<Self>) {
-        let rx = self.rx.take().unwrap();
+        let mut rx = self.rx.take().unwrap();
         let pool = self.pool.clone();
         let addr = ctx.address().expect("Actor just started");
         let _handle = smol::Task::spawn(async move {
-            let (work_tx, work_rx) = flume::unbounded();
+            let (work_tx, mut work_rx) = flume::unbounded();
             for change in work_rx.recv_async().await {
                 let new_work = rx.recv_async().await.unwrap();
-                pool.add_task(vec![new_work], work_tx);
+                pool.add_task(vec![new_work], work_tx.clone());
                 if let Err(_) = addr.send(change).await {
                     break;
                 }
@@ -85,12 +86,6 @@ impl<B: BlockT> Actor for BlockExecQueue<B> {
         
     }
 }
-/*
-struct Out<O: Send + Sync>(O);
-impl<O: Send + Sync> Message for Out<O> {
-    type  Result = ();
-}
-*/
 
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<BlockChanges<B>> for BlockExecQueue<B>  {
@@ -110,7 +105,6 @@ impl<B: BlockT> Handler<In> for BlockExecQueue<B>  {
         println!("Hello");
     }
 }
-
 
 pub struct BatchIn(pub Vec<u32>);
 impl Message for BatchIn {

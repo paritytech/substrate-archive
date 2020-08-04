@@ -16,10 +16,8 @@
 //! Holds futures that generate data to be processed by threadpools/actors
 
 use super::{
-    BlockExecActor,
     actor_pool::ActorPool,
-    exec_queue,
-    workers::{DatabaseActor, GetState},
+    workers::{DatabaseActor, GetState, BlockExecQueue, msg},
 };
 
 use crate::{error::Result, queries, sql_block_builder::BlockBuilder};
@@ -31,7 +29,7 @@ use xtra::prelude::*;
 pub struct Generator<B: BlockT> {
     last_block_max: u32,
     addr: Address<ActorPool<DatabaseActor<B>>>,
-    executor: Address<BlockExecActor<B>>
+    executor: Address<BlockExecQueue<B>>
 }
 
 type Conn = PoolConnection<Postgres>;
@@ -39,7 +37,7 @@ type Conn = PoolConnection<Postgres>;
 impl<B: BlockT> Generator<B> {
     pub fn new(
         actor_pool: Address<ActorPool<DatabaseActor<B>>>,
-        executor: Address<BlockExecActor<B>>,
+        executor: Address<BlockExecQueue<B>>,
         ) -> Self {
         Self {
             last_block_max: 0,
@@ -61,21 +59,21 @@ impl<B: BlockT> Generator<B> {
     /// Gets storage that is missing from the storage table
     /// by querying it against the blocks table
     /// This fills in storage that might've been missed by a shutdown
-    async fn storage(mut conn: Conn, exec: Address<BlockExecActor<B>>) -> Result<()> {
+    async fn storage(mut conn: Conn, exec: Address<BlockExecQueue<B>>) -> Result<()> {
         if queries::blocks_count(&mut conn).await? == 0 {
             // no blocks means we haven't indexed anything yet
             return Ok(());
         }
         let now = std::time::Instant::now();
-        let blocks = queries::blocks_storage_intersection(&mut conn).await?;
-        let blocks = BlockBuilder::<B>::new().with_vec(blocks)?;
+        let blocks = queries::blocks_storage_intersection_nums(&mut conn).await?;
+        // let blocks = BlockBuilder::<B>::new().with_vec(blocks)?;
         log::info!(
-            "took {:?} to get and build {} blocks. Adding to queue...",
+            "took {:?} to get {} blocks. Adding to queue...",
             now.elapsed(),
             blocks.len()
         );
         
-        if let Err(_) = exec.send(exec_queue::BatchIn(blocks)).await {
+        if let Err(_) = exec.send(msg::BatchIn(blocks)).await {
             log::warn!("Block Executor channel disconnected before any missing storage-blocks could be sent")
         }
         Ok(())
