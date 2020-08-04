@@ -129,17 +129,6 @@ where
         let context = ActorContext::new(backend.clone(), url, psql_url.to_string());
         let executor = ThreadedBlockExecutor::new(client_api.clone(), backend, workers)?;
 
-        /*
-        let version =
-            client_api.runtime_version(&sp_runtime::generic::BlockId::Number(1491596.into()));
-        log::info!("{:?}", version);
-
-        let metad = client_api
-            .runtime_api()
-            .metadata(&sp_runtime::generic::BlockId::Number(1491596.into()));
-        log::info!("Got metadata for ver");
-        */
-
         Ok(Self {
             context,
             executor,
@@ -232,12 +221,3 @@ where
         Ok(self.context.clone())
     }
 }
-/*
-/// connect to the substrate RPC
-/// each actor may potentially have their own RPC connections
-async fn connect<Block: BlockT>(url: &str) -> crate::rpc::Rpc<Block> {
-    crate::rpc::Rpc::connect(url)
-        .await
-        .expect("Couldn't connect to rpc")
-}
-*/
