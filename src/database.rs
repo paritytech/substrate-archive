@@ -130,7 +130,7 @@ impl<B: BlockT> Insert for StorageModel<B> {
             r#"
                 INSERT INTO storage (
                     block_num, hash, is_full, key, storage
-                ) VALUES (#1, $2, $3, $4, $5)
+                ) VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
                     hash = EXCLUDED.hash,
                     key = EXCLUDED.key,
