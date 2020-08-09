@@ -33,7 +33,7 @@ use crate::{
     types::{Block, ThreadPool},
 };
 use sp_runtime::traits::Block as BlockT;
-use std::fmt::Debug;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use xtra::prelude::*;
 
@@ -42,7 +42,7 @@ pub struct BlockExecQueue<B: BlockT> {
     tx: flume::Sender<Block<B>>,
     rx: Option<flume::Receiver<Block<B>>>,
     /// internal buffer holding all items that need to be built
-    queue: Vec<u32>,
+    queue: VecDeque<u32>,
     /// Address to send outputs to
     db: Address<ActorPool<DatabaseActor<B>>>,
 }
@@ -54,7 +54,7 @@ impl<B: BlockT> BlockExecQueue<B> {
         size: usize,
     ) -> Self {
         let (tx, rx) = flume::bounded(size);
-        let queue = Vec::new();
+        let queue = VecDeque::new();
 
         Self {
             pool: Arc::new(pool),
@@ -71,8 +71,12 @@ impl<B: BlockT> Actor for BlockExecQueue<B> {
         let mut rx = self.rx.take().unwrap();
         let pool = self.pool.clone();
         let addr = ctx.address().expect("Actor just started");
+
+        smol::Task::spawn(async move {});
+
         let _handle = smol::Task::spawn(async move {
             let (work_tx, mut work_rx) = flume::unbounded();
+            // main loop
             for change in work_rx.recv_async().await {
                 let new_work = rx.recv_async().await.unwrap();
                 pool.add_task(vec![new_work], work_tx.clone()).unwrap();
@@ -81,7 +85,6 @@ impl<B: BlockT> Actor for BlockExecQueue<B> {
                 }
             }
         });
-
         println!("Hello");
         // setup postgres notification on the blocks table
         // Block Number of the new insert to this actor
@@ -105,7 +108,7 @@ impl Message for In {
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<In> for BlockExecQueue<B> {
     async fn handle(&mut self, num: In, ctx: &mut Context<Self>) {
-        println!("Hello");
+        self.queue.push_back(num.0);
     }
 }
 
@@ -116,7 +119,7 @@ impl Message for BatchIn {
 
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<BatchIn> for BlockExecQueue<B> {
-    async fn handle(&mut self, incoming: BatchIn, ctx: &mut Context<Self>) {
-        println!("Hello");
+    async fn handle(&mut self, nums: BatchIn, ctx: &mut Context<Self>) {
+        self.queue.extend(nums.0);
     }
 }
