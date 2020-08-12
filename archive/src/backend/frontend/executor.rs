@@ -18,11 +18,11 @@
 //! A slimmed down changes-trie-disabled, offchain changes disabled, cache disabled, LocalExecutor
 
 use codec::{Decode, Encode};
-use sc_client_api::{backend, call_executor::CallExecutor, CloneableSpawn};
+use sc_client_api::{backend, call_executor::CallExecutor};
 use sc_executor::{NativeVersion, RuntimeInfo, RuntimeVersion};
 use sp_api::{InitializeBlock, ProofRecorder, StorageTransactionCache};
 use sp_core::{
-    offchain::storage::OffchainOverlayedChanges, traits::CodeExecutor, NativeOrEncoded,
+    offchain::storage::OffchainOverlayedChanges, traits::{CodeExecutor, SpawnNamed}, NativeOrEncoded,
     NeverNativeValue,
 };
 use sp_externalities::Extensions;
@@ -35,21 +35,34 @@ use sp_state_machine::{
 };
 use std::{cell::RefCell, panic::UnwindSafe, result, sync::Arc};
 
+#[derive(Clone)]
+struct SpawnWrapper(Arc<dyn SpawnNamed>);
+
+impl SpawnNamed for SpawnWrapper {
+    fn spawn(&self, s: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+        self.0.spawn(s, future)
+    }
+
+    fn spawn_blocking(&self, s: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+        self.0.spawn_blocking(s, future) 
+    }
+}
+
 /// Call executor that executes methods locally, querying all required
 /// data from local backend.
 pub struct ArchiveExecutor<B, E> {
     backend: Arc<B>,
     executor: E,
-    spawn_handle: Box<dyn CloneableSpawn>,
+    spawn_handle: SpawnWrapper,
 }
 
 impl<B, E> ArchiveExecutor<B, E> {
     /// Creates new instance of local call executor.
-    pub fn new(backend: Arc<B>, executor: E, spawn_handle: Box<dyn CloneableSpawn>) -> Self {
+    pub fn new(backend: Arc<B>, executor: E, spawn_handle: impl SpawnNamed + 'static) -> Self {
         ArchiveExecutor {
             backend,
             executor,
-            spawn_handle,
+            spawn_handle: SpawnWrapper(Arc::new(spawn_handle)),
         }
     }
 }
@@ -208,7 +221,7 @@ where
         method: &str,
         call_data: &[u8],
     ) -> Result<(Vec<u8>, StorageProof), sp_blockchain::Error> {
-        sp_state_machine::prove_execution_on_trie_backend::<_, _, NumberFor<Block>, _>(
+        sp_state_machine::prove_execution_on_trie_backend::<_, _, NumberFor<Block>, _, _>(
             trie_state,
             overlay,
             &self.executor,

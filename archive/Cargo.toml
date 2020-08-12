@@ -16,8 +16,8 @@ serde = { version = "1.0", features = ["derive"] }
 # enabling arbitrary_precision for serde_json may cause rpc requests to fail
 serde_json = "1.0"
 dirs = { version = "3", package = "directories" }
-sqlx = { git = "https://github.com/launchbadge/sqlx", branch = "master", version = "0.4.0-pre", default-features = false, features = ["postgres", "macros", "runtime-tokio"] }
-# sqlx = { version = "0.3", features = ["postgres", "tls", "macros"] }
+# sqlx = { git = "https://github.com/launchbadge/sqlx", branch = "master", version = "0.4.0-pre", default-features = false, features = ["postgres", "macros", "runtime-tokio"] }
+sqlx = { version = "0.4.0-beta.1", features = ["postgres", "tls", "macros"] }
 async-trait = "0.1"
 hex = "0.4"
 itertools = "0.9"
@@ -32,6 +32,8 @@ xtra = "0.4"
 refinery = { version = "0.3.0", features = ["postgres"] }
 # Just a simple wrapper around std::thread that `joins on drop`
 jod-thread = "0.1.2"
+itoa = "0.4.6"
+tracing = "0.1"
 
 # Optional 
 fern = { version = "0.6", features = ["colored"], optional = true }
@@ -64,7 +66,9 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" } 
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
-itoa = "0.4.6"
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-tracing" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-tracing" }
+
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }

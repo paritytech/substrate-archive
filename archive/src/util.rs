@@ -107,6 +107,10 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("cranelift_wasm", log::LevelFilter::Error)
         .level_for("bastion", log::LevelFilter::Warn)
         .level_for("sqlx", log::LevelFilter::Warn)
+        // for some reason sqlx outputs some logs with an empty path
+        .level_for("", log::LevelFilter::Warn)
+        .level_for(" ", log::LevelFilter::Warn)
+        .level_for("sqlx_core", log::LevelFilter::Warn)
         .level_for("staking", log::LevelFilter::Warn)
         .level_for("cranelift_codegen", log::LevelFilter::Warn)
         .level_for("header", log::LevelFilter::Warn)
@@ -128,6 +132,10 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("cranelift_wasm", log::LevelFilter::Error)
         .level_for("bastion", log::LevelFilter::Warn)
         .level_for("sqlx", log::LevelFilter::Warn)
+        // for some reason sqlx outputs some logs with an empty path
+        .level_for("", log::LevelFilter::Warn)
+        .level_for(" ", log::LevelFilter::Warn)
+        .level_for("sqlx::core", log::LevelFilter::Warn)
         .level_for("staking", log::LevelFilter::Warn)
         .level_for("cranelift_codegen", log::LevelFilter::Warn)
         // .level_for("desub_core", log::LevelFilter::Debug)

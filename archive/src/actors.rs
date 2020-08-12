@@ -158,6 +158,7 @@ where
         let fetch_stream = self.fetcher.get_stream().map(|b| Either::Right(b));
         let comb_stream = futures::stream::select(exec_stream, fetch_stream);
         ag.attach_stream(comb_stream.map(|d| msg::IncomingData::from(d)));
+        crate::state_tracing::ArchiveTraceHandler::new().spawn();
         Ok(())
     }
 
