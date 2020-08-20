@@ -73,6 +73,7 @@ impl<B: BlockT> DatabaseActor<B> {
     {
         let mut conn = self.db.conn().await?;
         while !Self::db_contains_metadata(blks.inner(), &mut conn).await? {
+            log::info!("Doesn't contain metadata");
             smol::Timer::new(Duration::from_millis(50)).await;
         }
         std::mem::drop(conn);

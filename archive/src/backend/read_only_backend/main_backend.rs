@@ -117,7 +117,7 @@ impl<Block: BlockT> Backend<Block> for ReadOnlyBackend<Block> {
         &self,
         _n: NumberFor<Block>,
         _revert_finalized: bool,
-    ) -> ChainResult<NumberFor<Block>> {
+    ) -> ChainResult<(NumberFor<Block>, std::collections::HashSet<Block::Hash>)> {
         log::warn!("Reverting blocks not supported for a read only backend");
         Err(BlockchainError::Msg(
             "Reverting blocks not supported".into(),

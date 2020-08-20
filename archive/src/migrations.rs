@@ -14,38 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::Error;
-use include_dir::{include_dir, Dir};
-use sqlx::prelude::*;
-use sqlx::{migrate::Migrator, postgres::PgConnection};
-use std::{env, path::PathBuf};
+use crate::error::Result;
+use sqlx::{postgres::PgConnection, Connection};
+use std::string::ToString;
+use std::env;
 
-const MIGRATIONS_DIR: Dir = include_dir!("src/migrations");
+// TODO Change to just accept a DB URL.
+// but maybe keep conf. It allows for more modular configuration?
 
-/// Run all the migrations
-/// Returns the database URL
-///
+/// Run all the migrations.
+/// Returns the database url.
 /// # Panics
 /// Panics if a required environment variable is not found
 /// or if the environment variable contains invalid unicode
-pub async fn migrate(conf: &MigrationConfig) -> Result<String, Error> {
-    let parsed = parse(conf.clone());
-    let url = parsed.build_url();
-    let mut connection = PgConnection::connect(url.as_str()).await?;
-    log::info!("Running migrations for database {}", parsed.name.as_str());
-    let dir = tempfile::tempdir()?;
-    // FIXME: This should be async
-    let files = MIGRATIONS_DIR.files();
-    for file in files.iter() {
-        let mut path: PathBuf = dir.path().into();
-        path.push(file.path());
-        std::fs::write(path, file.contents())?
-    }
-    Migrator::new(dir.path())
-        .await?
-        .run(&mut connection)
+pub async fn migrate<T: ToString>(conf: T) -> Result<String> {
+    let url = conf.to_string();
+    let mut conn = PgConnection::connect(&url).await?;
+    sqlx::migrate!("./src/migrations/")
+        .run(&mut conn)
         .await?;
-    dir.close()?;
+    // coil::migrate(conn)?;
     Ok(url)
 }
 
@@ -56,6 +44,12 @@ pub struct MigrationConfig {
     pub user: Option<String>,
     pub pass: Option<String>,
     pub name: Option<String>,
+}
+
+impl std::fmt::Display for MigrationConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.url())
+    }
 }
 
 impl MigrationConfig {

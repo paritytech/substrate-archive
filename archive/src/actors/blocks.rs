@@ -15,7 +15,7 @@
 
 use super::{
     actor_pool::ActorPool,
-    workers::{DatabaseActor, GetState},
+    workers::{Metadata, DatabaseActor, GetState},
 };
 use crate::{
     backend::{ReadOnlyBackend, RuntimeVersionCache},
@@ -41,6 +41,7 @@ where
     /// background task to crawl blocks
     backend: Arc<ReadOnlyBackend<B>>,
     db: DatabaseAct<B>,
+    meta: Address<Metadata<B>>,
     rt_cache: RuntimeVersionCache<B>,
     /// the last maximum block number from which we are sure every block before then is indexed
     last_max: u32,
@@ -51,12 +52,13 @@ where
     B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
-    pub fn new(backend: Arc<ReadOnlyBackend<B>>, addr: DatabaseAct<B>) -> Self {
+    pub fn new(backend: Arc<ReadOnlyBackend<B>>, db_addr: DatabaseAct<B>, meta: Address<Metadata<B>>) -> Self {
         Self {
             rt_cache: RuntimeVersionCache::new(backend.clone()),
             last_max: 0,
             backend,
-            db: addr,
+            db: db_addr,
+            meta,
         }
     }
 
@@ -151,7 +153,8 @@ where
         match self.crawl().await {
             Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
-                if let Err(_) = self.db.send(BatchBlock::new(b).into()).await {
+                log::info!("Sending {} blocks", b.len());
+                if let Err(_) = self.meta.send(BatchBlock::new(b)).await {
                     ctx.stop();
                 }
             }
@@ -173,14 +176,15 @@ where
     async fn handle(&mut self, _: ReIndex, ctx: &mut Context<Self>) {
         log::info!("Beginning to index blocks..");
         match self.re_index().await {
+            Ok(Some(b)) => {
+                if let Err(_) = self.meta.send(BatchBlock::new(b)).await {
+                    ctx.stop();
+                }
+            },
+            Ok(None) => {
+                return;
+            },
             Err(e) => log::error!("{}", e.to_string()),
-            Ok(b) => {
-                b.map(|b| {
-                    if let Err(_) = self.db.do_send(BatchBlock::new(b).into()) {
-                        ctx.stop();
-                    }
-                });
-            }
         }
     }
 }
