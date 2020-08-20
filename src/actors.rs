@@ -10,7 +10,6 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -29,13 +28,13 @@ use super::{
     threadpools::BlockExecPool,
     types::{Archive, Block, ThreadPool},
 };
+use futures::FutureExt;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::sync::Arc;
-// pub use workers::Aggregator;
 use xtra::prelude::*;
 
 struct Die;
@@ -143,13 +142,28 @@ where
         })
     }
 
-    /// Start the actors and begin driving their execution
+    /// Start the actors and begin driving tself.pg_poolheir execution
     pub async fn drive(&mut self) -> Result<()> {
         let ctx = self.context.clone();
 
         let db = workers::DatabaseActor::<B>::new(ctx.psql_url().into()).await?;
         let db_pool = actor_pool::ActorPool::new(db, 4).spawn();
-
+        let listener = crate::database::Listener::builder(&ctx.psql_url)
+            .listen_on(crate::database::Channel::Blocks)
+            .add_task(|_| {
+                async move {
+                    println!("this is a task!");
+                    Ok(())
+                }.boxed()
+            })
+            .on_disconnect(|| {
+                async move {
+                    println!("Postgres disconnected");
+                    Ok(())
+                }.boxed()
+            })
+            .spawn()?;
+        
         // let tx_block = self.executor.sender();
         let meta_addr = workers::Metadata::new(db_pool.clone(), self.meta.clone())
             .await?
@@ -158,7 +172,7 @@ where
         // super::Generator::new(db_pool.clone(), tx_block.clone()).start()?;
 
         let blocks_indexer =
-            blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone()).spawn();
+            blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), meta_addr.clone()).spawn();
 
         // let exec_stream = self.executor.get_stream();
         // ag.clone().attach_stream(exec_stream);

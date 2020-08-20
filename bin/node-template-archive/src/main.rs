@@ -19,20 +19,11 @@ mod config;
 
 use anyhow::Result;
 
-#[tokio::main]
-pub async fn main() -> Result<()> {
+pub fn main() -> Result<()> {
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
 
-    let archive = archive::run_archive(config.clone()).await?;
-    ctrlc().await?;
-    Ok(())
-}
-
-async fn ctrlc() -> Result<()> {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("failed to listen on ctrlc");
-    println!("\nShutting down ...");
+    let archive = archive::run_archive(config.clone())?;
+    println!("thats all folks");
     Ok(())
 }

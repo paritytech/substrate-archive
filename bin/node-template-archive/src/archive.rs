@@ -18,7 +18,7 @@ use anyhow::Result;
 use node_template_runtime::{self as runtime, opaque::Block};
 use substrate_archive::{Archive, ArchiveConfig, ArchiveBuilder};
 
-pub async fn run_archive(config: super::config::Config) -> Result<impl Archive<Block>> {
+pub fn run_archive(config: super::config::Config) -> Result<impl Archive<Block>> {
     let spec = config.cli().chain_spec.clone();
 
     let conf = ArchiveConfig {
@@ -31,5 +31,5 @@ pub async fn run_archive(config: super::config::Config) -> Result<impl Archive<B
     };
 
     let archive = ArchiveBuilder::<Block, runtime::RuntimeApi, node_template::service::Executor>::new(conf, Box::new(spec))?;
-    Ok(archive.run().await?)
+    Ok(archive.run()?)
 }

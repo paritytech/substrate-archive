@@ -24,8 +24,8 @@ mod database;
 mod error;
 mod migrations;
 // mod rpc;
-#[cfg(test)]
-mod simple_db;
+// #[cfg(test)]
+// mod simple_db;
 mod sql_block_builder;
 mod threadpools;
 mod types;
@@ -51,3 +51,35 @@ pub mod chain_traits {
     pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
     pub use sp_runtime::traits::{BlakeTwo256, Block, IdentifyAccount, Verify};
 }
+
+#[cfg(test)]
+use test::{PG_POOL, DATABASE_URL, initialize};
+
+#[cfg(test)]
+mod test {
+    use std::sync::Once;
+    use once_cell::sync::Lazy;
+    
+    pub static DATABASE_URL: Lazy<String> = Lazy::new(|| {
+        dotenv::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!")
+    });
+
+    pub static PG_POOL: Lazy<sqlx::PgPool> = Lazy::new(|| {
+        smol::block_on(sqlx::postgres::PgPoolOptions::new()
+            .min_connections(4)
+            .max_connections(8)
+            .idle_timeout(std::time::Duration::from_millis(3600))
+            .connect(&DATABASE_URL)
+        ).expect("Couldn't initialize postgres pool for tests")
+    });
+    
+    static INIT: Once = Once::new();
+    pub fn initialize() {
+        INIT.call_once(|| {
+            pretty_env_logger::init();
+            let url: &str = &DATABASE_URL;
+            smol::block_on(crate::migrations::migrate(url)).unwrap();
+        });
+    }
+}
+

@@ -143,7 +143,7 @@ pub(crate) async fn get_full_block(
         ",
     )
     .bind(block_num as i32)
-    .fetch_one(pool)
+    .fetch_one(conn)
     .await
     .map_err(Into::into)
 }

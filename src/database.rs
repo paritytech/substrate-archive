@@ -20,6 +20,7 @@
 mod batch;
 pub mod models;
 pub mod queries;
+pub mod listener;
 
 use async_trait::async_trait;
 use batch::Batch;
@@ -29,6 +30,8 @@ use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 
 use self::models::*;
+pub use self::listener::*;
+
 use crate::{error::Result, types::*};
 
 pub type DbReturn = Result<u64>;
@@ -54,7 +57,7 @@ impl Database {
         let pool = PgPoolOptions::new()
             .min_connections(4)
             .max_connections(8)
-            .idle_timeout(std::time::Duration::from_secs(3600)) // kill connections after 5 minutes of idle
+            .idle_timeout(std::time::Duration::from_millis(3600)) // kill connections after 5 minutes of idle
             .connect(url.as_str())
             .await?;
         Ok(Self { pool, url })

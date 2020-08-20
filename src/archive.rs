@@ -40,7 +40,7 @@ use std::{marker::PhantomData, sync::Arc};
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// use polkadot_service::{kusama_runtime::RuntimeApi as RApi, Block, KusamaExecutor as KExec};
 /// use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
 /// let conf = ArchiveConfig {
@@ -110,8 +110,6 @@ where
     /// and run Postgres Migrations
     /// Should not be run within a futures runtime
     pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self> {
-        // let psql_url = migrate(conf.psql_conf.clone())?;
-
         let db = Arc::new(backend::util::open_database(
             conf.db_url.as_str(),
             conf.cache_size,

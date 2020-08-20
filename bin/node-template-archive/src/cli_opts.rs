@@ -61,6 +61,7 @@ impl CliOpts {
             file: PathBuf::from(file),
             log_level,
             chain_spec: chain_spec.unwrap(),
+            chain_spec: chain_spec.expect("Chain spec could not be loaded"),
         }
     }
 }
