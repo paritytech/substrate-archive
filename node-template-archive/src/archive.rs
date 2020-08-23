@@ -24,10 +24,10 @@ pub fn run_archive(config: super::config::Config) -> Result<impl Archive<Block>>
     let conf = ArchiveConfig {
         db_url: config.db_path().to_str().unwrap().to_string(),
         rpc_url: config.rpc_url().into(),
-        cache_size: config.cache_size(),
+        cache_size: Some(config.cache_size()),
         block_workers: config.block_workers(),
         wasm_pages: config.wasm_pages(),
-        psql_conf: config.psql_conf(),
+        pg_url: None,
     };
 
     let archive = ArchiveBuilder::<Block, runtime::RuntimeApi, node_template::service::Executor>::new(conf, Box::new(spec))?;

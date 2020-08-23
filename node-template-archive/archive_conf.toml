@@ -17,12 +17,12 @@ wasm_pages = 512
 # Optional Database Parameters. 
 
 # Can also be specified with DB_HOST environment variable
-db_host = "localhost"
+# db_host = "localhost"
 # Can also be specified with DB_PORT environment variable
-db_port = "5432"
+# db_port = "5432"
 # Can also be specified with DB_USER environment variable
-db_user = "archive"
+# db_user = "archive"
 # Can also be specified with DB_PASS environment variable
-db_pass = "default"
+# db_pass = "default"
 # Can also be specified with DB_NAME environment variable
-db_name = "node-template-archive"
+# db_name = "postgres"

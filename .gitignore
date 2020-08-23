@@ -2,3 +2,5 @@
 **/*.rs.bk
 .idea/*
 .env
+*.nix
+.tmp/
