@@ -68,10 +68,9 @@ use std::{marker::PhantomData, sync::Arc};
 pub struct ArchiveBuilder<Block, Runtime, Dispatch> {
     rpc_url: String,
     db: Arc<ReadOnlyDatabase>,
-    // spec: Box<dyn ChainSpec>,
     block_workers: Option<usize>,
     wasm_pages: Option<u64>,
-    psql_conf: MigrationConfig,
+    pg_url: String,
     _marker: PhantomData<(Block, Runtime, Dispatch)>,
 }
 
@@ -81,15 +80,17 @@ pub struct ArchiveConfig {
     /// websockets URL to the full node
     pub rpc_url: String,
     /// how much cache should rocksdb keep
-    pub cache_size: usize,
-    /// the Postgres database configuration
-    pub psql_conf: MigrationConfig,
+    pub cache_size: Option<usize>,
+    // /// the Postgres database configuration
+    // pub pg_conf: Option<String>,
+    pub pg_url: Option<String>,
     /// number of threads to spawn for block execution
     pub block_workers: Option<usize>,
     /// Number of 64KB Heap pages to allocate for wasm execution
     pub wasm_pages: Option<u64>,
 }
 
+// TODO: Make ArchiveBuilder a real builder
 impl<B, R, D> ArchiveBuilder<B, R, D>
 where
     B: BlockT + Unpin,
@@ -108,18 +109,26 @@ where
 {
     /// Create a new instance of the Archive DB
     /// and run Postgres Migrations
-    /// Should not be run within a futures runtime
+    /// # Panics
+    /// Panics if pg_url is `None` and the variable `DATABASE_URL` does not exist
+    /// in the environment
     pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self> {
         let db = Arc::new(backend::util::open_database(
             conf.db_url.as_str(),
-            conf.cache_size,
+            conf.cache_size.unwrap_or(128),
             spec.name(),
             spec.id(),
         )?);
+
+        let pg_url = if let Some(url) = conf.pg_url {
+            url
+        } else {
+            std::env::var("DATABASE_URL").expect("must have DATABASE_URL defined in the environment")
+        };
+
         Ok(Self {
             db,
-            psql_conf: conf.psql_conf,
-            // spec,
+            pg_url,
             rpc_url: conf.rpc_url,
             block_workers: conf.block_workers,
             wasm_pages: conf.wasm_pages,
@@ -155,7 +164,7 @@ where
     }
 
     async fn _run(&self) -> Result<impl types::Archive<B>> {
-        let psql_url = crate::migrations::migrate(&self.psql_conf).await?;
+        let psql_url = crate::migrations::migrate(&self.pg_url).await?;
         let cpus = num_cpus::get();
 
         let client = backend::runtime_api::<B, R, D>(
