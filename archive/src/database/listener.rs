@@ -186,9 +186,9 @@ mod tests {
             smol::block_on(async move {
                 let mut conn = crate::PG_POOL.acquire().await.unwrap();
                 conn.execute("
-                    TRUNCATE TABLE blocks;
-                    TRUNCATE TABLE metadata;
-                    TRUNCATE TABLE storage;
+                    TRUNCATE TABLE metadata CASCADE;
+                    TRUNCATE TABLE storage CASCADE;
+                    TRUNCATE TABLE blocks CASCADE;
                     -- TRUNCATE TABLE _background_tasks
                     "
                 ).await.unwrap();
@@ -199,7 +199,7 @@ mod tests {
     #[test]
     fn should_get_notifications() {
         crate::initialize();
-        // let _guard = TestGuard::lock();
+        let _guard = TestGuard::lock();
         smol::block_on(async move {
             let (tx, mut rx) = futures::channel::mpsc::channel(5);
 
@@ -209,13 +209,13 @@ mod tests {
                     let mut tx1 = tx.clone();
                     async move {
                         log::info!("Hello from a task");
-                        tx1.send(()).await;
+                        let _ = tx1.send(()).await;
                         Ok(())
                     }.boxed()
                 })
                 .spawn().await.unwrap();
             let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
-            for _ in 0usize..3usize {
+            for _ in 0usize..5usize {
                 conn.execute("SELECT pg_notify('table_update', 'test')").await.expect("Could not exec notify query");
                 smol::Timer::new(std::time::Duration::from_millis(100)).await;
             }
@@ -229,7 +229,7 @@ mod tests {
                 )
             }
 
-            assert_eq!(3, counter);
+            assert_eq!(5, counter);
         });
     }
 }
