@@ -61,7 +61,7 @@ mod test {
     use once_cell::sync::Lazy;
     
     pub static DATABASE_URL: Lazy<String> = Lazy::new(|| {
-        dotenv::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!")
+        dotenv::var("DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!")
     });
 
     pub static PG_POOL: Lazy<sqlx::PgPool> = Lazy::new(|| {

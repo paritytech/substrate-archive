@@ -24,6 +24,7 @@ mod workers;
 pub use self::workers::msg;
 use super::{
     backend::{ApiAccess, BlockChanges, Meta, ReadOnlyBackend},
+    database::Listener,
     error::Result,
     threadpools::BlockExecPool,
     types::{Archive, Block, ThreadPool},
@@ -89,6 +90,7 @@ where
     meta: Meta<B>,
     // ag: Option<Address<Aggregator<B>>>,
     blocks: Option<Address<blocks::BlocksIndexer<B>>>,
+    listener: Option<Listener>,
     _marker: PhantomData<(R, C)>,
 }
 
@@ -138,6 +140,7 @@ where
             meta: client_api,
             // ag: None,
             blocks: None,
+            listener: None,
             _marker: PhantomData,
         })
     }
@@ -148,7 +151,7 @@ where
 
         let db = workers::DatabaseActor::<B>::new(ctx.psql_url().into()).await?;
         let db_pool = actor_pool::ActorPool::new(db, 4).spawn();
-        let listener = crate::database::Listener::builder(&ctx.psql_url)
+        let listener = Listener::builder(&ctx.psql_url)
             .listen_on(crate::database::Channel::Blocks)
             .add_task(|_| {
                 async move {
@@ -162,7 +165,7 @@ where
                     Ok(())
                 }.boxed()
             })
-            .spawn()?;
+            .spawn().await?;
         
         // let tx_block = self.executor.sender();
         let meta_addr = workers::Metadata::new(db_pool.clone(), self.meta.clone())
@@ -177,6 +180,7 @@ where
         // let exec_stream = self.executor.get_stream();
         // ag.clone().attach_stream(exec_stream);
         self.blocks = Some(blocks_indexer);
+        self.listener = Some(listener);
 
         Ok(())
     }
