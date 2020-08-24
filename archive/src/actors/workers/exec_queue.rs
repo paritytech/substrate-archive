@@ -96,7 +96,7 @@ impl<B: BlockT> Actor for BlockExecQueue<B> {
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<BlockChanges<B>> for BlockExecQueue<B> {
     async fn handle(&mut self, changes: BlockChanges<B>, ctx: &mut Context<Self>) {
-        println!("Fuck yeah");
+        println!("BlockChanges Handler");
     }
 }
 

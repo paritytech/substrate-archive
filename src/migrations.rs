@@ -30,6 +30,7 @@ use std::env;
 pub async fn migrate<T: ToString>(conf: T) -> Result<String> {
     let url = conf.to_string();
     let mut conn = PgConnection::connect(&url).await?;
+    log::info!("Running migrations...");
     sqlx::migrate!("./src/migrations/")
         .run(&mut conn)
         .await?;

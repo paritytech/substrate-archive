@@ -26,11 +26,11 @@ use sqlx::postgres::{PgListener, PgNotification};
 use crate::error::Result;
 
 /// Channel encompassing any update to any table
-const TABLE_UPDATE_CHAN: &str = "table_update";
+/// const TABLE_UPDATE_CHAN: &str = "table_update";
 
 pub enum Channel {
     /// Listen on the blocks table for new INSERTS
-    Blocks
+    Blocks = "blocks_update",
 }
 
 pub enum ChannelData {
@@ -92,7 +92,7 @@ impl Builder {
         let (tx, mut rx) = flume::bounded(1);
 
         let mut listener = PgListener::connect(&self.pg_url).await?;
-        listener.listen(TABLE_UPDATE_CHAN).await?;
+        listener.listen_all(self.channels).await?;
 
         let fut = async move {
             loop {
@@ -217,12 +217,12 @@ mod tests {
             let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
             for _ in 0usize..5usize {
                 conn.execute("SELECT pg_notify('table_update', 'test')").await.expect("Could not exec notify query");
-                smol::Timer::new(std::time::Duration::from_millis(100)).await;
+                smol::Timer::new(std::time::Duration::from_millis(50)).await;
             }
             let mut counter: usize = 0;
 
             loop {
-                let mut timeout = smol::Timer::new(std::time::Duration::from_millis(150)).fuse();
+                let mut timeout = smol::Timer::new(std::time::Duration::from_millis(75)).fuse();
                 futures::select!(
                     _ = rx.next() => counter += 1,
                     _ = timeout => break,
