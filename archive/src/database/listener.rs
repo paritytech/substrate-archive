@@ -25,6 +25,7 @@ use futures::{pin_mut, stream::StreamExt, Future, FutureExt};
 use sqlx::postgres::{PgListener, PgNotification};
 use crate::error::Result;
 
+/// Channel encompassing any update to any table
 const TABLE_UPDATE_CHAN: &str = "table_update";
 
 pub enum Channel {
@@ -87,20 +88,19 @@ impl Builder {
     }
 
     /// Spawns this listener which will work on its assigned tasks in the background
-    pub fn spawn(self) -> Result<Listener> {
+    pub async fn spawn(self) -> Result<Listener> {
         let (tx, mut rx) = flume::bounded(1);
 
-        let fut = async move {
-            let mut listener = PgListener::connect(&self.pg_url).await.unwrap();
-            listener.listen(TABLE_UPDATE_CHAN).await.unwrap();
+        let mut listener = PgListener::connect(&self.pg_url).await?;
+        listener.listen(TABLE_UPDATE_CHAN).await?;
 
+        let fut = async move {
             loop {
                 let listen_fut = listener.try_recv().fuse();
                 pin_mut!(listen_fut);
 
                 futures::select! {
                     notif = listen_fut => {
-                        log::info!("Got a notification");
                         match notif {
                             Ok(Some(v)) => { 
                                 let fut = self.handle_listen_event(v);
@@ -115,10 +115,7 @@ impl Builder {
                             }
                         }
                     },
-                    _ = rx.recv_async() => { 
-                        println!("Breaking");
-                        break
-                    },
+                    r = rx.recv_async() => break,
                     // complete => break,
                 };
             }
@@ -133,8 +130,8 @@ impl Builder {
 
     /// Handle a listen event from Postgers
     async fn handle_listen_event(&self, notif: PgNotification) {
-        println!("Got Event! {:?}", notif);
         for task in self.tasks.iter() {
+            log::info!("Got a Notification: {:?}", notif);
             task(ChannelData::Block(Vec::new())).await.unwrap();
         }
     }
@@ -143,6 +140,7 @@ impl Builder {
 
 /// A Postgres listener which listens for events
 /// on postgres channels using LISTEN/NOTIFY pattern
+/// Dropping this will kill the listener,
 pub struct Listener {
     // Shutdown signal
     tx: flume::Sender<()>,
@@ -167,14 +165,19 @@ mod tests {
     use super::*;
     use once_cell::sync::Lazy;
     use std::sync::{Mutex, MutexGuard};
-    use sqlx::Executor;
+    use sqlx::{Executor, Connection};
+    use futures::SinkExt;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering}
+    };
 
     static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
     struct TestGuard<'a>(MutexGuard<'a, ()>);
     impl<'a> TestGuard<'a> {
         fn lock() -> Self {
-            TestGuard(TEST_MUTEX.lock().unwrap())
+            TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"))
         }
     }
 
@@ -194,7 +197,39 @@ mod tests {
     }
 
     #[test]
-    fn notify_if_inserted_on_blocks_table() {
-        println!("Hello");
+    fn should_get_notifications() {
+        crate::initialize();
+        // let _guard = TestGuard::lock();
+        smol::block_on(async move {
+            let (tx, mut rx) = futures::channel::mpsc::channel(5);
+
+            let listener = Builder::new(&crate::DATABASE_URL)
+                .listen_on(Channel::Blocks)
+                .add_task(move |_| {
+                    let mut tx1 = tx.clone();
+                    async move {
+                        log::info!("Hello from a task");
+                        tx1.send(()).await;
+                        Ok(())
+                    }.boxed()
+                })
+                .spawn().await.unwrap();
+            let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
+            for _ in 0usize..3usize {
+                conn.execute("SELECT pg_notify('table_update', 'test')").await.expect("Could not exec notify query");
+                smol::Timer::new(std::time::Duration::from_millis(100)).await;
+            }
+            let mut counter: usize = 0;
+
+            loop {
+                let mut timeout = smol::Timer::new(std::time::Duration::from_millis(150)).fuse();
+                futures::select!(
+                    _ = rx.next() => counter += 1,
+                    _ = timeout => break,
+                )
+            }
+
+            assert_eq!(3, counter);
+        });
     }
 }
