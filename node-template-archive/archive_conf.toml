@@ -21,8 +21,8 @@ db_host = "localhost"
 # Can also be specified with DB_PORT environment variable
 db_port = "5432"
 # Can also be specified with DB_USER environment variable
-db_user = "archive"
+db_user = "postgres"
 # Can also be specified with DB_PASS environment variable
-db_pass = "default"
+db_pass = "123"
 # Can also be specified with DB_NAME environment variable
 db_name = "node-template-archive"
