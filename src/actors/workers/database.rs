@@ -17,7 +17,8 @@
 use crate::database::{StorageModel, Database, DbConn};
 use crate::error::Result;
 use crate::queries;
-use crate::types::*;
+use crate::types::{Storage, Block, BatchBlock, Metadata};
+use crate::actors::msg::VecStorageWrap;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -162,13 +163,6 @@ impl<B: BlockT> Handler<Storage<B>> for DatabaseActor<B> {
             log::error!("{}", e.to_string())
         }
     }
-}
-
-#[derive(Debug)]
-pub struct VecStorageWrap<B: BlockT>(pub Vec<Storage<B>>);
-
-impl<B: BlockT> Message for VecStorageWrap<B> {
-    type Result = ();
 }
 
 #[async_trait::async_trait]

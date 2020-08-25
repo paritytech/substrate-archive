@@ -18,12 +18,14 @@
 //! executed on a threadpool or spaned onto the executor.
 
 use sp_runtime::{
-    traits::{Block as BlockT, NumberFor},
+    traits::{Block as BlockT, NumberFor, Header},
     generic::BlockId
 };
 use sp_api::{ConstructRuntimeApi, ApiExt};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sc_client_api::backend;
+use serde::de::DeserializeOwned;
+use crate::types::Storage;
 use super::{
     backend::{ReadOnlyBackend as Backend, ApiAccess, BlockExecutor},
     actors::{ActorPool, DatabaseActor},
@@ -32,14 +34,10 @@ use std::sync::Arc;
 use std::marker::PhantomData;
 use xtra::prelude::*;
 
+/// The environment passed to each task
 pub struct Environment<B, RA, Api> 
 where
     B: BlockT,
-    NumberFor<B>: Into<u32>,
-    RA: ConstructRuntimeApi<B, Api> + Send + Sync + 'static,
-    RA::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
-        + ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B>, B>>,
-    Api: ApiAccess<B, Backend<B>, RA> + 'static,
 {
     backend: Arc<Backend<B>>,
     client: Arc<Api>,
@@ -47,12 +45,15 @@ where
     _marker: PhantomData<RA>,
 }
 
+// we need PhantomData here so that the proc_macro correctly puts PhantomData into the `Job` struct
+// + DeserializeOwned a little bit wonky, could be fixed with a better proc-macro in `coil`
 /// Execute a block, and send it to the database actor
 #[coil::background_job]
-fn execute_block<B, RA, Api>(env: Environment, block: B) -> Result<(), coil::PerformError> 
+pub fn execute_block<B, RA, Api>(env: &Environment<B, RA, Api>, block: B, garbo: PhantomData<(RA, Api)>) -> Result<(), coil::PerformError> 
 where
-    B: BlockT,
+    B: BlockT + DeserializeOwned,
     NumberFor<B>: Into<u32>,
+    B::Hash: Unpin,
     RA: ConstructRuntimeApi<B, Api> + Send + Sync + 'static,
     RA::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B>, B>>,
@@ -68,13 +69,15 @@ where
         "Executing Block: {}:{}, version {}",
         block.header().hash(),
         block.header().number(),
-        client
-            .runtime_version_at(&BlockId::Hash(block.header().hash()))?
+        env.client
+            .runtime_version_at(&BlockId::Hash(block.header().hash()))
+            .map_err(|e| format!("{:?}", e))?
             .spec_version,
     );
     
-    let block = BlockExecutor::new(api, backend, block)?.block_into_storage()?;
+    let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
     
-    smol::block_on(env.send(block))?;
+    let storage = Storage::from(block);
+    env.db.do_send(storage.into())?;
     Ok(())
 }

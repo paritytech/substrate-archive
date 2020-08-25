@@ -14,12 +14,36 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-mod database;
-mod metadata;
+//! Main messages and NewTypes that can be sent between actors
 
-/// Database message to get state internal database state
-pub use self::database::GetState;
-pub use self::metadata::Metadata;
-use super::actor_pool::ActorPool;
-pub use database::DatabaseActor;
+use xtra::prelude::*;
+use crate::{types::*, error::Result};
+use sp_runtime::traits::Block as BlockT;
 
+pub struct Die;
+impl Message for Die {
+    type Result = Result<()>;
+}
+
+impl Message for Metadata {
+    type Result = ();
+}
+
+impl<B: BlockT> Message for Block<B> {
+    type Result = ();
+}
+
+impl<B: BlockT> Message for BatchBlock<B> {
+    type Result = ();
+}
+
+impl<Block: BlockT> Message for Storage<Block> {
+    type Result = ();
+}
+
+#[derive(Debug)]
+pub struct VecStorageWrap<B: BlockT>(pub Vec<Storage<B>>);
+
+impl<B: BlockT> Message for VecStorageWrap<B> {
+    type Result = ();
+}

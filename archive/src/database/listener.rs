@@ -21,8 +21,9 @@
 
 use serde::{Serialize, Deserialize};
 use std::pin::Pin;
-use futures::{pin_mut, stream::StreamExt, Future, FutureExt};
-use sqlx::postgres::{PgListener, PgNotification};
+use futures::{pin_mut, Future, FutureExt};
+use sqlx::postgres::{PgListener, PgNotification, PgConnection};
+use sqlx::prelude::*;
 use crate::error::Result;
 use super::BlockModel;
 
@@ -60,17 +61,23 @@ struct ListenEvent {
     data: serde_json::Value,
 }
 
-pub struct Builder {
-    tasks: Vec<Box<dyn Send + Sync + Fn(ChannelData) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>>>,
+pub struct Builder<F> 
+where
+    F: 'static + Send + Sync + for<'a> Fn(ChannelData, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>
+{
+    task: F,  
     disconnect: Box<dyn Send + Sync + Fn() -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>>,
     channels: Vec<Channel>,
     pg_url: String,
 }
 
-impl Builder {
-    pub fn new(url: &str) -> Self {
+impl<F> Builder<F> 
+where
+    F: 'static + Send + Sync + for<'a> Fn(ChannelData, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>
+{
+    pub fn new(url: &str, f: F) -> Self {
         Self {
-            tasks: Vec::new(),
+            task: f,
             channels: Vec::new(),
             pg_url: url.to_string(),
             disconnect: Box::new(|| { async move { Ok(()) }.boxed() })
@@ -82,20 +89,11 @@ impl Builder {
         self
     }
 
-    /// Add a task to execute on listen event
-    pub fn add_task<F>(mut self, task: F) -> Self
-    where
-        F: Send + 'static + Sync + Fn(ChannelData) -> Pin<Box<dyn Future<Output = Result<()>> + Send>>
-    {
-        self.tasks.push(Box::new(task));
-        self
-    }
-
     /// Specify what to do in the event that this listener
     /// is disconnected from the Postgres database.
-    pub fn on_disconnect<F>(mut self, fun: F) -> Self
+    pub fn on_disconnect<Fun>(mut self, fun: Fun) -> Self
     where
-        F: Send + 'static + Sync + Fn() -> Pin<Box<dyn Future<Output = Result<()>> + Send>>
+        Fun: Send + 'static + Sync + Fn() -> Pin<Box<dyn Future<Output = Result<()>> + Send>>
 
     {
         self.disconnect = Box::new(fun); self
@@ -108,7 +106,8 @@ impl Builder {
         let mut listener = PgListener::connect(&self.pg_url).await?;
         let channels = self.channels.iter().map(|c| String::from(c)).collect::<Vec<String>>();
         listener.listen_all(channels.iter().map(|s| s.as_ref())).await?;
-
+        let mut conn = PgConnection::connect(&self.pg_url).await.unwrap();
+        
         let fut = async move {
             loop {
                 let listen_fut = listener.try_recv().fuse();
@@ -118,7 +117,7 @@ impl Builder {
                     notif = listen_fut => {
                         match notif {
                             Ok(Some(v)) => { 
-                                let fut = self.handle_listen_event(v);
+                                let fut = self.handle_listen_event(v, &mut conn);
                                 fut.await;
                             },
                             Ok(None) => { 
@@ -142,13 +141,10 @@ impl Builder {
         Ok(Listener { tx })
     }
 
-    /// Handle a listen event from Postgers
-    async fn handle_listen_event(&self, notif: PgNotification) {
-        for task in self.tasks.iter() {
-            log::info!("Got a Notification: {:?}", notif);
-            let payload: NotificationPayload = serde_json::from_str(notif.payload()).unwrap();
-            task(payload.data).await.unwrap();
-        }
+    /// Handle a listen event from Postges
+    async fn handle_listen_event(&self, notif: PgNotification, conn: &mut PgConnection) {
+        let payload: NotificationPayload = serde_json::from_str(notif.payload()).unwrap();
+        (self.task)(payload.data, conn).await.unwrap();
     }
 }
 
@@ -162,8 +158,11 @@ pub struct Listener {
 }
 
 impl Listener {
-    pub fn builder(pg_url: &str) -> Builder {
-        Builder::new(pg_url)
+    pub fn builder<F>(pg_url: &str, f: F) -> Builder<F> 
+    where
+        F: 'static + Send + Sync + for<'a> Fn(ChannelData, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>
+    {
+        Builder::new(pg_url, f)
     }
 
     pub fn kill(&self) {
