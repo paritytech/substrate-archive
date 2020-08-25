@@ -26,9 +26,10 @@ use self::executor::ArchiveExecutor;
 use crate::{backend::database::ReadOnlyDatabase, error::Error as ArchiveError};
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
 use sp_api::ConstructRuntimeApi;
-use sp_core::traits::CloneableSpawn;
+use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
+use futures::{Future, task::SpawnExt};
 
 use super::{ReadOnlyBackend, RuntimeApiCollection};
 
@@ -68,7 +69,7 @@ where
         block_workers as usize,
     );
 
-    let executor = ArchiveExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()));
+    let executor = ArchiveExecutor::new(backend.clone(), executor, TaskExecutor::new());
 
     let client = Client::new(
         backend,
@@ -76,6 +77,24 @@ where
         ExecutionExtensions::new(execution_strategies(), None),
     )?;
     Ok(client)
+}
+
+impl SpawnNamed for TaskExecutor {
+    fn spawn(
+        &self,
+        _: &'static str,
+        fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
+    ) {
+        let _ = self.pool.spawn(fut);
+    }
+
+    fn spawn_blocking(
+        &self,
+        _: &'static str,
+        fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
+    ) {
+        let _ = self.pool.spawn(fut);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -99,12 +118,6 @@ impl futures::task::Spawn for TaskExecutor {
         future: futures::task::FutureObj<'static, ()>,
     ) -> Result<(), futures::task::SpawnError> {
         self.pool.spawn_obj(future)
-    }
-}
-
-impl CloneableSpawn for TaskExecutor {
-    fn clone(&self) -> Box<dyn CloneableSpawn> {
-        Box::new(Clone::clone(self))
     }
 }
 
