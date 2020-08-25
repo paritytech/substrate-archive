@@ -18,19 +18,22 @@
 
 mod actor_pool;
 mod blocks;
-mod generators;
+// mod generators;
 mod workers;
+pub mod msg;
 
 pub use self::actor_pool::ActorPool;
-pub use self::workers::{msg, DatabaseActor};
+pub use self::workers::DatabaseActor;
 
 use super::{
-    backend::{ApiAccess, BlockChanges, Meta, ReadOnlyBackend},
-    database::Listener,
+    backend::{ApiAccess, Meta, ReadOnlyBackend},
+    database::{Listener, Channel, ChannelData},
     error::Result,
-    threadpools::BlockExecPool,
-    types::{Archive, Block, ThreadPool},
+    types::{Archive, ActorHandle},
+    tasks::Environment,
+    sql_block_builder::BlockBuilder as SqlBlockBuilder,
 };
+use self::workers::GetState;
 use futures::FutureExt;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
@@ -39,11 +42,12 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use xtra::prelude::*;
+use sqlx::prelude::*;
+use serde::de::DeserializeOwned;
+use coil::Job as _;
 
-struct Die;
-impl Message for Die {
-    type Result = Result<()>;
-}
+// TODO: Split this up into two objects
+// System should be a factory that produces objects that should be spawned
 
 /// Context that every actor may use
 #[derive(Clone)]
@@ -53,18 +57,20 @@ where
 {
     backend: Arc<ReadOnlyBackend<B>>,
     rpc_url: String,
-    psql_url: String,
+    pg_url: String,
+    meta: Meta<B>,
 }
 
 impl<B: BlockT + Unpin> ActorContext<B>
 where
     B::Hash: Unpin,
 {
-    pub fn new(backend: Arc<ReadOnlyBackend<B>>, rpc_url: String, psql_url: String) -> Self {
+    pub fn new(backend: Arc<ReadOnlyBackend<B>>, meta: Meta<B>, rpc_url: String, pg_url: String) -> Self {
         Self {
             backend,
+            meta,
             rpc_url,
-            psql_url,
+            pg_url,
         }
     }
 
@@ -76,8 +82,11 @@ where
         self.rpc_url.as_str()
     }
 
-    pub fn psql_url(&self) -> &str {
-        self.psql_url.as_str()
+    pub fn pg_url(&self) -> &str {
+        self.pg_url.as_str()
+    }
+    pub fn meta(&self) -> &Meta<B> {
+        &self.meta
     }
 }
 
@@ -87,18 +96,16 @@ where
     B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
+    start_tx: flume::Sender<()>,
     context: ActorContext<B>,
-    executor: Arc<dyn ThreadPool<In = Block<B>, Out = BlockChanges<B>>>,
-    meta: Meta<B>,
-    // ag: Option<Address<Aggregator<B>>>,
-    blocks: Option<Address<blocks::BlocksIndexer<B>>>,
-    listener: Option<Listener>,
-    _marker: PhantomData<(R, C)>,
+    // meta: Meta<B>,
+    // blocks: Option<Address<blocks::BlocksIndexer<B>>>,
+    _marker: PhantomData<(B, R, C)>,
 }
 
 impl<B, R, C> System<B, R, C>
 where
-    B: BlockT + Unpin,
+    B: BlockT + Unpin + DeserializeOwned,
     R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + sp_api::Metadata<B, Error = sp_blockchain::Error>
@@ -127,77 +134,100 @@ where
         backend: Arc<ReadOnlyBackend<B>>,
         workers: Option<usize>,
         url: String,
-        psql_url: &str,
+        pg_url: &str,
     ) -> Result<Self> {
-        let context = ActorContext::new(backend.clone(), url, psql_url.to_string());
-        let executor = Arc::new(BlockExecPool::new(
-            workers,
-            client_api.clone(),
-            backend.clone(),
-        )?);
-
+        let context = ActorContext::new(backend.clone(), client_api, url, pg_url.to_string());
+        let start_tx = Self::start(context.clone());
+       
+        /* 
+        let env = Environment {
+            backend: backend.clone(),
+            client: client_api.clone(),
+            db: 
+        };
+    */
         Ok(Self {
+            start_tx,
             context,
-            executor,
-            meta: client_api,
-            // ag: None,
-            blocks: None,
-            listener: None,
             _marker: PhantomData,
         })
     }
 
+    fn drive(&self) {
+        self.start_tx.send(()).expect("Could not start actors");
+    }
+
     /// Start the actors and begin driving tself.pg_poolheir execution
-    pub async fn drive(&mut self) -> Result<()> {
-        let ctx = self.context.clone();
-
-        let db = workers::DatabaseActor::<B>::new(ctx.psql_url().into()).await?;
-        let db_pool = actor_pool::ActorPool::new(db, 4).spawn();
-        let listener = Listener::builder(&ctx.psql_url)
-            .listen_on(crate::database::Channel::Blocks)
-            .add_task(|_| {
-                async move {
-                    println!("this is a task!");
-                    Ok(())
-                }.boxed()
-            })
-            .on_disconnect(|| {
-                async move {
-                    println!("Postgres disconnected");
-                    Ok(())
-                }.boxed()
-            })
-            .spawn().await?;
+    pub fn start(ctx: ActorContext<B>) -> flume::Sender<()> {
+        let (tx_start, rx_start) = flume::bounded(1);
+        let (tx_kill, rx_kill) = flume::bounded(1);
         
-        // let tx_block = self.executor.sender();
-        let meta_addr = workers::Metadata::new(db_pool.clone(), self.meta.clone())
-            .await?
-            .spawn();
+        let handle = jod_thread::spawn(move || {
+            // block until we receive the message to start
+            let _ = rx_start.recv();
+            let handle = smol::run(Self::main_loop(ctx, rx_kill));
+            // tx.send(handle);
+        });
+    
+        tx_start
+    }
 
-        // super::Generator::new(db_pool.clone(), tx_block.clone()).start()?;
+    async fn main_loop(ctx: ActorContext<B>, mut rx: flume::Receiver<()>) -> Result<()> {
+        let db_pool = Self::spawn_actors(ctx.clone()).await?;
+        let conn = db_pool.send(GetState::Conn.into()).await?.await?.conn();
+        let listener = Self::init_listeners(ctx.pg_url()).await?;
 
-        let blocks_indexer =
-            blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), meta_addr.clone()).spawn();
-
-        // let exec_stream = self.executor.get_stream();
-        // ag.clone().attach_stream(exec_stream);
-        self.blocks = Some(blocks_indexer);
-        self.listener = Some(listener);
-
+        loop {
+            let temp = async move {
+                println!("Hello");
+            }.boxed();
+            futures::select!{
+                _ = temp.fuse() => {},
+                _ = rx.recv_async() => break,
+            }
+        }
         Ok(())
     }
 
     pub async fn block_until_stopped(&self) {
         loop {
-            smol::Timer::new(std::time::Duration::from_millis(1000)).await;
+            smol::Timer::new(std::time::Duration::from_secs(1)).await;
         }
+    }
+
+    async fn spawn_actors(ctx: ActorContext<B>) -> Result<Address<ActorPool<DatabaseActor<B>>>> {
+        let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
+        let db_pool = actor_pool::ActorPool::new(db, 4)
+            .spawn();
+        let meta_addr = workers::Metadata::new(db_pool.clone(), ctx.meta().clone())
+            .await?
+            .spawn();
+        blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), meta_addr.clone())
+            .spawn();
+        Ok(db_pool)
+    }
+    
+    async fn init_listeners(pg_url: &str) -> Result<Listener> {
+        Listener::builder(pg_url, move |notif, conn| async move {
+                    match notif {
+                        ChannelData::Block(b) => {
+                            let b: (B, u32) = SqlBlockBuilder::with_single(b)?;
+                            crate::tasks::execute_block::<B, R, C>(b.0, PhantomData).enqueue(conn).await?;
+                            Ok(())
+                        }
+                    }
+                }.boxed())
+            .listen_on(Channel::Blocks)
+            .on_disconnect(|| {
+                panic!("PostgreSQL Disconnected! TODO");
+            }).spawn().await
     }
 }
 
 #[async_trait::async_trait(?Send)]
 impl<B, R, C> Archive<B> for System<B, R, C>
 where
-    B: BlockT + Unpin,
+    B: BlockT + Unpin + DeserializeOwned,
     B::Hash: Unpin,
     R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
@@ -212,7 +242,8 @@ where
     B::Header: serde::de::DeserializeOwned,
 {
     async fn drive(&mut self) -> Result<()> {
-        System::drive(self).await
+        todo!()
+        // System::drive(self).await
     }
 
     async fn block_until_stopped(&self) {

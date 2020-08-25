@@ -17,7 +17,7 @@
 
 use super::{
     actor_pool::ActorPool,
-    workers::{msg, BlockExecQueue, DatabaseActor, GetState},
+    workers::{msg, DatabaseActor, GetState},
 };
 
 use crate::{error::Result, queries, sql_block_builder::BlockBuilder};
@@ -29,7 +29,6 @@ use xtra::prelude::*;
 pub struct Generator<B: BlockT> {
     // could just use an atomic here
     addr: Address<ActorPool<DatabaseActor<B>>>,
-    executor: Address<BlockExecQueue<B>>,
 }
 
 type Conn = PoolConnection<Postgres>;
@@ -37,7 +36,6 @@ type Conn = PoolConnection<Postgres>;
 impl<B: BlockT> Generator<B> {
     pub fn new(
         actor_pool: Address<ActorPool<DatabaseActor<B>>>,
-        executor: Address<BlockExecQueue<B>>,
     ) -> Self {
         Self {
             addr: actor_pool,

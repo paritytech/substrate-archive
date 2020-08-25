@@ -50,14 +50,41 @@ where
     fn context(&self) -> Result<super::actors::ActorContext<B>>;
 }
 
+#[async_trait::async_trait]
+pub trait ActorHandle {
+    /// check if the actor is still connected
+    fn is_connected(&self) -> bool;
+    /// wait for an actor to finish working, no matter how
+    /// long it takes before killing it.
+    async fn kill(&self) -> Result<()>;
+    /// Try to wait for an actor to finish,
+    /// but if it doesn't kill it by force
+    async fn kill_timeout(&self, dur: std::time::Duration) -> Result<()>;
+}
+
+#[async_trait::async_trait]
+impl<A> ActorHandle for Address<A>
+where
+    A: Handler<crate::actors::msg::Die>,
+{
+    fn is_connected(&self) -> bool {
+        todo!()
+    }
+
+    async fn kill(&self) -> Result<()> {
+        self.send(crate::actors::msg::Die).await?;
+        Ok(())
+    }
+
+    async fn kill_timeout(&self, dur: std::time::Duration) -> Result<()> {
+        todo!()
+    }
+}
+
 #[derive(Debug)]
 pub struct Metadata {
     version: u32,
     meta: Vec<u8>,
-}
-
-impl Message for Metadata {
-    type Result = ();
 }
 
 impl Metadata {
@@ -80,10 +107,6 @@ pub struct Block<B: BlockT> {
     pub spec: u32,
 }
 
-impl<B: BlockT> Message for Block<B> {
-    type Result = ();
-}
-
 impl<B: BlockT> Block<B> {
     pub fn new(block: SignedBlock<B>, spec: u32) -> Self {
         Self { inner: block, spec }
@@ -94,10 +117,6 @@ impl<B: BlockT> Block<B> {
 #[derive(Debug)]
 pub struct BatchBlock<B: BlockT> {
     pub inner: Vec<Block<B>>,
-}
-
-impl<B: BlockT> Message for BatchBlock<B> {
-    type Result = ();
 }
 
 impl<B: BlockT> BatchBlock<B> {
@@ -117,10 +136,6 @@ pub struct Storage<Block: BlockT> {
     block_num: u32,
     full_storage: bool,
     pub changes: Vec<(StorageKey, Option<StorageData>)>,
-}
-
-impl<Block: BlockT> Message for Storage<Block> {
-    type Result = ();
 }
 
 impl<Block: BlockT> Storage<Block> {

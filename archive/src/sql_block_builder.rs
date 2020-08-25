@@ -31,18 +31,13 @@ pub struct BlockBuilder<B: BlockT> {
 }
 
 impl<'a, B: BlockT> BlockBuilder<B> {
-    pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
-    }
 
     /// With a vector of BlockModel
-    pub fn with_vec(&self, blocks: Vec<BlockModel>) -> Result<Vec<types::Block<B>>, Error> {
+    pub fn with_vec(blocks: Vec<BlockModel>) -> Result<Vec<types::Block<B>>, Error> {
         blocks
             .into_iter()
             .map(|b| {
-                let (b, s) = self.with_single(b)?;
+                let (b, s) = Self::with_single(b)?;
                 let b = SignedBlock {
                     block: b,
                     justification: None,
@@ -52,7 +47,7 @@ impl<'a, B: BlockT> BlockBuilder<B> {
             .collect()
     }
 
-    pub fn with_single(&self, block: BlockModel) -> Result<(B, u32), Error> {
+    pub fn with_single(block: BlockModel) -> Result<(B, u32), Error> {
         let digest: DigestFor<B> = Decode::decode(&mut block.digest.as_slice())?;
         let (parent_hash, state_root, extrinsics_root) = Self::into_generic(
             block.parent_hash.as_slice(),

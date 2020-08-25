@@ -32,6 +32,7 @@ use sp_runtime::{
     generic::BlockId,
     traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
+use serde::de::DeserializeOwned;
 use std::{marker::PhantomData, sync::Arc};
 
 /// Main entrypoint for substrate-archive.
@@ -93,7 +94,7 @@ pub struct ArchiveConfig {
 // TODO: Make ArchiveBuilder a real builder
 impl<B, R, D> ArchiveBuilder<B, R, D>
 where
-    B: BlockT + Unpin,
+    B: BlockT + Unpin + DeserializeOwned,
     R: ConstructRuntimeApi<B, TArchiveClient<B, R, D>> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + sp_api::Metadata<B, Error = sp_blockchain::Error>
@@ -184,14 +185,14 @@ where
             rt.spec_version
         );
 
-        let mut ctx = System::<_, R, _>::new(
+        let ctx = System::<_, R, _>::new(
             client,
             backend,
             self.block_workers,
             self.rpc_url.clone(),
             psql_url.as_str(),
         )?;
-        ctx.drive().await?;
+        
         Ok(ctx)
     }
 }
