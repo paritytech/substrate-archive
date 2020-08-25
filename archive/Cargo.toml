@@ -62,7 +62,7 @@ sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "mas
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" } 
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-io" }
-coil = "0.1.0"
+coil = { git = "https://github.com/insipx/coil", branch = "master", package = "coil" }
 
 [dev-dependencies]
 once_cell = "1.4.1"

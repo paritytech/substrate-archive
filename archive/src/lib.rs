@@ -30,6 +30,7 @@ mod sql_block_builder;
 mod threadpools;
 mod types;
 mod util;
+mod tasks;
 
 pub use actors::System;
 pub use archive::{ArchiveBuilder, ArchiveConfig};

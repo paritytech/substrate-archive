@@ -18,25 +18,13 @@
 //! Rather than fetching many blocks from RocksDB by number,
 //! this is a (much) faster alternative
 
-use crate::{error::Error, types};
+use crate::{error::Error, types, database::BlockModel};
 use codec::{Decode, Encode};
 use sp_runtime::{
     generic::SignedBlock,
     traits::{Block as BlockT, DigestFor, Header as HeaderT},
 };
 use std::marker::PhantomData;
-
-#[derive(sqlx::FromRow, Debug, Clone)]
-pub struct SqlBlock {
-    parent_hash: Vec<u8>,
-    hash: Vec<u8>,
-    block_num: i32,
-    state_root: Vec<u8>,
-    extrinsics_root: Vec<u8>,
-    digest: Vec<u8>,
-    ext: Vec<u8>,
-    spec: i32,
-}
 
 pub struct BlockBuilder<B: BlockT> {
     _marker: PhantomData<B>,
@@ -49,8 +37,8 @@ impl<'a, B: BlockT> BlockBuilder<B> {
         }
     }
 
-    /// With a vector of SqlBlocks
-    pub fn with_vec(&self, blocks: Vec<SqlBlock>) -> Result<Vec<types::Block<B>>, Error> {
+    /// With a vector of BlockModel
+    pub fn with_vec(&self, blocks: Vec<BlockModel>) -> Result<Vec<types::Block<B>>, Error> {
         blocks
             .into_iter()
             .map(|b| {
@@ -64,7 +52,7 @@ impl<'a, B: BlockT> BlockBuilder<B> {
             .collect()
     }
 
-    pub fn with_single(&self, block: SqlBlock) -> Result<(B, u32), Error> {
+    pub fn with_single(&self, block: BlockModel) -> Result<(B, u32), Error> {
         let digest: DigestFor<B> = Decode::decode(&mut block.digest.as_slice())?;
         let (parent_hash, state_root, extrinsics_root) = Self::into_generic(
             block.parent_hash.as_slice(),

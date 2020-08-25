@@ -18,9 +18,9 @@
 //! Handles inserting of data into the database
 
 mod batch;
-pub mod models;
 pub mod queries;
 pub mod listener;
+mod models;
 
 use async_trait::async_trait;
 use batch::Batch;
@@ -29,7 +29,7 @@ use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 
-use self::models::*;
+pub use self::models::*;
 pub use self::listener::*;
 
 use crate::{error::Result, types::*};

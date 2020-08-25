@@ -21,7 +21,9 @@ mod blocks;
 mod generators;
 mod workers;
 
-pub use self::workers::msg;
+pub use self::actor_pool::ActorPool;
+pub use self::workers::{msg, DatabaseActor};
+
 use super::{
     backend::{ApiAccess, BlockChanges, Meta, ReadOnlyBackend},
     database::Listener,
