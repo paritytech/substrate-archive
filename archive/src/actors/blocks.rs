@@ -20,8 +20,8 @@ use super::{
 use crate::{
     backend::{ReadOnlyBackend, RuntimeVersionCache},
     error::Result,
-    queries,
     types::{BatchBlock, Block},
+    database::queries
 };
 use sp_runtime::{
     generic::SignedBlock,

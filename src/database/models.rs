@@ -24,6 +24,20 @@ use serde::{Deserialize, Serialize};
 use sp_runtime::traits::Block as BlockT;
 use sp_storage::{StorageData, StorageKey};
 
+/// Struct modeling data returned from database when querying for a block
+#[derive(sqlx::FromRow, Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct BlockModel {
+    pub id: i64,
+    pub parent_hash: Vec<u8>,
+    pub hash: Vec<u8>,
+    pub block_num: i32,
+    pub state_root: Vec<u8>,
+    pub extrinsics_root: Vec<u8>,
+    pub digest: Vec<u8>,
+    pub ext: Vec<u8>,
+    pub spec: i32,
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct StorageModel<Block: BlockT> {
     hash: Block::Hash,

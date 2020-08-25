@@ -16,10 +16,8 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
-use crate::{
-    error::{Error, Result},
-    sql_block_builder::SqlBlock,
-};
+use crate::error::{Error, Result};
+use super::BlockModel;
 use futures::{stream::TryStreamExt, Stream};
 use hashbrown::HashSet;
 use sp_runtime::traits::Block as BlockT;
@@ -95,7 +93,7 @@ pub(crate) async fn max_block(conn: &mut PgConnection) -> Result<Option<u32>> {
 /// # Returns full blocks
 pub(crate) async fn blocks_storage_intersection(
     conn: &mut sqlx::PgConnection,
-) -> Result<Vec<SqlBlock>> {
+) -> Result<Vec<BlockModel>> {
     sqlx::query_as(
         "SELECT *
         FROM blocks
@@ -134,7 +132,7 @@ pub(crate) async fn blocks_storage_intersection_nums(
 pub(crate) async fn get_full_block(
     conn: &mut sqlx::PgConnection,
     block_num: u32,
-) -> Result<SqlBlock> {
+) -> Result<BlockModel> {
     sqlx::query_as(
         "
         SELECT parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec

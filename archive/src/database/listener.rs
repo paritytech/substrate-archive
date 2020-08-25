@@ -24,17 +24,33 @@ use std::pin::Pin;
 use futures::{pin_mut, stream::StreamExt, Future, FutureExt};
 use sqlx::postgres::{PgListener, PgNotification};
 use crate::error::Result;
+use super::BlockModel;
 
-/// Channel encompassing any update to any table
-/// const TABLE_UPDATE_CHAN: &str = "table_update";
+#[derive(PartialEq, Debug, Deserialize)]
+struct NotificationPayload {
+    table: String,
+    action: String,
+    data: ChannelData,
+}
+
+/// passed into tasks
+#[derive(Debug, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum ChannelData {
+    Block(BlockModel)
+}
 
 pub enum Channel {
     /// Listen on the blocks table for new INSERTS
-    Blocks = "blocks_update",
+    Blocks,
 }
 
-pub enum ChannelData {
-    Block(Vec<u8>),
+impl From<&Channel> for String {
+    fn from(chan: &Channel) -> String {
+        match chan {
+            Channel::Blocks => "blocks_update".to_string()
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -52,7 +68,6 @@ pub struct Builder {
 }
 
 impl Builder {
-
     pub fn new(url: &str) -> Self {
         Self {
             tasks: Vec::new(),
@@ -83,8 +98,7 @@ impl Builder {
         F: Send + 'static + Sync + Fn() -> Pin<Box<dyn Future<Output = Result<()>> + Send>>
 
     {
-        self.disconnect = Box::new(fun);
-        self
+        self.disconnect = Box::new(fun); self
     }
 
     /// Spawns this listener which will work on its assigned tasks in the background
@@ -92,7 +106,8 @@ impl Builder {
         let (tx, mut rx) = flume::bounded(1);
 
         let mut listener = PgListener::connect(&self.pg_url).await?;
-        listener.listen_all(self.channels).await?;
+        let channels = self.channels.iter().map(|c| String::from(c)).collect::<Vec<String>>();
+        listener.listen_all(channels.iter().map(|s| s.as_ref())).await?;
 
         let fut = async move {
             loop {
@@ -119,8 +134,7 @@ impl Builder {
                     // complete => break,
                 };
             }
-            println!("I'm wrapping up already?");
-            listener.unlisten(TABLE_UPDATE_CHAN).await.unwrap();
+            listener.unlisten_all().await.unwrap();
         };
         
         smol::Task::spawn(fut).detach();
@@ -132,7 +146,8 @@ impl Builder {
     async fn handle_listen_event(&self, notif: PgNotification) {
         for task in self.tasks.iter() {
             log::info!("Got a Notification: {:?}", notif);
-            task(ChannelData::Block(Vec::new())).await.unwrap();
+            let payload: NotificationPayload = serde_json::from_str(notif.payload()).unwrap();
+            task(payload.data).await.unwrap();
         }
     }
 }
@@ -231,5 +246,41 @@ mod tests {
 
             assert_eq!(5, counter);
         });
+    }
+
+    #[test]
+    fn should_deserialize_into_block() {
+        let json = serde_json::json!({
+            "table": "blocks",
+            "action": "INSERT",
+            "data": {
+                "id": 1337,
+                "parent_hash": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                "hash": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                "block_num": 38,
+                "state_root": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                "extrinsics_root": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                "digest": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                "ext": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                "spec": 1
+            }
+        });
+
+        let notif: NotificationPayload = serde_json::from_value(json).unwrap();
+
+        assert_eq!(NotificationPayload {
+            table: "blocks".to_string(),
+            action: "INSERT".to_string(),
+            data: ChannelData::Block(BlockModel {
+                id: 1337,
+                parent_hash: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                hash: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                block_num: 38,
+                state_root: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                extrinsics_root: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                digest: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                ext: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
+                spec: 1,
+            })}, notif);
     }
 }

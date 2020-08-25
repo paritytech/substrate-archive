@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::database::{models::StorageModel, Database, DbConn};
+use crate::database::{StorageModel, Database, DbConn};
 use crate::error::Result;
 use crate::queries;
 use crate::types::*;
