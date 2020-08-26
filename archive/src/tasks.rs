@@ -32,24 +32,42 @@ use super::{
 };
 use std::sync::Arc;
 use std::marker::PhantomData;
+use std::panic::AssertUnwindSafe;
 use xtra::prelude::*;
 
 /// The environment passed to each task
-pub struct Environment<B, RA, Api> 
+pub struct Environment<B, R, C> 
 where
     B: BlockT,
 {
     backend: Arc<Backend<B>>,
-    client: Arc<Api>,
+    client: Arc<C>,
     db: Address<ActorPool<DatabaseActor<B>>>,
-    _marker: PhantomData<RA>,
+    _marker: PhantomData<R>,
+}
+
+type Env<B, R,C> = AssertUnwindSafe<Environment<B, R,C>>;
+type DbActor<B> = Address<ActorPool<DatabaseActor<B>>>;
+impl<B, R, C> Environment<B, R, C> 
+where
+    B: BlockT,
+{
+    pub fn new(backend: Arc<Backend<B>>, client: Arc<C>, db: DbActor<B>) -> Self {
+    
+        Self {
+            backend,
+            client,
+            db,
+            _marker: PhantomData,
+        }
+    }
 }
 
 // we need PhantomData here so that the proc_macro correctly puts PhantomData into the `Job` struct
 // + DeserializeOwned a little bit wonky, could be fixed with a better proc-macro in `coil`
 /// Execute a block, and send it to the database actor
 #[coil::background_job]
-pub fn execute_block<B, RA, Api>(env: &Environment<B, RA, Api>, block: B, garbo: PhantomData<(RA, Api)>) -> Result<(), coil::PerformError> 
+pub fn execute_block<B, RA, Api>(env: &Env<B, RA, Api>, block: B, garbo: PhantomData<(RA, Api)>) -> Result<(), coil::PerformError> 
 where
     B: BlockT + DeserializeOwned,
     NumberFor<B>: Into<u32>,

@@ -120,7 +120,7 @@ where
             spec.name(),
             spec.id(),
         )?);
-
+        
         let pg_url = if let Some(url) = conf.pg_url {
             url
         } else {
@@ -155,22 +155,17 @@ where
     /// Constructs the Archive and returns the context
     /// in which the archive is running.
     pub fn run(&self) -> Result<impl types::Archive<B>> {
-        smol::run(async {
-            let ctx = self._run().await?;
-            loop {
-                smol::Timer::new(std::time::Duration::from_secs(10)).await;
-            }
-            Ok(ctx)
-        })
+        let ctx = smol::block_on(self._run())?;
+        Ok(ctx)
     }
 
     async fn _run(&self) -> Result<impl types::Archive<B>> {
         let psql_url = crate::migrations::migrate(&self.pg_url).await?;
         let cpus = num_cpus::get();
-
+        let block_workers = self.block_workers.unwrap_or(cpus);
         let client = backend::runtime_api::<B, R, D>(
             self.db.clone(),
-            self.block_workers.unwrap_or(cpus),
+            block_workers,
             self.wasm_pages.unwrap_or(512),
         )
         .map_err(Error::from)?;
@@ -188,7 +183,7 @@ where
         let ctx = System::<_, R, _>::new(
             client,
             backend,
-            self.block_workers,
+            block_workers,
             self.rpc_url.clone(),
             psql_url.as_str(),
         )?;

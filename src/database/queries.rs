@@ -128,8 +128,22 @@ pub(crate) async fn blocks_storage_intersection_nums(
     .collect())
 }
 
+pub(crate) async fn get_full_block_by_id(conn: &mut sqlx::PgConnection, id: i32) -> Result<BlockModel> {
+    sqlx::query_as(
+        "
+        SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
+        FROM blocks
+        WHERE id = $1
+        ",
+    )
+    .bind(id)
+    .fetch_one(conn)
+    .await
+    .map_err(Into::into)
+}
+
 #[cfg(test)]
-pub(crate) async fn get_full_block(
+pub(crate) async fn get_full_block_by_num(
     conn: &mut sqlx::PgConnection,
     block_num: u32,
 ) -> Result<BlockModel> {

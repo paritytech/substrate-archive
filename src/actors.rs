@@ -24,10 +24,10 @@ pub mod msg;
 
 pub use self::actor_pool::ActorPool;
 pub use self::workers::DatabaseActor;
-
+use std::panic::AssertUnwindSafe;
 use super::{
     backend::{ApiAccess, Meta, ReadOnlyBackend},
-    database::{Listener, Channel, ChannelData},
+    database::{Listener, Channel, queries},
     error::Result,
     types::{Archive, ActorHandle},
     tasks::Environment,
@@ -59,16 +59,18 @@ where
     rpc_url: String,
     pg_url: String,
     meta: Meta<B>,
+    workers: usize,
 }
 
 impl<B: BlockT + Unpin> ActorContext<B>
 where
     B::Hash: Unpin,
 {
-    pub fn new(backend: Arc<ReadOnlyBackend<B>>, meta: Meta<B>, rpc_url: String, pg_url: String) -> Self {
+    pub fn new(backend: Arc<ReadOnlyBackend<B>>, meta: Meta<B>, workers: usize, rpc_url: String, pg_url: String) -> Self {
         Self {
             backend,
             meta,
+            workers,
             rpc_url,
             pg_url,
         }
@@ -90,6 +92,8 @@ where
     }
 }
 
+/// Control the execution of the indexing engine.
+/// Will exit on Drop.
 pub struct System<B, R, C>
 where
     B: BlockT + Unpin,
@@ -97,9 +101,10 @@ where
     NumberFor<B>: Into<u32>,
 {
     start_tx: flume::Sender<()>,
+    kill_tx: flume::Sender<()>,
     context: ActorContext<B>,
-    // meta: Meta<B>,
-    // blocks: Option<Address<blocks::BlocksIndexer<B>>>,
+    /// handle to the futures runtime indexing the running chain
+    handle: jod_thread::JoinHandle<()>,
     _marker: PhantomData<(B, R, C)>,
 }
 
@@ -132,23 +137,18 @@ where
         // for WASM runtime-instances
         client_api: Arc<C>,
         backend: Arc<ReadOnlyBackend<B>>,
-        workers: Option<usize>,
+        workers: usize,
         url: String,
         pg_url: &str,
     ) -> Result<Self> {
-        let context = ActorContext::new(backend.clone(), client_api, url, pg_url.to_string());
-        let start_tx = Self::start(context.clone());
-       
-        /* 
-        let env = Environment {
-            backend: backend.clone(),
-            client: client_api.clone(),
-            db: 
-        };
-    */
+        let context = ActorContext::new(backend.clone(), client_api.clone(), workers, url, pg_url.to_string());
+        let (start_tx, kill_tx, handle) = Self::start(context.clone(), client_api);
+        
         Ok(Self {
-            start_tx,
             context,
+            start_tx,
+            kill_tx,
+            handle,
             _marker: PhantomData,
         })
     }
@@ -158,64 +158,68 @@ where
     }
 
     /// Start the actors and begin driving tself.pg_poolheir execution
-    pub fn start(ctx: ActorContext<B>) -> flume::Sender<()> {
+    pub fn start(ctx: ActorContext<B>, client: Arc<C>) -> (flume::Sender<()>, flume::Sender<()>, jod_thread::JoinHandle<()>) {
         let (tx_start, rx_start) = flume::bounded(1);
         let (tx_kill, rx_kill) = flume::bounded(1);
         
         let handle = jod_thread::spawn(move || {
             // block until we receive the message to start
             let _ = rx_start.recv();
-            let handle = smol::run(Self::main_loop(ctx, rx_kill));
-            // tx.send(handle);
+            smol::run(Self::main_loop(ctx, rx_kill, client)).unwrap();
         });
     
-        tx_start
+        (tx_start, tx_kill, handle)
     }
 
-    async fn main_loop(ctx: ActorContext<B>, mut rx: flume::Receiver<()>) -> Result<()> {
-        let db_pool = Self::spawn_actors(ctx.clone()).await?;
-        let conn = db_pool.send(GetState::Conn.into()).await?.await?.conn();
+    async fn main_loop(ctx: ActorContext<B>, mut rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
+        let (db_pool, _, _) = Self::spawn_actors(ctx.clone()).await?;
+        let pool = db_pool.send(GetState::Pool.into()).await?.await?.pool();
         let listener = Self::init_listeners(ctx.pg_url()).await?;
 
+        let env = Environment::<B, R, C>::new(ctx.backend().clone(), client, db_pool);
+        let env = AssertUnwindSafe(env); 
+        
+        let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
+            .register_job::<crate::tasks::execute_block::Job<B, R, C>>()
+            .num_threads(ctx.workers)
+            .max_tasks(500)
+            .build()?;
+        
         loop {
-            let temp = async move {
-                println!("Hello");
-            }.boxed();
+            let tasks = runner.run_all_sync_tasks().fuse();
+            futures::pin_mut!(tasks);
             futures::select!{
-                _ = temp.fuse() => {},
+                t = tasks => {
+                    if t? == 0 {
+                        smol::Timer::new(std::time::Duration::from_millis(3600)).await;
+                    }
+                    println!("gotemmm haaa");
+                },
                 _ = rx.recv_async() => break,
             }
         }
+        listener.kill_async().await;
         Ok(())
     }
 
-    pub async fn block_until_stopped(&self) {
-        loop {
-            smol::Timer::new(std::time::Duration::from_secs(1)).await;
-        }
-    }
-
-    async fn spawn_actors(ctx: ActorContext<B>) -> Result<Address<ActorPool<DatabaseActor<B>>>> {
+    async fn spawn_actors(ctx: ActorContext<B>) -> Result<(Address<ActorPool<DatabaseActor<B>>>, Address<blocks::BlocksIndexer<B>>, Address<workers::Metadata<B>>)> {
         let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
         let db_pool = actor_pool::ActorPool::new(db, 4)
             .spawn();
         let meta_addr = workers::Metadata::new(db_pool.clone(), ctx.meta().clone())
             .await?
             .spawn();
-        blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), meta_addr.clone())
+        let blocks = blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), meta_addr.clone())
             .spawn();
-        Ok(db_pool)
+        Ok((db_pool, blocks, meta_addr))
     }
     
     async fn init_listeners(pg_url: &str) -> Result<Listener> {
         Listener::builder(pg_url, move |notif, conn| async move {
-                    match notif {
-                        ChannelData::Block(b) => {
-                            let b: (B, u32) = SqlBlockBuilder::with_single(b)?;
-                            crate::tasks::execute_block::<B, R, C>(b.0, PhantomData).enqueue(conn).await?;
-                            Ok(())
-                        }
-                    }
+                    let block = queries::get_full_block_by_id(conn, notif.id).await?;
+                    let b: (B, u32) = SqlBlockBuilder::with_single(block)?;
+                    crate::tasks::execute_block::<B, R, C>(b.0, PhantomData).enqueue(conn).await?;
+                    Ok(())
                 }.boxed())
             .listen_on(Channel::Blocks)
             .on_disconnect(|| {
@@ -242,36 +246,29 @@ where
     B::Header: serde::de::DeserializeOwned,
 {
     async fn drive(&mut self) -> Result<()> {
-        todo!()
-        // System::drive(self).await
+        System::drive(self);
+        Ok(())
     }
 
     async fn block_until_stopped(&self) {
-        System::block_until_stopped(self).await
+        loop {
+            smol::Timer::new(std::time::Duration::from_secs(1)).await;
+        }
     }
 
     fn shutdown(mut self) -> Result<()> {
+        let _ = self.kill_tx.send(());
         if let Some(c) = self.context.backend().backing_db().catch_up_count() {
             log::info!("Caught Up {} times", c);
         }
-        /*
-        let ag = self.ag.take();
-        if let Some(ag) = ag {
-            ag.do_send(Die)?;
-        }
-        */
         Ok(())
     }
 
     fn boxed_shutdown(mut self: Box<Self>) -> Result<()> {
+        let _ = self.kill_tx.send(());
         if let Some(c) = self.context.backend().backing_db().catch_up_count() {
             log::info!("Caught Up {} times", c);
         }
-        /*
-        let ag = self.ag.take();
-        if let Some(ag) = ag {
-            ag.do_send(Die)?;
-        }*/
         Ok(())
     }
 

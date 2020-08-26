@@ -20,25 +20,39 @@
 //! listen wakeup.
 
 use serde::{Serialize, Deserialize};
+use serde_aux::prelude::*;
 use std::pin::Pin;
 use futures::{pin_mut, Future, FutureExt};
 use sqlx::postgres::{PgListener, PgNotification, PgConnection};
 use sqlx::prelude::*;
 use crate::error::Result;
-use super::BlockModel;
+// use super::BlockModel;
 
+/// A notification from Postgres about a new row
 #[derive(PartialEq, Debug, Deserialize)]
-struct NotificationPayload {
-    table: String,
-    action: String,
-    data: ChannelData,
+pub struct Notif {
+    pub table: Table,
+    pub action: Action,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub id: i32,
 }
 
-/// passed into tasks
-#[derive(Debug, PartialEq, Deserialize)]
-#[serde(untagged)]
-pub enum ChannelData {
-    Block(BlockModel)
+#[derive(PartialEq, Debug, Deserialize)]
+pub enum Table {
+    #[serde(rename = "blocks")]
+    Blocks,
+    #[serde(rename = "storage")]
+    Storage
+}
+
+#[derive(PartialEq, Debug, Deserialize)]
+pub enum Action {
+    #[serde(rename = "INSERT")]
+    Insert,
+    #[serde(rename = "UPDATE")]
+    Update,
+    #[serde(rename = "DELETE")]
+    Delete
 }
 
 pub enum Channel {
@@ -63,7 +77,7 @@ struct ListenEvent {
 
 pub struct Builder<F> 
 where
-    F: 'static + Send + Sync + for<'a> Fn(ChannelData, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>
+    F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>
 {
     task: F,  
     disconnect: Box<dyn Send + Sync + Fn() -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>>,
@@ -73,7 +87,7 @@ where
 
 impl<F> Builder<F> 
 where
-    F: 'static + Send + Sync + for<'a> Fn(ChannelData, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>
+    F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>
 {
     pub fn new(url: &str, f: F) -> Self {
         Self {
@@ -116,7 +130,7 @@ where
                 futures::select! {
                     notif = listen_fut => {
                         match notif {
-                            Ok(Some(v)) => { 
+                            Ok(Some(v)) => {
                                 let fut = self.handle_listen_event(v, &mut conn);
                                 fut.await;
                             },
@@ -129,7 +143,14 @@ where
                             }
                         }
                     },
-                    r = rx.recv_async() => break,
+                    r = rx.recv_async() => { 
+                        match r {
+                            Ok(_) => break,
+                            Err(e) => {
+                                log::warn!("Ending due to: {:?}", e);
+                            }
+                        }
+                    },
                     // complete => break,
                 };
             }
@@ -143,8 +164,8 @@ where
 
     /// Handle a listen event from Postges
     async fn handle_listen_event(&self, notif: PgNotification, conn: &mut PgConnection) {
-        let payload: NotificationPayload = serde_json::from_str(notif.payload()).unwrap();
-        (self.task)(payload.data, conn).await.unwrap();
+        let payload: Notif = serde_json::from_str(notif.payload()).unwrap();
+        (self.task)(payload, conn).await.unwrap();
     }
 }
 
@@ -160,11 +181,12 @@ pub struct Listener {
 impl Listener {
     pub fn builder<F>(pg_url: &str, f: F) -> Builder<F> 
     where
-        F: 'static + Send + Sync + for<'a> Fn(ChannelData, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>
+        F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>
     {
         Builder::new(pg_url, f)
     }
 
+    #[allow(unused)]
     pub fn kill(&self) {
         let _ = self.tx.send(());
     }
@@ -180,7 +202,7 @@ mod tests {
     use once_cell::sync::Lazy;
     use std::sync::{Mutex, MutexGuard};
     use sqlx::{Executor, Connection};
-    use futures::SinkExt;
+    use futures::{SinkExt, StreamExt};
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering}
@@ -217,20 +239,30 @@ mod tests {
         smol::block_on(async move {
             let (tx, mut rx) = futures::channel::mpsc::channel(5);
 
-            let listener = Builder::new(&crate::DATABASE_URL)
+            let listener = Builder::new(&crate::DATABASE_URL, 
+                    move |_, _| {
+                        let mut tx1 = tx.clone();
+                        async move {
+                            log::info!("Hello");
+                            tx1.send(()).await.unwrap();
+                            Ok(())
+                        }.boxed()
+                    }
+                )
                 .listen_on(Channel::Blocks)
-                .add_task(move |_| {
-                    let mut tx1 = tx.clone();
-                    async move {
-                        log::info!("Hello from a task");
-                        let _ = tx1.send(()).await;
-                        Ok(())
-                    }.boxed()
-                })
                 .spawn().await.unwrap();
             let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
+            let json = serde_json::json!({
+                "table": "blocks",
+                "action": "INSERT",
+                "id":  1337 
+            }).to_string();
             for _ in 0usize..5usize {
-                conn.execute("SELECT pg_notify('table_update', 'test')").await.expect("Could not exec notify query");
+                sqlx::query("SELECT pg_notify('blocks_update', $1)")
+                    .bind(json.clone())
+                    .execute(&mut conn)
+                    .await
+                    .expect("Could not exec notify query");
                 smol::Timer::new(std::time::Duration::from_millis(50)).await;
             }
             let mut counter: usize = 0;
@@ -252,34 +284,15 @@ mod tests {
         let json = serde_json::json!({
             "table": "blocks",
             "action": "INSERT",
-            "data": {
-                "id": 1337,
-                "parent_hash": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                "hash": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                "block_num": 38,
-                "state_root": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                "extrinsics_root": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                "digest": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                "ext": vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                "spec": 1
-            }
+            "id":  1337 
         });
 
-        let notif: NotificationPayload = serde_json::from_value(json).unwrap();
+        let notif: Notif = serde_json::from_value(json).unwrap();
 
-        assert_eq!(NotificationPayload {
-            table: "blocks".to_string(),
-            action: "INSERT".to_string(),
-            data: ChannelData::Block(BlockModel {
-                id: 1337,
-                parent_hash: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                hash: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                block_num: 38,
-                state_root: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                extrinsics_root: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                digest: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                ext: vec![0x73, 0x31, 0x58, 0x13, 0xDE, 0xAD, 0xBE, 0xEF],
-                spec: 1,
-            })}, notif);
+        assert_eq!(Notif {
+            table: Table::Blocks,
+            action: Action::Insert,
+            id: 1337
+        }, notif);
     }
 }
