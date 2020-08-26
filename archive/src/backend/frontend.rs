@@ -69,7 +69,7 @@ where
         block_workers as usize,
     );
 
-    let executor = ArchiveExecutor::new(backend.clone(), executor, TaskExecutor);
+    let executor = ArchiveExecutor::new(backend.clone(), executor, crate::TaskExecutor);
 
     let client = Client::new(
         backend,
@@ -77,37 +77,6 @@ where
         ExecutionExtensions::new(execution_strategies(), None),
     )?;
     Ok(client)
-}
-
-#[derive(Debug, Clone)]
-pub struct TaskExecutor;
-
-impl futures::task::Spawn for TaskExecutor {
-    fn spawn_obj(
-        &self,
-        future: futures::task::FutureObj<'static, ()>,
-    ) -> Result<(), futures::task::SpawnError> {
-        smol::Task::spawn(future).detach();
-        Ok(())
-    }
-}
-
-impl SpawnNamed for TaskExecutor {
-    fn spawn(
-        &self,
-        _: &'static str,
-        fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
-    ) {
-        smol::Task::spawn(fut).detach()
-    }
-
-    fn spawn_blocking(
-        &self,
-        _: &'static str,
-        fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
-    ) {
-        smol::Task::spawn(async move { smol::unblock!(fut) }).detach();
-    }
 }
 
 fn execution_strategies() -> ExecutionStrategies {

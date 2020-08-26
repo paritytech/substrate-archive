@@ -5,21 +5,21 @@ CREATE OR REPLACE FUNCTION table_update_trigger_fn()
 AS $BODY$
 DECLARE
   channel TEXT := TG_ARGV[0];
-  data JSON;
+  id JSON;
   notification JSON;
 BEGIN
 
     IF (TG_OP = 'DELETE') THEN
-      data = row_to_json(OLD);
+      id = OLD.id;
     ELSE
-      data = row_to_json(NEW);
+      id = NEW.id;
     END IF;
 
     -- create json payload
      notification := json_build_object(
         'table',TG_TABLE_NAME,
         'action', TG_OP,
-        'data', data::TEXT
+        'id', id
     );
 
     PERFORM pg_notify(channel, notification::TEXT);

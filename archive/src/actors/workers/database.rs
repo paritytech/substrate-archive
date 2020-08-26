@@ -181,7 +181,10 @@ impl<B: BlockT> Handler<VecStorageWrap<B>> for DatabaseActor<B> {
 /// Get Some State from the Database Actor
 #[derive(Debug)]
 pub enum GetState {
+    // Get a single connection
     Conn,
+    // Get the Connection Pool
+    Pool
 }
 
 /// A response to `GetState`
@@ -190,6 +193,7 @@ pub enum GetState {
 #[derive(Debug)]
 pub enum StateResponse {
     Conn(DbConn),
+    Pool(sqlx::PgPool)
 }
 
 impl StateResponse {
@@ -200,6 +204,18 @@ impl StateResponse {
     pub fn conn(self) -> DbConn {
         match self {
             StateResponse::Conn(v) => v,
+            StateResponse::Pool(_) => panic!("Not a connection"),
+        }
+    }
+
+    /// Pull a pool out of the enum
+    ///
+    /// # Panics
+    /// panics if the enum is not actually of the 'pool' type
+    pub fn pool(self) -> sqlx::PgPool {
+        match self {
+            StateResponse::Pool(v) => v,
+            StateResponse::Conn(_) => panic!("Not a pool"),
         }
     }
 }
@@ -215,6 +231,10 @@ impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
             GetState::Conn => {
                 let conn = self.db.conn().await?;
                 Ok(StateResponse::Conn(conn))
+            },
+            GetState::Pool => {
+                let pool = self.db.pool().clone();
+                Ok(StateResponse::Pool(pool))
             }
         }
     }

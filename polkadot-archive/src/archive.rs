@@ -52,10 +52,10 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
     let conf = ArchiveConfig {
         db_url: db_path,
         rpc_url: config.rpc_url().into(),
-        cache_size: config.cache_size(),
+        cache_size: Some(config.cache_size()),
         block_workers: config.block_workers(),
         wasm_pages: config.wasm_pages(),
-        psql_conf: config.psql_conf(),
+        pg_url: Some(config.psql_conf().url()),
     };
 
     match config.cli().chain.to_ascii_lowercase().as_str() {

@@ -40,6 +40,10 @@ pub enum Error {
     /// an error occurred while enqueuing a background job 
     #[error("Background job err {0}")]
     BgJob(#[from] coil::EnqueueError),
+    #[error("Background Job {0}")]
+    BgJobGen(#[from] coil::Error),
+    #[error("Failed getting background task {0}")]
+    BgJobGet(#[from] coil::FetchError),
     #[error("could not build threadpool")]
     ThreadPool(#[from] rayon::ThreadPoolBuildError),
     #[error(

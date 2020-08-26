@@ -56,7 +56,7 @@ impl Database {
     pub async fn new(url: String) -> Result<Self> {
         let pool = PgPoolOptions::new()
             .min_connections(4)
-            .max_connections(8)
+            .max_connections(16)
             .idle_timeout(std::time::Duration::from_millis(3600)) // kill connections after 5 minutes of idle
             .connect(url.as_str())
             .await?;
@@ -78,6 +78,10 @@ impl Database {
 
     pub async fn conn(&self) -> Result<DbConn> {
         self.pool.acquire().await.map_err(Into::into)
+    }
+
+    pub fn pool(&self) -> &sqlx::PgPool {
+        &self.pool
     }
 }
 

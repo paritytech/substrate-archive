@@ -816,7 +816,7 @@ dependencies = [
 [[package]]
 name = "coil"
 version = "0.1.0"
-source = "git+https://github.com/insipx/coil#6cd3283b3de88c930a26d746e97ed7aae02a201c"
+source = "git+https://github.com/insipx/coil#2b075b3f7ab01d2e9062c69cd35e647b270fed04"
 dependencies = [
  "async-channel",
  "async-trait",
@@ -835,7 +835,7 @@ dependencies = [
 [[package]]
 name = "coil_proc_macro"
 version = "0.1.0"
-source = "git+https://github.com/insipx/coil#6cd3283b3de88c930a26d746e97ed7aae02a201c"
+source = "git+https://github.com/insipx/coil#2b075b3f7ab01d2e9062c69cd35e647b270fed04"
 dependencies = [
  "proc-macro2 1.0.19",
  "quote 1.0.7",
@@ -4964,6 +4964,7 @@ dependencies = [
  "polkadot-service",
  "sc-chain-spec",
  "serde",
+ "smol",
  "substrate-archive",
  "toml",
 ]
@@ -7229,6 +7230,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-aux"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae50f53d4b01e854319c1f5b854cd59471f054ea7e554988850d3f36ca1dc852"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_derive",
+ "serde_json",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.115"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8368,6 +8381,7 @@ dependencies = [
  "sc-client-api",
  "sc-executor",
  "serde",
+ "serde-aux",
  "serde_json",
  "smol",
  "sp-api",
@@ -9055,7 +9069,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
 dependencies = [
- "rand 0.3.23",
+ "rand 0.7.3",
 ]
 
 [[package]]

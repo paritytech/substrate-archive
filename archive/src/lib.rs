@@ -27,7 +27,6 @@ mod migrations;
 // #[cfg(test)]
 // mod simple_db;
 mod sql_block_builder;
-mod threadpools;
 mod types;
 mod util;
 mod tasks;
@@ -52,6 +51,38 @@ pub mod chain_traits {
     pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
     pub use sp_runtime::traits::{BlakeTwo256, Block, IdentifyAccount, Verify};
 }
+
+#[derive(Debug, Clone)]
+pub struct TaskExecutor;
+
+impl futures::task::Spawn for TaskExecutor {
+    fn spawn_obj(
+        &self,
+        future: futures::task::FutureObj<'static, ()>,
+    ) -> Result<(), futures::task::SpawnError> {
+        smol::Task::spawn(future).detach();
+        Ok(())
+    }
+}
+
+impl sp_core::traits::SpawnNamed for TaskExecutor {
+    fn spawn(
+        &self,
+        _: &'static str,
+        fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>,
+    ) {
+        smol::Task::spawn(fut).detach()
+    }
+
+    fn spawn_blocking(
+        &self,
+        _: &'static str,
+        fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>,
+    ) {
+        smol::Task::spawn(async move { smol::unblock!(fut) }).detach();
+    }
+}
+
 
 #[cfg(test)]
 use test::{PG_POOL, DATABASE_URL, initialize};

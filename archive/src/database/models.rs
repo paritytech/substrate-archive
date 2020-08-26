@@ -27,7 +27,7 @@ use sp_storage::{StorageData, StorageKey};
 /// Struct modeling data returned from database when querying for a block
 #[derive(sqlx::FromRow, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BlockModel {
-    pub id: i64,
+    pub id: i32,
     pub parent_hash: Vec<u8>,
     pub hash: Vec<u8>,
     pub block_num: i32,

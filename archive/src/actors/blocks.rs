@@ -69,6 +69,7 @@ where
         fun: impl Fn(u32) -> bool + Send + 'static,
     ) -> Result<Vec<Block<B>>> {
         let backend = self.backend.clone();
+        log::info!("Starting to load blocks from chain backend");
         let now = std::time::Instant::now();
         let gather_blocks = move || -> Result<Vec<SignedBlock<B>>> {
             Ok(backend
@@ -96,6 +97,7 @@ where
     /// gets any blocks that are missing from database and indexes those
     /// sets the `last_max` value.
     async fn re_index(&mut self) -> Result<Option<Vec<Block<B>>>> {
+        log::info!("Re-indexing");
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
         let numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
         let len = numbers.len();
@@ -103,14 +105,17 @@ where
         self.last_max = if let Some(m) = queries::max_block(&mut conn).await? {
             m
         } else {
+            log::info!("Finished re-indexing, no last max");
             // a `None` means that the blocks table is not populated yet
             return Ok(None);
         };
         let blocks = self.collect_blocks(move |n| numbers.contains(&n)).await?;
+        log::info!("Finished re-indexing");
         Ok(Some(blocks))
     }
 
     async fn crawl(&mut self) -> Result<Vec<Block<B>>> {
+        log::info!("Crawling!");
         let copied_last_max = self.last_max;
         let blocks = self.collect_blocks(move |n| n > copied_last_max).await?;
         self.last_max = blocks
@@ -134,7 +139,10 @@ where
             .expect("Actor just started")
             .do_send(ReIndex)
             .expect("Actor cannot be disconnected; just started");
-        ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl);
+        ctx.notify_interval(std::time::Duration::from_secs(5), || { 
+            log::info!("Shooting off interval");
+            Crawl
+        });
     }
 }
 
@@ -150,6 +158,7 @@ where
     B::Hash: Unpin,
 {
     async fn handle(&mut self, _: Crawl, ctx: &mut Context<Self>) {
+        log::info!("Got Crawl Message");
         match self.crawl().await {
             Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
