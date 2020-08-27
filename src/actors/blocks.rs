@@ -157,9 +157,11 @@ where
         match self.crawl().await {
             Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
-                log::info!("Sending {} blocks", b.len());
-                if let Err(_) = self.meta.send(BatchBlock::new(b)).await {
-                    ctx.stop();
+                if b.len() != 0 {
+                    log::info!("Sending {} blocks", b.len());
+                    if let Err(_) = self.meta.send(BatchBlock::new(b)).await {
+                        ctx.stop();
+                    }
                 }
             }
         }
