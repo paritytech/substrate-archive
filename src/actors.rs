@@ -193,7 +193,6 @@ where
                     if t? == 0 {
                         smol::Timer::new(std::time::Duration::from_millis(3600)).await;
                     }
-                    println!("gotemmm haaa");
                 },
                 _ = rx.recv_async() => break,
             }
