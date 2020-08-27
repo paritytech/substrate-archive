@@ -174,10 +174,11 @@ where
         let last_finalized_block = backend.last_finalized()?;
         let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
         log::info!(
-            "Running Archive for Chain `{}`, implemention `{}`. Latest known Runtime Version: {}",
+            "Running archive for chain `{}`, implemention `{}`. Latest known runtime version: {}. Latest finalized block {}",
             rt.spec_name,
             rt.impl_name,
-            rt.spec_version
+            rt.spec_version,
+            last_finalized_block
         );
 
         let ctx = System::<_, R, _>::new(
