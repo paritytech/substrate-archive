@@ -200,7 +200,7 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
 #[async_trait]
 impl Insert for Metadata {
     async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
-        log::info!("Inserting Metadata");
+        log::debug!("Inserting Metadata");
         sqlx::query(
             r#"
             INSERT INTO metadata (version, meta)

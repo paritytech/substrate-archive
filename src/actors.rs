@@ -17,13 +17,14 @@
 //! chain defined with the passed-in Client and URL.
 
 mod actor_pool;
-mod blocks;
 // mod generators;
 mod workers;
 pub mod msg;
 
 pub use self::actor_pool::ActorPool;
-pub use self::workers::DatabaseActor;
+pub use self::workers::{
+    DatabaseActor, StorageAggregator, BlocksIndexer
+};
 use std::panic::AssertUnwindSafe;
 use super::{
     backend::{ApiAccess, Meta, ReadOnlyBackend},
@@ -42,7 +43,6 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use xtra::prelude::*;
-use sqlx::prelude::*;
 use serde::de::DeserializeOwned;
 use coil::Job as _;
 
@@ -90,6 +90,13 @@ where
     pub fn meta(&self) -> &Meta<B> {
         &self.meta
     }
+}
+
+struct Actors<B: BlockT + Unpin> where B::Hash: Unpin, NumberFor<B>: Into<u32> {
+    storage: Address<workers::StorageAggregator<B>>,
+    blocks: Address<workers::BlocksIndexer<B>>,
+    metadata: Address<workers::Metadata<B>>,
+    db_pool: Address<ActorPool<DatabaseActor<B>>>
 }
 
 /// Control the execution of the indexing engine.
@@ -172,11 +179,11 @@ where
     }
 
     async fn main_loop(ctx: ActorContext<B>, mut rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
-        let (db_pool, blocks, meta) = Self::spawn_actors(ctx.clone()).await?;
-        let pool = db_pool.send(GetState::Pool.into()).await?.await?.pool();
+        let actors = Self::spawn_actors(ctx.clone()).await?;
+        let pool = actors.db_pool.send(GetState::Pool.into()).await?.await?.pool();
         let listener = Self::init_listeners(ctx.pg_url()).await?;
 
-        let env = Environment::<B, R, C>::new(ctx.backend().clone(), client, db_pool);
+        let env = Environment::<B, R, C>::new(ctx.backend().clone(), client, actors.storage.clone());
         let env = AssertUnwindSafe(env); 
         
         let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
@@ -201,16 +208,19 @@ where
         Ok(())
     }
 
-    async fn spawn_actors(ctx: ActorContext<B>) -> Result<(Address<ActorPool<DatabaseActor<B>>>, Address<blocks::BlocksIndexer<B>>, Address<workers::Metadata<B>>)> {
+    async fn spawn_actors(ctx: ActorContext<B>) -> Result<Actors<B>> {
         let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
         let db_pool = actor_pool::ActorPool::new(db, 4)
             .spawn();
-        let meta_addr = workers::Metadata::new(db_pool.clone(), ctx.meta().clone())
+        let storage = workers::StorageAggregator::new(db_pool.clone()).spawn();
+        let metadata = workers::Metadata::new(db_pool.clone(), ctx.meta().clone())
             .await?
             .spawn();
-        let blocks = blocks::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), meta_addr.clone())
+        let blocks = workers::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), metadata.clone())
             .spawn();
-        Ok((db_pool, blocks, meta_addr))
+        Ok(Actors {
+            storage, blocks, metadata, db_pool
+        })
     }
     
     async fn init_listeners(pg_url: &str) -> Result<Listener> {

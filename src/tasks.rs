@@ -28,7 +28,7 @@ use serde::de::DeserializeOwned;
 use crate::types::Storage;
 use super::{
     backend::{ReadOnlyBackend as Backend, ApiAccess, BlockExecutor},
-    actors::{ActorPool, DatabaseActor},
+    actors::StorageAggregator
 };
 use std::sync::Arc;
 use std::marker::PhantomData;
@@ -38,26 +38,26 @@ use xtra::prelude::*;
 /// The environment passed to each task
 pub struct Environment<B, R, C> 
 where
-    B: BlockT,
+    B: BlockT + Unpin,
+    B::Hash: Unpin
 {
     backend: Arc<Backend<B>>,
     client: Arc<C>,
-    db: Address<ActorPool<DatabaseActor<B>>>,
+    storage: Address<StorageAggregator<B>>,
     _marker: PhantomData<R>,
 }
 
 type Env<B, R,C> = AssertUnwindSafe<Environment<B, R,C>>;
-type DbActor<B> = Address<ActorPool<DatabaseActor<B>>>;
 impl<B, R, C> Environment<B, R, C> 
 where
-    B: BlockT,
+    B: BlockT + Unpin,
+    B::Hash: Unpin
 {
-    pub fn new(backend: Arc<Backend<B>>, client: Arc<C>, db: DbActor<B>) -> Self {
-    
+    pub fn new(backend: Arc<Backend<B>>, client: Arc<C>, storage: Address<StorageAggregator<B>>) -> Self {
         Self {
             backend,
             client,
-            db,
+            storage,
             _marker: PhantomData,
         }
     }
@@ -69,7 +69,7 @@ where
 #[coil::background_job]
 pub fn execute_block<B, RA, Api>(env: &Env<B, RA, Api>, block: B, _m: PhantomData<(RA, Api)>) -> Result<(), coil::PerformError> 
 where
-    B: BlockT + DeserializeOwned,
+    B: BlockT + DeserializeOwned + Unpin,
     NumberFor<B>: Into<u32>,
     B::Hash: Unpin,
     RA: ConstructRuntimeApi<B, Api> + Send + Sync + 'static,
@@ -96,6 +96,6 @@ where
     let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
     
     let storage = Storage::from(block);
-    env.db.do_send(storage.into())?;
+    smol::block_on(env.storage.send(storage))?;
     Ok(())
 }

@@ -13,10 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{
-    actor_pool::ActorPool,
-    workers::{Metadata, DatabaseActor, GetState},
-};
+use super::{ActorPool,Metadata, DatabaseActor, GetState,};
 use crate::{
     backend::{ReadOnlyBackend, RuntimeVersionCache},
     error::Result,
@@ -121,14 +118,13 @@ where
     }
 }
 
-#[async_trait::async_trait]
 impl<B: BlockT> Actor for BlocksIndexer<B>
 where
     NumberFor<B>: Into<u32>,
     B: Unpin,
     B::Hash: Unpin,
 {
-    async fn started(&mut self, ctx: &mut Context<Self>) {
+    fn started(&mut self, ctx: &mut Context<Self>) {
         // using this instead of notify_immediately because
         // ReIndexing is async process
         ctx.address()
@@ -157,7 +153,7 @@ where
         match self.crawl().await {
             Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
-                if b.len() != 0 {
+                if !b.is_empty() {
                     log::info!("Sending {} blocks", b.len());
                     if let Err(_) = self.meta.send(BatchBlock::new(b)).await {
                         ctx.stop();
