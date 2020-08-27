@@ -145,13 +145,14 @@ where
     type Result = Pin<Box<dyn Future<Output = M::Result> + Send + 'static>>;
 }
 
-impl<A, M> SyncHandler<PoolMessage<M>> for ActorPool<A>
+#[async_trait::async_trait]
+impl<A, M> Handler<PoolMessage<M>> for ActorPool<A>
 where
     A: Actor + Send + Clone + Handler<M>,
     M: Message + Send + std::fmt::Debug + Unpin,
     M::Result: Unpin + std::fmt::Debug,
 {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: PoolMessage<M>,
         _: &mut Context<Self>,

@@ -172,7 +172,7 @@ where
     }
 
     async fn main_loop(ctx: ActorContext<B>, mut rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
-        let (db_pool, _, _) = Self::spawn_actors(ctx.clone()).await?;
+        let (db_pool, blocks, meta) = Self::spawn_actors(ctx.clone()).await?;
         let pool = db_pool.send(GetState::Pool.into()).await?.await?.pool();
         let listener = Self::init_listeners(ctx.pg_url()).await?;
 
