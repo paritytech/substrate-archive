@@ -87,7 +87,6 @@ impl<B: BlockT + Unpin> Metadata<B> {
         }
         let len = blks.inner().len();
         self.addr.send(blks.into()).await?;
-        log::info!("Sent {} blocks", len);
         Ok(())
     }
 }

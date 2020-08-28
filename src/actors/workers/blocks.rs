@@ -64,7 +64,7 @@ where
     }
 
     /// A async wrapper around the backend fn `iter_blocks` which
-    /// runs in a `spawn_blocking` async task (it's own thread)
+    /// runs in a `spawn_blocking` async task (its own thread)
     async fn collect_blocks(
         &self,
         fun: impl Fn(u32) -> bool + Send + 'static,
@@ -75,26 +75,18 @@ where
             Ok(backend
                 .iter_blocks(|n| fun(n))?
                 .enumerate()
-                .inspect(|(i, _)| {
-                    if i % 100_000 == 0 {
-                        log::info!("Loaded {} blocks from chain backend", i);
-                    }
-                })
                 .map(|(_, b)| b)
                 .collect())
         };
         let blocks = smol::unblock!(gather_blocks())?;
-        let elapsed = now.elapsed();
-        if elapsed > std::time::Duration::from_secs(5) {
-            log::info!("Took {:?} to get blocks", now.elapsed());
-        }
+        log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
         let cache = self.rt_cache.clone();
         let blocks = smol::unblock!(cache.find_versions_as_blocks(blocks))?;
         Ok(blocks)
     }
 
     /// First run of indexing
-    /// gets any blocks that are missing from database and indexes those
+    /// gets any blocks that are missing from database and indexes those.
     /// sets the `last_max` value.
     async fn re_index(&mut self) -> Result<Option<Vec<Block<B>>>> {
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
@@ -157,7 +149,6 @@ where
             Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
                 if !b.is_empty() {
-                    log::info!("Sending {} blocks", b.len());
                     if let Err(_) = self.meta.send(BatchBlock::new(b)).await {
                         ctx.stop();
                     }

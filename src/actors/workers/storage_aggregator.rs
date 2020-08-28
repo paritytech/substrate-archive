@@ -71,6 +71,7 @@ where
             Ok(v) => {
                 log::info!("waiting for last storage insert...");
                 v.await;
+                log::info!("storage inserted");
             }
         }
     }

@@ -78,10 +78,8 @@ impl<B: BlockT> DatabaseActor<B> {
             smol::Timer::new(Duration::from_millis(50)).await;
         }
         std::mem::drop(conn);
-        log::info!("Awaiting insert...");
         let len = blks.inner().len();
         self.db.insert(blks).await?;
-        log::info!("Inserted {} blocks", len);
         Ok(())
     }
 
@@ -97,7 +95,6 @@ impl<B: BlockT> DatabaseActor<B> {
     }
 
     async fn batch_storage_handler(&self, storage: Vec<Storage<B>>) -> Result<()> {
-        log::info!("Got more storage... {}", storage.len());
         let mut conn = self.db.conn().await?;
         let mut block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
         block_nums.sort();
@@ -145,7 +142,11 @@ where
         if let Err(e) = self.batch_block_handler(blks).await {
             log::error!("{}", e.to_string());
         }
-        log::debug!("Took {:?} to insert {} blocks", now.elapsed(), len);
+        if len > 1000  {
+            log::info!("took {:?} to insert {} blocks", now.elapsed(), len);
+        } else {
+            log::debug!("took {:?} to insert {} blocks", now.elapsed(), len);
+        }
     }
 }
 
