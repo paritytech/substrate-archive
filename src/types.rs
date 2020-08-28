@@ -50,37 +50,6 @@ where
     fn context(&self) -> Result<super::actors::ActorContext<B>>;
 }
 
-#[async_trait::async_trait]
-pub trait ActorHandle {
-    /// check if the actor is still connected
-    fn is_connected(&self) -> bool;
-    /// wait for an actor to finish working, no matter how
-    /// long it takes before killing it.
-    async fn kill(&self) -> Result<()>;
-    /// Try to wait for an actor to finish,
-    /// but if it doesn't kill it by force
-    async fn kill_timeout(&self, dur: std::time::Duration) -> Result<()>;
-}
-
-#[async_trait::async_trait]
-impl<A> ActorHandle for Address<A>
-where
-    A: Handler<crate::actors::msg::Die>,
-{
-    fn is_connected(&self) -> bool {
-        todo!()
-    }
-
-    async fn kill(&self) -> Result<()> {
-        self.send(crate::actors::msg::Die).await?;
-        Ok(())
-    }
-
-    async fn kill_timeout(&self, dur: std::time::Duration) -> Result<()> {
-        todo!()
-    }
-}
-
 #[derive(Debug)]
 pub struct Metadata {
     version: u32,

@@ -20,6 +20,7 @@
 use super::{ActorPool, DatabaseActor};
 use crate::actors::msg::VecStorageWrap;
 use crate::types::Storage;
+use crate::error::Result;
 use sp_runtime::traits::Block as BlockT;
 use xtra::prelude::*;
 
@@ -40,11 +41,12 @@ where
     }
 }
 
+#[async_trait::async_trait]
 impl<B: BlockT + Unpin> Actor for StorageAggregator<B>
 where
     B::Hash: Unpin,
 {
-    fn started(&mut self, ctx: &mut Context<Self>) {
+    async fn started(&mut self, ctx: &mut Context<Self>) {
         let addr = ctx.address().expect("Actor just started");
         smol::Task::spawn(async move {
             loop {
@@ -57,8 +59,20 @@ where
         .detach();
     }
 
-    fn stopped(&mut self, ctx: &mut Context<Self>) {
-        log::info!("{} storage entries will be missing", self.storage.len());
+    async fn stopped(&mut self, _: &mut Context<Self>) {
+        let len = self.storage.len();
+        let storage = std::mem::take(&mut self.storage);
+        // insert any storage left in queue
+        let task = self.db.send(VecStorageWrap(storage).into()).await;
+        match task {
+            Err(e) => {
+                log::info!("{} storage entries will be missing, {:?}", len, e);
+            },
+            Ok(v) => {
+                log::info!("waiting for last storage insert...");
+                v.await;
+            }
+        }
     }
 }
 
@@ -90,5 +104,16 @@ where
 {
     async fn handle(&mut self, s: Storage<B>, ctx: &mut Context<Self>) {
         self.storage.push(s)
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT + Unpin> Handler<super::Die> for StorageAggregator<B>
+where
+    B::Hash: Unpin,
+{
+    async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+        ctx.stop();
+        Ok(())
     }
 }

@@ -22,7 +22,10 @@ mod storage_aggregator;
 /// Database message to get state internal database state
 pub use self::database::*;
 pub use self::metadata::*;
-use super::actor_pool::ActorPool;
 pub use blocks::*;
 pub use database::*;
 pub use storage_aggregator::*;
+
+use super::actor_pool::ActorPool;
+use super::msg::Die;
+

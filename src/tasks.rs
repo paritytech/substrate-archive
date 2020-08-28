@@ -67,8 +67,10 @@ where
     }
 }
 
+// FIXME:
 // we need PhantomData here so that the proc_macro correctly puts PhantomData into the `Job` struct
-// + DeserializeOwned a little bit wonky, could be fixed with a better proc-macro in `coil`
+// + DeserializeOwned so that the types work.
+// This is a little bit wonky (and entirely confusing), could be fixed with a better proc-macro in `coil`
 /// Execute a block, and send it to the database actor
 #[coil::background_job]
 pub fn execute_block<B, RA, Api>(

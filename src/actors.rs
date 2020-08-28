@@ -22,15 +22,16 @@ pub mod msg;
 mod workers;
 
 pub use self::actor_pool::ActorPool;
+use self::actor_pool::PoolMessage;
 use self::workers::GetState;
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use super::{
     backend::{ApiAccess, Meta, ReadOnlyBackend},
-    database::{queries, Channel, Listener},
+    database::{queries, Channel, Listener, BlockModel},
     error::Result,
     sql_block_builder::BlockBuilder as SqlBlockBuilder,
     tasks::Environment,
-    types::{ActorHandle, Archive},
+    types::Archive,
 };
 use coil::Job as _;
 use futures::FutureExt;
@@ -38,10 +39,11 @@ use sc_client_api::backend;
 use serde::de::DeserializeOwned;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::{Block as BlockT, NumberFor};
+use sp_runtime::traits::{Block as BlockT, NumberFor, Header as _};
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use hashbrown::HashSet;
 use xtra::prelude::*;
 
 // TODO: Split this up into two objects
@@ -212,7 +214,8 @@ where
             .await?
             .pool();
         let listener = Self::init_listeners(ctx.pg_url()).await?;
-
+        let mut conn = pool.acquire().await?;
+        Self::restore_missing_storage(&mut *conn).await?;
         let env =
             Environment::<B, R, C>::new(ctx.backend().clone(), client, actors.storage.clone());
         let env = AssertUnwindSafe(env);
@@ -222,7 +225,7 @@ where
             .num_threads(ctx.workers)
             .max_tasks(500)
             .build()?;
-
+        
         loop {
             let tasks = runner.run_all_sync_tasks().fuse();
             futures::pin_mut!(tasks);
@@ -236,6 +239,7 @@ where
             }
         }
         listener.kill_async().await;
+        Self::kill_actors(actors).await;
         Ok(())
     }
 
@@ -257,6 +261,16 @@ where
         })
     }
 
+    async fn kill_actors(actors: Actors<B>) {
+        let fut = vec![
+            actors.storage.send(msg::Die),
+            actors.blocks.send(msg::Die),
+            actors.metadata.send(msg::Die),
+        ];
+        futures::future::join_all(fut).await;
+        let _ = actors.db_pool.send(msg::Die.into()).await;
+    }
+
     async fn init_listeners(pg_url: &str) -> Result<Listener> {
         Listener::builder(pg_url, move |notif, conn| {
             async move {
@@ -275,6 +289,33 @@ where
         })
         .spawn()
         .await
+    }
+    
+    /// Checks if any blocks that should be executed are missing
+    /// from the task queue.
+    /// If any are found, they are re-queued.
+    async fn restore_missing_storage(conn: &mut sqlx::PgConnection) -> Result<()> {
+        log::info!("Restoring missing storage entries...");
+        let blocks: HashSet<u32> = queries::get_all_blocks::<B>(conn)
+            .await?
+            .map(|b| Ok((*b?.header().number()).into()))
+            .collect::<Result<_>>()?;
+        let mut missing_storage_blocks = queries::blocks_storage_intersection(conn).await?;
+        let missing_storage: HashSet<u32> = missing_storage_blocks
+            .iter()
+            .map(|b| b.block_num as u32)
+            .collect();
+        let difference: HashSet<u32> = missing_storage.difference(&blocks).map(|b| *b).collect();
+        missing_storage_blocks.retain(|b|  difference.contains(&(b.block_num as u32)));
+        let jobs: Vec<crate::tasks::execute_block::Job<B,R,C>> = SqlBlockBuilder::with_vec(missing_storage_blocks)?
+            .into_iter()
+            .map(|b| {
+                crate::tasks::execute_block::<B, R, C>(b.inner.block, PhantomData)
+            }).collect();
+        log::info!("Restoring {} missing storage entries", jobs.len());
+        coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
+        log::info!("Storage restored");
+        Ok(())
     }
 }
 

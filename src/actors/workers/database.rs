@@ -97,9 +97,11 @@ impl<B: BlockT> DatabaseActor<B> {
     }
 
     async fn batch_storage_handler(&self, storage: Vec<Storage<B>>) -> Result<()> {
+        log::info!("Got more storage... {}", storage.len());
         let mut conn = self.db.conn().await?;
-        let block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
-        log::trace!("Inserting: {:#?}", block_nums);
+        let mut block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
+        block_nums.sort();
+        log::debug!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
         let len = block_nums.len();
         while queries::has_blocks::<B>(block_nums.as_slice(), &mut conn)
             .await?
@@ -237,5 +239,17 @@ impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
                 Ok(StateResponse::Pool(pool))
             }
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT + Unpin> Handler<super::Die> for DatabaseActor<B>
+where
+    NumberFor<B>: Into<u32>,
+    B::Hash: Unpin,
+{
+    async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+        ctx.stop();
+        Ok(())
     }
 }

@@ -22,6 +22,7 @@ use futures::{stream::TryStreamExt, Stream};
 use hashbrown::HashSet;
 use sp_runtime::traits::Block as BlockT;
 use sqlx::PgConnection;
+use serde::{Deserialize, de::DeserializeOwned};
 
 /// get missing blocks from relational database as a stream
 #[allow(unused)]
@@ -208,6 +209,22 @@ pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>> {
         .fetch_all(conn)
         .await?;
     Ok(rows.into_iter().map(|r| r.0 as u32).collect())
+}
+
+
+pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(conn: &mut PgConnection) -> Result<impl Iterator<Item = Result<B>>> {
+    let blocks = sqlx::query_as::<_, (Vec<u8>, )>("SELECT data FROM _background_tasks WHERE job_type = 'execute_block'")
+        .fetch_all(conn)
+        .await?;
+    
+    #[derive(Deserialize)]
+    struct Job_in<BL: BlockT> {
+        block: BL
+    }   
+    Ok(blocks.into_iter().map(|r| { 
+        let b: Job_in<B> = rmp_serde::from_read(r.0.as_slice())?;
+        Ok(b.block)
+    }))
 }
 
 #[cfg(test)]

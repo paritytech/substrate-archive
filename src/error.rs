@@ -46,6 +46,9 @@ pub enum Error {
     BgJobGet(#[from] coil::FetchError),
     #[error("could not build threadpool")]
     ThreadPool(#[from] rayon::ThreadPoolBuildError),
+    /// Error occured while serializing/deserializing data
+    #[error("Error while decoding job data {0}")]
+    De(#[from] rmp_serde::decode::Error),
     #[error(
         "the chain given to substrate-archive is different then the running chain. Trying to run {0}, running {1}"
     )]

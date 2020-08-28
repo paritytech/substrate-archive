@@ -119,3 +119,15 @@ where
         }
     }
 }
+
+#[async_trait::async_trait]
+impl<B: BlockT + Unpin> Handler<super::Die> for Metadata<B>
+where
+    NumberFor<B>: Into<u32>,
+    B::Hash: Unpin,
+{
+    async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+        ctx.stop();
+        Ok(())
+    }
+}

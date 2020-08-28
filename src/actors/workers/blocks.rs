@@ -122,13 +122,14 @@ where
     }
 }
 
+#[async_trait::async_trait]
 impl<B: BlockT> Actor for BlocksIndexer<B>
 where
     NumberFor<B>: Into<u32>,
     B: Unpin,
     B::Hash: Unpin,
 {
-    fn started(&mut self, ctx: &mut Context<Self>) {
+    async fn started(&mut self, ctx: &mut Context<Self>) {
         // using this instead of notify_immediately because
         // ReIndexing is async process
         ctx.address()
@@ -189,5 +190,17 @@ where
             }
             Err(e) => log::error!("{}", e.to_string()),
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT + Unpin> Handler<super::Die> for BlocksIndexer<B>
+where
+    NumberFor<B>: Into<u32>,
+    B::Hash: Unpin,
+{
+    async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+        ctx.stop();
+        Ok(())
     }
 }

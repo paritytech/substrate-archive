@@ -20,6 +20,7 @@ use crate::{error::Result, types::*};
 use sp_runtime::traits::Block as BlockT;
 use xtra::prelude::*;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Die;
 impl Message for Die {
     type Result = Result<()>;
