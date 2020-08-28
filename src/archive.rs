@@ -25,6 +25,7 @@ use crate::{
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
+use serde::de::DeserializeOwned;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_blockchain::Backend as BlockchainBackend;
@@ -32,7 +33,6 @@ use sp_runtime::{
     generic::BlockId,
     traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
-use serde::de::DeserializeOwned;
 use std::{marker::PhantomData, sync::Arc};
 
 /// Main entrypoint for substrate-archive.
@@ -120,11 +120,12 @@ where
             spec.name(),
             spec.id(),
         )?);
-        
+
         let pg_url = if let Some(url) = conf.pg_url {
             url
         } else {
-            std::env::var("DATABASE_URL").expect("must have DATABASE_URL defined in the environment")
+            std::env::var("DATABASE_URL")
+                .expect("must have DATABASE_URL defined in the environment")
         };
 
         Ok(Self {
@@ -188,7 +189,7 @@ where
             self.rpc_url.clone(),
             psql_url.as_str(),
         )?;
-        
+
         Ok(ctx)
     }
 }

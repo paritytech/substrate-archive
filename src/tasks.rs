@@ -17,29 +17,29 @@
 //! Background tasks that take their parameters from Postgres, and are either
 //! executed on a threadpool or spaned onto the executor.
 
-use sp_runtime::{
-    traits::{Block as BlockT, NumberFor, Header},
-    generic::BlockId
+use super::{
+    actors::StorageAggregator,
+    backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend},
 };
-use sp_api::{ConstructRuntimeApi, ApiExt};
-use sp_block_builder::BlockBuilder as BlockBuilderApi;
+use crate::types::Storage;
 use sc_client_api::backend;
 use serde::de::DeserializeOwned;
-use crate::types::Storage;
-use super::{
-    backend::{ReadOnlyBackend as Backend, ApiAccess, BlockExecutor},
-    actors::StorageAggregator
+use sp_api::{ApiExt, ConstructRuntimeApi};
+use sp_block_builder::BlockBuilder as BlockBuilderApi;
+use sp_runtime::{
+    generic::BlockId,
+    traits::{Block as BlockT, Header, NumberFor},
 };
-use std::sync::Arc;
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
+use std::sync::Arc;
 use xtra::prelude::*;
 
 /// The environment passed to each task
-pub struct Environment<B, R, C> 
+pub struct Environment<B, R, C>
 where
     B: BlockT + Unpin,
-    B::Hash: Unpin
+    B::Hash: Unpin,
 {
     backend: Arc<Backend<B>>,
     client: Arc<C>,
@@ -47,13 +47,17 @@ where
     _marker: PhantomData<R>,
 }
 
-type Env<B, R,C> = AssertUnwindSafe<Environment<B, R,C>>;
-impl<B, R, C> Environment<B, R, C> 
+type Env<B, R, C> = AssertUnwindSafe<Environment<B, R, C>>;
+impl<B, R, C> Environment<B, R, C>
 where
     B: BlockT + Unpin,
-    B::Hash: Unpin
+    B::Hash: Unpin,
 {
-    pub fn new(backend: Arc<Backend<B>>, client: Arc<C>, storage: Address<StorageAggregator<B>>) -> Self {
+    pub fn new(
+        backend: Arc<Backend<B>>,
+        client: Arc<C>,
+        storage: Address<StorageAggregator<B>>,
+    ) -> Self {
         Self {
             backend,
             client,
@@ -67,7 +71,11 @@ where
 // + DeserializeOwned a little bit wonky, could be fixed with a better proc-macro in `coil`
 /// Execute a block, and send it to the database actor
 #[coil::background_job]
-pub fn execute_block<B, RA, Api>(env: &Env<B, RA, Api>, block: B, _m: PhantomData<(RA, Api)>) -> Result<(), coil::PerformError> 
+pub fn execute_block<B, RA, Api>(
+    env: &Env<B, RA, Api>,
+    block: B,
+    _m: PhantomData<(RA, Api)>,
+) -> Result<(), coil::PerformError>
 where
     B: BlockT + DeserializeOwned + Unpin,
     NumberFor<B>: Into<u32>,
@@ -92,9 +100,9 @@ where
             .map_err(|e| format!("{:?}", e))?
             .spec_version,
     );
-    
+    let now = std::time::Instant::now();
     let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
-    
+    log::debug!("Took {:?} to execute block", now.elapsed());
     let storage = Storage::from(block);
     smol::block_on(env.storage.send(storage))?;
     Ok(())

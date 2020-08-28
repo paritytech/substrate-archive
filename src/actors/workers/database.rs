@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::database::{StorageModel, Database, DbConn};
+use crate::actors::msg::VecStorageWrap;
+use crate::database::{Database, DbConn, StorageModel};
 use crate::error::Result;
 use crate::queries;
-use crate::types::{Storage, Block, BatchBlock, Metadata};
-use crate::actors::msg::VecStorageWrap;
+use crate::types::{BatchBlock, Block, Metadata, Storage};
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -184,7 +184,7 @@ pub enum GetState {
     // Get a single connection
     Conn,
     // Get the Connection Pool
-    Pool
+    Pool,
 }
 
 /// A response to `GetState`
@@ -193,7 +193,7 @@ pub enum GetState {
 #[derive(Debug)]
 pub enum StateResponse {
     Conn(DbConn),
-    Pool(sqlx::PgPool)
+    Pool(sqlx::PgPool),
 }
 
 impl StateResponse {
@@ -231,7 +231,7 @@ impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
             GetState::Conn => {
                 let conn = self.db.conn().await?;
                 Ok(StateResponse::Conn(conn))
-            },
+            }
             GetState::Pool => {
                 let pool = self.db.pool().clone();
                 Ok(StateResponse::Pool(pool))

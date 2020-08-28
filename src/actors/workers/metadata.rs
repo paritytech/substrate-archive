@@ -50,7 +50,11 @@ impl<B: BlockT + Unpin> Metadata<B> {
     async fn meta_checker(&mut self, ver: u32, hash: B::Hash) -> Result<()> {
         if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
             let meta = self.meta.clone();
-            log::info!("Getting metadata for hash {}, version {}", hex::encode(hash.as_ref()), ver);
+            log::info!(
+                "Getting metadata for hash {}, version {}",
+                hex::encode(hash.as_ref()),
+                ver
+            );
             let meta = smol::unblock!(meta.metadata(&BlockId::hash(hash)))?;
             let meta: sp_core::Bytes = meta.into();
             let meta = MetadataT::new(ver, meta.0);

@@ -13,12 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{ActorPool,Metadata, DatabaseActor, GetState,};
+use super::{ActorPool, DatabaseActor, GetState, Metadata};
 use crate::{
     backend::{ReadOnlyBackend, RuntimeVersionCache},
+    database::queries,
     error::Result,
     types::{BatchBlock, Block},
-    database::queries
 };
 use sp_runtime::{
     generic::SignedBlock,
@@ -49,7 +49,11 @@ where
     B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
-    pub fn new(backend: Arc<ReadOnlyBackend<B>>, db_addr: DatabaseAct<B>, meta: Address<Metadata<B>>) -> Self {
+    pub fn new(
+        backend: Arc<ReadOnlyBackend<B>>,
+        db_addr: DatabaseAct<B>,
+        meta: Address<Metadata<B>>,
+    ) -> Self {
         Self {
             rt_cache: RuntimeVersionCache::new(backend.clone()),
             last_max: 0,
@@ -131,10 +135,8 @@ where
             .expect("Actor just started")
             .do_send(ReIndex)
             .expect("Actor cannot be disconnected; just started");
-        
-        ctx.notify_interval(std::time::Duration::from_secs(5), || { 
-            Crawl
-        });
+
+        ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl);
     }
 }
 
@@ -181,10 +183,10 @@ where
                 if let Err(_) = self.meta.send(BatchBlock::new(b)).await {
                     ctx.stop();
                 }
-            },
+            }
             Ok(None) => {
                 return;
-            },
+            }
             Err(e) => log::error!("{}", e.to_string()),
         }
     }

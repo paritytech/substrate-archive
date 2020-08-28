@@ -37,7 +37,7 @@ pub enum Error {
     Migration(#[from] sqlx::migrate::MigrateError),
     #[error("blockchain error: {0}")]
     Blockchain(String),
-    /// an error occurred while enqueuing a background job 
+    /// an error occurred while enqueuing a background job
     #[error("Background job err {0}")]
     BgJob(#[from] coil::EnqueueError),
     #[error("Background Job {0}")]

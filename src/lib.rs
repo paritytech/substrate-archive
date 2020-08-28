@@ -27,9 +27,9 @@ mod migrations;
 // #[cfg(test)]
 // mod simple_db;
 mod sql_block_builder;
+mod tasks;
 mod types;
 mod util;
-mod tasks;
 
 pub use actors::System;
 pub use archive::{ArchiveBuilder, ArchiveConfig};
@@ -83,28 +83,29 @@ impl sp_core::traits::SpawnNamed for TaskExecutor {
     }
 }
 
-
 #[cfg(test)]
-use test::{PG_POOL, DATABASE_URL, initialize};
+use test::{initialize, DATABASE_URL, PG_POOL};
 
 #[cfg(test)]
 mod test {
-    use std::sync::Once;
     use once_cell::sync::Lazy;
-    
+    use std::sync::Once;
+
     pub static DATABASE_URL: Lazy<String> = Lazy::new(|| {
         dotenv::var("DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!")
     });
 
     pub static PG_POOL: Lazy<sqlx::PgPool> = Lazy::new(|| {
-        smol::block_on(sqlx::postgres::PgPoolOptions::new()
-            .min_connections(4)
-            .max_connections(8)
-            .idle_timeout(std::time::Duration::from_millis(3600))
-            .connect(&DATABASE_URL)
-        ).expect("Couldn't initialize postgres pool for tests")
+        smol::block_on(
+            sqlx::postgres::PgPoolOptions::new()
+                .min_connections(4)
+                .max_connections(8)
+                .idle_timeout(std::time::Duration::from_millis(3600))
+                .connect(&DATABASE_URL),
+        )
+        .expect("Couldn't initialize postgres pool for tests")
     });
-    
+
     static INIT: Once = Once::new();
     pub fn initialize() {
         INIT.call_once(|| {
@@ -114,4 +115,3 @@ mod test {
         });
     }
 }
-

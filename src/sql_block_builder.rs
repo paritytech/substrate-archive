@@ -18,7 +18,7 @@
 //! Rather than fetching many blocks from RocksDB by number,
 //! this is a (much) faster alternative
 
-use crate::{error::Error, types, database::BlockModel};
+use crate::{database::BlockModel, error::Error, types};
 use codec::{Decode, Encode};
 use sp_runtime::{
     generic::SignedBlock,
@@ -31,7 +31,6 @@ pub struct BlockBuilder<B: BlockT> {
 }
 
 impl<'a, B: BlockT> BlockBuilder<B> {
-
     /// With a vector of BlockModel
     pub fn with_vec(blocks: Vec<BlockModel>) -> Result<Vec<types::Block<B>>, Error> {
         blocks

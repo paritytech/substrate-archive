@@ -16,8 +16,8 @@
 
 use crate::error::Result;
 use sqlx::{postgres::PgConnection, Connection};
-use std::string::ToString;
 use std::env;
+use std::string::ToString;
 
 // TODO Change to just accept a DB URL.
 // but maybe keep conf. It allows for more modular configuration?
@@ -31,9 +31,7 @@ pub async fn migrate<T: ToString>(conf: T) -> Result<String> {
     let url = conf.to_string();
     let mut conn = PgConnection::connect(&url).await?;
     log::info!("Running migrations... for {}", url);
-    sqlx::migrate!("./src/migrations/")
-        .run(&mut conn)
-        .await?;
+    sqlx::migrate!("./src/migrations/").run(&mut conn).await?;
     Ok(url)
 }
 

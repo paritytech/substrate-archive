@@ -14,16 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+mod blocks;
 mod database;
 mod metadata;
-mod blocks;
 mod storage_aggregator;
 
 /// Database message to get state internal database state
 pub use self::database::*;
 pub use self::metadata::*;
 use super::actor_pool::ActorPool;
-pub use database::*;
 pub use blocks::*;
+pub use database::*;
 pub use storage_aggregator::*;
-

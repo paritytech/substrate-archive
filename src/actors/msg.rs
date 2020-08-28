@@ -16,9 +16,9 @@
 
 //! Main messages and NewTypes that can be sent between actors
 
-use xtra::prelude::*;
-use crate::{types::*, error::Result};
+use crate::{error::Result, types::*};
 use sp_runtime::traits::Block as BlockT;
+use xtra::prelude::*;
 
 pub struct Die;
 impl Message for Die {
