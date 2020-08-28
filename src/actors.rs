@@ -27,7 +27,7 @@ use self::workers::GetState;
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use super::{
     backend::{ApiAccess, Meta, ReadOnlyBackend},
-    database::{queries, Channel, Listener, BlockModel},
+    database::{queries, BlockModel, Channel, Listener},
     error::Result,
     sql_block_builder::BlockBuilder as SqlBlockBuilder,
     tasks::Environment,
@@ -35,15 +35,15 @@ use super::{
 };
 use coil::Job as _;
 use futures::FutureExt;
+use hashbrown::HashSet;
 use sc_client_api::backend;
 use serde::de::DeserializeOwned;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::{Block as BlockT, NumberFor, Header as _};
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
-use hashbrown::HashSet;
 use xtra::prelude::*;
 
 // TODO: Split this up into two objects
@@ -225,7 +225,7 @@ where
             .num_threads(ctx.workers)
             .max_tasks(500)
             .build()?;
-        
+
         loop {
             let tasks = runner.run_all_sync_tasks().fuse();
             futures::pin_mut!(tasks);
@@ -290,7 +290,7 @@ where
         .spawn()
         .await
     }
-    
+
     /// Checks if any blocks that should be executed are missing
     /// from the task queue.
     /// If any are found, they are re-queued.
@@ -305,13 +305,16 @@ where
             .iter()
             .map(|b| b.block_num as u32)
             .collect();
-        let difference: HashSet<u32> = missing_storage_nums.difference(&blocks).map(|b| *b).collect();
-        missing_storage_blocks.retain(|b|  difference.contains(&(b.block_num as u32)));
-        let jobs: Vec<crate::tasks::execute_block::Job<B,R,C>> = SqlBlockBuilder::with_vec(missing_storage_blocks)?
-            .into_iter()
-            .map(|b| {
-                crate::tasks::execute_block::<B, R, C>(b.inner.block, PhantomData)
-            }).collect();
+        let difference: HashSet<u32> = missing_storage_nums
+            .difference(&blocks)
+            .map(|b| *b)
+            .collect();
+        missing_storage_blocks.retain(|b| difference.contains(&(b.block_num as u32)));
+        let jobs: Vec<crate::tasks::execute_block::Job<B, R, C>> =
+            SqlBlockBuilder::with_vec(missing_storage_blocks)?
+                .into_iter()
+                .map(|b| crate::tasks::execute_block::<B, R, C>(b.inner.block, PhantomData))
+                .collect();
         log::info!("Restoring {} missing storage entries", jobs.len());
         coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
         log::info!("Storage restored");

@@ -19,8 +19,8 @@
 
 use super::{ActorPool, DatabaseActor};
 use crate::actors::msg::VecStorageWrap;
-use crate::types::Storage;
 use crate::error::Result;
+use crate::types::Storage;
 use sp_runtime::traits::Block as BlockT;
 use xtra::prelude::*;
 
@@ -67,7 +67,7 @@ where
         match task {
             Err(e) => {
                 log::info!("{} storage entries will be missing, {:?}", len, e);
-            },
+            }
             Ok(v) => {
                 log::info!("waiting for last storage insert...");
                 v.await;

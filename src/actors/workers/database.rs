@@ -98,7 +98,12 @@ impl<B: BlockT> DatabaseActor<B> {
         let mut conn = self.db.conn().await?;
         let mut block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
         block_nums.sort();
-        log::debug!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
+        log::debug!(
+            "Inserting: {:#?}, {} .. {}",
+            block_nums.len(),
+            block_nums[0],
+            block_nums.last().unwrap()
+        );
         let len = block_nums.len();
         while queries::has_blocks::<B>(block_nums.as_slice(), &mut conn)
             .await?
@@ -142,7 +147,7 @@ where
         if let Err(e) = self.batch_block_handler(blks).await {
             log::error!("{}", e.to_string());
         }
-        if len > 1000  {
+        if len > 1000 {
             log::info!("took {:?} to insert {} blocks", now.elapsed(), len);
         } else {
             log::debug!("took {:?} to insert {} blocks", now.elapsed(), len);
