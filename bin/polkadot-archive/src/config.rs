@@ -23,7 +23,6 @@ use substrate_archive::MigrationConfig;
 #[derive(Debug, Clone, Deserialize)]
 struct TomlConfig {
     polkadot_path: PathBuf,
-    rpc_url: String,
     cache_size: usize,
     block_workers: Option<usize>,
     wasm_pages: Option<u64>,
@@ -60,7 +59,6 @@ pub struct Config {
     polkadot_path: PathBuf,
     psql_conf: MigrationConfig,
     cli: CliOpts,
-    rpc_url: String,
     cache_size: usize,
     block_workers: Option<usize>,
     wasm_pages: Option<u64>,
@@ -78,7 +76,6 @@ impl Config {
             cache_size: toml_conf.cache_size,
             block_workers: toml_conf.block_workers,
             wasm_pages: toml_conf.wasm_pages,
-            rpc_url: toml_conf.rpc_url.clone(),
         })
     }
 
@@ -93,10 +90,6 @@ impl Config {
 
     pub fn polkadot_path(&self) -> PathBuf {
         self.polkadot_path.clone()
-    }
-
-    pub fn rpc_url(&self) -> &String {
-        &self.rpc_url
     }
 
     pub fn cache_size(&self) -> usize {

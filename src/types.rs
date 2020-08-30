@@ -19,7 +19,6 @@ use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
-use xtra::prelude::*;
 
 pub trait ThreadPool: Send + Sync {
     type In: Send + Sync + std::fmt::Debug;

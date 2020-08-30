@@ -22,12 +22,11 @@ pub mod msg;
 mod workers;
 
 pub use self::actor_pool::ActorPool;
-use self::actor_pool::PoolMessage;
 use self::workers::GetState;
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use super::{
     backend::{ApiAccess, Meta, ReadOnlyBackend},
-    database::{queries, BlockModel, Channel, Listener},
+    database::{queries, Channel, Listener},
     error::Result,
     sql_block_builder::BlockBuilder as SqlBlockBuilder,
     tasks::Environment,
@@ -341,7 +340,7 @@ where
         }
     }
 
-    fn shutdown(mut self) -> Result<()> {
+    fn shutdown(self) -> Result<()> {
         let _ = self.kill_tx.send(());
         if let Some(c) = self.context.backend().backing_db().catch_up_count() {
             log::info!("Caught Up {} times", c);
@@ -349,7 +348,7 @@ where
         Ok(())
     }
 
-    fn boxed_shutdown(mut self: Box<Self>) -> Result<()> {
+    fn boxed_shutdown(self: Box<Self>) -> Result<()> {
         let _ = self.kill_tx.send(());
         if let Some(c) = self.context.backend().backing_db().catch_up_count() {
             log::info!("Caught Up {} times", c);

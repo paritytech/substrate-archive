@@ -219,13 +219,14 @@ pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
     )
     .fetch_all(conn)
     .await?;
-
+    
+    // temporary struct to deserialize job
     #[derive(Deserialize)]
-    struct Job_in<BL: BlockT> {
+    struct JobIn<BL: BlockT> {
         block: BL,
     }
     Ok(blocks.into_iter().map(|r| {
-        let b: Job_in<B> = rmp_serde::from_read(r.0.as_slice())?;
+        let b: JobIn<B> = rmp_serde::from_read(r.0.as_slice())?;
         Ok(b.block)
     }))
 }

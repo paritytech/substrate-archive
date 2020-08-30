@@ -21,17 +21,6 @@ use futures::Future;
 use log::*;
 use std::path::{Path, PathBuf};
 
-/// convenience function to log any errors from a detached task
-pub fn spawn(fut: impl Future<Output = Result<()>> + Send + 'static) {
-    let fut = async move {
-        match fut.await {
-            Ok(_) => (),
-            Err(e) => log::error!("{}", e.to_string()),
-        }
-    };
-    smol::Task::spawn(fut).detach();
-}
-
 /// create an arbitrary directory on disk
 /// panics if it fails because of anything other than the directory already exists
 #[allow(unused)]

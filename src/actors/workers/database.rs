@@ -78,7 +78,6 @@ impl<B: BlockT> DatabaseActor<B> {
             smol::Timer::new(Duration::from_millis(50)).await;
         }
         std::mem::drop(conn);
-        let len = blks.inner().len();
         self.db.insert(blks).await?;
         Ok(())
     }

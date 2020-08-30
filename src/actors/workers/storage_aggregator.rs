@@ -87,7 +87,7 @@ impl<B: BlockT + Unpin> Handler<SendStorage> for StorageAggregator<B>
 where
     B::Hash: Unpin,
 {
-    async fn handle(&mut self, _: SendStorage, ctx: &mut Context<Self>) {
+    async fn handle(&mut self, _: SendStorage, _: &mut Context<Self>) {
         let storage = std::mem::take(&mut self.storage);
         if !storage.is_empty() {
             log::info!("Indexing storage {} bps", storage.len());
@@ -103,7 +103,7 @@ impl<B: BlockT + Unpin> Handler<Storage<B>> for StorageAggregator<B>
 where
     B::Hash: Unpin,
 {
-    async fn handle(&mut self, s: Storage<B>, ctx: &mut Context<Self>) {
+    async fn handle(&mut self, s: Storage<B>, _: &mut Context<Self>) {
         self.storage.push(s)
     }
 }

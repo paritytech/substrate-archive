@@ -104,6 +104,15 @@ impl<B, R, D> Builder<B, R, D> {
         self
     }
     
+    /// Number of 64KB Heap Pages to allocate for WASM execution
+    /// 
+    /// # Default
+    /// defaults to 64 * (number of logic cpu's)
+    pub fn wasm_pages(mut self, pages: u64) -> Self {
+        self.wasm_pages = Some(pages);
+        self
+    }
+    
     /// Specify a chain spec for storing metadata about the running archiver
     /// in a persistant directory.
     ///
@@ -177,7 +186,8 @@ where
     B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,
 {
-    /// Build this instance of the Archiver
+    /// Build this instance of the Archiver.
+    /// Runs the database migrations for the database at `pg_url`.
     ///
     /// # Panics
     /// Panics if one of chain_data_db or pg_url is not passed to the builder
@@ -189,7 +199,7 @@ where
         let block_workers = self.block_workers.unwrap_or(num_cpus);
         let wasm_pages = self.wasm_pages.unwrap_or(64 * num_cpus as u64);
         let db_path = create_database_path(self.chain_spec)?;
-        
+        smol::block_on(crate::migrations::migrate(&pg_url))?;
         let db  = Arc::new(backend::util::open_database(chain_path.as_str(), cache_size, db_path)?);
         let client = backend::runtime_api::<B, R, D>(db.clone(), block_workers, wasm_pages)?;
         let client = Arc::new(client);
