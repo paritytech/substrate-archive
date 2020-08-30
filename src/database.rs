@@ -56,7 +56,7 @@ impl Database {
     pub async fn new(url: String) -> Result<Self> {
         let pool = PgPoolOptions::new()
             .min_connections(4)
-            .max_connections(24)
+            .max_connections(28)
             .idle_timeout(std::time::Duration::from_millis(3600)) // kill connections after 5 minutes of idle
             .connect(url.as_str())
             .await?;

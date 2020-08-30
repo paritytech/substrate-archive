@@ -245,7 +245,7 @@ where
 
     async fn spawn_actors(ctx: ActorContext<B>) -> Result<Actors<B>> {
         let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
-        let db_pool = actor_pool::ActorPool::new(db, 4).spawn();
+        let db_pool = actor_pool::ActorPool::new(db, 8).spawn();
         let storage = workers::StorageAggregator::new(db_pool.clone()).spawn();
         let metadata = workers::Metadata::new(db_pool.clone(), ctx.meta().clone())
             .await?
