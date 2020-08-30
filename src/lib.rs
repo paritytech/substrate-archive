@@ -32,7 +32,7 @@ mod types;
 mod util;
 
 pub use actors::System;
-pub use archive::{ArchiveBuilder, ArchiveConfig};
+pub use archive::Builder as ArchiveBuilder;
 pub use database::queries;
 pub use error::Error;
 pub use migrations::MigrationConfig;

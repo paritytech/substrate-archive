@@ -39,10 +39,8 @@ pub type NumberIndexKey = [u8; 4];
 pub fn open_database(
     path: &str,
     cache_size: usize,
-    chain: &str,
-    id: &str,
+    db_path: PathBuf,
 ) -> sp_blockchain::Result<ReadOnlyDatabase> {
-    let db_path = create_secondary_db_dir(chain, id);
     // need to make sure this is `Some` to open secondary instance
     let db_path = db_path.as_path().to_str().expect("Creating db path failed");
     let mut db_config = Config {
@@ -74,23 +72,6 @@ pub fn open_database(
     );
     super::database::ReadOnlyDatabase::open(db_config, &path)
         .map_err(|err| sp_blockchain::Error::Backend(format!("{}", err)))
-}
-
-/// Create rocksdb secondary directory if it doesn't exist yet
-/// Return path to that directory
-pub fn create_secondary_db_dir(chain: &str, id: &str) -> PathBuf {
-    let path = if let Some(base_dirs) = dirs::BaseDirs::new() {
-        let mut path = base_dirs.data_local_dir().to_path_buf();
-        path.push("substrate_archive");
-        path.push("rocksdb_secondary");
-        path.push(chain);
-        path.push(id);
-        path
-    } else {
-        panic!("Couldn't establish substrate data local path");
-    };
-    std::fs::create_dir_all(path.as_path()).expect("Unable to create rocksdb secondary directory");
-    path
 }
 
 #[allow(unused)]

@@ -16,9 +16,8 @@
 
 use crate::{
     actors::System,
-    backend::{self, frontend::TArchiveClient, ApiAccess, ReadOnlyBackend, ReadOnlyDatabase},
-    error::{Error, Result},
-    migrations::MigrationConfig,
+    backend::{self, frontend::TArchiveClient, ReadOnlyBackend},
+    error::Result,
     types,
 };
 
@@ -33,66 +32,136 @@ use sp_runtime::{
     generic::BlockId,
     traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, sync::Arc, path::PathBuf};
 
-/// Main entrypoint for substrate-archive.
-/// Deals with starting, stopping and manipulating the Actors
-/// which drive the archive runtime.
-///
-/// # Examples
-///
-/// ```ignore
-/// use polkadot_service::{kusama_runtime::RuntimeApi as RApi, Block, KusamaExecutor as KExec};
-/// use substrate_archive::{Archive, ArchiveConfig, MigrationConfig};
-/// let conf = ArchiveConfig {
-///     db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
-///     rpc_url: "ws://127.0.0.1:9944".into(),
-///     cache_size: 1024,
-///     block_workers: None,
-///     wasm_pages: None,
-///     psql_conf: MigrationConfig {
-///         host: None,
-///         port: None,
-///         user: Some("archive".to_string()),
-///         pass: Some("default".to_string()),
-///         name: Some("kusama-archive".to_string()),
-///     },
-/// };
-///
-/// let spec = polkadot_service::chain_spec::kusama_config().unwrap();
-/// let archive = Archive::<Block, RApi, KExec>::new(conf, Box::new(spec)).unwrap();
-/// let archive = archive.run().unwrap();
-///
-/// archive.block_until_stopped();
-///
-/// ```
-pub struct ArchiveBuilder<Block, Runtime, Dispatch> {
-    rpc_url: String,
-    db: Arc<ReadOnlyDatabase>,
-    block_workers: Option<usize>,
-    wasm_pages: Option<u64>,
-    pg_url: String,
-    _marker: PhantomData<(Block, Runtime, Dispatch)>,
-}
+const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
+const POSTGRES_VAR: &str = "DATABASE_URL";
 
-pub struct ArchiveConfig {
+pub struct Builder<B, R, D> {
     /// Path to the rocksdb database
-    pub db_url: String,
-    /// websockets URL to the full node
-    pub rpc_url: String,
-    /// how much cache should rocksdb keep
-    pub cache_size: Option<usize>,
-    // /// the Postgres database configuration
-    // pub pg_conf: Option<String>,
-    pub pg_url: Option<String>,
+    chain_data_path: Option<String>,
+    /// url to the Postgres Database
+    pg_url: Option<String>,
+    /// how much Cache should Rocksdb Keep
+    cache_size: Option<usize>,
     /// number of threads to spawn for block execution
-    pub block_workers: Option<usize>,
+    block_workers: Option<usize>,
     /// Number of 64KB Heap pages to allocate for wasm execution
-    pub wasm_pages: Option<u64>,
+    wasm_pages: Option<u64>,
+    /// Chain spec describing the chain
+    chain_spec: Option<Box<dyn ChainSpec>>,
+    _marker: PhantomData<(B, R, D)>
 }
 
-// TODO: Make ArchiveBuilder a real builder
-impl<B, R, D> ArchiveBuilder<B, R, D>
+impl<B, R, D> Default for Builder<B, R, D> {
+    fn default() -> Self {
+        Self {
+            chain_data_path: None,
+            cache_size: None,
+            pg_url: None,
+            block_workers: None,
+            wasm_pages: None,
+            chain_spec: None,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<B, R, D> Builder<B, R, D> {
+    /// Set the chain data backend path to use for this instance.
+    /// 
+    /// # Default
+    /// defaults to the environment variable CHAIN_DATA_DB
+    pub fn chain_data_db<S: Into<String>>(mut self, path: S) -> Self {
+        self.chain_data_path = Some(path.into());
+        self
+    }
+    
+    /// Set the url to the Postgres Database 
+    ///
+    /// # Default
+    /// defaults to value of the environment variable DATABASE_URL
+    pub fn pg_url<S: Into<String>>(mut self, url: S) -> Self {
+        self.pg_url = Some(url.into());
+        self
+    }
+    
+    /// Set the amount of cache Rocksdb should keep.
+    ///
+    /// # Default
+    /// defaults to 128MB
+    pub fn cache_size(mut self, cache_size: usize) -> Self {
+        self.cache_size = Some(cache_size);
+        self
+    }
+    
+    /// Set the number of threads spawn for block execution.
+    ///
+    /// # Default
+    /// defaults to the number of logical cpus in the system
+    pub fn block_workers(mut self, workers: usize) -> Self {
+        self.block_workers = Some(workers);
+        self
+    }
+    
+    /// Specify a chain spec for storing metadata about the running archiver
+    /// in a persistant directory.
+    ///
+    /// # Default
+    /// Defaults to storing metadata in a temporary directory.
+    pub fn chain_spec(mut self, spec: Box<dyn ChainSpec>) -> Self {
+        self.chain_spec = Some(spec);
+        self
+    }
+}
+
+fn parse_urls(chain_data_path: Option<String>, pg_url: Option<String>) -> (String, String) {
+    let chain_path = if let Some(path) = chain_data_path {
+        path
+    } else {
+        std::env::var(CHAIN_DATA_VAR).expect("CHAIN_DATA_DB must be set if not passed initially.")
+    };
+
+    let pg_url = if let Some(url) = pg_url {
+        url
+    } else {
+        std::env::var(POSTGRES_VAR).expect("DATABASE_URL must be set if not passed initially.")
+    };
+
+    (chain_path, pg_url)
+}
+
+/// Create rocksdb secondary directory if it doesn't exist yet.
+/// If the ChainPpec is not specified, a temporary directory is used.
+/// Return path to that directory
+/// 
+/// # Panics
+///
+/// Panics if the directories fail to be created.
+fn create_database_path(spec: Option<Box<dyn ChainSpec>>) -> Result<PathBuf> {
+    let path = if let Some(spec) = spec {
+        let (chain, id) = (spec.name(), spec.id());
+        let path = if let Some(base_dirs) = dirs::BaseDirs::new() {
+            let mut path = base_dirs.data_local_dir().to_path_buf();
+            path.push("substrate_archive");
+            path.push("rocksdb_secondary");
+            path.push(chain);
+            path.push(id);
+            path
+        } else {
+            panic!("Couldn't establish substrate data local path");
+        };
+        std::fs::create_dir_all(path.as_path()).expect("Unable to create rocksdb secondary directory");
+        path
+    } else {
+        // TODO: make sure this is cleaned up on kill
+        tempfile::tempdir()?.into_path()
+    };
+
+    Ok(path)
+}
+
+impl<B, R, D> Builder<B, R, D>
 where
     B: BlockT + Unpin + DeserializeOwned,
     R: ConstructRuntimeApi<B, TArchiveClient<B, R, D>> + Send + Sync + 'static,
@@ -108,88 +177,45 @@ where
     B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,
 {
-    /// Create a new instance of the Archive DB
-    /// and run Postgres Migrations
+    /// Build this instance of the Archiver
+    ///
     /// # Panics
-    /// Panics if pg_url is `None` and the variable `DATABASE_URL` does not exist
-    /// in the environment
-    pub fn new(conf: ArchiveConfig, spec: Box<dyn ChainSpec>) -> Result<Self> {
-        let db = Arc::new(backend::util::open_database(
-            conf.db_url.as_str(),
-            conf.cache_size.unwrap_or(128),
-            spec.name(),
-            spec.id(),
-        )?);
-
-        let pg_url = if let Some(url) = conf.pg_url {
-            url
-        } else {
-            std::env::var("DATABASE_URL")
-                .expect("must have DATABASE_URL defined in the environment")
-        };
-
-        Ok(Self {
-            db,
-            pg_url,
-            rpc_url: conf.rpc_url,
-            block_workers: conf.block_workers,
-            wasm_pages: conf.wasm_pages,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Create a new Substrate Client with a ReadOnlyBackend
-    pub fn api_client(
-        &self,
-        block_workers: Option<usize>,
-        wasm_pages: Option<usize>,
-    ) -> Result<Arc<impl ApiAccess<B, ReadOnlyBackend<B>, R>>> {
-        let cpus = num_cpus::get();
-        let client = backend::runtime_api::<B, R, D>(
-            self.db.clone(),
-            block_workers.unwrap_or(cpus),
-            wasm_pages.map(|v| v as u64).unwrap_or(2048 as u64),
+    /// Panics if one of chain_data_db or pg_url is not passed to the builder
+    /// and their respective environment variables are not set.
+    pub fn build(self) -> Result<impl types::Archive<B>> {
+        let num_cpus = num_cpus::get();
+        let (chain_path, pg_url) = parse_urls(self.chain_data_path, self.pg_url);
+        let cache_size = self.cache_size.unwrap_or(128);
+        let block_workers = self.block_workers.unwrap_or(num_cpus);
+        let wasm_pages = self.wasm_pages.unwrap_or(64 * num_cpus as u64);
+        let db_path = create_database_path(self.chain_spec)?;
+        
+        let db  = Arc::new(backend::util::open_database(chain_path.as_str(), cache_size, db_path)?);
+        let client = backend::runtime_api::<B, R, D>(db.clone(), block_workers, wasm_pages)?;
+        let client = Arc::new(client);
+        let backend = Arc::new(ReadOnlyBackend::new(db.clone(), true));
+        Self::startup_info(&client, &backend)?;
+        
+        let ctx = System::<_, R, _>::new(
+            client,
+            backend,
+            block_workers,
+            pg_url.as_str(),
         )?;
-        Ok(Arc::new(client))
-    }
-
-    /// Constructs the Archive and returns the context
-    /// in which the archive is running.
-    pub fn run(&self) -> Result<impl types::Archive<B>> {
-        let ctx = smol::block_on(self._run())?;
         Ok(ctx)
     }
 
-    async fn _run(&self) -> Result<impl types::Archive<B>> {
-        let psql_url = crate::migrations::migrate(&self.pg_url).await?;
-        let cpus = num_cpus::get();
-        let block_workers = self.block_workers.unwrap_or(cpus);
-        let client = backend::runtime_api::<B, R, D>(
-            self.db.clone(),
-            block_workers,
-            self.wasm_pages.unwrap_or(512),
-        )
-        .map_err(Error::from)?;
-        let client = Arc::new(client);
-        let backend = Arc::new(ReadOnlyBackend::new(self.db.clone(), true));
+    /// Log some general startup info
+    fn startup_info(client: &TArchiveClient<B, R, D>, backend: &ReadOnlyBackend<B>) -> Result<()> {
         let last_finalized_block = backend.last_finalized()?;
         let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
         log::info!(
-            "Running archive for chain `{}`, implemention `{}`. Latest known runtime version: {}. Latest finalized block {}",
+            "Running archive for chain `{}` 🔗, implemention `{}`. Latest known runtime version: {}. Latest finalized block {} 🛡️",
             rt.spec_name,
             rt.impl_name,
             rt.spec_version,
             last_finalized_block
         );
-
-        let ctx = System::<_, R, _>::new(
-            client,
-            backend,
-            block_workers,
-            self.rpc_url.clone(),
-            psql_url.as_str(),
-        )?;
-
-        Ok(ctx)
+        Ok(())
     }
 }

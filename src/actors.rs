@@ -56,7 +56,6 @@ where
     B::Hash: Unpin,
 {
     backend: Arc<ReadOnlyBackend<B>>,
-    rpc_url: String,
     pg_url: String,
     meta: Meta<B>,
     workers: usize,
@@ -70,24 +69,18 @@ where
         backend: Arc<ReadOnlyBackend<B>>,
         meta: Meta<B>,
         workers: usize,
-        rpc_url: String,
         pg_url: String,
     ) -> Self {
         Self {
             backend,
             meta,
             workers,
-            rpc_url,
             pg_url,
         }
     }
 
     pub fn backend(&self) -> &Arc<ReadOnlyBackend<B>> {
         &self.backend
-    }
-
-    pub fn rpc_url(&self) -> &str {
-        self.rpc_url.as_str()
     }
 
     pub fn pg_url(&self) -> &str {
@@ -155,14 +148,12 @@ where
         client_api: Arc<C>,
         backend: Arc<ReadOnlyBackend<B>>,
         workers: usize,
-        url: String,
         pg_url: &str,
     ) -> Result<Self> {
         let context = ActorContext::new(
             backend.clone(),
             client_api.clone(),
             workers,
-            url,
             pg_url.to_string(),
         );
         let (start_tx, kill_tx, _handle) = Self::start(context.clone(), client_api);
