@@ -13,9 +13,6 @@
 # then the path only needs to be /home/$user/.local/share/polkadot/
 polkadot_path = "/home/insipx/.local/share/polkadot/"
 
-# Url to chain running in --pruning=archive
-rpc_url = "ws://127.0.0.1:9944"
-
 # How much should the read-only database keep in cache (MB) (required)
 cache_size = 128
 
