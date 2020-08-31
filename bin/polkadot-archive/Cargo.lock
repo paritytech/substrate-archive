@@ -733,6 +733,7 @@ dependencies = [
 [[package]]
 name = "coil"
 version = "0.1.0"
+source = "git+https://github.com/insipx/coil#b76f59b31ad7f37ac00db51adaa5086e7c783aea"
 dependencies = [
  "async-channel",
  "async-trait",
@@ -752,6 +753,7 @@ dependencies = [
 [[package]]
 name = "coil_proc_macro"
 version = "0.1.0"
+source = "git+https://github.com/insipx/coil#b76f59b31ad7f37ac00db51adaa5086e7c783aea"
 dependencies = [
  "proc-macro2 1.0.19",
  "quote 1.0.7",
