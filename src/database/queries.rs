@@ -189,7 +189,7 @@ pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
     )
     .fetch_all(conn)
     .await?;
-    
+
     // temporary struct to deserialize job
     #[derive(Deserialize)]
     struct JobIn<BL: BlockT> {

@@ -32,7 +32,7 @@ use sp_runtime::{
     generic::BlockId,
     traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
-use std::{marker::PhantomData, sync::Arc, path::PathBuf};
+use std::{marker::PhantomData, path::PathBuf, sync::Arc};
 
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
 const POSTGRES_VAR: &str = "DATABASE_URL";
@@ -50,7 +50,7 @@ pub struct Builder<B, R, D> {
     pub wasm_pages: Option<u64>,
     /// Chain spec describing the chain
     pub chain_spec: Option<Box<dyn ChainSpec>>,
-    pub _marker: PhantomData<(B, R, D)>
+    pub _marker: PhantomData<(B, R, D)>,
 }
 
 impl<B, R, D> Default for Builder<B, R, D> {
@@ -69,15 +69,15 @@ impl<B, R, D> Default for Builder<B, R, D> {
 
 impl<B, R, D> Builder<B, R, D> {
     /// Set the chain data backend path to use for this instance.
-    /// 
+    ///
     /// # Default
     /// defaults to the environment variable CHAIN_DATA_DB
     pub fn chain_data_db<S: Into<String>>(mut self, path: S) -> Self {
         self.chain_data_path = Some(path.into());
         self
     }
-    
-    /// Set the url to the Postgres Database 
+
+    /// Set the url to the Postgres Database
     ///
     /// # Default
     /// defaults to value of the environment variable DATABASE_URL
@@ -85,7 +85,7 @@ impl<B, R, D> Builder<B, R, D> {
         self.pg_url = Some(url.into());
         self
     }
-    
+
     /// Set the amount of cache Rocksdb should keep.
     ///
     /// # Default
@@ -94,7 +94,7 @@ impl<B, R, D> Builder<B, R, D> {
         self.cache_size = Some(cache_size);
         self
     }
-    
+
     /// Set the number of threads spawn for block execution.
     ///
     /// # Default
@@ -103,16 +103,16 @@ impl<B, R, D> Builder<B, R, D> {
         self.block_workers = Some(workers);
         self
     }
-    
+
     /// Number of 64KB Heap Pages to allocate for WASM execution
-    /// 
+    ///
     /// # Default
     /// defaults to 64 * (number of logic cpu's)
     pub fn wasm_pages(mut self, pages: u64) -> Self {
         self.wasm_pages = Some(pages);
         self
     }
-    
+
     /// Specify a chain spec for storing metadata about the running archiver
     /// in a persistant directory.
     ///
@@ -143,7 +143,7 @@ fn parse_urls(chain_data_path: Option<String>, pg_url: Option<String>) -> (Strin
 /// Create rocksdb secondary directory if it doesn't exist yet.
 /// If the ChainPpec is not specified, a temporary directory is used.
 /// Return path to that directory
-/// 
+///
 /// # Panics
 ///
 /// Panics if the directories fail to be created.
@@ -160,7 +160,8 @@ fn create_database_path(spec: Option<Box<dyn ChainSpec>>) -> Result<PathBuf> {
         } else {
             panic!("Couldn't establish substrate data local path");
         };
-        std::fs::create_dir_all(path.as_path()).expect("Unable to create rocksdb secondary directory");
+        std::fs::create_dir_all(path.as_path())
+            .expect("Unable to create rocksdb secondary directory");
         path
     } else {
         // TODO: make sure this is cleaned up on kill
@@ -200,18 +201,17 @@ where
         let wasm_pages = self.wasm_pages.unwrap_or(64 * num_cpus as u64);
         let db_path = create_database_path(self.chain_spec)?;
         smol::block_on(crate::migrations::migrate(&pg_url))?;
-        let db  = Arc::new(backend::util::open_database(chain_path.as_str(), cache_size, db_path)?);
+        let db = Arc::new(backend::util::open_database(
+            chain_path.as_str(),
+            cache_size,
+            db_path,
+        )?);
         let client = backend::runtime_api::<B, R, D>(db.clone(), block_workers, wasm_pages)?;
         let client = Arc::new(client);
         let backend = Arc::new(ReadOnlyBackend::new(db.clone(), true));
         Self::startup_info(&client, &backend)?;
-        
-        let ctx = System::<_, R, _>::new(
-            client,
-            backend,
-            block_workers,
-            pg_url.as_str(),
-        )?;
+
+        let ctx = System::<_, R, _>::new(client, backend, block_workers, pg_url.as_str())?;
         Ok(ctx)
     }
 

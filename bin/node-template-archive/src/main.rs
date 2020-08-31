@@ -17,9 +17,9 @@ mod cli_opts;
 mod config;
 
 use anyhow::Result;
+use node_template_runtime::{self as runtime, opaque::Block};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use node_template_runtime::{self as runtime, opaque::Block};
 use substrate_archive::{Archive, ArchiveBuilder};
 
 pub fn main() -> Result<()> {
@@ -36,7 +36,7 @@ pub fn main() -> Result<()> {
     .pg_url(config.psql_conf().url())
     .chain_spec(Box::new(config.cli().chain_spec.clone()))
     .build()?;
-    
+
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
 
