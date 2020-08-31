@@ -318,7 +318,7 @@ mod tests {
                 misc_frozen: 320000,
                 fee_frozen: 32000000
             };
-            let test_data = FrameEntry::new(Frame::System, 32, vec![0x13, 0x37], "SystemAccount".to_string(), Some(acc.clone()));
+            let test_data = FrameEntry::new(Frame::System, 0, crate::DUMMY_HASH.to_vec(), "SystemAccount".to_string(), Some(acc.clone()));
             test_data.insert(&mut conn).await.unwrap();
 
             let data = sqlx::query_as::<_, (Json<String>, Json<TestAccountData<u32>>)>("SELECT key, value FROM frame_system")
