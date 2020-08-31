@@ -71,6 +71,7 @@ where
 // we need PhantomData here so that the proc_macro correctly puts PhantomData into the `Job` struct
 // + DeserializeOwned so that the types work.
 // This is a little bit wonky (and entirely confusing), could be fixed with a better proc-macro in `coil`
+// TODO: We should detect when the chain is behind our node, and not execute blocks in this case.
 /// Execute a block, and send it to the database actor
 #[coil::background_job]
 pub fn execute_block<B, RA, Api>(
