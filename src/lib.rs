@@ -84,7 +84,7 @@ impl sp_core::traits::SpawnNamed for TaskExecutor {
 }
 
 #[cfg(test)]
-use test::{initialize, DATABASE_URL, PG_POOL, TestGuard};
+use test::{initialize, DATABASE_URL, PG_POOL, DUMMY_HASH, TestGuard};
 
 #[cfg(test)]
 mod test {
@@ -95,6 +95,8 @@ mod test {
     pub static DATABASE_URL: Lazy<String> = Lazy::new(|| {
         dotenv::var("DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!")
     });
+
+    pub const DUMMY_HASH: [u8; 2] = [0x13, 0x37];
 
     pub static PG_POOL: Lazy<sqlx::PgPool> = Lazy::new(|| {
             smol::block_on(async {
@@ -114,9 +116,17 @@ mod test {
             let url: &str = &DATABASE_URL;
             smol::block_on(async {
                 crate::migrations::migrate(url).await.unwrap();
-                let dummy_hash: Vec<u8> = vec![0x13, 0x37];
-                
-                // dummy metadata
+            });
+        });
+    }
+
+    static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    pub struct TestGuard<'a>(MutexGuard<'a, ()>);
+    impl<'a> TestGuard<'a> {
+        pub(crate) fn lock() -> Self {
+            let guard = TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"));
+            smol::block_on(async {
                 sqlx::query(
                     r#"
                     INSERT INTO metadata (version, meta)
@@ -124,7 +134,7 @@ mod test {
                 "#,
                 )
                 .bind(0)
-                .bind(dummy_hash.as_slice())
+                .bind(&DUMMY_HASH[0..2])
                 .execute(&*PG_POOL)
                 .await
                 .unwrap();
@@ -135,27 +145,19 @@ mod test {
                         INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
                         VALUES($1, $2, $3, $4, $5, $6, $7, $8)
                     ")
-                    .bind(dummy_hash.as_slice())
-                    .bind(dummy_hash.as_slice())
+                    .bind(&DUMMY_HASH[0..2])
+                    .bind(&DUMMY_HASH[0..2])
                     .bind(0)
-                    .bind(dummy_hash.as_slice())
-                    .bind(dummy_hash.as_slice())
-                    .bind(dummy_hash.as_slice())
-                    .bind(dummy_hash.as_slice())
+                    .bind(&DUMMY_HASH[0..2])
+                    .bind(&DUMMY_HASH[0..2])
+                    .bind(&DUMMY_HASH[0..2])
+                    .bind(&DUMMY_HASH[0..2])
                     .bind(0)
                     .execute(&*PG_POOL)
                     .await
                     .expect("INSERT");
             });
-        });
-    }
-
-    static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-
-    pub struct TestGuard<'a>(MutexGuard<'a, ()>);
-    impl<'a> TestGuard<'a> {
-        pub(crate) fn lock() -> Self {
-            TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"))
+            guard
         }
     }
 
