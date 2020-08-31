@@ -137,3 +137,72 @@ impl<Block: BlockT> Storage<Block> {
         self.changes.as_slice()
     }
 }
+
+/// Enum of standard substrate Pallets/Frames 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Frame {
+    System,
+}
+
+impl std::fmt::Display for Frame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Frame::System => write!(f, "{}", "frame_system"),
+        }
+    }
+}
+
+/// Holds storage entries that originated in a specific substrate pallet
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct FrameEntry<K, V> {
+    /// the Postgres table to insert this value into. Corresponds with the name 
+    /// of the pallet that this storage value originated in
+    table: Frame,
+    /// Block number the storage entry is from
+    block_num: u32,
+    /// Hash of the block the storage entry is from
+    hash: Vec<u8>,
+    // TODO: should support map/double-map types explicitly via an enum?
+    /// Key of the storage entry
+    key: K,
+    /// Value of the storage entry
+    value: Option<V>,
+}
+
+impl<K, V> FrameEntry<K, V> {
+    pub fn new(table: Frame, block_num: u32, hash: Vec<u8>, key: K, value: Option<V>) -> Self {
+        Self {
+            table,
+            block_num,
+            hash,
+            key,
+            value 
+        }
+    }
+
+    /// Get a reference to the key of this storage entry 
+    pub fn key(&self) -> &K {
+        &self.key
+    }
+    
+    /// Get a reference to the value of this storage entry
+    pub fn value(&self) -> Option<&V> {
+        self.value.as_ref()
+    }
+    
+    /// Get a reference to the hash, as a slice of bytes, of this storage entry
+    pub fn hash(&self) -> &[u8] {
+        self.hash.as_slice()
+    }
+    
+    /// get the block number this storage entry originated in
+    pub fn block_num(&self) -> u32 {
+        self.block_num
+    }
+    
+    /// Get the table to insert this storage entry into
+    pub fn table(&self) -> &Frame {
+        &self.table
+    }
+}
+
