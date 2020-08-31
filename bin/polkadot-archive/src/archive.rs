@@ -51,36 +51,41 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
     
     match config.cli().chain.to_ascii_lowercase().as_str() {
         "kusama" | "ksm" => {
-            let archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor>::default()
-                .chain_data_db(db_path)
-                .pg_url(config.psql_conf().url())
-                .cache_size(config.cache_size())
-                .chain_spec(spec)
-                .block_workers(config.block_workers().unwrap_or(1))
-                .wasm_pages(config.wasm_pages().unwrap_or(2048))
-                .build()?;
+            let archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor> {
+                block_workers: config.block_workers(),
+                wasm_pages: config.wasm_pages(),
+                ..ArchiveBuilder::default()
+            }.chain_data_db(db_path)
+            .pg_url(config.psql_conf().url())
+            .cache_size(config.cache_size())
+            .chain_spec(spec)
+            .build()?;
             Ok(Box::new(archive))
         }
         "westend" => {
-            let archive = ArchiveBuilder::<Block, westend_rt::RuntimeApi, polkadot_service::WestendExecutor>::default()
-                .chain_data_db(db_path)
-                .pg_url(config.psql_conf().url())
-                .cache_size(config.cache_size())
-                .chain_spec(spec)
-                .block_workers(config.block_workers().unwrap_or(1))
-                .wasm_pages(config.wasm_pages().unwrap_or(2048))
-                .build()?;
+            let archive = ArchiveBuilder::<Block, westend_rt::RuntimeApi, polkadot_service::WestendExecutor> {
+                block_workers: config.block_workers(),
+                wasm_pages: config.wasm_pages(),
+                ..ArchiveBuilder::default()
+            }
+            .chain_data_db(db_path)
+            .pg_url(config.psql_conf().url())
+            .cache_size(config.cache_size())
+            .chain_spec(spec)
+            .build()?;
             Ok(Box::new(archive))
         }
         "polkadot" | "dot" => {
-            let archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor>::default()
-                .chain_data_db(db_path)
-                .pg_url(config.psql_conf().url())
-                .cache_size(config.cache_size())
-                .chain_spec(spec)
-                .block_workers(config.block_workers().unwrap_or(1))
-                .wasm_pages(config.wasm_pages().unwrap_or(2048))
-                .build()?;
+            let archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor> {
+                block_workers: config.block_workers(),
+                wasm_pages: config.wasm_pages(),
+                ..ArchiveBuilder::default()
+            }
+            .chain_data_db(db_path)
+            .pg_url(config.psql_conf().url())
+            .cache_size(config.cache_size())
+            .chain_spec(spec)
+            .build()?;
             Ok(Box::new(archive))
         }
         c => Err(anyhow!("unknown chain {}", c)),

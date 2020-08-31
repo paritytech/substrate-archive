@@ -71,21 +71,27 @@ pub fn open_database(
         other_col_budget,
     );
     super::database::ReadOnlyDatabase::open(db_config, &path)
-        .map_err(|err| sp_blockchain::Error::Backend(format!("{}", err)))
+        .map_err(|err| sp_blockchain::Error::Backend(format!("{:?}", err)))
 }
 
 #[allow(unused)]
 pub(crate) mod columns {
+    /// Metadata about chain
     pub const META: u32 = 0;
     pub const STATE: u32 = 1;
     pub const STATE_META: u32 = 2;
     /// maps hashes -> lookup keys and numbers to canon hashes
     pub const KEY_LOOKUP: u32 = 3;
+    /// Part of Block
     pub const HEADER: u32 = 4;
+    /// Part of Block
     pub const BODY: u32 = 5;
+    /// Part of Block
     pub const JUSTIFICATION: u32 = 6;
+    /// Stores the changes tries for querying changed storage of a block
     pub const CHANGES_TRIE: u32 = 7;
     pub const AUX: u32 = 8;
+    /// Off Chain workers local storage
     pub const OFFCHAIN: u32 = 9;
     pub const CACHE: u32 = 10;
 }

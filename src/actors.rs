@@ -113,7 +113,7 @@ where
     kill_tx: flume::Sender<()>,
     context: ActorContext<B>,
     /// handle to the futures runtime indexing the running chain
-    _handle: jod_thread::JoinHandle<()>,
+    handle: jod_thread::JoinHandle<Result<()>>,
     _marker: PhantomData<(B, R, C)>,
 }
 
@@ -155,13 +155,13 @@ where
             workers,
             pg_url.to_string(),
         );
-        let (start_tx, kill_tx, _handle) = Self::start(context.clone(), client_api);
+        let (start_tx, kill_tx, handle) = Self::start(context.clone(), client_api);
 
         Ok(Self {
             context,
             start_tx,
             kill_tx,
-            _handle,
+            handle,
             _marker: PhantomData,
         })
     }
@@ -177,7 +177,7 @@ where
     ) -> (
         flume::Sender<()>,
         flume::Sender<()>,
-        jod_thread::JoinHandle<()>,
+        jod_thread::JoinHandle<Result<()>>,
     ) {
         let (tx_start, rx_start) = flume::bounded(1);
         let (tx_kill, rx_kill) = flume::bounded(1);
@@ -185,7 +185,8 @@ where
         let handle = jod_thread::spawn(move || {
             // block until we receive the message to start
             let _ = rx_start.recv();
-            smol::run(Self::main_loop(ctx, rx_kill, client)).unwrap();
+            smol::run(Self::main_loop(ctx, rx_kill, client))?;
+            Ok(())
         });
 
         (tx_start, tx_kill, handle)
@@ -274,9 +275,6 @@ where
             .boxed()
         })
         .listen_on(Channel::Blocks)
-        .on_disconnect(|| {
-            panic!("PostgreSQL Disconnected! TODO");
-        })
         .spawn()
         .await
     }
@@ -342,6 +340,7 @@ where
 
     fn shutdown(self) -> Result<()> {
         let _ = self.kill_tx.send(());
+        self.handle.join()?;
         if let Some(c) = self.context.backend().backing_db().catch_up_count() {
             log::info!("Caught Up {} times", c);
         }
@@ -350,6 +349,7 @@ where
 
     fn boxed_shutdown(self: Box<Self>) -> Result<()> {
         let _ = self.kill_tx.send(());
+        self.handle.join()?;
         if let Some(c) = self.context.backend().backing_db().catch_up_count() {
             log::info!("Caught Up {} times", c);
         }

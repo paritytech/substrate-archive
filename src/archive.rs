@@ -39,18 +39,19 @@ const POSTGRES_VAR: &str = "DATABASE_URL";
 
 pub struct Builder<B, R, D> {
     /// Path to the rocksdb database
-    chain_data_path: Option<String>,
+    pub chain_data_path: Option<String>,
     /// url to the Postgres Database
-    pg_url: Option<String>,
+    pub pg_url: Option<String>,
     /// how much Cache should Rocksdb Keep
-    cache_size: Option<usize>,
+    pub cache_size: Option<usize>,
     /// number of threads to spawn for block execution
-    block_workers: Option<usize>,
+    pub block_workers: Option<usize>,
     /// Number of 64KB Heap pages to allocate for wasm execution
-    wasm_pages: Option<u64>,
+    pub wasm_pages: Option<u64>,
     /// Chain spec describing the chain
-    chain_spec: Option<Box<dyn ChainSpec>>,
-    _marker: PhantomData<(B, R, D)>
+    pub chain_spec: Option<Box<dyn ChainSpec>>,
+    /// Marker for the type arguments
+    pub _marker: PhantomData<(B, R, D)>
 }
 
 impl<B, R, D> Default for Builder<B, R, D> {

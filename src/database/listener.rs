@@ -20,7 +20,7 @@
 //! listen wakeup.
 
 use crate::error::Result;
-use futures::{pin_mut, Future, FutureExt};
+use futures::{pin_mut, Future, FutureExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 use sqlx::postgres::{PgConnection, PgListener, PgNotification};
@@ -86,8 +86,6 @@ where
         ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
 {
     task: F,
-    disconnect:
-        Box<dyn Send + Sync + Fn() -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>>,
     channels: Vec<Channel>,
     pg_url: String,
 }
@@ -107,22 +105,11 @@ where
             task: f,
             channels: Vec::new(),
             pg_url: url.to_string(),
-            disconnect: Box::new(|| async move { Ok(()) }.boxed()),
         }
     }
 
     pub fn listen_on(mut self, channel: Channel) -> Self {
         self.channels.push(channel);
-        self
-    }
-
-    /// Specify what to do in the event that this listener
-    /// is disconnected from the Postgres database.
-    pub fn on_disconnect<Fun>(mut self, fun: Fun) -> Self
-    where
-        Fun: Send + 'static + Sync + Fn() -> Pin<Box<dyn Future<Output = Result<()>> + Send>>,
-    {
-        self.disconnect = Box::new(fun);
         self
     }
 
@@ -142,24 +129,24 @@ where
         let mut conn = PgConnection::connect(&self.pg_url).await.unwrap();
 
         let fut = async move {
+            let mut listener = listener.into_stream();
             loop {
-                let listen_fut = listener.try_recv().fuse();
-                pin_mut!(listen_fut);
+                let mut listen_fut = listener.next().fuse();
+                // pin_mut!(listen_fut);
 
                 futures::select! {
                     notif = listen_fut => {
                         match notif {
-                            Ok(Some(v)) => {
+                            Some(Ok(v)) => {
                                 let fut = self.handle_listen_event(v, &mut conn);
                                 fut.await;
                             },
-                            Ok(None) => {
-                                let fut = (self.disconnect)();
-                                fut.await.unwrap()
-                            },
-                            Err(e) => {
+                            Some(Err(e)) => {
                                 log::error!("{:?}", e);
-                            }
+                            },
+                            None => {
+                                break;
+                            },
                         }
                     },
                     r = rx.recv_async() => {
@@ -170,11 +157,22 @@ where
                             }
                         }
                     },
-                    // complete => break,
+                    complete => break,
                 };
             }
-            //listener.into_stream()
-            listener.unlisten_all().await.unwrap();
+            // collect the rest of the results, before exiting, as long as the collection completes
+            // in a reasonable amount of time
+            let timeout = smol::Timer::new(std::time::Duration::from_secs(1));
+            futures::select! {
+                _ = timeout.fuse() => {
+                    return;
+                },
+                notifs = listener.collect::<Vec<_>>().fuse() => {
+                    for msg in notifs {
+                        self.handle_listen_event(msg.unwrap(), &mut conn).await;
+                    }
+                }
+            }
         };
 
         smol::Task::spawn(fut).detach();
