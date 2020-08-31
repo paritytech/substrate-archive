@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{error::ArchiveResult, types::Storage};
+use crate::{error::Result, types::Storage};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ApiRef};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
@@ -40,6 +40,11 @@ pub struct BlockChanges<Block: BlockT> {
     /// Hash of the block these changes come from
     pub block_hash: Block::Hash,
     pub block_num: NumberFor<Block>,
+}
+
+impl<B: BlockT> xtra::Message for BlockChanges<B> {
+    // TODO: possibly change this error
+    type Result = ();
 }
 
 impl<Block> From<BlockChanges<Block>> for Storage<Block>
@@ -85,7 +90,7 @@ where
         + ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
     B: backend::Backend<Block>,
 {
-    pub fn new(api: ApiRef<'a, Api>, backend: &'a Arc<B>, block: Block) -> ArchiveResult<Self> {
+    pub fn new(api: ApiRef<'a, Api>, backend: &'a Arc<B>, block: Block) -> Result<Self> {
         let header = block.header();
         let parent_hash = header.parent_hash();
         let id = BlockId::Hash(*parent_hash);
@@ -98,7 +103,7 @@ where
         })
     }
 
-    pub fn block_into_storage(self) -> ArchiveResult<BlockChanges<Block>> {
+    pub fn block_into_storage(self) -> Result<BlockChanges<Block>> {
         let header = (&self.block).header();
         let parent_hash = *header.parent_hash();
         let hash = header.hash();

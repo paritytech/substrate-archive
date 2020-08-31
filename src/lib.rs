@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 // #![allow(warnings)]
-#![forbid(unsafe_code)]
+// #![forbid(unsafe_code)]
 
 mod actors;
 pub mod archive;
@@ -23,16 +23,16 @@ pub mod backend;
 mod database;
 mod error;
 mod migrations;
-mod rpc;
-#[cfg(test)]
-mod simple_db;
+// mod rpc;
+// #[cfg(test)]
+// mod simple_db;
 mod sql_block_builder;
-mod threadpools;
+mod tasks;
 mod types;
 mod util;
 
 pub use actors::System;
-pub use archive::{ArchiveBuilder, ArchiveConfig};
+pub use archive::Builder as ArchiveBuilder;
 pub use database::queries;
 pub use error::Error;
 pub use migrations::MigrationConfig;
@@ -50,4 +50,68 @@ pub mod chain_traits {
     pub use sc_client_api::client::BlockBackend;
     pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
     pub use sp_runtime::traits::{BlakeTwo256, Block, IdentifyAccount, Verify};
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskExecutor;
+
+impl futures::task::Spawn for TaskExecutor {
+    fn spawn_obj(
+        &self,
+        future: futures::task::FutureObj<'static, ()>,
+    ) -> Result<(), futures::task::SpawnError> {
+        smol::Task::spawn(future).detach();
+        Ok(())
+    }
+}
+
+impl sp_core::traits::SpawnNamed for TaskExecutor {
+    fn spawn(
+        &self,
+        _: &'static str,
+        fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>,
+    ) {
+        smol::Task::spawn(fut).detach()
+    }
+
+    fn spawn_blocking(
+        &self,
+        _: &'static str,
+        fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>,
+    ) {
+        smol::Task::spawn(async move { smol::unblock!(fut) }).detach();
+    }
+}
+
+#[cfg(test)]
+use test::{initialize, DATABASE_URL, PG_POOL};
+
+#[cfg(test)]
+mod test {
+    use once_cell::sync::Lazy;
+    use std::sync::Once;
+
+    pub static DATABASE_URL: Lazy<String> = Lazy::new(|| {
+        dotenv::var("DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!")
+    });
+
+    pub static PG_POOL: Lazy<sqlx::PgPool> = Lazy::new(|| {
+        smol::block_on(
+            sqlx::postgres::PgPoolOptions::new()
+                .min_connections(4)
+                .max_connections(8)
+                .idle_timeout(std::time::Duration::from_millis(3600))
+                .connect(&DATABASE_URL),
+        )
+        .expect("Couldn't initialize postgres pool for tests")
+    });
+
+    static INIT: Once = Once::new();
+    pub fn initialize() {
+        INIT.call_once(|| {
+            pretty_env_logger::init();
+            let url: &str = &DATABASE_URL;
+            smol::block_on(crate::migrations::migrate(url)).unwrap();
+        });
+    }
 }

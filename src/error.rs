@@ -16,7 +16,7 @@
 use std::{env, io};
 use thiserror::Error;
 
-pub type ArchiveResult<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Substrate Archive Error Enum
 #[derive(Error, Debug)]
@@ -25,7 +25,7 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error("environment variable for `DATABASE_URL` not found")]
     Env(#[from] env::VarError),
-    #[error("decode")]
+    #[error("decode {0}")]
     Codec(#[from] codec::Error),
     #[error("Formatting {0}")]
     Fmt(#[from] std::fmt::Error),
@@ -33,20 +33,28 @@ pub enum Error {
     Serialization(#[from] serde_json::Error),
     #[error("sqlx error: {0}")]
     Sql(#[from] sqlx::Error),
+    #[error("migration error: {0}")]
+    Migration(#[from] sqlx::migrate::MigrateError),
     #[error("blockchain error: {0}")]
     Blockchain(String),
-    #[error("JSONRPC request failed")]
-    RpcRequest(#[from] jsonrpsee::client::RequestError),
-    #[error("DNS error")]
-    Dns(#[from] jsonrpsee::transport::ws::WsNewDnsError),
-    #[error("couldn't run migrations")]
-    SqlMigration(#[from] refinery::Error),
+    /// an error occurred while enqueuing a background job
+    #[error("Background job err {0}")]
+    BgJob(#[from] coil::EnqueueError),
+    #[error("Background Job {0}")]
+    BgJobGen(#[from] coil::Error),
+    #[error("Failed getting background task {0}")]
+    BgJobGet(#[from] coil::FetchError),
     #[error("could not build threadpool")]
     ThreadPool(#[from] rayon::ThreadPoolBuildError),
+    /// Error occured while serializing/deserializing data
+    #[error("Error while decoding job data {0}")]
+    De(#[from] rmp_serde::decode::Error),
     #[error(
         "the chain given to substrate-archive is different then the running chain. Trying to run {0}, running {1}"
     )]
     MismatchedChains(String, String),
+    #[error("wasm exists but could not extract runtime version")]
+    WasmExecutionError,
     #[error("sending on disconnected channel")]
     Channel,
     #[error("Trying to send to disconnected actor")]

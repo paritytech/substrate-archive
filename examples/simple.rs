@@ -13,7 +13,7 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
-
+/*
 //! A simple example
 use polkadot_service::{kusama_runtime::RuntimeApi, Block, KusamaExecutor};
 use substrate_archive::{Archive, ArchiveConfig, MigrationConfig, ArchiveBuilder};
@@ -48,4 +48,9 @@ pub fn main() {
 
     // run indefinitely
     rt.block_on(context.block_until_stopped());
+}
+*/
+
+pub fn main() {
+    println!("Hello");
 }

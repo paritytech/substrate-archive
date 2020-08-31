@@ -32,15 +32,18 @@ pub use self::state_backend::TrieState;
 use self::state_backend::{DbState, StateVault};
 use super::database::ReadOnlyDatabase;
 use super::util::columns;
+use crate::error::Result;
+use codec::Decode;
 use hash_db::Prefix;
-use kvdb::DBValue; // need
+use kvdb::DBValue;
 use sc_client_api::backend::StateBackend;
 use sp_blockchain::{Backend as _, HeaderBackend as _};
 use sp_runtime::{
     generic::{BlockId, SignedBlock},
     traits::{Block as BlockT, HashFor, Header},
+    Justification,
 };
-use std::sync::Arc;
+use std::{convert::TryInto, sync::Arc};
 
 pub struct ReadOnlyBackend<Block: BlockT> {
     db: Arc<ReadOnlyDatabase>,
@@ -54,6 +57,11 @@ where
     pub fn new(db: Arc<ReadOnlyDatabase>, prefix_keys: bool) -> Self {
         let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
         Self { db, storage: vault }
+    }
+
+    /// get a reference to the backing database
+    pub fn backing_db(&self) -> Arc<ReadOnlyDatabase> {
+        self.db.clone()
     }
 
     fn state_at(&self, hash: Block::Hash) -> Option<TrieState<Block>> {
@@ -93,10 +101,20 @@ where
         header.map(|h| *h.state_root())
     }
 
+    /// gets storage for some block hash
     pub fn storage(&self, hash: Block::Hash, key: &[u8]) -> Option<Vec<u8>> {
         match self.state_at(hash) {
             Some(state) => state
                 .storage(key)
+                .unwrap_or_else(|_| panic!("No storage found for {:?}", hash)),
+            None => None,
+        }
+    }
+
+    pub fn storage_hash(&self, hash: Block::Hash, key: &[u8]) -> Option<Block::Hash> {
+        match self.state_at(hash) {
+            Some(state) => state
+                .storage_hash(key)
                 .unwrap_or_else(|_| panic!("No storage found for {:?}", hash)),
             None => None,
         }
@@ -113,26 +131,71 @@ where
     /// Get a block from the canon chain
     /// This also tries to catch up with the primary rocksdb instance
     pub fn block(&self, id: &BlockId<Block>) -> Option<SignedBlock<Block>> {
-        self.db.try_catch_up_with_primary();
-        match (
-            self.header(*id).ok()?,
-            self.body(*id).ok()?,
-            self.justification(*id).ok()?,
-        ) {
-            (Some(header), Some(extrinsics), justification) => Some(SignedBlock {
-                block: Block::new(header, extrinsics),
-                justification,
-            }),
-            _ => None,
-        }
+        let header = self.header(*id).ok()?;
+        let body = self.body(*id).ok()?;
+        let justification = self.justification(*id).ok()?;
+        construct_block(header, body, justification)
+    }
+
+    /// Iterate over all blocks that match the predicate `fun`
+    /// Tries to iterates over the latest version of the database.
+    /// The predicate exists to reduce database reads
+    pub fn iter_blocks<'a>(
+        &'a self,
+        fun: impl Fn(u32) -> bool + 'a,
+    ) -> Result<impl Iterator<Item = SignedBlock<Block>> + 'a> {
+        let readable_db = self.db.clone();
+        self.db.try_catch_up_with_primary()?;
+        Ok(self
+            .db
+            .iter(super::util::columns::KEY_LOOKUP)
+            .take_while(|(_, value)| !value.is_empty())
+            .filter_map(move |(key, value)| {
+                let arr: &[u8; 4] = key[0..4].try_into().ok()?;
+                let num = u32::from_be_bytes(*arr);
+                if key.len() == 4 && fun(num) {
+                    let head: Option<Block::Header> = readable_db
+                        .get(super::util::columns::HEADER, &value)
+                        .map(|bytes| Decode::decode(&mut &bytes[..]).ok())
+                        .flatten();
+                    let body: Option<Vec<Block::Extrinsic>> = readable_db
+                        .get(super::util::columns::BODY, &value)
+                        .map(|bytes| Decode::decode(&mut &bytes[..]).ok())
+                        .flatten();
+                    let justif: Option<Justification> = readable_db
+                        .get(super::util::columns::JUSTIFICATION, &value)
+                        .map(|bytes| Decode::decode(&mut &bytes[..]).ok())
+                        .flatten();
+                    construct_block(head, body, justif)
+                } else {
+                    None
+                }
+            }))
     }
 }
 
 struct DbGenesisStorage<Block: BlockT>(pub Block::Hash);
-
 impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for DbGenesisStorage<Block> {
-    fn get(&self, _key: &Block::Hash, _prefix: Prefix) -> Result<Option<DBValue>, String> {
+    fn get(
+        &self,
+        _key: &Block::Hash,
+        _prefix: Prefix,
+    ) -> std::result::Result<Option<DBValue>, String> {
         Ok(None)
+    }
+}
+
+fn construct_block<Block: BlockT>(
+    header: Option<Block::Header>,
+    body: Option<Vec<Block::Extrinsic>>,
+    justification: Option<Justification>,
+) -> Option<SignedBlock<Block>> {
+    match (header, body, justification) {
+        (Some(header), Some(extrinsics), justification) => Some(SignedBlock {
+            block: Block::new(header, extrinsics),
+            justification,
+        }),
+        _ => None,
     }
 }
 

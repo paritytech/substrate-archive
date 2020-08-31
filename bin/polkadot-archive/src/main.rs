@@ -18,22 +18,24 @@ mod cli_opts;
 mod config;
 
 use anyhow::Result;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
-#[tokio::main]
-pub async fn main() -> Result<()> {
+pub fn main() -> Result<()> {
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
 
-    archive::run_archive(config.clone()).await?;
-    ctrlc().await?;
+    let mut archive = archive::run_archive(config.clone())?;
+    archive.drive()?;
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
 
-    Ok(())
-}
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+    while running.load(Ordering::SeqCst) {}
+    archive.boxed_shutdown()?;
 
-async fn ctrlc() -> Result<()> {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("failed to listen on ctrlc");
-    println!("\nShutting down ...");
     Ok(())
 }

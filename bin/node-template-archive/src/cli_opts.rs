@@ -29,8 +29,8 @@ impl CliOpts {
         let yaml = load_yaml!("cli_opts.yaml");
         let matches = App::from(yaml).get_matches();
         let log_level = match matches.occurrences_of("verbose") {
-            0 => log::LevelFilter::Error,
-            1 => log::LevelFilter::Warn,
+            0 => log::LevelFilter::Info,
+            1 => log::LevelFilter::Info,
             2 => log::LevelFilter::Info,
             3 => log::LevelFilter::Debug,
             4 | _ => log::LevelFilter::Trace,
@@ -60,7 +60,7 @@ impl CliOpts {
         CliOpts {
             file: PathBuf::from(file),
             log_level,
-            chain_spec: chain_spec.unwrap(),
+            chain_spec: chain_spec.expect("Chain spec could not be loaded"),
         }
     }
 }

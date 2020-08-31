@@ -18,23 +18,23 @@
 //! Handles inserting of data into the database
 
 mod batch;
-pub mod models;
+pub mod listener;
+mod models;
 pub mod queries;
 
 use async_trait::async_trait;
 use batch::Batch;
 use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-use sqlx::{PgPool, postgres::PgPoolOptions, Postgres};
 use sqlx::prelude::*;
+use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 
-use self::models::*;
-use crate::{
-    error::{ArchiveResult, Error as ArchiveError},
-    types::*,
-};
+pub use self::listener::*;
+pub use self::models::*;
 
-pub type DbReturn = Result<u64, ArchiveError>;
+use crate::{error::Result, types::*};
+
+pub type DbReturn = Result<u64>;
 pub type DbConn = sqlx::pool::PoolConnection<Postgres>;
 
 #[async_trait]
@@ -53,11 +53,11 @@ pub struct Database {
 
 impl Database {
     /// Connect to the database
-    pub async fn new(url: String) -> ArchiveResult<Self> {
+    pub async fn new(url: String) -> Result<Self> {
         let pool = PgPoolOptions::new()
             .min_connections(4)
-            .max_connections(8)
-            .idle_timeout(std::time::Duration::from_secs(3600)) // kill connections after 5 minutes of idle
+            .max_connections(28)
+            .idle_timeout(std::time::Duration::from_millis(3600)) // kill connections after 5 minutes of idle
             .connect(url.as_str())
             .await?;
         Ok(Self { pool, url })
@@ -70,14 +70,18 @@ impl Database {
     }
 
     #[allow(unused)]
-    pub async fn insert(&self, data: impl Insert) -> ArchiveResult<u64> {
+    pub async fn insert(&self, data: impl Insert) -> Result<u64> {
         let mut conn = self.pool.acquire().await?;
         let res = data.insert(&mut conn).await?;
         Ok(res)
     }
 
-    pub async fn conn(&self) -> ArchiveResult<DbConn> {
+    pub async fn conn(&self) -> Result<DbConn> {
         self.pool.acquire().await.map_err(Into::into)
+    }
+
+    pub fn pool(&self) -> &sqlx::PgPool {
+        &self.pool
     }
 }
 
@@ -133,7 +137,7 @@ impl<B: BlockT> Insert for StorageModel<B> {
             r#"
                 INSERT INTO storage (
                     block_num, hash, is_full, key, storage
-                ) VALUES (#1, $2, $3, $4, $5)
+                ) VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
                     hash = EXCLUDED.hash,
                     key = EXCLUDED.key,
@@ -196,7 +200,7 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
 #[async_trait]
 impl Insert for Metadata {
     async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
-        log::info!("Inserting Metadata");
+        log::debug!("Inserting Metadata");
         sqlx::query(
             r#"
             INSERT INTO metadata (version, meta)

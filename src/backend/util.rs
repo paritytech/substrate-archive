@@ -17,8 +17,8 @@
 //! various utilities that make interfacing with substrate easier
 
 use crate::{
-    backend::database::ReadOnlyDatabase,
-    error::{ArchiveResult, Error as ArchiveError},
+    backend::database::{Config, ReadOnlyDatabase},
+    error::{Error, Result},
 };
 use codec::Decode;
 use kvdb::DBValue;
@@ -29,6 +29,7 @@ use sp_runtime::{
     traits::{Block as BlockT, Header as HeaderT, UniqueSaturatedFrom, UniqueSaturatedInto, Zero},
 };
 use std::convert::TryInto;
+use std::path::PathBuf;
 
 pub const NUM_COLUMNS: u32 = 11;
 
@@ -38,15 +39,16 @@ pub type NumberIndexKey = [u8; 4];
 pub fn open_database(
     path: &str,
     cache_size: usize,
-    chain: &str,
-    id: &str,
+    db_path: PathBuf,
 ) -> sp_blockchain::Result<ReadOnlyDatabase> {
-    let db_path = crate::util::create_secondary_db_dir(chain, id);
     // need to make sure this is `Some` to open secondary instance
     let db_path = db_path.as_path().to_str().expect("Creating db path failed");
-    let mut db_config = DatabaseConfig {
-        secondary: Some(db_path.to_string()),
-        ..DatabaseConfig::with_columns(NUM_COLUMNS)
+    let mut db_config = Config {
+        track_catchups: true,
+        config: DatabaseConfig {
+            secondary: Some(db_path.to_string()),
+            ..DatabaseConfig::with_columns(NUM_COLUMNS)
+        },
     };
     let state_col_budget = (cache_size as f64 * 0.9) as usize;
     let other_col_budget = (cache_size - state_col_budget) / (NUM_COLUMNS as usize - 1);
@@ -59,7 +61,7 @@ pub fn open_database(
             memory_budget.insert(i, other_col_budget);
         }
     }
-    db_config.memory_budget = memory_budget;
+    db_config.config.memory_budget = memory_budget;
     log::info!(
         target: "db",
         "Open RocksDB at {}, state column budget: {} MiB, others({}) column cache: {} MiB",
@@ -68,22 +70,28 @@ pub fn open_database(
         NUM_COLUMNS,
         other_col_budget,
     );
-    super::database::ReadOnlyDatabase::open(&db_config, &path)
-        .map_err(|err| sp_blockchain::Error::Backend(format!("{}", err)))
+    super::database::ReadOnlyDatabase::open(db_config, &path)
+        .map_err(|err| sp_blockchain::Error::Backend(format!("{:?}", err)))
 }
 
 #[allow(unused)]
 pub(crate) mod columns {
+    /// Metadata about chain
     pub const META: u32 = 0;
     pub const STATE: u32 = 1;
     pub const STATE_META: u32 = 2;
     /// maps hashes -> lookup keys and numbers to canon hashes
     pub const KEY_LOOKUP: u32 = 3;
+    /// Part of Block
     pub const HEADER: u32 = 4;
+    /// Part of Block
     pub const BODY: u32 = 5;
+    /// Part of Block
     pub const JUSTIFICATION: u32 = 6;
+    /// Stores the changes tries for querying changed storage of a block
     pub const CHANGES_TRIE: u32 = 7;
     pub const AUX: u32 = 8;
+    /// Off Chain workers local storage
     pub const OFFCHAIN: u32 = 9;
     pub const CACHE: u32 = 10;
 }
@@ -114,11 +122,11 @@ pub fn read_header<Block: BlockT>(
     col_index: u32,
     col: u32,
     id: BlockId<Block>,
-) -> ArchiveResult<Option<Block::Header>> {
+) -> Result<Option<Block::Header>> {
     match read_db(db, col_index, col, id)? {
         Some(header) => match Block::Header::decode(&mut &header[..]) {
             Ok(header) => Ok(Some(header)),
-            Err(_) => Err(ArchiveError::from("Error decoding header")),
+            Err(_) => Err(Error::from("Error decoding header")),
         },
         None => Ok(None),
     }
@@ -129,7 +137,7 @@ pub fn read_db<Block>(
     col_index: u32,
     col: u32,
     id: BlockId<Block>,
-) -> ArchiveResult<Option<DBValue>>
+) -> Result<Option<DBValue>>
 where
     Block: BlockT,
 {
@@ -143,7 +151,7 @@ pub fn block_id_to_lookup_key<Block>(
     db: &ReadOnlyDatabase,
     key_lookup_col: u32,
     id: BlockId<Block>,
-) -> Result<Option<Vec<u8>>, ArchiveError>
+) -> Result<Option<Vec<u8>>>
 where
     Block: BlockT,
     sp_runtime::traits::NumberFor<Block>: UniqueSaturatedFrom<u64> + UniqueSaturatedInto<u64>,
@@ -154,10 +162,15 @@ where
     })
 }
 
-pub fn number_index_key<N: TryInto<u32>>(n: N) -> ArchiveResult<NumberIndexKey> {
+/// Convert block number into short lookup key (LE representation) for
+// blocks that are in the canonical chain
+
+/// In the current database schema, this kind of key is only used for
+/// lookups into an index, NOT for storing header data or others
+pub fn number_index_key<N: TryInto<u32>>(n: N) -> Result<NumberIndexKey> {
     let n = n
         .try_into()
-        .map_err(|_| ArchiveError::from("Block num cannot be converted to u32"))?;
+        .map_err(|_| Error::from("Block num cannot be converted to u32"))?;
 
     Ok([
         (n >> 24) as u8,
@@ -186,7 +199,7 @@ pub struct Meta<N, H> {
 pub fn read_meta<Block>(
     db: &ReadOnlyDatabase,
     col_header: u32,
-) -> Result<Meta<<<Block as BlockT>::Header as HeaderT>::Number, Block::Hash>, sp_blockchain::Error>
+) -> sp_blockchain::Result<Meta<<<Block as BlockT>::Header as HeaderT>::Number, Block::Hash>>
 where
     Block: BlockT,
 {
@@ -203,7 +216,7 @@ where
         }
     };
 
-    let load_meta_block = |desc, key| -> Result<_, sp_blockchain::Error> {
+    let load_meta_block = |desc, key| -> sp_blockchain::Result<_> {
         if let Some(Some(header)) = match db.get(columns::META, key) {
             Some(id) => db
                 .get(col_header, &id)

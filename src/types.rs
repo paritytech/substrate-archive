@@ -14,48 +14,45 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::{ArchiveResult, Error as ArchiveError};
+use crate::error::Result;
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
-use xtra::prelude::*;
 
-pub trait ThreadPool: Send {
-    type In: Clone + Send + Sync + Encode + Decode + PriorityIdent;
+pub trait ThreadPool: Send + Sync {
+    type In: Send + Sync + std::fmt::Debug;
     type Out: Send + Sync + std::fmt::Debug;
-    fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> ArchiveResult<usize>;
-}
-
-/// Get an identifier from data that can be used to sort it
-pub trait PriorityIdent {
-    type Ident: Eq + PartialEq + Send + Sync + Copy + Ord + PartialOrd;
-    fn identifier(&self) -> Self::Ident;
+    /// Adds a task to the threadpool.
+    /// Should not block!
+    fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> Result<usize>;
 }
 
 #[async_trait::async_trait(?Send)]
-pub trait Archive<B: BlockT> {
+pub trait Archive<B: BlockT + Unpin>
+where
+    B::Hash: Unpin,
+{
     /// start driving the execution of the archive
-    async fn drive(&mut self) -> Result<(), ArchiveError>;
+    fn drive(&mut self) -> Result<()>;
 
     /// this method will block indefinitely
     async fn block_until_stopped(&self) -> ();
 
     /// shutdown the system
-    fn shutdown(self) -> Result<(), ArchiveError>;
+    fn shutdown(self) -> Result<()>;
+
+    /// Shutdown the system when self is boxed (useful when erasing the types of the runtime)
+    fn boxed_shutdown(self: Box<Self>) -> Result<()>;
 
     /// Get a reference to the context the actors are using
-    fn context(&self) -> Result<super::actors::ActorContext<B>, ArchiveError>;
+    fn context(&self) -> Result<super::actors::ActorContext<B>>;
 }
 
 #[derive(Debug)]
 pub struct Metadata {
     version: u32,
     meta: Vec<u8>,
-}
-
-impl Message for Metadata {
-    type Result = ();
 }
 
 impl Metadata {
@@ -78,10 +75,6 @@ pub struct Block<B: BlockT> {
     pub spec: u32,
 }
 
-impl<B: BlockT> Message for Block<B> {
-    type Result = ();
-}
-
 impl<B: BlockT> Block<B> {
     pub fn new(block: SignedBlock<B>, spec: u32) -> Self {
         Self { inner: block, spec }
@@ -94,10 +87,6 @@ pub struct BatchBlock<B: BlockT> {
     pub inner: Vec<Block<B>>,
 }
 
-impl<B: BlockT> Message for BatchBlock<B> {
-    type Result = ();
-}
-
 impl<B: BlockT> BatchBlock<B> {
     pub fn new(blocks: Vec<Block<B>>) -> Self {
         Self { inner: blocks }
@@ -105,10 +94,6 @@ impl<B: BlockT> BatchBlock<B> {
 
     pub fn inner(&self) -> &Vec<Block<B>> {
         &self.inner
-    }
-
-    pub fn mut_inner(&mut self) -> &mut [Block<B>] {
-        self.inner.as_mut_slice()
     }
 }
 
@@ -119,10 +104,6 @@ pub struct Storage<Block: BlockT> {
     block_num: u32,
     full_storage: bool,
     pub changes: Vec<(StorageKey, Option<StorageData>)>,
-}
-
-impl<Block: BlockT> Message for Storage<Block> {
-    type Result = ();
 }
 
 impl<Block: BlockT> Storage<Block> {

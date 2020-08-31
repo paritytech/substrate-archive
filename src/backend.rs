@@ -20,19 +20,24 @@ mod block_exec;
 mod database;
 pub mod frontend;
 mod read_only_backend;
-#[cfg(test)]
-pub mod test_util;
+mod runtime_version_cache;
+// #[cfg(test)]
+// pub mod test_util;
 pub mod util;
 
 // re-exports
 pub use self::block_exec::{BlockChanges, BlockExecutor};
-pub use self::frontend::{GetRuntimeVersion, TArchiveClient};
+pub use self::frontend::{GetMetadata, GetRuntimeVersion, TArchiveClient};
 pub use self::read_only_backend::{ReadOnlyBackend, TrieState};
+pub use self::runtime_version_cache::{RuntimeVersionCache, VersionRange};
 pub use self::{database::ReadOnlyDatabase, frontend::runtime_api, util::open_database};
 
 use sc_client_api::Backend as BackendT;
 use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
+use std::sync::Arc;
+
+pub type Meta<B> = Arc<dyn GetMetadata<B>>;
 
 /// supertrait for accessing methods that rely on internal runtime api
 pub trait ApiAccess<Block, Backend, Runtime>:
@@ -41,6 +46,8 @@ pub trait ApiAccess<Block, Backend, Runtime>:
     + Send
     + Sync
     + CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
+    + GetMetadata<Block>
+    + GetRuntimeVersion<Block>
 where
     Block: BlockT,
     Backend: BackendT<Block>,
@@ -55,6 +62,8 @@ where
     Backend: BackendT<Block>,
     Client: ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
         + CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
+        + GetMetadata<Block>
+        + GetRuntimeVersion<Block>
         + Sized
         + Send
         + Sync,

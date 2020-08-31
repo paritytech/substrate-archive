@@ -18,14 +18,18 @@
 //! Messages that return nothing but an error may be sent to an asyncronous pool of actors
 //! if state is an actor may be pulled out of the pool
 
-use futures::future::{Future, FutureExt};
+use futures::{
+    future::{Future, FutureExt},
+    sink::SinkExt,
+    stream::StreamExt,
+};
 use std::collections::VecDeque;
 use std::pin::Pin;
 use xtra::prelude::*;
 use xtra::{Disconnected, WeakAddress};
 
 // TODO: Could restart actors which have panicked
-
+// TODO: If an actor disconnects remove it from the queue
 /// A pool of one type of Actor
 /// will distribute work to all actors in the pool
 pub struct ActorPool<A: Actor> {
@@ -91,7 +95,8 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
         msg: M,
     ) -> Pin<Box<dyn Future<Output = M::Result> + Send + 'static>>
     where
-        M: Message,
+        M: Message + std::fmt::Debug + Send,
+        M::Result: std::fmt::Debug + Unpin + Send,
         A: Handler<M>,
     {
         self.queue.rotate_left(1);
@@ -103,37 +108,28 @@ fn spawn<R>(
     fut: impl Future<Output = Result<R, Disconnected>> + Send + 'static,
 ) -> Pin<Box<dyn Future<Output = R> + Send + 'static>>
 where
-    R: Send + 'static,
+    R: Send + 'static + Unpin + std::fmt::Debug,
 {
-    // we create a channel with a capacity of one so that
-    // the send does not block the runtime
-    let (tx, mut rx) = flume::bounded(1);
-    crate::util::spawn(async move {
+    // flume isn't used here because it doesn't allow sending across `await` bound after
+    // a move semantic (this might be a bug but i'm not sure), since every Sender includes a not
+    // `Sync` Cell<bool>
+    let (mut tx, mut rx) = futures::channel::mpsc::channel(0);
+
+    let handle = smol::Task::spawn(async move { rx.next().await.map(|r: R| r).expect("One Shot") });
+    let fut = async move {
         match fut.await {
             Ok(v) => {
-                if let Err(e) = tx.try_send(v) {
-                    match e {
-                        flume::TrySendError::Disconnected(_) => {
-                            // Receiver might just want to throw out the value (IE `do_send`)
-                            // we do nothing.
-                        }
-                        flume::TrySendError::Full(_) => {
-                            log::warn!("Oneshot channel full!"); // this should never happen
-                        }
-                    }
-                }
+                let _ = tx.send(v).await;
             }
             Err(_) => {
                 log::error!(
                     "One of the pooled db actors has disconnected. could not send message."
                 );
-                panic!("Actor Disconnected");
             }
         };
-        Ok(())
-    });
-    // the expect won't even be called if we call `do_send`
-    async move { rx.recv_async().map(|r| r.expect("One shot")).await }.boxed()
+    };
+    smol::Task::spawn(fut).detach();
+    handle.boxed()
 }
 
 impl<A: Actor> Actor for ActorPool<A> {}
@@ -144,17 +140,19 @@ pub struct PoolMessage<M: Message + Send>(pub M);
 
 impl<M> Message for PoolMessage<M>
 where
-    M: Message + Send,
+    M: Message + Send + Unpin + std::fmt::Debug,
 {
     type Result = Pin<Box<dyn Future<Output = M::Result> + Send + 'static>>;
 }
 
-impl<A, M> SyncHandler<PoolMessage<M>> for ActorPool<A>
+#[async_trait::async_trait]
+impl<A, M> Handler<PoolMessage<M>> for ActorPool<A>
 where
     A: Actor + Send + Clone + Handler<M>,
-    M: Message + Send,
+    M: Message + Send + std::fmt::Debug + Unpin,
+    M::Result: Unpin + std::fmt::Debug,
 {
-    fn handle(
+    async fn handle(
         &mut self,
         msg: PoolMessage<M>,
         _: &mut Context<Self>,

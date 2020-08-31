@@ -13,9 +13,6 @@
 # then the path only needs to be /home/$user/.local/share/polkadot/
 polkadot_path = "/home/insipx/.local/share/polkadot/"
 
-# Url to chain running in --pruning=archive
-rpc_url = "ws://127.0.0.1:9944"
-
 # How much should the read-only database keep in cache (MB) (required)
 cache_size = 128
 
@@ -26,15 +23,15 @@ cache_size = 128
 # else the wasm executor will run out of memory. This also increases substrate-archives
 # Generally, you want 32 pages per block worker
 # memory usage
-block_workers = 2
+block_workers = 4
 # Number of 64KB Heap Pages to allocate for WASM execution
-wasm_pages = 256
+wasm_pages = 512
 
 db_host = "localhost"
 db_port = "5432"
-db_user = "archive"
+db_user = "postgres"
 # Can also be specified with DB_PASS environment variable
-db_pass = "default"
+db_pass = "123"
 
 # Names for the PostgreSQL databases for different chains
 # Each chain will get it's own PostgreSQL database if run with that chain
@@ -42,6 +39,6 @@ db_pass = "default"
 # These variables can also be exposed with DB_NAME environment variable
 westend_db = "westend-archive"
 kusama_db = "kusama-db"
-polkadot_db = "polkadot-archive"
+polkadot_db = "polkadot-db"
 
 

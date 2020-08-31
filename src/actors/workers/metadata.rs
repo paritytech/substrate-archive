@@ -15,70 +15,77 @@
 
 use super::{database::GetState, ActorPool};
 use crate::{
+    backend::Meta,
     database::DbConn,
-    error::ArchiveResult,
+    error::Result,
     queries,
-    rpc::Rpc,
     types::{BatchBlock, Block, Metadata as MetadataT},
 };
 use itertools::Itertools;
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use sp_runtime::{
+    generic::BlockId,
+    traits::{Block as BlockT, Header as _, NumberFor},
+};
 use xtra::prelude::*;
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
 pub struct Metadata<B: BlockT> {
-    addr: Address<ActorPool<super::DatabaseActor<B>>>,
     conn: DbConn,
-    rpc: Rpc<B>,
+    addr: Address<ActorPool<super::DatabaseActor<B>>>,
+    meta: Meta<B>,
 }
 
-impl<B: BlockT> Metadata<B> {
+impl<B: BlockT + Unpin> Metadata<B> {
     pub async fn new(
-        url: String,
         addr: Address<ActorPool<super::DatabaseActor<B>>>,
-    ) -> ArchiveResult<Self> {
-        let rpc = super::connect::<B>(url.as_str()).await;
+        meta: Meta<B>,
+    ) -> Result<Self> {
         let conn = addr.send(GetState::Conn.into()).await?.await?.conn();
-        Ok(Self { conn, addr, rpc })
+        Ok(Self { conn, addr, meta })
     }
 
     // checks if the metadata exists in the database
     // if it doesn't exist yet, fetch metadata and insert it
-    async fn meta_checker(&mut self, ver: u32, hash: B::Hash) -> ArchiveResult<()> {
-        let rpc = self.rpc.clone();
+    async fn meta_checker(&mut self, ver: u32, hash: B::Hash) -> Result<()> {
         if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
-            let meta = rpc.metadata(Some(hash)).await?;
-            let meta = MetadataT::new(ver, meta);
-            self.addr.do_send(meta.into())?;
+            let meta = self.meta.clone();
+            log::info!(
+                "Getting metadata for hash {}, version {}",
+                hex::encode(hash.as_ref()),
+                ver
+            );
+            let meta = smol::unblock!(meta.metadata(&BlockId::hash(hash)))?;
+            let meta: sp_core::Bytes = meta.into();
+            let meta = MetadataT::new(ver, meta.0);
+            self.addr.send(meta.into()).await?.await;
         }
         Ok(())
     }
 
-    async fn block_handler(&mut self, blk: Block<B>) -> ArchiveResult<()> 
+    async fn block_handler(&mut self, blk: Block<B>) -> Result<()>
     where
-        NumberFor<B>: Into<u32> 
+        NumberFor<B>: Into<u32>,
     {
         let hash = blk.inner.block.header().hash();
         self.meta_checker(blk.spec, hash).await?;
-        self.addr.do_send(blk.into())?;
+        self.addr.send(blk.into()).await?;
         Ok(())
     }
 
-    async fn batch_block_handler(&mut self, blks: BatchBlock<B>) -> ArchiveResult<()> 
+    async fn batch_block_handler(&mut self, blks: BatchBlock<B>) -> Result<()>
     where
-        NumberFor<B>: Into<u32>
+        NumberFor<B>: Into<u32>,
     {
         let versions = blks
             .inner()
             .iter()
             .unique_by(|b| b.spec)
             .collect::<Vec<&Block<B>>>();
-        
         for b in versions.iter() {
-           self.meta_checker(b.spec, b.inner.block.hash()).await?;
+            self.meta_checker(b.spec, b.inner.block.hash()).await?;
         }
-        self.addr.do_send(blks.into())?;
+        self.addr.send(blks.into()).await?;
         Ok(())
     }
 }
@@ -88,7 +95,7 @@ impl<B: BlockT> Actor for Metadata<B> {}
 #[async_trait::async_trait]
 impl<B> Handler<Block<B>> for Metadata<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
     NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, blk: Block<B>, _: &mut Context<Self>) {
@@ -101,13 +108,24 @@ where
 #[async_trait::async_trait]
 impl<B> Handler<BatchBlock<B>> for Metadata<B>
 where
-    B: BlockT,
+    B: BlockT + Unpin,
     NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, blks: BatchBlock<B>, _: &mut Context<Self>) {
         if let Err(e) = self.batch_block_handler(blks).await {
             log::error!("{}", e.to_string());
         }
-      
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT + Unpin> Handler<super::Die> for Metadata<B>
+where
+    NumberFor<B>: Into<u32>,
+    B::Hash: Unpin,
+{
+    async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+        ctx.stop();
+        Ok(())
     }
 }

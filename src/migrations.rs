@@ -14,39 +14,25 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::Error as ArchiveError;
-use refinery::config::{Config, ConfigDbType};
+use crate::error::Result;
+use sqlx::{postgres::PgConnection, Connection};
 use std::env;
+use std::string::ToString;
 
-mod embedded {
-    use refinery::embed_migrations;
-    embed_migrations!("src/migrations");
-}
+// TODO Change to just accept a DB URL.
+// but maybe keep conf. It allows for more modular configuration?
 
-/// Run all the migrations
-/// Returns the database URL
-///
+/// Run all the migrations.
+/// Returns the database url.
 /// # Panics
 /// Panics if a required environment variable is not found
 /// or if the environment variable contains invalid unicode
-pub fn migrate(conf: MigrationConfig) -> Result<String, ArchiveError> {
-    let parsed = parse(conf);
-    let mut conn = Config::new(ConfigDbType::Postgres)
-        .set_db_host(parsed.host.as_str())
-        .set_db_port(parsed.port.as_str())
-        .set_db_name(parsed.name.as_str());
-
-    if let Some(u) = &parsed.user {
-        conn = conn.set_db_user(u.as_str());
-    }
-    if let Some(p) = &parsed.pass {
-        conn = conn.set_db_pass(p.as_str())
-    }
-
-    log::info!("Running migrations for database {}", parsed.name.as_str());
-
-    embedded::migrations::runner().run(&mut conn)?;
-    Ok(parsed.build_url())
+pub async fn migrate<T: ToString>(conf: T) -> Result<String> {
+    let url = conf.to_string();
+    let mut conn = PgConnection::connect(&url).await?;
+    log::info!("Running migrations for {}", url);
+    sqlx::migrate!("./src/migrations/").run(&mut conn).await?;
+    Ok(url)
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +42,12 @@ pub struct MigrationConfig {
     pub user: Option<String>,
     pub pass: Option<String>,
     pub name: Option<String>,
+}
+
+impl std::fmt::Display for MigrationConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.url())
+    }
 }
 
 impl MigrationConfig {
@@ -178,7 +170,7 @@ mod test {
             pass: Some("default".to_string()),
             name: "archive".to_string(),
         };
-        let url = conf.build_url(&conf);
+        let url = conf.build_url();
         assert_eq!(url, "postgres://archive:default@localhost:5432/archive");
     }
 }

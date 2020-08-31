@@ -11,6 +11,8 @@
 
 Run alongside a substrate-backed chain to index all Blocks, State, and Extrinsic data into PostgreSQL.
 
+![](https://i.imgur.com/1eOkKvo.gif)
+
 # Usage
 The schema for the PostgreSQL database is described in the PDF File at the root of this directory.
 

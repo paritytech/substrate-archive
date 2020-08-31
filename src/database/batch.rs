@@ -18,8 +18,7 @@
 //! Taken from this Gist by @mehcode (Github): https://gist.github.com/mehcode/c476922be0290a4f8502d18701cc8c74
 //! This is sortof temporary until SQLx develops their dynamic query builder: https://github.com/launchbadge/sqlx/issues/291
 //! and `Quaint` switches to SQLx as a backend: https://github.com/prisma/quaint/issues/138
-use crate::error::ArchiveResult;
-// use futures::future::try_join_all;
+use crate::error::Result;
 use sqlx::prelude::*;
 use sqlx::{
     encode::Encode,
@@ -42,7 +41,7 @@ pub struct Batch {
     name: &'static str,
     leading: String,
     trailing: String,
-    with: Option<Box<dyn Fn(&mut Chunk) -> ArchiveResult<()> + Send>>,
+    with: Option<Box<dyn Fn(&mut Chunk) -> Result<()> + Send>>,
     chunks: Vec<Chunk>,
     index: usize,
     len: usize,
@@ -66,8 +65,8 @@ impl Batch {
         name: &'static str,
         leading: &str,
         trailing: &str,
-        with: impl Fn(&mut Chunk) -> ArchiveResult<()> + Send + 'static,
-    ) -> ArchiveResult<Self> {
+        with: impl Fn(&mut Chunk) -> Result<()> + Send + 'static,
+    ) -> Result<Self> {
         let mut chunk = Chunk::new(leading);
         with(&mut chunk)?;
 
@@ -83,7 +82,7 @@ impl Batch {
     }
 
     // ensure there is enough room for N more arguments
-    pub fn reserve(&mut self, arguments: usize) -> ArchiveResult<()> {
+    pub fn reserve(&mut self, arguments: usize) -> Result<()> {
         self.len += 1;
 
         if self.chunks[self.index].args_len + arguments > CHUNK_MAX {
@@ -104,14 +103,14 @@ impl Batch {
         self.chunks[self.index].append(sql);
     }
 
-    pub fn bind<'a, T: 'a>(&mut self, value: T) -> ArchiveResult<()>
+    pub fn bind<'a, T: 'a>(&mut self, value: T) -> Result<()>
     where
         T: Encode<'a, Postgres> + Type<Postgres> + Send,
     {
         self.chunks[self.index].bind(value)
     }
 
-    pub async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<u64> {
+    pub async fn execute(self, conn: &mut PgConnection) -> Result<u64> {
         let mut rows_affected = 0;
         if self.len > 0 {
             for mut chunk in self.chunks {
@@ -146,7 +145,7 @@ impl Chunk {
         self.query.push_str(sql);
     }
 
-    pub fn bind<'a, T: 'a>(&mut self, value: T) -> ArchiveResult<()>
+    pub fn bind<'a, T: 'a>(&mut self, value: T) -> Result<()>
     where
         T: Encode<'a, Postgres> + Type<Postgres> + Send,
     {
@@ -158,7 +157,7 @@ impl Chunk {
         Ok(())
     }
 
-    async fn execute(self, conn: &mut PgConnection) -> ArchiveResult<u64> {
+    async fn execute(self, conn: &mut PgConnection) -> Result<u64> {
         let done = sqlx::query_with(&*self.query, self.arguments.into_arguments())
             .execute(conn)
             .await?;

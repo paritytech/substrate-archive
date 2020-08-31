@@ -16,7 +16,7 @@
 
 mod client;
 mod executor;
-pub use self::client::{Client, GetRuntimeVersion};
+pub use self::client::{Client, GetMetadata, GetRuntimeVersion};
 use sc_client_api::{
     execution_extensions::{ExecutionExtensions, ExecutionStrategies},
     ExecutionStrategy,
@@ -24,12 +24,12 @@ use sc_client_api::{
 // use sc_client_db::Backend;
 use self::executor::ArchiveExecutor;
 use crate::{backend::database::ReadOnlyDatabase, error::Error as ArchiveError};
+use futures::{task::SpawnExt, Future};
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
 use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
-use futures::{Future, task::SpawnExt};
 
 use super::{ReadOnlyBackend, RuntimeApiCollection};
 

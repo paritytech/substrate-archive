@@ -19,7 +19,7 @@
 //! and saves these entries to disk to be reloaded the next time a program starts
 //! avoids having to search for missing entries in PostgreSQL and re-fetching from running node
 
-use crate::error::Error as ArchiveError;
+use crate::error::Error;
 use flate2::{read::DeflateDecoder, write::DeflateEncoder, Compression};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
@@ -41,9 +41,9 @@ impl<D> SimpleDb<D>
 where
     D: DeserializeOwned + Serialize + Default,
 {
-    pub(crate) fn new(path: PathBuf) -> Result<Self, ArchiveError> {
+    pub(crate) fn new(path: PathBuf) -> Result<Self, Error> {
         if !path.as_path().exists() {
-            File::create(path.as_path()).map_err(ArchiveError::from)?;
+            File::create(path.as_path()).map_err(Error::from)?;
         }
         Ok(SimpleDb {
             path,
@@ -52,7 +52,7 @@ where
     }
 
     /// Save structure to a file, serializing to Bincode and then compressing with DEFLATE
-    pub(crate) fn save(&self, data: D) -> Result<(), ArchiveError> {
+    pub(crate) fn save(&self, data: D) -> Result<(), Error> {
         self.mutate(|file| {
             let ser_data = bincode::serialize(&data)?;
             let mut e = DeflateEncoder::new(file, Compression::default());
@@ -64,7 +64,7 @@ where
     }
 
     /// Get structure from file, DEFLATING and then deserializing from Bincode
-    pub(crate) fn get(&self) -> Result<D, ArchiveError> {
+    pub(crate) fn get(&self) -> Result<D, Error> {
         let meta = fs::metadata(self.path.as_path())?;
         if meta.len() == 0 {
             log::info!("File length is 0");
@@ -75,12 +75,12 @@ where
             let mut buf = Vec::new();
             let bytes_read = deflater.read_to_end(&mut buf)?;
             log::info!("Read {} bytes from database file", bytes_read);
-            bincode::deserialize(&buf[..]).map_err(ArchiveError::from)
+            bincode::deserialize(&buf[..]).map_err(Error::from)
         })
     }
 
     /// open backend
-    fn open(&self) -> Result<File, ArchiveError> {
+    fn open(&self) -> Result<File, Error> {
         OpenOptions::new()
             .create(true)
             .read(true)
@@ -90,9 +90,9 @@ where
     }
 
     /// mutate the file, always setting seek back to beginning
-    fn mutate<F>(&self, mut fun: F) -> Result<(), ArchiveError>
+    fn mutate<F>(&self, mut fun: F) -> Result<(), Error>
     where
-        F: FnMut(&mut File) -> Result<(), ArchiveError>,
+        F: FnMut(&mut File) -> Result<(), Error>,
     {
         let mut file = self.open()?;
         fun(&mut file)?;
@@ -102,9 +102,9 @@ where
 
     #[allow(unused)]
     /// read file, setting seek back to the start
-    fn read<F>(&self, fun: F) -> Result<D, ArchiveError>
+    fn read<F>(&self, fun: F) -> Result<D, Error>
     where
-        F: Fn(&File) -> Result<D, ArchiveError>,
+        F: Fn(&File) -> Result<D, Error>,
     {
         let mut file = self.open()?;
         let ret = fun(&file)?;

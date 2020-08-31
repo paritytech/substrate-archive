@@ -8,41 +8,38 @@ edition = "2018"
 # external
 log = "0.4"
 futures = { version = "0.3" }
-timer = { version = "3.0", package = "futures-timer" }
 serde = { version = "1.0", features = ["derive"] }
-# enabling arbitrary_precision for serde_json may cause rpc requests to fail
 serde_json = "1.0"
+serde-aux = "0.6.1"
 dirs = { version = "3", package = "directories" }
-sqlx = { git = "https://github.com/launchbadge/sqlx", branch = "master", version = "0.4.0-beta.1", default-features = false, features = ["postgres", "macros", "runtime-tokio"] }
-# sqlx = { version = "0.3", features = ["postgres", "tls", "macros"] }
+sqlx = { version = "0.4.0-beta.1", default-features = false, features = ["postgres", "macros", "runtime-async-std", "migrate"] }
 async-trait = "0.1"
 hex = "0.4"
 itertools = "0.9"
-flume = "0.7.1"
+# 0.7.2 introduces breaking changes with Send/Sync bounds
+flume = "0.7"
 parking_lot = "0.10"
-hashbrown = { version = "0.8.0", features = ["inline-more"] }
+parity-util-mem = "0.7"
+hashbrown = { version = "0.8", features = ["inline-more"] }
 thiserror = "1.0"
-rayon = "1.3"
+rayon = "1.4"
 num_cpus = "1"
-xtra = "0.4"
-# Sql migrations
-refinery = { version = "0.3.0", features = ["postgres"] }
+xtra = { version = "0.5.0-beta.4", features = ["with-smol-0_3"] }
 # Just a simple wrapper around std::thread that `joins on drop`
 jod-thread = "0.1.2"
+smol = { version = "0.3" }
+coil = { path = "../coil/coil/", package = "coil"}
+rmp-serde = "0.14"
 
 # Optional
 fern = { version = "0.6", features = ["colored"], optional = true }
 chrono = { version = "0.4", optional = true }
-tokio = { version = "0.2", features = ["sync", "rt-threaded", "blocking", "time"], optional = true }
-smol = { version = "0.1", optional = true }
-async-std = { version = "1", features = ["unstable"], optional = true}
 
 # Parity
 primitive-types = "0.7"
 jsonrpsee = { git = "https://github.com/dt665m/jsonrpsee", branch = "feature/client-error-handling" }
 kvdb = "0.7"
 kvdb-rocksdb = "0.9"
-parity-util-mem = { version = "*", default-features = false, features = ["std"] }
 codec = { package = "parity-scale-codec", version = "1.3", default-features = false, features = ["derive", "full"] }
 hash-db = "0.15"
 
@@ -61,7 +58,12 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-io" }
 itoa = "0.4.6"
+include_dir = "0.6.0"
+tempfile = "3.1.0"
+async-executor = "0.1.2"
+arc-swap = "0.4.7"
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
@@ -74,9 +76,6 @@ bincode = "1.3"
 tempfile = "3.1"
 
 [features]
-with-tokio = ["tokio", "xtra/with-tokio-0_2"]
-with-async-std = ["async-std", "xtra/with-async_std-1" ]
-with-smol = ["smol", "xtra/with-smol-0_1"]
-default = ["with-tokio", "logging"]
+default = ["logging"]
 logging = ["chrono", "fern"]
 test_rocksdb = []

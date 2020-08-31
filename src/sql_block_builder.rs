@@ -18,7 +18,7 @@
 //! Rather than fetching many blocks from RocksDB by number,
 //! this is a (much) faster alternative
 
-use crate::{error::Error as ArchiveError, types};
+use crate::{database::BlockModel, error::Error, types};
 use codec::{Decode, Encode};
 use sp_runtime::{
     generic::SignedBlock,
@@ -26,35 +26,17 @@ use sp_runtime::{
 };
 use std::marker::PhantomData;
 
-#[derive(sqlx::FromRow, Debug, Clone)]
-pub struct SqlBlock {
-    parent_hash: Vec<u8>,
-    hash: Vec<u8>,
-    block_num: i32,
-    state_root: Vec<u8>,
-    extrinsics_root: Vec<u8>,
-    digest: Vec<u8>,
-    ext: Vec<u8>,
-    spec: i32,
-}
-
 pub struct BlockBuilder<B: BlockT> {
     _marker: PhantomData<B>,
 }
 
 impl<'a, B: BlockT> BlockBuilder<B> {
-    pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
-    }
-
-    /// With a vector of SqlBlocks
-    pub fn with_vec(&self, blocks: Vec<SqlBlock>) -> Result<Vec<types::Block<B>>, ArchiveError> {
+    /// With a vector of BlockModel
+    pub fn with_vec(blocks: Vec<BlockModel>) -> Result<Vec<types::Block<B>>, Error> {
         blocks
             .into_iter()
             .map(|b| {
-                let (b, s) = self.with_single(b)?;
+                let (b, s) = Self::with_single(b)?;
                 let b = SignedBlock {
                     block: b,
                     justification: None,
@@ -64,7 +46,7 @@ impl<'a, B: BlockT> BlockBuilder<B> {
             .collect()
     }
 
-    pub fn with_single(&self, block: SqlBlock) -> Result<(B, u32), ArchiveError> {
+    pub fn with_single(block: BlockModel) -> Result<(B, u32), Error> {
         let digest: DigestFor<B> = Decode::decode(&mut block.digest.as_slice())?;
         let (parent_hash, state_root, extrinsics_root) = Self::into_generic(
             block.parent_hash.as_slice(),
@@ -91,7 +73,7 @@ impl<'a, B: BlockT> BlockBuilder<B> {
             <B::Header as HeaderT>::Hash,
             <B::Header as HeaderT>::Hash,
         ),
-        ArchiveError,
+        Error,
     > {
         Ok((
             Decode::decode(&mut parent_hash)?,
@@ -100,7 +82,8 @@ impl<'a, B: BlockT> BlockBuilder<B> {
         ))
     }
 }
-
+/* TODO: This test need to be rewritten. We shouldn't depend on test_util
+ * or rocksdb for tests.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,3 +108,4 @@ mod tests {
         assert_eq!(block.block, full_sql_block);
     }
 }
+*/

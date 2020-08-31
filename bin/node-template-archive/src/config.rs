@@ -25,8 +25,7 @@ pub struct Config {
     db_path: PathBuf,
     psql_conf: MigrationConfig,
     cli: CliOpts,
-    rpc_url: String,
-    cache_size: usize,
+    cache_size: Option<usize>,
     block_workers: Option<usize>,
     wasm_pages: Option<u64>,
 }
@@ -34,8 +33,7 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct TomlConfig {
     db_path: PathBuf,
-    rpc_url: String,
-    cache_size: usize,
+    cache_size: Option<usize>,
     block_workers: Option<usize>,
     wasm_pages: Option<u64>,
     db_host: Option<String>,
@@ -63,7 +61,6 @@ impl Config {
             db_path: toml_conf.db_path,
             psql_conf,
             cli: cli_opts,
-            rpc_url: toml_conf.rpc_url.clone(),
             cache_size: toml_conf.cache_size,
             block_workers: toml_conf.block_workers,
             wasm_pages: toml_conf.wasm_pages,
@@ -79,11 +76,7 @@ impl Config {
         &self.cli
     }
 
-    pub fn rpc_url(&self) -> &String {
-        &self.rpc_url
-    }
-
-    pub fn cache_size(&self) -> usize {
+    pub fn cache_size(&self) -> Option<usize> {
         self.cache_size
     }
 

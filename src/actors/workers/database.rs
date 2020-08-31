@@ -14,22 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::database::{models::StorageModel, Database, DbConn};
-use crate::error::ArchiveResult;
+use crate::actors::msg::VecStorageWrap;
+use crate::database::{Database, DbConn, StorageModel};
+use crate::error::Result;
 use crate::queries;
-use crate::types::*;
+use crate::types::{BatchBlock, Block, Metadata, Storage};
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
+use std::time::Duration;
 use xtra::prelude::*;
 
 #[derive(Clone)]
 pub struct DatabaseActor<B: BlockT> {
     db: Database,
-    _marker: PhantomData<B>
+    _marker: PhantomData<B>,
 }
 
 impl<B: BlockT> DatabaseActor<B> {
-    pub async fn new(url: String) -> ArchiveResult<Self> {
+    pub async fn new(url: String) -> Result<Self> {
         Ok(Self {
             db: Database::new(url).await?,
             _marker: PhantomData,
@@ -40,48 +42,50 @@ impl<B: BlockT> DatabaseActor<B> {
     pub fn with_db(db: Database) -> Self {
         Self {
             db,
-            _marker: PhantomData
-        }     
+            _marker: PhantomData,
+        }
     }
 
-    async fn block_handler(&self, blk: Block<B>) -> ArchiveResult<()> 
+    async fn block_handler(&self, blk: Block<B>) -> Result<()>
     where
         NumberFor<B>: Into<u32>,
     {
         let mut conn = self.db.conn().await?;
         while !queries::check_if_meta_exists(blk.spec, &mut conn).await? {
-            timer::Delay::new(std::time::Duration::from_millis(20)).await;
+            smol::Timer::new(Duration::from_millis(20)).await;
         }
         std::mem::drop(conn);
         self.db.insert(blk).await?;
         Ok(())
     }
 
-    async fn batch_block_handler(&self, mut blks: BatchBlock<B>) -> ArchiveResult<()> 
+    // Returns true if all versions are in database
+    // false if versions are missing
+    async fn db_contains_metadata(blocks: &[Block<B>], conn: &mut DbConn) -> Result<bool> {
+        let specs: hashbrown::HashSet<u32> = blocks.iter().map(|b| b.spec).collect();
+        let versions: hashbrown::HashSet<u32> =
+            queries::get_versions(conn).await?.into_iter().collect();
+        Ok(specs.is_subset(&versions))
+    }
+
+    async fn batch_block_handler(&self, blks: BatchBlock<B>) -> Result<()>
     where
         NumberFor<B>: Into<u32>,
     {
-        let specs = blks.mut_inner();
-        specs.sort_by_key(|b| b.spec);
-        let mut specs = specs.iter_mut().map(|b| b.spec).collect::<Vec<u32>>();
-        specs.dedup();
         let mut conn = self.db.conn().await?;
-        loop {
-            let versions = queries::get_versions(&mut conn).await?;
-            if db_contains_metadata(specs.as_slice(), versions) {
-                break;
-            }
-            timer::Delay::new(std::time::Duration::from_millis(50)).await;
+        while !Self::db_contains_metadata(blks.inner(), &mut conn).await? {
+            log::info!("Doesn't contain metadata");
+            smol::Timer::new(Duration::from_millis(50)).await;
         }
         std::mem::drop(conn);
         self.db.insert(blks).await?;
         Ok(())
     }
 
-    async fn storage_handler(&self, storage: Storage<B>) -> ArchiveResult<()> {
+    async fn storage_handler(&self, storage: Storage<B>) -> Result<()> {
         let mut conn = self.db.conn().await?;
-        while !queries::contains_block::<B>(*storage.hash(), &mut conn).await? {
-            timer::Delay::new(std::time::Duration::from_millis(10)).await;
+        while !queries::has_block::<B>(*storage.hash(), &mut conn).await? {
+            smol::Timer::new(Duration::from_millis(10)).await;
         }
         let storage = Vec::<StorageModel<B>>::from(storage);
         std::mem::drop(conn);
@@ -89,32 +93,30 @@ impl<B: BlockT> DatabaseActor<B> {
         Ok(())
     }
 
-    async fn batch_storage_handler(&self, storage: Vec<Storage<B>>) -> ArchiveResult<()> {
+    async fn batch_storage_handler(&self, storage: Vec<Storage<B>>) -> Result<()> {
         let mut conn = self.db.conn().await?;
-        let block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
-        while !queries::contains_blocks::<B>(block_nums.as_slice(), &mut conn).await? {
-            timer::Delay::new(std::time::Duration::from_millis(50)).await;
+        let mut block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
+        block_nums.sort();
+        log::debug!(
+            "Inserting: {:#?}, {} .. {}",
+            block_nums.len(),
+            block_nums[0],
+            block_nums.last().unwrap()
+        );
+        let len = block_nums.len();
+        while queries::has_blocks::<B>(block_nums.as_slice(), &mut conn)
+            .await?
+            .len()
+            != len
+        {
+            smol::Timer::new(std::time::Duration::from_millis(50)).await;
         }
-        let storage = Vec::<StorageModel<B>>::from(VecStorageWrap(storage));
+        // we drop the connection early so that the insert() has the use of all db connections
         std::mem::drop(conn);
+        let storage = Vec::<StorageModel<B>>::from(VecStorageWrap(storage));
         self.db.insert(storage).await?;
         Ok(())
     }
-}
-
-// Returns true if all versions are in database
-// false if versions are missing
-fn db_contains_metadata(specs: &[u32], versions: Vec<crate::queries::Version>) -> bool {
-    let versions = versions
-        .into_iter()
-        .map(|v| v.version as u32)
-        .collect::<Vec<u32>>();
-    for spec in specs.iter() {
-        if !versions.contains(spec) {
-            return false;
-        }
-    }
-    true
 }
 
 impl<B: BlockT> Actor for DatabaseActor<B> {}
@@ -139,11 +141,16 @@ where
     NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, blks: BatchBlock<B>, _: &mut Context<Self>) {
+        let len = blks.inner.len();
         let now = std::time::Instant::now();
         if let Err(e) = self.batch_block_handler(blks).await {
             log::error!("{}", e.to_string());
         }
-        log::debug!("TOOK {:?} to insert blocks", now.elapsed());
+        if len > 1000 {
+            log::info!("took {:?} to insert {} blocks", now.elapsed(), len);
+        } else {
+            log::debug!("took {:?} to insert {} blocks", now.elapsed(), len);
+        }
     }
 }
 
@@ -164,19 +171,10 @@ impl<B: BlockT> Handler<Storage<B>> for DatabaseActor<B> {
         }
     }
 }
-pub struct VecStorageWrap<B: BlockT>(pub Vec<Storage<B>>);
-
-impl<B: BlockT> Message for VecStorageWrap<B> {
-    type Result = ();
-}
 
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<VecStorageWrap<B>> for DatabaseActor<B> {
-    async fn handle(
-        &mut self,
-        storage: VecStorageWrap<B>,
-        _ctx: &mut Context<Self>,
-    ) {
+    async fn handle(&mut self, storage: VecStorageWrap<B>, _ctx: &mut Context<Self>) {
         let now = std::time::Instant::now();
         if let Err(e) = self.batch_storage_handler(storage.0).await {
             log::error!("{}", e.to_string());
@@ -188,15 +186,21 @@ impl<B: BlockT> Handler<VecStorageWrap<B>> for DatabaseActor<B> {
 // this is an enum in case there is some more state
 // that might be needed in the future
 /// Get Some State from the Database Actor
+#[derive(Debug)]
 pub enum GetState {
+    // Get a single connection
     Conn,
+    // Get the Connection Pool
+    Pool,
 }
 
-/// A resposne to `GetState`
+/// A response to `GetState`
 /// it is callers responsiblity to make sure to call the
 /// correct method on the implement after receiving the message
+#[derive(Debug)]
 pub enum StateResponse {
     Conn(DbConn),
+    Pool(sqlx::PgPool),
 }
 
 impl StateResponse {
@@ -207,26 +211,50 @@ impl StateResponse {
     pub fn conn(self) -> DbConn {
         match self {
             StateResponse::Conn(v) => v,
+            StateResponse::Pool(_) => panic!("Not a connection"),
+        }
+    }
+
+    /// Pull a pool out of the enum
+    ///
+    /// # Panics
+    /// panics if the enum is not actually of the 'pool' type
+    pub fn pool(self) -> sqlx::PgPool {
+        match self {
+            StateResponse::Pool(v) => v,
+            StateResponse::Conn(_) => panic!("Not a pool"),
         }
     }
 }
 
 impl Message for GetState {
-    type Result = ArchiveResult<StateResponse>;
+    type Result = Result<StateResponse>;
 }
 
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
-    async fn handle(
-        &mut self,
-        msg: GetState,
-        _: &mut Context<Self>,
-    ) -> ArchiveResult<StateResponse> {
+    async fn handle(&mut self, msg: GetState, _: &mut Context<Self>) -> Result<StateResponse> {
         match msg {
             GetState::Conn => {
                 let conn = self.db.conn().await?;
                 Ok(StateResponse::Conn(conn))
             }
+            GetState::Pool => {
+                let pool = self.db.pool().clone();
+                Ok(StateResponse::Pool(pool))
+            }
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT + Unpin> Handler<super::Die> for DatabaseActor<B>
+where
+    NumberFor<B>: Into<u32>,
+    B::Hash: Unpin,
+{
+    async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+        ctx.stop();
+        Ok(())
     }
 }

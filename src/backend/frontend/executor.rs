@@ -18,12 +18,14 @@
 //! A slimmed down changes-trie-disabled, offchain changes disabled, cache disabled, LocalExecutor
 
 use codec::{Decode, Encode};
+use futures::Future;
 use sc_client_api::{backend, call_executor::CallExecutor};
 use sc_executor::{NativeVersion, RuntimeInfo, RuntimeVersion};
 use sp_api::{InitializeBlock, ProofRecorder, StorageTransactionCache};
 use sp_core::{
-    offchain::storage::OffchainOverlayedChanges, traits::{CodeExecutor, SpawnNamed}, NativeOrEncoded,
-    NeverNativeValue,
+    offchain::storage::OffchainOverlayedChanges,
+    traits::{CodeExecutor, SpawnNamed},
+    NativeOrEncoded, NeverNativeValue,
 };
 use sp_externalities::Extensions;
 use sp_runtime::{
@@ -34,7 +36,6 @@ use sp_state_machine::{
     self, ExecutionManager, ExecutionStrategy, Ext, OverlayedChanges, StateMachine, StorageProof,
 };
 use std::{cell::RefCell, panic::UnwindSafe, result, sync::Arc};
-use futures::Future;
 
 // SpawnNamed is not implemented for Arc<dyn SpawnNamed>
 #[derive(Clone)]
@@ -68,9 +69,10 @@ pub struct ArchiveExecutor<B, E> {
 
 impl<B, E> ArchiveExecutor<B, E> {
     /// Creates new instance of local call executor.
-    pub fn new(backend: Arc<B>, 
-               executor: E, 
-               spawn_handle: impl SpawnNamed + Send + Sync + 'static
+    pub fn new(
+        backend: Arc<B>,
+        executor: E,
+        spawn_handle: impl SpawnNamed + Send + Sync + 'static,
     ) -> Self {
         let spawn_handle = SpawnWrapper(Arc::new(spawn_handle));
         ArchiveExecutor {

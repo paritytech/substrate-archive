@@ -12,11 +12,8 @@ polkadot-service = { package = "polkadot-service", git = "https://github.com/par
 sc-chain-spec = { package = "sc-chain-spec", git = "https://github.com/paritytech/substrate", branch = "master" }
 clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }
 toml = "0.5"
-futures = "0.3.5"
-log = "0.4.8"
-pretty_env_logger = "0.4.0"
-anyhow = "1.0.31"
-serde = "1.0.110"
-tokio = { version = "0.2", features = ["full", "signal"] }
-timer = { version = "3.0", package = "futures-timer" }
-
+log = "0.4"
+anyhow = "1.0"
+serde = "1.0"
+smol = "0.3.3"
+ctrlc = { version = "3.1.5", features = ["termination"] }
