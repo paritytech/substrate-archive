@@ -230,7 +230,7 @@ where
             }
         }
         listener.kill_async().await;
-        Self::kill_actors(actors).await;
+        Self::kill_actors(actors).await?;
         Ok(())
     }
 
@@ -252,14 +252,15 @@ where
         })
     }
 
-    async fn kill_actors(actors: Actors<B>) {
+    async fn kill_actors(actors: Actors<B>) -> Result<()> {
         let fut = vec![
             actors.storage.send(msg::Die),
             actors.blocks.send(msg::Die),
             actors.metadata.send(msg::Die),
         ];
         futures::future::join_all(fut).await;
-        let _ = actors.db_pool.send(msg::Die.into()).await;
+        let _ = actors.db_pool.send(msg::Die.into()).await?.await;
+        Ok(())
     }
 
     async fn init_listeners(pg_url: &str) -> Result<Listener> {
