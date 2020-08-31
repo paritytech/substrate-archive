@@ -84,26 +84,27 @@ impl sp_core::traits::SpawnNamed for TaskExecutor {
 }
 
 #[cfg(test)]
-use test::{initialize, DATABASE_URL, PG_POOL};
+use test::{initialize, DATABASE_URL, PG_POOL, TestGuard};
 
 #[cfg(test)]
 mod test {
     use once_cell::sync::Lazy;
-    use std::sync::Once;
+    use std::sync::{Once, Mutex, MutexGuard};
+    use sqlx::prelude::*;
 
     pub static DATABASE_URL: Lazy<String> = Lazy::new(|| {
         dotenv::var("DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!")
     });
 
     pub static PG_POOL: Lazy<sqlx::PgPool> = Lazy::new(|| {
-        smol::block_on(
-            sqlx::postgres::PgPoolOptions::new()
-                .min_connections(4)
-                .max_connections(8)
-                .idle_timeout(std::time::Duration::from_millis(3600))
-                .connect(&DATABASE_URL),
-        )
-        .expect("Couldn't initialize postgres pool for tests")
+            smol::block_on(async {
+                let pool = sqlx::postgres::PgPoolOptions::new()
+                    .min_connections(4)
+                    .max_connections(8)
+                    .idle_timeout(std::time::Duration::from_millis(3600))
+                    .connect(&DATABASE_URL).await.expect("Couldn't initialize postgres pool for tests");
+                pool
+            })
     });
 
     static INIT: Once = Once::new();
@@ -111,7 +112,70 @@ mod test {
         INIT.call_once(|| {
             pretty_env_logger::init();
             let url: &str = &DATABASE_URL;
-            smol::block_on(crate::migrations::migrate(url)).unwrap();
+            smol::block_on(async {
+                crate::migrations::migrate(url).await.unwrap();
+                let dummy_hash: Vec<u8> = vec![0x13, 0x37];
+                
+                // dummy metadata
+                sqlx::query(
+                    r#"
+                    INSERT INTO metadata (version, meta)
+                    VALUES($1, $2)
+                "#,
+                )
+                .bind(0)
+                .bind(dummy_hash.as_slice())
+                .execute(&*PG_POOL)
+                .await
+                .unwrap();
+
+                // insert a dummy block
+                sqlx::query(
+                    "
+                        INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
+                        VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+                    ")
+                    .bind(dummy_hash.as_slice())
+                    .bind(dummy_hash.as_slice())
+                    .bind(0)
+                    .bind(dummy_hash.as_slice())
+                    .bind(dummy_hash.as_slice())
+                    .bind(dummy_hash.as_slice())
+                    .bind(dummy_hash.as_slice())
+                    .bind(0)
+                    .execute(&*PG_POOL)
+                    .await
+                    .expect("INSERT");
+            });
         });
     }
+
+    static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    pub struct TestGuard<'a>(MutexGuard<'a, ()>);
+    impl<'a> TestGuard<'a> {
+        pub(crate) fn lock() -> Self {
+            TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"))
+        }
+    }
+
+    impl<'a> Drop for TestGuard<'a> {
+        fn drop(&mut self) {
+            smol::block_on(async move {
+                let mut conn = crate::PG_POOL.acquire().await.unwrap();
+                conn.execute(
+                    "
+                    TRUNCATE TABLE metadata CASCADE;
+                    TRUNCATE TABLE storage CASCADE;
+                    TRUNCATE TABLE blocks CASCADE;
+                    TRUNCATE TABLE frame_system CASCADE;
+                    TRUNCATE TABLE _background_tasks
+                    ",
+                )
+                .await
+                .unwrap();
+            });
+        }
+    }
+
 }

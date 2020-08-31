@@ -26,6 +26,7 @@ use async_trait::async_trait;
 use batch::Batch;
 use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 
@@ -38,7 +39,7 @@ pub type DbReturn = Result<u64>;
 pub type DbConn = sqlx::pool::PoolConnection<Postgres>;
 
 #[async_trait]
-pub trait Insert: Sync {
+pub trait Insert: Send {
     async fn insert(mut self, conn: &mut DbConn) -> DbReturn
     where
         Self: Sized;
@@ -100,8 +101,7 @@ where
         );
         let query = sqlx::query(
             r#"
-            INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
-            VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec) VALUES($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT DO NOTHING
         "#,
         );
@@ -126,6 +126,58 @@ where
             .await
             .map(|d| d.rows_affected())
             .map_err(Into::into)
+    }
+}
+
+#[async_trait]
+impl<B> Insert for BatchBlock<B>
+where
+    B: BlockT,
+    NumberFor<B>: Into<u32>,
+{
+    async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
+        let mut batch = Batch::new(
+            "blocks",
+            r#"
+            INSERT INTO "blocks" (
+                parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
+            ) VALUES
+            "#,
+            r#"
+            ON CONFLICT DO NOTHING
+            "#,
+        );
+        for b in self.inner.into_iter() {
+            batch.reserve(8)?;
+            if batch.current_num_arguments() > 0 {
+                batch.append(",");
+            }
+            let parent_hash = b.inner.block.header().parent_hash().as_ref();
+            let hash = b.inner.block.header().hash();
+            let block_num: u32 = (*b.inner.block.header().number()).into();
+            let state_root = b.inner.block.header().state_root().as_ref();
+            let extrinsics_root = b.inner.block.header().extrinsics_root().as_ref();
+            let digest = b.inner.block.header().digest().encode();
+            let extrinsics = b.inner.block.extrinsics().encode();
+            batch.append("(");
+            batch.bind(parent_hash)?;
+            batch.append(",");
+            batch.bind(hash.as_ref())?;
+            batch.append(",");
+            batch.bind(block_num)?;
+            batch.append(",");
+            batch.bind(state_root)?;
+            batch.append(",");
+            batch.bind(extrinsics_root)?;
+            batch.append(",");
+            batch.bind(digest.as_slice())?;
+            batch.append(",");
+            batch.bind(extrinsics.as_slice())?;
+            batch.append(",");
+            batch.bind(b.spec)?;
+            batch.append(")");
+        }
+        Ok(batch.execute(conn).await?)
     }
 }
 
@@ -214,58 +266,6 @@ impl Insert for Metadata {
         .await
         .map(|d| d.rows_affected())
         .map_err(Into::into)
-    }
-}
-
-#[async_trait]
-impl<B> Insert for BatchBlock<B>
-where
-    B: BlockT,
-    NumberFor<B>: Into<u32>,
-{
-    async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
-        let mut batch = Batch::new(
-            "blocks",
-            r#"
-            INSERT INTO "blocks" (
-                parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
-            ) VALUES
-            "#,
-            r#"
-            ON CONFLICT DO NOTHING
-            "#,
-        );
-        for b in self.inner.into_iter() {
-            batch.reserve(8)?;
-            if batch.current_num_arguments() > 0 {
-                batch.append(",");
-            }
-            let parent_hash = b.inner.block.header().parent_hash().as_ref();
-            let hash = b.inner.block.header().hash();
-            let block_num: u32 = (*b.inner.block.header().number()).into();
-            let state_root = b.inner.block.header().state_root().as_ref();
-            let extrinsics_root = b.inner.block.header().extrinsics_root().as_ref();
-            let digest = b.inner.block.header().digest().encode();
-            let extrinsics = b.inner.block.extrinsics().encode();
-            batch.append("(");
-            batch.bind(parent_hash)?;
-            batch.append(",");
-            batch.bind(hash.as_ref())?;
-            batch.append(",");
-            batch.bind(block_num)?;
-            batch.append(",");
-            batch.bind(state_root)?;
-            batch.append(",");
-            batch.bind(extrinsics_root)?;
-            batch.append(",");
-            batch.bind(digest.as_slice())?;
-            batch.append(",");
-            batch.bind(extrinsics.as_slice())?;
-            batch.append(",");
-            batch.bind(b.spec)?;
-            batch.append(")");
-        }
-        Ok(batch.execute(conn).await?)
     }
 }
 
