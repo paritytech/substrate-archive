@@ -14,10 +14,8 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! logging and general utilities
-use crate::error::Result;
 #[cfg(feature = "logging")]
 use fern::colors::{Color, ColoredLevelConfig};
-use futures::Future;
 use log::*;
 use std::path::{Path, PathBuf};
 

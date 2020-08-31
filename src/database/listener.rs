@@ -20,7 +20,7 @@
 //! listen wakeup.
 
 use crate::error::Result;
-use futures::{pin_mut, Future, FutureExt, Stream, StreamExt};
+use futures::{Future, FutureExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 use sqlx::postgres::{PgConnection, PgListener, PgNotification};

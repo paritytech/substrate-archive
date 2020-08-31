@@ -328,7 +328,7 @@ where
     B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,
 {
-    async fn drive(&mut self) -> Result<()> {
+    fn drive(&mut self) -> Result<()> {
         System::drive(self);
         Ok(())
     }

@@ -50,7 +50,6 @@ pub struct Builder<B, R, D> {
     pub wasm_pages: Option<u64>,
     /// Chain spec describing the chain
     pub chain_spec: Option<Box<dyn ChainSpec>>,
-    /// Marker for the type arguments
     pub _marker: PhantomData<(B, R, D)>
 }
 

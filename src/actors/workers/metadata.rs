@@ -85,7 +85,6 @@ impl<B: BlockT + Unpin> Metadata<B> {
         for b in versions.iter() {
             self.meta_checker(b.spec, b.inner.block.hash()).await?;
         }
-        let len = blks.inner().len();
         self.addr.send(blks.into()).await?;
         Ok(())
     }

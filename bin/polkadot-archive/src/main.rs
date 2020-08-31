@@ -26,7 +26,7 @@ pub fn main() -> Result<()> {
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
 
     let mut archive = archive::run_archive(config.clone())?;
-    smol::block_on(archive.drive())?;
+    archive.drive()?;
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
 

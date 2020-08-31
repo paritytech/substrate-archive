@@ -34,7 +34,7 @@ where
     B::Hash: Unpin,
 {
     /// start driving the execution of the archive
-    async fn drive(&mut self) -> Result<()>;
+    fn drive(&mut self) -> Result<()>;
 
     /// this method will block indefinitely
     async fn block_until_stopped(&self) -> ();

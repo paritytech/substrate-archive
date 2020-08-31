@@ -107,28 +107,6 @@ pub(crate) async fn blocks_storage_intersection(
     .map_err(Into::into)
 }
 
-/// Will get blocks such that they exist in the `blocks` table but they
-/// do not exist in the `storage` table
-/// blocks are ordered by spec version
-///
-/// # Returns a list of block numbers
-pub(crate) async fn blocks_storage_intersection_nums(
-    conn: &mut sqlx::PgConnection,
-) -> Result<Vec<u32>> {
-    Ok(sqlx::query_as::<_, (i32,)>(
-        "SELECT block_num
-        FROM blocks
-        WHERE NOT EXISTS (SELECT * FROM storage WHERE storage.block_num = blocks.block_num)
-        AND blocks.block_num != 0
-        ORDER BY blocks.spec",
-    )
-    .fetch_all(conn)
-    .await?
-    .iter()
-    .map(|b| b.0 as u32)
-    .collect())
-}
-
 pub(crate) async fn get_full_block_by_id(
     conn: &mut sqlx::PgConnection,
     id: i32,
@@ -162,14 +140,6 @@ pub(crate) async fn get_full_block_by_num(
     .fetch_one(conn)
     .await
     .map_err(Into::into)
-}
-
-pub(crate) async fn blocks_count(conn: &mut sqlx::PgConnection) -> Result<u64> {
-    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM blocks")
-        .fetch_one(conn)
-        .await
-        .map_err(Error::from)?;
-    Ok(row.0 as u64)
 }
 
 /// check if a runtime versioned metadata exists in the database
