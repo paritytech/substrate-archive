@@ -229,39 +229,11 @@ mod tests {
         atomic::{AtomicUsize, Ordering},
         Arc,
     };
-    use std::sync::{Mutex, MutexGuard};
-
-    static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-
-    struct TestGuard<'a>(MutexGuard<'a, ()>);
-    impl<'a> TestGuard<'a> {
-        fn lock() -> Self {
-            TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"))
-        }
-    }
-
-    impl<'a> Drop for TestGuard<'a> {
-        fn drop(&mut self) {
-            smol::block_on(async move {
-                let mut conn = crate::PG_POOL.acquire().await.unwrap();
-                conn.execute(
-                    "
-                    TRUNCATE TABLE metadata CASCADE;
-                    TRUNCATE TABLE storage CASCADE;
-                    TRUNCATE TABLE blocks CASCADE;
-                    -- TRUNCATE TABLE _background_tasks
-                    ",
-                )
-                .await
-                .unwrap();
-            });
-        }
-    }
 
     #[test]
     fn should_get_notifications() {
         crate::initialize();
-        let _guard = TestGuard::lock();
+        let _guard = crate::TestGuard::lock();
         smol::block_on(async move {
             let (tx, mut rx) = futures::channel::mpsc::channel(5);
 
