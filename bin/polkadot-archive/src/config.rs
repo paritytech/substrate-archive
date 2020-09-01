@@ -56,10 +56,10 @@ impl TomlConfig {
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    polkadot_path: PathBuf,
-    psql_conf: MigrationConfig,
+    polkadot_path: Option<PathBuf>,
+    psql_conf: Option<MigrationConfig>,
     cli: CliOpts,
-    cache_size: usize,
+    cache_size: Option<usize>,
     block_workers: Option<usize>,
     wasm_pages: Option<u64>,
 }
@@ -67,15 +67,18 @@ pub struct Config {
 impl Config {
     pub fn new() -> Result<Self> {
         let cli_opts = CliOpts::parse();
-        let toml_conf = Self::parse_file(cli_opts.file.as_path())?;
+        let toml_conf = cli_opts.clone().file.map(|f| {
+            Self::parse_file(f.as_path())
+        }).transpose()?;
         log::debug!("{:?}", toml_conf);
+        
         Ok(Self {
-            polkadot_path: toml_conf.polkadot_path.clone(),
-            psql_conf: toml_conf.migration_conf(cli_opts.chain.as_str()),
+            polkadot_path: toml_conf.as_ref().map(|p| p.polkadot_path.clone()),
+            psql_conf: toml_conf.as_ref().map(|m| m.migration_conf(cli_opts.chain.as_str())),
             cli: cli_opts,
-            cache_size: toml_conf.cache_size,
-            block_workers: toml_conf.block_workers,
-            wasm_pages: toml_conf.wasm_pages,
+            cache_size: toml_conf.as_ref().map(|c| c.cache_size),
+            block_workers: toml_conf.as_ref().map(|c| c.block_workers).flatten(),
+            wasm_pages: toml_conf.as_ref().map(|c| c.wasm_pages).flatten(),
         })
     }
 
@@ -88,15 +91,15 @@ impl Config {
         &self.cli
     }
 
-    pub fn polkadot_path(&self) -> PathBuf {
+    pub fn polkadot_path(&self) -> Option<PathBuf> {
         self.polkadot_path.clone()
     }
 
-    pub fn cache_size(&self) -> usize {
+    pub fn cache_size(&self) -> Option<usize> {
         self.cache_size
     }
 
-    pub fn psql_conf(&self) -> MigrationConfig {
+    pub fn psql_conf(&self) -> Option<MigrationConfig> {
         self.psql_conf.clone()
     }
 

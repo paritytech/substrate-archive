@@ -25,22 +25,27 @@ use sc_chain_spec::ChainSpec;
 use substrate_archive::{Archive, ArchiveBuilder};
 
 pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
-    let mut db_path = config.polkadot_path();
+    
+    let mut db_path = if let Some(p) = config.polkadot_path() {
+        p    
+    } else {
+        let path = std::env::var("CHAIN_DATA_DB").expect("CHAIN_DATA_DB must be set.");
+        std::path::PathBuf::from(path)
+    };
 
-    let path = config.polkadot_path();
-
-    let last_path_part = path
+    let spec = get_spec(config.cli().chain.as_str())?;
+    
+    let last_path_part = db_path
         .file_name()
         .context("Polkadot path not valid")?
         .to_str()
         .context("could not convert path to string")?;
 
-    let spec = get_spec(config.cli().chain.as_str())?;
 
     match last_path_part {
         "polkadot" => db_path.push(format!("chains/{}/db", spec.id())),
         "chains" => db_path.push(format!("{}/db", spec.id())),
-        _ => return Err(anyhow!("invalid path {}", path.as_path().display())),
+        _ => return Err(anyhow!("invalid path {}", db_path.as_path().display())),
     }
 
     let db_path = db_path
@@ -53,13 +58,13 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
         "kusama" | "ksm" => {
             let archive =
                 ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor> {
+                    pg_url: config.psql_conf().map(|u| u.url()),
+                    cache_size: config.cache_size(),
                     block_workers: config.block_workers(),
                     wasm_pages: config.wasm_pages(),
                     ..ArchiveBuilder::default()
                 }
                 .chain_data_db(db_path)
-                .pg_url(config.psql_conf().url())
-                .cache_size(config.cache_size())
                 .chain_spec(spec)
                 .build()?;
             Ok(Box::new(archive))
@@ -70,13 +75,13 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                 westend_rt::RuntimeApi,
                 polkadot_service::WestendExecutor,
             > {
+                pg_url: config.psql_conf().map(|u| u.url()),
+                cache_size: config.cache_size(),
                 block_workers: config.block_workers(),
                 wasm_pages: config.wasm_pages(),
                 ..ArchiveBuilder::default()
             }
             .chain_data_db(db_path)
-            .pg_url(config.psql_conf().url())
-            .cache_size(config.cache_size())
             .chain_spec(spec)
             .build()?;
             Ok(Box::new(archive))
@@ -84,13 +89,13 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
         "polkadot" | "dot" => {
             let archive =
                 ArchiveBuilder::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor> {
+                    pg_url: config.psql_conf().map(|u| u.url()),
+                    cache_size: config.cache_size(),
                     block_workers: config.block_workers(),
                     wasm_pages: config.wasm_pages(),
                     ..ArchiveBuilder::default()
                 }
                 .chain_data_db(db_path)
-                .pg_url(config.psql_conf().url())
-                .cache_size(config.cache_size())
                 .chain_spec(spec)
                 .build()?;
             Ok(Box::new(archive))
@@ -116,3 +121,4 @@ fn get_spec(chain: &str) -> Result<Box<dyn ChainSpec>> {
         c => Err(anyhow!("unknown chain {}", c)),
     }
 }
+

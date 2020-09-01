@@ -6385,6 +6385,7 @@ version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "164eacbdb13512ec2745fb09d51fd5b22b0d65ed294a1dcf7285a360c80a675c"
 dependencies = [
+ "indexmap",
  "itoa",
  "ryu",
  "serde",
@@ -7284,6 +7285,8 @@ dependencies = [
  "parking_lot 0.11.0",
  "percent-encoding 2.1.0",
  "rand 0.7.3",
+ "serde",
+ "serde_json",
  "sha-1 0.9.1",
  "sha2 0.9.1",
  "smallvec 1.4.2",
@@ -7307,6 +7310,7 @@ dependencies = [
  "heck",
  "proc-macro2 1.0.19",
  "quote 1.0.7",
+ "serde_json",
  "sha2 0.9.1",
  "sqlx-core",
  "sqlx-rt",
