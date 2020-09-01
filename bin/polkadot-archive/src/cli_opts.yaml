@@ -9,12 +9,12 @@ args:
         value_name: FILE
         help: Sets a custom config file
         takes_value: true
-        required: true
+        required: false
     - chain:
         long: chain
-        help: The chain to run substrate-archive for. One of kusama, westend, polkadot
+        help: The chain to run substrate-archive for. One of kusama, westend, polkadot. Defaults to polkadot
         takes_value: true
-        required: true
+        required: false
     - verbose:
         short: v
         multiple: true
