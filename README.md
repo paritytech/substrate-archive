@@ -30,14 +30,21 @@ Extended requirements list found in the [wiki](https://github.com/paritytech/sub
 ## The CLI
 The CLI is an easier way to get started with substrate-archive. It provides a batteries-included binary, so that you don't have to write any rust code. All thats required is setting up a PostgreSQL DB, and modifying a config file. More information in the [wiki](https://github.com/paritytech/substrate-archive/wiki)
 
-## Install
+### The Node-Template CLI
+The node-template CLI (in /bin/node-template-archive) is provided as an example of implementing substrate-archive for your chain. 
 
-- `git clone https://github.com/paritytech/substrate-archive.git`
-- `cd substrate-archive/polkadot-archive/`
-- `cargo build --release`
-- startup your polkadot, kusama or westend node `./polkadot --chain=polkadot --pruning=archive`
-- run the archive with `./../target/release/polkadot-archive --config "your-config-file.toml" --chain=polkadot` where 'chain' is one of polkadot, kusama or westend, depending on which chain you are running
-- You can copy the binary file `polkadot-archive` anywhere you want ie `~/.local/share/bin/`. Or, instead of `cargo build --release` just run `cargo install --path .`
+## Running
+
+```bash
+git clone https://github.com/paritytech/substrate-archive.git
+cd substrate-archive/bin/polkadot-archive/
+# Start the normal polkadot node with `pruning` set to `archive`
+polkadot --chain=polkadot --pruning=archive
+# Start up the substrate-archive node. `chain` can be one of `polkadot`, `kusama`, or `westend`.
+cargo run --release --  -c test_conf.toml --chain=polkadot 
+```
+
+You can access the help dialog via `cargo run --release -- --help`
 
 # Contributing
 Contributors are welcome!
@@ -68,7 +75,6 @@ More Docs [here]( https://github.com/paritytech/substrate-archive/wiki)
         root        soft    nofile      90000
         ```
   
-
 # Contact
 
 You can contact me on
