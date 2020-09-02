@@ -99,6 +99,7 @@ where
     blocks: Address<workers::BlocksIndexer<B>>,
     metadata: Address<workers::Metadata<B>>,
     db_pool: Address<ActorPool<DatabaseActor<B>>>,
+    traces: Address<workers::ArchiveTraceHandler>,
 }
 
 /// Control the execution of the indexing engine.
@@ -244,11 +245,13 @@ where
         let blocks =
             workers::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), metadata.clone())
                 .spawn();
+        let traces = workers::ArchiveTraceHandler::new().spawn();
         Ok(Actors {
             storage,
             blocks,
             metadata,
             db_pool,
+            traces,
         })
     }
 
@@ -257,6 +260,7 @@ where
             actors.storage.send(msg::Die),
             actors.blocks.send(msg::Die),
             actors.metadata.send(msg::Die),
+            actors.traces.send(msg::Die),
         ];
         futures::future::join_all(fut).await;
         let _ = actors.db_pool.send(msg::Die.into()).await?.await;
@@ -304,7 +308,7 @@ where
                 .into_iter()
                 .map(|b| crate::tasks::execute_block::<B, R, C>(b.inner.block, PhantomData))
                 .collect();
-        log::info!("Restoring {} missing storage entries", jobs.len());
+        log::info!("🧘Restoring {} missing storage entries... (This could take a few minutes)", jobs.len());
         coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
         log::info!("Storage restored");
         Ok(())

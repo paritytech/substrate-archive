@@ -69,7 +69,7 @@ where
                 log::info!("{} storage entries will be missing, {:?}", len, e);
             }
             Ok(v) => {
-                log::info!("waiting for last storage insert...");
+                log::info!("🧘 waiting for last storage insert...");
                 v.await;
                 log::info!("storage inserted");
             }

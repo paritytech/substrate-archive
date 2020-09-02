@@ -7410,7 +7410,6 @@ name = "substrate-archive"
 version = "0.5.0-pre"
 dependencies = [
  "arc-swap",
- "async-executor",
  "async-trait",
  "chrono",
  "coil",
@@ -7439,6 +7438,7 @@ dependencies = [
  "sc-chain-spec",
  "sc-client-api",
  "sc-executor",
+ "sc-tracing",
  "serde",
  "serde-aux",
  "serde_json",
@@ -7453,11 +7453,13 @@ dependencies = [
  "sp-runtime",
  "sp-state-machine",
  "sp-storage",
+ "sp-tracing",
  "sp-trie",
  "sp-version",
  "sqlx",
  "tempfile",
  "thiserror",
+ "tracing",
  "xtra",
 ]
 
