@@ -36,7 +36,7 @@ pub fn create_dir(path: &Path) {
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher as _;
-/// Mkae a hash out of a byte string using the default hasher
+/// Make a hash out of a byte string using the default hasher
 pub fn make_hash<K: std::hash::Hash + ?Sized>(val: &K) -> u64 {
     let mut state = DefaultHasher::new();
     val.hash(&mut state);
