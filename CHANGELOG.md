@@ -41,7 +41,7 @@ taking advantage of sequential read-speeds. Gathering blocks by RPC is no longer
 
 
 
-#[v0.4.0]
+# [v0.4.0]
 - Speed up Storage Indexing by re-executing blocks
 - [internal] Remove some depdendencies for service and backend
 - fixes for storage inserts
