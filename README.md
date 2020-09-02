@@ -38,7 +38,7 @@ The node-template CLI (in /bin/node-template-archive) is provided as an example 
 ```bash
 git clone https://github.com/paritytech/substrate-archive.git
 # Set up the databases
-source ./scripts/up.sh # Run ./scripts/down.sh to drop the database
+source ./substrate-archive/scripts/up.sh # Run ./scripts/down.sh to drop the database
 cd substrate-archive/bin/polkadot-archive/
 # Start the normal polkadot node with `pruning` set to `archive`
 polkadot --chain=polkadot --pruning=archive
