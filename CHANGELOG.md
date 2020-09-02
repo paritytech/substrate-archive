@@ -1,29 +1,43 @@
 # **[Unreleased]**
-- Use SQLX for migrations
+
+## Substrate Archive
+- [Changed] Use SQLX for migrations
   - this will create a new table in the database, `sqlx_migrations` or similiar.
     - the older table, `__refinery_migrations` can be safely dropped
 
-## Api Changes
-- New `ArchiveBuilder` struct for constructing the indexer.
-  - returns a trait rather than a struct.
-  - the returned trait,`Archive` manages the underlying actor runtime
-  - Support Smol, and Async-Std in addition to Tokio
-  - Archive must now be spawned manually from the chosen runtime
-  - no longer need to instantiate a client and manually pass it to the Archive
-  - rename `run_with` to `run`
+### Api Changes
+- [Added] New `ArchiveBuilder` struct for constructing the indexer.
+  - [Changed] returns a trait rather than a struct.
+    - [Changed] the returned trait,`Archive` manages the underlying actor runtime
+  - [Changed] no longer need to instantiate a client and manually pass it to the Archive
+  - [Changed] rename `run_with` to `drive`
+  - [Changed] Archive now accepts just a postgres URL instead of a postgres URL split into its parts. This should
+  make configuring the archive more straightforward. Takes from environment variable `DATABASE_URL` if not passed to the 
+  archive directly
+- [Added] Archive now reads the `CHAIN_DATA_DB` environment variable if the path to the backend chain database is not passed directly.
+- [Changed] `drive` changed from sync to async function
+- [Removed] Archive no longer needs an RPC url to function
 
-## Internal Changes
+### Internal Changes
 - [QoL] upgrade to SQLx 0.4.0
+- [perf] Overhaul of block indexing. Now uses a Iterator to only collect batches of blocks from the database, 
+taking advantage of sequential read-speeds. Gathering blocks by RPC is no longer done.
+  - [perf] a new module `runtime_version_cache` is introduced in order to cache and run a binary search on runtime version & blocks.
 - [perf] better queries for the set difference between the storage and blocks table
    - makes querying for missing storage more efficient
-- [perf] better algorithm for the background-task missing-blocks generator
 - [err] Better handling of SQL errors
 - [perf] switch to a leaner, 'lower-level' actor framework (xtra) 
-- more unified handling of threadpools
-  - [perf] faster indexing/execution of blocks by throttling the amount of work threadpools handle at any given time.
+- [perf] switch to a background-task-queue for executing blocks. This uses significantly less memory and
+  persists blocks that need to be executed on-disk.
 - [QoL] remove the last frame dependency, `frame-system`. Archive now relies only on generic traits defined in substrate-core.
 - new method of batch inserts avoids starving the Postgres Pool of connections
 
+## Polkadot Archive
+- [Changed] Config file is now optional. Can configure polkadot archive entirely through environment variables.
+  - the environment variables that need to be set are `CHAIN_DATA_DB` and `DATABASE_URL`. 
+- [Changed] Polkadot archive will archive `polkadot` by default if the `--chain` CLI option is not passed.
+- [Changed] remove `rpc_url` from the polkadot-archive TOML configuration file
+- [Changed] All options in config file apart from `db_url`.
 
 
 
