@@ -33,18 +33,21 @@ The CLI is an easier way to get started with substrate-archive. It provides a ba
 ### The Node-Template CLI
 The node-template CLI (in /bin/node-template-archive) is provided as an example of implementing substrate-archive for your chain. 
 
-## Running
+## Quick Start
 
 ```bash
 git clone https://github.com/paritytech/substrate-archive.git
 cd substrate-archive/bin/polkadot-archive/
+# Set up the databases
+bash ./scripts/up.sh # Run ./scripts/down.sh to drop the database
 # Start the normal polkadot node with `pruning` set to `archive`
 polkadot --chain=polkadot --pruning=archive
 # Start up the substrate-archive node. `chain` can be one of `polkadot`, `kusama`, or `westend`.
 cargo run --release --  -c test_conf.toml --chain=polkadot 
 ```
 
-You can access the help dialog via `cargo run --release -- --help`
+You can access the help dialog via `cargo run --release -- --help`. Note that `up` and `down` scripts are meant for convenience and are not meant to be complete. Look in the [wiki](https://github.com/paritytech/substrate-archive/wiki) for more information about the database setup.
+
 
 # Contributing
 Contributors are welcome!
