@@ -28,7 +28,7 @@ xtra = { version = "0.5.0-beta.4", features = ["with-smol-0_3"] }
 # Just a simple wrapper around std::thread that `joins on drop`
 jod-thread = "0.1.2"
 smol = { version = "0.3" }
-coil = { git = "https://github.com/insipx/coil", package = "coil"}
+coil = { git = "https://github.com/insipx/coil", package = "coil", features = ["analyze"]}
 rmp-serde = "0.14"
 itoa = "0.4.6"
 include_dir = "0.6.0"

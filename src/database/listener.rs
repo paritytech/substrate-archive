@@ -138,8 +138,7 @@ where
                     notif = listen_fut => {
                         match notif {
                             Some(Ok(v)) => {
-                                let fut = self.handle_listen_event(v, &mut conn);
-                                fut.await;
+                                self.handle_listen_event(v, &mut conn).await;
                             },
                             Some(Err(e)) => {
                                 log::error!("{:?}", e);

@@ -17,3 +17,4 @@ anyhow = "1.0"
 serde = "1.0"
 smol = "0.3.3"
 ctrlc = { version = "3.1.5", features = ["termination"] }
+fdlimit = "0.2"

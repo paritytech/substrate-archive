@@ -79,6 +79,7 @@ impl<B: BlockT> DatabaseActor<B> {
         }
         std::mem::drop(conn);
         self.db.insert(blks).await?;
+        log::info!("Inserted");
         Ok(())
     }
 

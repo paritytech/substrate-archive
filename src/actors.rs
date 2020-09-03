@@ -272,9 +272,11 @@ where
             async move {
                 let block = queries::get_full_block_by_id(conn, notif.id).await?;
                 let b: (B, u32) = SqlBlockBuilder::with_single(block)?;
+                let now = std::time::Instant::now();
                 crate::tasks::execute_block::<B, R, C>(b.0, PhantomData)
                     .enqueue(conn)
                     .await?;
+                log::info!("Took {:?} to enqueue", now.elapsed());
                 Ok(())
             }
             .boxed()
@@ -288,7 +290,7 @@ where
     /// from the task queue.
     /// If any are found, they are re-queued.
     async fn restore_missing_storage(conn: &mut sqlx::PgConnection) -> Result<()> {
-        log::info!("Restoring missing storage entries...");
+        log::info!("🧘 Restoring missing storage entries... (This could take a few minutes)");
         let blocks: HashSet<u32> = queries::get_all_blocks::<B>(conn)
             .await?
             .map(|b| Ok((*b?.header().number()).into()))
@@ -308,7 +310,7 @@ where
                 .into_iter()
                 .map(|b| crate::tasks::execute_block::<B, R, C>(b.inner.block, PhantomData))
                 .collect();
-        log::info!("🧘Restoring {} missing storage entries... (This could take a few minutes)", jobs.len());
+        log::info!("Restoring {} missing storage entries...", jobs.len());
         coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
         log::info!("Storage restored");
         Ok(())

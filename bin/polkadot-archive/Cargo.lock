@@ -733,7 +733,7 @@ dependencies = [
 [[package]]
 name = "coil"
 version = "0.1.0"
-source = "git+https://github.com/insipx/coil#b76f59b31ad7f37ac00db51adaa5086e7c783aea"
+source = "git+https://github.com/insipx/coil#c70577556087935df6e323a1d7604f7c48a318dc"
 dependencies = [
  "async-channel",
  "async-trait",
@@ -753,7 +753,7 @@ dependencies = [
 [[package]]
 name = "coil_proc_macro"
 version = "0.1.0"
-source = "git+https://github.com/insipx/coil#b76f59b31ad7f37ac00db51adaa5086e7c783aea"
+source = "git+https://github.com/insipx/coil#c70577556087935df6e323a1d7604f7c48a318dc"
 dependencies = [
  "proc-macro2 1.0.19",
  "quote 1.0.7",
@@ -1272,6 +1272,15 @@ name = "fastrand"
 version = "1.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4bd3bdaaf0a72155260a1c098989b60db1cbb22d6a628e64f16237aa4da93cc7"
+
+[[package]]
+name = "fdlimit"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47bc6e222b8349b2bd0acb85a1d16d22852376b3ceed2a7f09c2692c3d8a78d0"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "fern"
@@ -4407,6 +4416,7 @@ dependencies = [
  "anyhow",
  "clap",
  "ctrlc",
+ "fdlimit",
  "log 0.4.11",
  "polkadot-service",
  "sc-chain-spec",
@@ -8097,7 +8107,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
 dependencies = [
- "rand 0.7.3",
+ "rand 0.3.23",
 ]
 
 [[package]]
