@@ -223,8 +223,16 @@ where
             futures::pin_mut!(tasks);
             futures::select! {
                 t = tasks => {
-                    if t? == 0 {
-                        smol::Timer::new(std::time::Duration::from_millis(3600)).await;
+                    match t {
+                        Err(coil::FetchError::Timeout) => {
+                            log::warn!("Timeout waiting for task to start");
+                            continue;
+                        },
+                        v => {
+                            if v? == 0 {
+                                smol::Timer::new(std::time::Duration::from_millis(3600)).await;
+                            }
+                        }
                     }
                 },
                 _ = rx.recv_async() => break,
