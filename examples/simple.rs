@@ -13,44 +13,28 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
-/*
+
 //! A simple example
 use polkadot_service::{kusama_runtime::RuntimeApi, Block, KusamaExecutor};
-use substrate_archive::{Archive, ArchiveConfig, MigrationConfig, ArchiveBuilder};
+use substrate_archive::{Archive, ArchiveBuilder};
 
 pub fn main() {
     substrate_archive::init_logger(log::LevelFilter::Info, log::LevelFilter::Info);
-
-    let conf = ArchiveConfig {
-        db_url: "/home/insipx/.local/share/polkadot/chains/ksmcc3/db".into(),
-        rpc_url: "ws://127.0.0.1:9944".into(),
-        cache_size: 128,
-        block_workers: Some(8),
-        wasm_pages: None,
-        psql_conf: MigrationConfig {
-            host: None,
-            port: None,
-            user: Some("archive".to_string()),
-            pass: Some("default".to_string()),
-            name: Some("kusama-archive".to_string()),
-        },
-    };
-
+    
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();
 
-    let mut rt = tokio::runtime::Runtime::new().unwrap();
+    let db_url = std::env::var("DATABASE_URL").unwrap();
+    let mut archive = ArchiveBuilder::<Block, RuntimeApi, KusamaExecutor>::default()
+        .block_workers(2)
+        .wasm_pages(512)
+        .cache_size(128)
+        .pg_url(db_url)
+        .chain_spec(Box::new(spec))
+        .build()
+        .unwrap();
 
-    let archive = ArchiveBuilder::<Block, RuntimeApi, KusamaExecutor>::new(conf, Box::new(spec)).unwrap();
-
-    // start running the archive
-    let context = rt.block_on(archive.run()).unwrap();
-
-    // run indefinitely
-    rt.block_on(context.block_until_stopped());
+    archive.drive();
+    archive.block_until_stopped();
 }
-*/
 
-pub fn main() {
-    println!("Hello");
-}
