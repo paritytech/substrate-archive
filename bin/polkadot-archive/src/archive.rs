@@ -53,11 +53,13 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
         .to_str()
         .context("could not convert rocksdb path to str")?
         .to_string();
+    
+    let types = desub_extras::TypeResolver::default();
 
     match config.cli().chain.to_ascii_lowercase().as_str() {
         "kusama" | "ksm" => {
             let archive =
-                ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor> {
+                ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor, _> {
                     pg_url: config.psql_conf().map(|u| u.url()),
                     cache_size: config.cache_size(),
                     block_workers: config.block_workers(),
@@ -66,6 +68,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                 }
                 .chain_data_db(db_path)
                 .chain_spec(spec)
+                .types(types)
                 .build()?;
             Ok(Box::new(archive))
         }
@@ -74,6 +77,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                 Block,
                 westend_rt::RuntimeApi,
                 polkadot_service::WestendExecutor,
+                _,
             > {
                 pg_url: config.psql_conf().map(|u| u.url()),
                 cache_size: config.cache_size(),
@@ -83,12 +87,13 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
             }
             .chain_data_db(db_path)
             .chain_spec(spec)
+            .types(types)
             .build()?;
             Ok(Box::new(archive))
         }
         "polkadot" | "dot" => {
             let archive =
-                ArchiveBuilder::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor> {
+                ArchiveBuilder::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor, _> {
                     pg_url: config.psql_conf().map(|u| u.url()),
                     cache_size: config.cache_size(),
                     block_workers: config.block_workers(),
@@ -97,6 +102,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                 }
                 .chain_data_db(db_path)
                 .chain_spec(spec)
+                .types(types)
                 .build()?;
             Ok(Box::new(archive))
         }

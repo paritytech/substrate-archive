@@ -15,6 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::error::Result;
+use desub::decoder::GenericExtrinsic;
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
@@ -94,6 +95,26 @@ impl<B: BlockT> BatchBlock<B> {
 
     pub fn inner(&self) -> &Vec<Block<B>> {
         &self.inner
+    }
+}
+
+/// The extrinsics belonging to a single block
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Extrinsic {
+    block_num: u32,
+    /// Hash of the block these extrinsics are from
+    hash: Vec<u8>,
+    /// The actual extrinsics
+    extrinsic: GenericExtrinsic
+}
+
+impl Extrinsic {
+    pub fn new(block_num: u32, hash: Vec<u8>, extrinsic: GenericExtrinsic) -> Self {
+        Self {
+            block_num,
+            hash,
+            extrinsic
+        }
     }
 }
 

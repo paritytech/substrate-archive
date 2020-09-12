@@ -28,6 +28,7 @@ use serde::de::DeserializeOwned;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_blockchain::Backend as BlockchainBackend;
+use desub::TypeDetective;
 use sp_runtime::{
     generic::BlockId,
     traits::{BlakeTwo256, Block as BlockT, NumberFor},
@@ -37,7 +38,7 @@ use std::{marker::PhantomData, path::PathBuf, sync::Arc};
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
 const POSTGRES_VAR: &str = "DATABASE_URL";
 
-pub struct Builder<B, R, D> {
+pub struct Builder<B, R, D, T> {
     /// Path to the rocksdb database
     pub chain_data_path: Option<String>,
     /// url to the Postgres Database
@@ -50,10 +51,12 @@ pub struct Builder<B, R, D> {
     pub wasm_pages: Option<u64>,
     /// Chain spec describing the chain
     pub chain_spec: Option<Box<dyn ChainSpec>>,
+    /// Types describing the runtime
+    pub types: Option<T>,
     pub _marker: PhantomData<(B, R, D)>,
 }
 
-impl<B, R, D> Default for Builder<B, R, D> {
+impl<B, R, D, T: TypeDetective> Default for Builder<B, R, D, T> {
     fn default() -> Self {
         Self {
             chain_data_path: None,
@@ -62,12 +65,13 @@ impl<B, R, D> Default for Builder<B, R, D> {
             block_workers: None,
             wasm_pages: None,
             chain_spec: None,
+            types: None,
             _marker: PhantomData,
         }
     }
 }
 
-impl<B, R, D> Builder<B, R, D> {
+impl<B, R, D, T: TypeDetective + 'static> Builder<B, R, D, T> {
     /// Set the chain data backend path to use for this instance.
     ///
     /// # Default
@@ -122,6 +126,14 @@ impl<B, R, D> Builder<B, R, D> {
         self.chain_spec = Some(spec);
         self
     }
+    
+    /// Specify types for the runtime
+    ///
+    /// # Defaults to Desub-Extras default
+    pub fn types(mut self, types: T) -> Self {
+        self.types = Some(types);
+        self
+    }
 }
 
 fn parse_urls(chain_data_path: Option<String>, pg_url: Option<String>) -> (String, String) {
@@ -171,7 +183,7 @@ fn create_database_path(spec: Option<Box<dyn ChainSpec>>) -> Result<PathBuf> {
     Ok(path)
 }
 
-impl<B, R, D> Builder<B, R, D>
+impl<B, R, D, T> Builder<B, R, D, T>
 where
     B: BlockT + Unpin + DeserializeOwned,
     R: ConstructRuntimeApi<B, TArchiveClient<B, R, D>> + Send + Sync + 'static,
@@ -182,6 +194,7 @@ where
         + Sync
         + 'static,
     D: NativeExecutionDispatch + 'static,
+    T: TypeDetective + 'static,
     <R::RuntimeApi as sp_api::ApiExt<B>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
     NumberFor<B>: Into<u32> + From<u32> + Unpin,
     B::Hash: From<primitive_types::H256> + Unpin,
@@ -209,14 +222,16 @@ where
         let client = backend::runtime_api::<B, R, D>(db.clone(), block_workers, wasm_pages)?;
         let client = Arc::new(client);
         let backend = Arc::new(ReadOnlyBackend::new(db.clone(), true));
-        Self::startup_info(&client, &backend)?;
+        let chain = Self::startup_info(&client, &backend)?;
+        
+        let types = self.types.expect("Types must be defined");
 
-        let ctx = System::<_, R, _>::new(client, backend, block_workers, pg_url.as_str())?;
+        let ctx = System::<_, R, _>::new(client, backend, block_workers, pg_url.as_str(), types, chain)?;
         Ok(ctx)
     }
 
     /// Log some general startup info
-    fn startup_info(client: &TArchiveClient<B, R, D>, backend: &ReadOnlyBackend<B>) -> Result<()> {
+    fn startup_info(client: &TArchiveClient<B, R, D>, backend: &ReadOnlyBackend<B>) -> Result<desub::decoder::Chain> {
         let last_finalized_block = backend.last_finalized()?;
         let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
         log::info!(
@@ -226,6 +241,16 @@ where
             rt.spec_version,
             last_finalized_block
         );
-        Ok(())
+
+        let chain = match rt.spec_name.to_string().to_ascii_lowercase().as_str() {
+            "kusama" | "ksmcc3" | "ksm" => desub::decoder::Chain::Kusama,
+            "polkadot" | "dot" => desub::decoder::Chain::Polkadot,
+            "westend" => desub::decoder::Chain::Westend,
+            "rococo" => desub::decoder::Chain::Rococo,
+            "centrifuge" | "centrifuge-chain" => desub::decoder::Chain::Centrifuge,
+            _ => desub::decoder::Chain::Custom(rt.spec_name.to_string()) 
+        };
+
+        Ok(chain)
     }
 }

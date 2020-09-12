@@ -201,6 +201,16 @@ pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
     }))
 }
 
+pub(crate) async fn get_metadata(conn: &mut PgConnection, spec: &u32) -> Result<Vec<u8>> {
+    let meta = sqlx::query_as::<_, (Vec<u8>,)>(
+        "SELECT meta FROM metadata WHERE version = $1"
+        )
+        .bind(spec)
+        .fetch_one(conn)
+        .await?;
+    Ok(meta.0)
+}
+
 #[cfg(test)]
 mod tests {
     //! Must be connected to a postgres database

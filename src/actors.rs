@@ -33,6 +33,7 @@ use super::{
     types::Archive,
 };
 use coil::Job as _;
+use desub::{TypeDetective, decoder::{Decoder as SubstrateDecoder, Chain}};
 use futures::FutureExt;
 use hashbrown::HashSet;
 use sc_client_api::backend;
@@ -58,6 +59,7 @@ where
     pg_url: String,
     meta: Meta<B>,
     workers: usize,
+    decoder: SubstrateDecoder,
 }
 
 impl<B: BlockT + Unpin> ActorContext<B>
@@ -69,12 +71,14 @@ where
         meta: Meta<B>,
         workers: usize,
         pg_url: String,
+        decoder: SubstrateDecoder,
     ) -> Self {
         Self {
             backend,
             meta,
             workers,
             pg_url,
+            decoder,
         }
     }
 
@@ -96,6 +100,7 @@ where
     NumberFor<B>: Into<u32>,
 {
     storage: Address<workers::StorageAggregator<B>>,
+    decoder: Address<workers::Decoder<B>>,
     blocks: Address<workers::BlocksIndexer<B>>,
     metadata: Address<workers::Metadata<B>>,
     db_pool: Address<ActorPool<DatabaseActor<B>>>,
@@ -148,12 +153,17 @@ where
         backend: Arc<ReadOnlyBackend<B>>,
         workers: usize,
         pg_url: &str,
+        types: impl TypeDetective + 'static,
+        chain: desub::decoder::Chain,
     ) -> Result<Self> {
+        let decoder = SubstrateDecoder::new(types, chain);
+
         let context = ActorContext::new(
             backend.clone(),
             client_api.clone(),
             workers,
             pg_url.to_string(),
+            decoder,
         );
         let (start_tx, kill_tx, handle) = Self::start(context.clone(), client_api);
 
@@ -238,7 +248,10 @@ where
         let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
         let db_pool = actor_pool::ActorPool::new(db, 8).spawn();
         let storage = workers::StorageAggregator::new(db_pool.clone()).spawn();
-        let metadata = workers::Metadata::new(db_pool.clone(), ctx.meta().clone())
+        let decoder = workers::Decoder::new(ctx.decoder.clone(), db_pool.clone())
+            .spawn();
+        
+        let metadata = workers::Metadata::new(db_pool.clone(), decoder.clone(), ctx.meta().clone())
             .await?
             .spawn();
         let blocks =
@@ -249,6 +262,7 @@ where
             blocks,
             metadata,
             db_pool,
+            decoder,
         })
     }
 
