@@ -1274,6 +1274,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c85295147490b8fcf2ea3d104080a105a8b2c63f9c319e82c02d8e952388919"
 
 [[package]]
+name = "fdlimit"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47bc6e222b8349b2bd0acb85a1d16d22852376b3ceed2a7f09c2692c3d8a78d0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "fern"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7409,6 +7418,7 @@ dependencies = [
  "coil",
  "directories 3.0.1",
  "dotenv",
+ "fdlimit",
  "fern",
  "flate2",
  "flume",
