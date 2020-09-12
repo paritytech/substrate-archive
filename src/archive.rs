@@ -38,6 +38,9 @@ use std::{marker::PhantomData, path::PathBuf, sync::Arc};
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
 const POSTGRES_VAR: &str = "DATABASE_URL";
 
+/// The recommended open file descriptor limit to be configured for the process.
+const RECOMMENDED_OPEN_FILE_DESCRIPTOR_LIMIT: u64 = 10_000;
+
 pub struct Builder<B, R, D, T> {
     /// Path to the rocksdb database
     pub chain_data_path: Option<String>,
@@ -242,6 +245,17 @@ where
             last_finalized_block
         );
 
+        if let Some(new_limit) = fdlimit::raise_fd_limit() {
+            if new_limit < RECOMMENDED_OPEN_FILE_DESCRIPTOR_LIMIT {
+                log::warn!(
+                    "⚠️  Low open file descriptor limit configured for the process. \
+                     Current value: {:?}, recommended value: {:?}.",
+                    new_limit,
+                    RECOMMENDED_OPEN_FILE_DESCRIPTOR_LIMIT,
+                );
+            }
+        }
+    
         let chain = match rt.spec_name.to_string().to_ascii_lowercase().as_str() {
             "kusama" | "ksmcc3" | "ksm" => desub::decoder::Chain::Kusama,
             "polkadot" | "dot" => desub::decoder::Chain::Polkadot,
