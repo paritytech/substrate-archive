@@ -8,8 +8,8 @@ edition = "2018"
 
 [dependencies]
 substrate-archive = { path = "../../", features = ["logging"] }
-node-template-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, package = "node-template-runtime" }
-node-template = { git = "https://github.com/paritytech/substrate", branch = "master", package = "node-template" }
+node-template-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, package = "node-template-runtime" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+node-template = { git = "https://github.com/paritytech/substrate", package = "node-template" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
 clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }
 toml = "0.5"
 futures = "0.3.5"

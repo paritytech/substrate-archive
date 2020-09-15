@@ -52,12 +52,15 @@ where
         } else {
             let mut conn = self.addr.send(GetState::Conn.into()).await?.await?.conn();
             let meta = queries::get_metadata(&mut *conn, spec).await?;
+            log::debug!("{:?}", meta);
+            log::debug!("Registering metadata version {}", spec);
             self.decoder.register_version(*spec, meta);
             Ok(())
         }
     }
 
     async fn metadata_handler(&mut self, meta: crate::types::Metadata) -> Result<()> {
+        log::info!("Registering metadata version: {}", meta.version());
         self.decoder.register_version(meta.version(), meta.meta());
         self.addr.send(meta.into()).await?.await;
         Ok(())

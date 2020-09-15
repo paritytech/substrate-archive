@@ -62,21 +62,12 @@ where
             let meta = smol::unblock!(meta.metadata(&BlockId::hash(hash)))?;
             let meta: sp_core::Bytes = meta.into();
             let meta = MetadataT::new(ver, meta.0);
+            log::debug!("Sending hash {}", hex::encode(hash.as_ref()));
             self.addr.send(meta).await?;
         }
         Ok(())
     }
-/*
-    async fn block_handler(&mut self, blk: Block<B>) -> Result<()>
-    where
-        NumberFor<B>: Into<u32>,
-    {
-        let hash = blk.inner.block.header().hash();
-        self.meta_checker(blk.spec, hash).await?;
-        self.addr.send(blk.into()).await?;
-        Ok(())
-    }
-*/
+
     async fn batch_block_handler(&mut self, blks: BatchBlock<B>) -> Result<()>
     where
         NumberFor<B>: Into<u32>,
@@ -95,21 +86,6 @@ where
 }
 
 impl<B: BlockT> Actor for Metadata<B> {}
-
-/*
-#[async_trait::async_trait]
-impl<B> Handler<Block<B>> for Metadata<B>
-where
-    B: BlockT + Unpin,
-    NumberFor<B>: Into<u32>,
-{
-    async fn handle(&mut self, blk: Block<B>, _: &mut Context<Self>) {
-        if let Err(e) = self.block_handler(blk).await {
-            log::error!("{}", e.to_string());
-        }
-    }
-}
-*/
 
 #[async_trait::async_trait]
 impl<B> Handler<BatchBlock<B>> for Metadata<B>

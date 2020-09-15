@@ -47,21 +47,21 @@ codec = { package = "parity-scale-codec", version = "1.3", default-features = fa
 hash-db = "0.15"
 
 # Substrate
-sp-database = { git = "https://github.com/paritytech/substrate", branch = "master", package="sp-database" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-storage" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-externalities" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-runtime" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-client-api" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-blockchain" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-api" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-block-builder" }
-sp-version = {  git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-version" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-executor" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-chain-spec" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-trie" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-state-machine" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-io" }
+sp-database = { git = "https://github.com/paritytech/substrate", package="sp-database" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-storage = { git = "https://github.com/paritytech/substrate", package = "sp-storage" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", package = "sp-externalities" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", package = "sp-runtime" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", package = "sc-client-api" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", package = "sp-blockchain" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-core = { git = "https://github.com/paritytech/substrate", package = "sp-core" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-api = { git = "https://github.com/paritytech/substrate", package = "sp-api" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", package = "sp-block-builder" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-version = {  git = "https://github.com/paritytech/substrate", package = "sp-version" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sc-executor = { git = "https://github.com/paritytech/substrate", package = "sc-executor" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", package = "sc-chain-spec" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-trie = { git = "https://github.com/paritytech/substrate", package = "sp-trie" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", package = "sp-state-machine" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-io = { git = "https://github.com/paritytech/substrate", package = "sp-io" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
 itoa = "0.4.6"
 include_dir = "0.6.0"
 tempfile = "3.1.0"
@@ -69,7 +69,7 @@ async-executor = "0.1.2"
 arc-swap = "0.4.7"
 
 [dev-dependencies]
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master" }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "substrate-archive" }
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
 flate2 = "1.0"
