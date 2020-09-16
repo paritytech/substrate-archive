@@ -280,11 +280,9 @@ where
             async move {
                 let block = queries::get_full_block_by_id(conn, notif.id).await?;
                 let b: (B, u32) = SqlBlockBuilder::with_single(block)?;
-                let now = std::time::Instant::now();
                 crate::tasks::execute_block::<B, R, C>(b.0, PhantomData)
                     .enqueue(conn)
                     .await?;
-                log::info!("Took {:?} to enqueue", now.elapsed());
                 Ok(())
             }
             .boxed()
