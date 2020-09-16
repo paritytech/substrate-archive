@@ -167,6 +167,8 @@ where
         let core_api = params.core_api;
         let at = params.at;
 
+        log::info!("NATIVE CALL {}", params.native_call.is_some());
+
         let (manager, extensions) = self
             .execution_extensions
             .manager_and_extensions(at, params.context);

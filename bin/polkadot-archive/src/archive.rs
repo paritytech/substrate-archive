@@ -23,6 +23,28 @@ use polkadot_service::westend_runtime as westend_rt;
 use polkadot_service::Block;
 use sc_chain_spec::ChainSpec;
 use substrate_archive::{Archive, ArchiveBuilder};
+use sc_executor::native_executor_instance;
+
+native_executor_instance!(
+	pub KsmExec,
+	ksm_rt::api::dispatch,
+    ksm_rt::native_version,
+    sp_io::SubstrateHostFunctions
+);
+
+native_executor_instance!(
+	pub DotExec,
+	dot_rt::api::dispatch,
+    dot_rt::native_version,
+    sp_io::SubstrateHostFunctions
+);
+
+native_executor_instance!(
+	pub WestendExec,
+    westend_rt::api::dispatch,
+    westend_rt::native_version,
+    sp_io::SubstrateHostFunctions
+);
 
 pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
     
@@ -57,7 +79,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
     match config.cli().chain.to_ascii_lowercase().as_str() {
         "kusama" | "ksm" => {
             let archive =
-                ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor> {
+                ArchiveBuilder::<Block, ksm_rt::RuntimeApi, KsmExec> {
                     pg_url: config.psql_conf().map(|u| u.url()),
                     cache_size: config.cache_size(),
                     block_workers: config.block_workers(),
@@ -73,7 +95,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
             let archive = ArchiveBuilder::<
                 Block,
                 westend_rt::RuntimeApi,
-                polkadot_service::WestendExecutor,
+                WestendExec,
             > {
                 pg_url: config.psql_conf().map(|u| u.url()),
                 cache_size: config.cache_size(),
@@ -88,7 +110,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
         }
         "polkadot" | "dot" => {
             let archive =
-                ArchiveBuilder::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor> {
+                ArchiveBuilder::<Block, dot_rt::RuntimeApi, DotExec> {
                     pg_url: config.psql_conf().map(|u| u.url()),
                     cache_size: config.cache_size(),
                     block_workers: config.block_workers(),

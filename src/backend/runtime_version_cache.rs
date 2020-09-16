@@ -85,11 +85,11 @@ impl<B: BlockT> RuntimeVersionCache<B> {
         let code = self
             .backend
             .storage(hash, well_known_keys::CODE)
-            .ok_or(Error::from("storage does not exist"))?;
+            .ok_or_else(|| Error::from("storage does not exist"))?;
 
         let code_hash = crate::util::make_hash(&code);
         if self.versions.load().contains_key(&code_hash) {
-            Ok(self.versions.load().get(&code_hash).map(|v| v.clone()))
+            Ok(self.versions.load().get(&code_hash).cloned())
         } else {
             log::debug!("new code hash: {:#X?}", code_hash);
             let mut ext: BasicExternalities = BasicExternalities::default();
@@ -101,10 +101,10 @@ impl<B: BlockT> RuntimeVersionCache<B> {
             log::debug!("Registered New Runtime Version: {:?}", v);
             self.versions.rcu(|cache| {
                 let mut cache = HashMap::clone(&cache);
-                cache.insert(code_hash, v.clone().into());
+                cache.insert(code_hash, v.clone());
                 cache
             });
-            Ok(Some(v.into()))
+            Ok(Some(v))
         }
     }
 

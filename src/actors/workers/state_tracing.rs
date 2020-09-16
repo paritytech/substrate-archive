@@ -18,7 +18,11 @@ use crate::error::Result;
 use sc_tracing::{SpanDatum, TraceEvent, TraceHandler, ProfilingSubscriber};
 use xtra::prelude::*;
 
-const TRACE_TARGETS: &str = "assets,atomic-swap,aura,authority-discovery,authorship,babe,balances,collective,contracts,democracy,elections,elections-phragmen,evm,executive,finality-tracker,generic-asset,grandpa,identity,im-online,indices,membership,metadata,multisig,nicks,offences,proxy,randomness-collective-flip,recovery,scheduler,scored-pool,session,society,staking,sudo,support,system,timestamp,transaction-payment,treasury,utility,vesting";
+const TRACE_TARGETS: &str = "assets,atomic-swap,aura,authority-discovery,authorship, \
+babe,balances,collective,contracts,democracy,elections,elections-phragmen,evm,executive, \
+finality-tracker,generic-asset,grandpa,identity,im-online,indices,membership,metadata, \
+multisig,nicks,offences,proxy,randomness-collective-flip,recovery,scheduler,scored-pool, \
+session,society,staking,sudo,support,system,timestamp,transaction-payment,treasury,utility,vesting";
 
 #[derive(Clone)]
 pub struct ArchiveTraceHandler {
@@ -36,6 +40,7 @@ impl ArchiveTraceHandler {
 
 impl TraceHandler for ArchiveTraceHandler {
     fn handle_span(&self, sd: SpanDatum) {
+       log::info!("Got message");
         println!("Outside");
         if let Some(a) = self.addr.as_ref() {
             println!("Inside");
@@ -44,6 +49,7 @@ impl TraceHandler for ArchiveTraceHandler {
     }
 
     fn handle_event(&self, ev: TraceEvent) {
+        log::info!("Got message event");
         println!("Outside");
         if let Some(a) = self.addr.as_ref() {
             println!("Inside");
@@ -77,7 +83,7 @@ impl Message for SpanMessage {
 #[async_trait::async_trait]
 impl Handler<SpanMessage> for ArchiveTraceHandler {
     async fn handle(&mut self, msg: SpanMessage, _: &mut Context<Self>) {
-        println!("Span: {:?}", msg);
+        log::info!("Span: {:?}", msg);
     }
 }
 
@@ -92,14 +98,14 @@ impl Message for EventMessage {
 #[async_trait::async_trait]
 impl Handler<EventMessage> for ArchiveTraceHandler {
     async fn handle(&mut self, msg: EventMessage, _: &mut Context<Self>) {
-        println!("Event: {:?}", msg);
+        log::info!("Event: {:?}", msg);
     }
 }
-
 
 #[async_trait::async_trait]
 impl Handler<super::Die> for ArchiveTraceHandler {
     async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+        log::info!("Traces dying");
         ctx.stop();
         Ok(())
     }

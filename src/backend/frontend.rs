@@ -25,7 +25,7 @@ use sc_client_api::{
 use self::executor::ArchiveExecutor;
 use crate::{backend::database::ReadOnlyDatabase, error::Error as ArchiveError};
 use futures::{task::SpawnExt, Future};
-use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
+use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod, RuntimeInfo as _};
 use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
@@ -63,14 +63,19 @@ where
 {
     let backend = Arc::new(ReadOnlyBackend::new(db, true));
 
+
     let executor = NativeExecutor::<Dispatch>::new(
         WasmExecutionMethod::Interpreted,
         Some(wasm_pages),
         block_workers as usize,
     );
 
+    let native = executor.native_version();
+    log::info!("Native Version: {:?}", native);
+
     let executor = ArchiveExecutor::new(backend.clone(), executor, TaskExecutor::new());
 
+    // LOAD tracing extensions here
     let client = Client::new(
         backend,
         executor,
@@ -82,17 +87,19 @@ where
 impl SpawnNamed for TaskExecutor {
     fn spawn(
         &self,
-        _: &'static str,
+        n: &'static str,
         fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
     ) {
+        log::info!("Spawning Task {}", n);
         let _ = self.pool.spawn(fut);
     }
 
     fn spawn_blocking(
         &self,
-        _: &'static str,
+        n: &'static str,
         fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
     ) {
+        log::info!("Spawning blocking task {}", n);
         let _ = self.pool.spawn(fut);
     }
 }
@@ -125,8 +132,8 @@ fn execution_strategies() -> ExecutionStrategies {
     ExecutionStrategies {
         syncing: ExecutionStrategy::NativeElseWasm,
         importing: ExecutionStrategy::NativeElseWasm,
-        block_construction: ExecutionStrategy::NativeElseWasm,
-        offchain_worker: ExecutionStrategy::NativeWhenPossible,
+        block_construction: ExecutionStrategy::NativeWhenPossible,
+        offchain_worker: ExecutionStrategy::NativeElseWasm,
         other: ExecutionStrategy::AlwaysWasm,
     }
 }

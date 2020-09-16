@@ -16,6 +16,7 @@
 
 use crate::{error::Result, types::Storage};
 use sc_client_api::backend;
+use sp_core::ExecutionContext;
 use sp_api::{ApiExt, ApiRef};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
@@ -120,7 +121,7 @@ where
         header.digest_mut().pop();
         let block = Block::new(header, ext);
 
-        self.api.execute_block(&self.id, block)?;
+        self.api.execute_block_with_context(&self.id, ExecutionContext::BlockConstruction, block)?;
         let storage_changes = self.api.into_storage_changes(&state, None, parent_hash)?;
 
         Ok(BlockChanges {

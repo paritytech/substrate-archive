@@ -208,7 +208,7 @@ where
         )?);
         let client = backend::runtime_api::<B, R, D>(db.clone(), block_workers, wasm_pages)?;
         let client = Arc::new(client);
-        let backend = Arc::new(ReadOnlyBackend::new(db.clone(), true));
+        let backend = Arc::new(ReadOnlyBackend::new(db, true));
         Self::startup_info(&client, &backend)?;
 
         let ctx = System::<_, R, _>::new(client, backend, block_workers, pg_url.as_str())?;

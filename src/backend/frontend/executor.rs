@@ -116,7 +116,7 @@ where
     ) -> sp_blockchain::Result<Vec<u8>> {
         let mut changes = OverlayedChanges::default();
         let mut offchain_changes = OffchainOverlayedChanges::disabled();
-
+        log::info!("Executor CALL");
         let state = self.backend.state_at(*id)?;
         let state_runtime_code = sp_state_machine::backend::BackendRuntimeCode::new(&state);
         // changes trie block number is not used, so we set it to u32
@@ -172,6 +172,7 @@ where
     where
         ExecutionManager<EM>: Clone,
     {
+        log::info!("Contextual CALL, executor");
         match initialize_block {
             InitializeBlock::Do(ref init_block)
                 if init_block
