@@ -69,7 +69,7 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", package = "sp-tr
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "substrate-archive" }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", rev = "d327000afb34a49c3b0ce7c80147cbea6434d429" }
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
 flate2 = "1.0"
