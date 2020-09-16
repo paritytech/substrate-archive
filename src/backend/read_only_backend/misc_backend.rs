@@ -57,7 +57,6 @@ impl<Block: BlockT> BlockImportOperation<Block> for RealBlockImportOperation {
     }
 
     fn update_cache(&mut self, _cache: std::collections::HashMap<Id, Vec<u8>>) {
-        // TODO: maybe we should have a cache??
         log::warn!("No cache on a read only backend");
     }
 
