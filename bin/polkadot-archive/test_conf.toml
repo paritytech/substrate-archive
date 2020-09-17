@@ -26,6 +26,9 @@ cache_size = 128
 block_workers = 8
 # Number of 64KB Heap Pages to allocate for WASM execution
 wasm_pages = 2048
+# Maximum number of blocks to index at a time. Useful for preventing
+# cpu usage spikes.
+max_block_load = 100_000
 
 db_host = "localhost"
 db_port = "5432"
@@ -40,5 +43,3 @@ db_pass = "123"
 westend_db = "westend-archive"
 kusama_db = "kusama-db"
 polkadot_db = "polkadot-db"
-
-

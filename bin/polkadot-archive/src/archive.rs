@@ -25,22 +25,20 @@ use sc_chain_spec::ChainSpec;
 use substrate_archive::{Archive, ArchiveBuilder};
 
 pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
-    
     let mut db_path = if let Some(p) = config.polkadot_path() {
-        p    
+        p
     } else {
         let path = std::env::var("CHAIN_DATA_DB").expect("CHAIN_DATA_DB must be set.");
         std::path::PathBuf::from(path)
     };
 
     let spec = get_spec(config.cli().chain.as_str())?;
-    
+
     let last_path_part = db_path
         .file_name()
         .context("Polkadot path not valid")?
         .to_str()
         .context("could not convert path to string")?;
-
 
     match last_path_part {
         "polkadot" => db_path.push(format!("chains/{}/db", spec.id())),
@@ -62,6 +60,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                     cache_size: config.cache_size(),
                     block_workers: config.block_workers(),
                     wasm_pages: config.wasm_pages(),
+                    max_block_load: config.max_block_load(),
                     ..ArchiveBuilder::default()
                 }
                 .chain_data_db(db_path)
@@ -79,6 +78,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                 cache_size: config.cache_size(),
                 block_workers: config.block_workers(),
                 wasm_pages: config.wasm_pages(),
+                max_block_load: config.max_block_load(),
                 ..ArchiveBuilder::default()
             }
             .chain_data_db(db_path)
@@ -93,6 +93,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                     cache_size: config.cache_size(),
                     block_workers: config.block_workers(),
                     wasm_pages: config.wasm_pages(),
+                    max_block_load: config.max_block_load(),
                     ..ArchiveBuilder::default()
                 }
                 .chain_data_db(db_path)
@@ -121,4 +122,3 @@ fn get_spec(chain: &str) -> Result<Box<dyn ChainSpec>> {
         c => Err(anyhow!("unknown chain {}", c)),
     }
 }
-

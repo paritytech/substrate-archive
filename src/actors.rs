@@ -58,6 +58,7 @@ where
     pg_url: String,
     meta: Meta<B>,
     workers: usize,
+    max_block_load: u32,
 }
 
 impl<B: BlockT + Unpin> ActorContext<B>
@@ -69,12 +70,14 @@ where
         meta: Meta<B>,
         workers: usize,
         pg_url: String,
+        max_block_load: u32,
     ) -> Self {
         Self {
             backend,
             meta,
             workers,
             pg_url,
+            max_block_load,
         }
     }
 
@@ -148,12 +151,14 @@ where
         backend: Arc<ReadOnlyBackend<B>>,
         workers: usize,
         pg_url: &str,
+        max_block_load: u32,
     ) -> Result<Self> {
         let context = ActorContext::new(
             backend.clone(),
             client_api.clone(),
             workers,
             pg_url.to_string(),
+            max_block_load,
         );
         let (start_tx, kill_tx, handle) = Self::start(context.clone(), client_api);
 
@@ -241,9 +246,13 @@ where
         let metadata = workers::Metadata::new(db_pool.clone(), ctx.meta().clone())
             .await?
             .spawn();
-        let blocks =
-            workers::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), metadata.clone())
-                .spawn();
+        let blocks = workers::BlocksIndexer::new(
+            ctx.backend().clone(),
+            db_pool.clone(),
+            metadata.clone(),
+            ctx.max_block_load,
+        )
+        .spawn();
         Ok(Actors {
             storage,
             blocks,
