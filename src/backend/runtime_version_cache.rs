@@ -61,11 +61,11 @@ impl<B: BlockT> RuntimeVersionCache<B> {
         // remove some unnecessary host functions
         let funs = sp_io::SubstrateHostFunctions::host_functions()
             .into_iter()
-            .filter(|f| !(f.name().matches("wasm_tracing").count() > 0))
-            .filter(|f| !(f.name().matches("ext_offchain").count() > 0))
-            .filter(|f| !(f.name().matches("ext_storage").count() > 0))
-            .filter(|f| !(f.name().matches("ext_default_child_storage").count() > 0))
-            .filter(|f| !(f.name().matches("ext_logging").count() > 0))
+            .filter(|f| f.name().matches("wasm_tracing").count() == 0)
+            .filter(|f| f.name().matches("ext_offchain").count() == 0)
+            .filter(|f| f.name().matches("ext_storage").count() == 0)
+            .filter(|f| f.name().matches("ext_default_child_storage").count() == 0)
+            .filter(|f| f.name().matches("ext_logging").count() == 0)
             .collect::<Vec<_>>();
 
         let exec = WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(128), funs, 1);

@@ -150,12 +150,7 @@ where
         workers: usize,
         pg_url: &str,
     ) -> Result<Self> {
-        let context = ActorContext::new(
-            backend.clone(),
-            client_api.clone(),
-            workers,
-            pg_url.to_string(),
-        );
+        let context = ActorContext::new(backend, client_api.clone(), workers, pg_url.to_string());
         let (start_tx, kill_tx, handle) = Self::start(context.clone(), client_api);
 
         Ok(Self {
@@ -306,10 +301,7 @@ where
             .iter()
             .map(|b| b.block_num as u32)
             .collect();
-        let difference: HashSet<u32> = missing_storage_nums
-            .difference(&blocks)
-            .map(|b| *b)
-            .collect();
+        let difference: HashSet<u32> = missing_storage_nums.difference(&blocks).copied().collect();
         missing_storage_blocks.retain(|b| difference.contains(&(b.block_num as u32)));
         let jobs: Vec<crate::tasks::execute_block::Job<B, R, C>> =
             SqlBlockBuilder::with_vec(missing_storage_blocks)?

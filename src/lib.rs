@@ -79,18 +79,18 @@ impl sp_core::traits::SpawnNamed for TaskExecutor {
         _: &'static str,
         fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>,
     ) {
-        smol::Task::spawn(async move { smol::unblock!(fut) }).detach();
+        smol::Task::spawn(async move { smol::unblock!(fut).await }).detach();
     }
 }
 
 #[cfg(test)]
-use test::{initialize, DATABASE_URL, PG_POOL, DUMMY_HASH, TestGuard};
+use test::{initialize, TestGuard, DATABASE_URL, DUMMY_HASH, PG_POOL};
 
 #[cfg(test)]
 mod test {
     use once_cell::sync::Lazy;
-    use std::sync::{Once, Mutex, MutexGuard};
     use sqlx::prelude::*;
+    use std::sync::{Mutex, MutexGuard, Once};
 
     pub static DATABASE_URL: Lazy<String> = Lazy::new(|| {
         dotenv::var("DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!")
@@ -99,14 +99,16 @@ mod test {
     pub const DUMMY_HASH: [u8; 2] = [0x13, 0x37];
 
     pub static PG_POOL: Lazy<sqlx::PgPool> = Lazy::new(|| {
-            smol::block_on(async {
-                let pool = sqlx::postgres::PgPoolOptions::new()
-                    .min_connections(4)
-                    .max_connections(8)
-                    .idle_timeout(std::time::Duration::from_millis(3600))
-                    .connect(&DATABASE_URL).await.expect("Couldn't initialize postgres pool for tests");
-                pool
-            })
+        smol::block_on(async {
+            let pool = sqlx::postgres::PgPoolOptions::new()
+                .min_connections(4)
+                .max_connections(8)
+                .idle_timeout(std::time::Duration::from_millis(3600))
+                .connect(&DATABASE_URL)
+                .await
+                .expect("Couldn't initialize postgres pool for tests");
+            pool
+        })
     });
 
     static INIT: Once = Once::new();
@@ -179,5 +181,4 @@ mod test {
             });
         }
     }
-
 }

@@ -97,7 +97,7 @@ impl<B: BlockT> DatabaseActor<B> {
     async fn batch_storage_handler(&self, storage: Vec<Storage<B>>) -> Result<()> {
         let mut conn = self.db.conn().await?;
         let mut block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
-        block_nums.sort();
+        block_nums.sort_unstable();
         log::debug!(
             "Inserting: {:#?}, {} .. {}",
             block_nums.len(),

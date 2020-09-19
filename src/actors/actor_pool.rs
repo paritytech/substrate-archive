@@ -115,7 +115,7 @@ where
     // `Sync` Cell<bool>
     let (mut tx, mut rx) = futures::channel::mpsc::channel(0);
 
-    let handle = smol::Task::spawn(async move { rx.next().await.map(|r: R| r).expect("One Shot") });
+    let handle = smol::Task::spawn(async move { rx.next().await.expect("One Shot") });
     let fut = async move {
         match fut.await {
             Ok(v) => {

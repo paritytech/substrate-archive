@@ -129,7 +129,7 @@ where
             .do_send(ReIndex)
             .expect("Actor cannot be disconnected; just started");
 
-        ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl);
+        ctx.notify_interval(std::time::Duration::from_secs(10), || Crawl);
     }
 }
 
@@ -148,10 +148,8 @@ where
         match self.crawl().await {
             Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
-                if !b.is_empty() {
-                    if let Err(_) = self.meta.send(BatchBlock::new(b)).await {
-                        ctx.stop();
-                    }
+                if !b.is_empty() && self.meta.send(BatchBlock::new(b)).await.is_err() {
+                    ctx.stop();
                 }
             }
         }
