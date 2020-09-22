@@ -15,19 +15,11 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::error::Result;
-use desub::decoder::GenericExtrinsic;
+use desub::decoder::{GenericExtrinsic, ExtrinsicArgument, GenericSignature};
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
-
-pub trait ThreadPool: Send + Sync {
-    type In: Send + Sync + std::fmt::Debug;
-    type Out: Send + Sync + std::fmt::Debug;
-    /// Adds a task to the threadpool.
-    /// Should not block!
-    fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> Result<usize>;
-}
 
 #[async_trait::async_trait(?Send)]
 pub trait Archive<B: BlockT + Unpin>
@@ -115,6 +107,30 @@ impl Extrinsic {
             hash,
             extrinsic
         }
+    }
+
+    pub fn block_num(&self) -> &u32 {
+        &self.block_num
+    }
+    
+    pub fn hash(&self) -> &[u8] {
+        self.hash.as_slice()
+    }
+
+    pub fn call_name(&self) -> &str {
+        self.extrinsic.ext_call()
+    }
+
+    pub fn module(&self) -> &str {
+        self.extrinsic.ext_module()
+    }
+    
+    pub fn signature(&self) -> Option<&GenericSignature> {
+        self.extrinsic.signature() 
+    }
+
+    pub fn arguments(&self) -> &[ExtrinsicArgument] {
+        self.extrinsic.args()
     }
 }
 

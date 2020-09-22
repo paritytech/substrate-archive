@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::actors::msg::VecStorageWrap;
+use crate::actors::msg::{VecStorageWrap, VecExtrinsic};
 use crate::database::{Database, DbConn, StorageModel};
 use crate::error::Result;
 use crate::queries;
-use crate::types::{BatchBlock, Block, Metadata, Storage};
+use crate::types::{BatchBlock, Block, Metadata, Storage, Extrinsic};
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -117,6 +117,11 @@ impl<B: BlockT> DatabaseActor<B> {
         self.db.insert(storage).await?;
         Ok(())
     }
+
+    async fn extrinsic_handler(&self, ext: Vec<Extrinsic>) -> Result<()> {
+        self.db.insert(ext).await?;
+        Ok(())
+    }
 }
 
 impl<B: BlockT> Actor for DatabaseActor<B> {}
@@ -180,6 +185,20 @@ impl<B: BlockT> Handler<VecStorageWrap<B>> for DatabaseActor<B> {
             log::error!("{}", e.to_string());
         }
         log::debug!("took {:?} to insert storage", now.elapsed());
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT> Handler<VecExtrinsic> for DatabaseActor<B> {
+    async fn handle(&mut self, ext: VecExtrinsic, _: &mut Context<Self>) {
+        let now = std::time::Instant::now();
+        if let Err(e) = self.extrinsic_handler(ext.0).await {
+            log::error!("{}", e.to_string());
+        }
+        let elapsed = now.elapsed();
+        if elapsed.as_secs() > 1 {
+            log::debug!("took {:?} to insert extrinsics", now.elapsed());
+        }
     }
 }
 

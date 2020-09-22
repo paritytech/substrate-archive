@@ -48,6 +48,8 @@ pub enum Error {
     ThreadPool(#[from] rayon::ThreadPoolBuildError),
     #[error("{0}")]
     Decode(#[from] desub::Error),
+    #[error("Failed to decode item because of `{0}` at block {1} of hash {2}")]
+    DetailedDecodeFail(desub::Error, u32, String),
     /// Error occured while serializing/deserializing data
     #[error("Error while decoding job data {0}")]
     De(#[from] rmp_serde::decode::Error),

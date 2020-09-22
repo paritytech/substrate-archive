@@ -182,6 +182,43 @@ where
 }
 
 #[async_trait]
+impl Insert for Vec<Extrinsic> {
+    async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
+        let mut batch = Batch::new(
+            "extrinsics",
+            r#"
+            INSERT INTO "extrinsics" (
+                block_num, hash, call_name, call_module, signature, args
+            ) VALUES
+            "#,
+            r#"
+            ON CONFLICT DO NOTHING
+            "#
+        );
+        for ext in self.into_iter() {
+            batch.reserve(6)?;
+            if batch.current_num_arguments() > 0 {
+                batch.append(",");
+            }
+            batch.append("(");
+            batch.bind(ext.block_num())?;
+            batch.append(",");
+            batch.bind(ext.hash())?;
+            batch.append(",");
+            batch.bind(ext.call_name())?;
+            batch.append(",");
+            batch.bind(ext.module())?;
+            batch.append(",");
+            batch.bind(sqlx::types::Json(ext.call_name()))?;
+            batch.append(",");
+            batch.bind(sqlx::types::Json(ext.arguments()))?;
+            batch.append(")");
+        }
+        Ok(batch.execute(conn).await?)
+    }
+}
+
+#[async_trait]
 impl<B: BlockT> Insert for StorageModel<B> {
     async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
         log::info!("Inserting Single Storage");

@@ -94,6 +94,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("substrate_archive", file)
         .level_for("cranelift_wasm", log::LevelFilter::Error)
         .level_for("sqlx", log::LevelFilter::Warn)
+        .level_for("", log::LevelFilter::Warn)
         .level_for("staking", log::LevelFilter::Warn)
         .level_for("cranelift_codegen", log::LevelFilter::Warn)
         .level_for("polling", log::LevelFilter::Warn)

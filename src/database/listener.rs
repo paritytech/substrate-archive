@@ -162,7 +162,7 @@ where
             }
             // collect the rest of the results, before exiting, as long as the collection completes
             // in a reasonable amount of time
-            let timeout = smol::Timer::new(std::time::Duration::from_secs(1));
+            let timeout = smol::Timer::new(std::time::Duration::from_secs(5));
             futures::select! {
                 _ = timeout.fuse() => {
                     return;

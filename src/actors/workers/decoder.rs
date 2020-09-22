@@ -17,16 +17,12 @@
 //! Decodes items before they are inserted into the DB.
 //! Requires that metadata is already present in Postgres.
 
-use super::{database::GetState, ActorPool};
-use desub::decoder::{Decoder as SubstrateDecoder};
+use super::{database::GetState, ActorPool, VecExtrinsic};
+use crate::{database::queries, error::{Result, Error}, types::Extrinsic};
 use codec::Encode;
-use sp_runtime::traits::{Block as BlockT, NumberFor, Header as _};
+use desub::decoder::Decoder as SubstrateDecoder;
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use xtra::prelude::*;
-use crate::{
-    database::queries,
-    error::Result,
-    types::Extrinsic,
-};
 
 pub struct Decoder<B: BlockT> {
     decoder: SubstrateDecoder,
@@ -35,24 +31,20 @@ pub struct Decoder<B: BlockT> {
 
 type DbAddr<B> = Address<ActorPool<super::DatabaseActor<B>>>;
 
-impl<B: BlockT + Unpin> Decoder<B> 
+impl<B: BlockT + Unpin> Decoder<B>
 where
     NumberFor<B>: Into<u32>,
 {
     pub fn new(decoder: SubstrateDecoder, addr: DbAddr<B>) -> Self {
-        Self {
-            decoder,
-            addr,
-        }
+        Self { decoder, addr }
     }
-    
+
     async fn update_metadata(&mut self, spec: &u32) -> Result<()> {
         if self.decoder.has_version(spec) {
             Ok(())
         } else {
             let mut conn = self.addr.send(GetState::Conn.into()).await?.await?.conn();
             let meta = queries::get_metadata(&mut *conn, spec).await?;
-            log::debug!("{:?}", meta);
             log::debug!("Registering metadata version {}", spec);
             self.decoder.register_version(*spec, meta);
             Ok(())
@@ -67,41 +59,37 @@ where
     }
 
     async fn block_handler(&self, blocks: crate::types::BatchBlock<B>) -> Result<()> {
+        if blocks.inner().len() > 100_000 {
+            log::info!("Decoding {} blocks, this could take a minute", blocks.inner().len());
+        }
+        
         let extrinsics = blocks
             .inner()
             .iter()
             .map(move |b| {
                 let spec = b.spec;
-                b
-                    .inner
-                    .block
-                    .extrinsics()
-                    .iter()
-                    .map(move |e| 
-                        Ok(
-                            Extrinsic::new(
-                                (*b.inner.block.header().number()).into(),
-                                b.inner.block.header().hash().as_ref().to_vec(),
-                                self.decoder.decode_extrinsic(spec, e.encode().as_slice())?
-                            )
-                        )
-                    )
+                b.inner.block.extrinsics().iter().map(move |e| {
+                    let num: u32 = (*b.inner.block.header().number()).into();
+                    let hash = b.inner.block.header().hash().as_ref().to_vec();
+                    let decoded = self.decoder.decode_extrinsic(spec, e.encode().as_slice())
+                        .map_err(|e| Error::DetailedDecodeFail(e, num, hex::encode(hash.clone())))?;
+                    
+                    Ok(Extrinsic::new(num, hash, decoded))
+                })
             })
-        .flatten()
-        .collect::<Result<Vec<crate::types::Extrinsic>>>()?;
-            
-        log::info!("{}", serde_json::to_string_pretty(extrinsics.as_slice())?);
-        // sends blocks + decoded extrinsics to database
+            .flatten()
+            .collect::<Result<Vec<crate::types::Extrinsic>>>()?;
         self.addr.send(blocks.into()).await?.await;
+        self.addr.send(VecExtrinsic(extrinsics).into()).await?.await;
+        // sends blocks + decoded extrinsics to database
         Ok(())
     }
 }
 
 impl<B: BlockT> Actor for Decoder<B> {}
 
-
 #[async_trait::async_trait]
-impl<B> Handler<crate::types::BatchBlock<B>> for Decoder<B> 
+impl<B> Handler<crate::types::BatchBlock<B>> for Decoder<B>
 where
     B: BlockT + Unpin,
     NumberFor<B>: Into<u32>,
@@ -112,29 +100,29 @@ where
                 log::error!("{:?}", e);
             }
         }
-        if let Err(e) = self.block_handler(blocks).await  {
-            log::error!("{:?}", e);
+        if let Err(e) = self.block_handler(blocks).await {
+            log::error!("{}", e.to_string());
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<B> Handler<crate::types::Metadata> for Decoder<B> 
+impl<B> Handler<crate::types::Metadata> for Decoder<B>
 where
     NumberFor<B>: Into<u32>,
     B: BlockT + Unpin,
 {
     async fn handle(&mut self, meta: crate::types::Metadata, _: &mut Context<Self>) {
         if let Err(e) = self.metadata_handler(meta).await {
-            log::error!("{:?}", e);
+            log::error!("{}", e.to_string());
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<B> Handler<super::Die> for Decoder<B> 
+impl<B> Handler<super::Die> for Decoder<B>
 where
-    B: BlockT + Unpin
+    B: BlockT + Unpin,
 {
     async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
         log::info!("Stopping Decoder");

@@ -224,7 +224,8 @@ where
         let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
             .register_job::<crate::tasks::execute_block::Job<B, R, C>>()
             .num_threads(ctx.workers)
-            .max_tasks(500)
+            // SET TO CORE COUNT + some constant buffer
+            .max_tasks(32)
             .build()?;
 
         loop {
@@ -236,7 +237,9 @@ where
                         smol::Timer::new(std::time::Duration::from_millis(3600)).await;
                     }
                 },
-                _ = rx.recv_async() => break,
+                _ =  rx.recv_async() => { 
+                    break;
+                },
             }
         }
         listener.kill_async().await;

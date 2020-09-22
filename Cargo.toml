@@ -37,8 +37,9 @@ fern = { version = "0.6", features = ["colored"], optional = true }
 chrono = { version = "0.4", optional = true }
 
 # Parity
-desub = { git = "https://github.com/paritytech/desub", branch = "master", package = "desub-core" }
-desub-extras = { git = "https://github.com/paritytech/desub", package="desub-extras", optional = true }
+desub = { path = "../desub/core", package = "desub-core" }
+# desub = { git = "https://github.com/paritytech/desub", branch = "debug-decoding", package = "desub-core" }
+# desub-extras = { git = "https://github.com/paritytech/desub", package="desub-extras", optional = true }
 primitive-types = "0.7"
 jsonrpsee = { git = "https://github.com/dt665m/jsonrpsee", branch = "feature/client-error-handling" }
 kvdb = "0.7"
@@ -69,7 +70,7 @@ async-executor = "0.1.2"
 arc-swap = "0.4.7"
 
 [dev-dependencies]
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "substrate-archive" }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/insipx/polkadot", branch = "substrate-archive" }
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
 flate2 = "1.0"
@@ -79,7 +80,7 @@ once_cell = "1.4.1"
 dotenv = "0.15.0"
 
 [features]
-default = ["logging", "default-types"]
+default = ["logging"]
 logging = ["chrono", "fern"]
 test_rocksdb = []
-default-types = ["desub-extras"]
+# default-types = ["desub-extras"]
