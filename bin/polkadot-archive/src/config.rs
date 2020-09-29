@@ -67,14 +67,18 @@ pub struct Config {
 impl Config {
     pub fn new() -> Result<Self> {
         let cli_opts = CliOpts::parse();
-        let toml_conf = cli_opts.clone().file.map(|f| {
-            Self::parse_file(f.as_path())
-        }).transpose()?;
+        let toml_conf = cli_opts
+            .clone()
+            .file
+            .map(|f| Self::parse_file(f.as_path()))
+            .transpose()?;
         log::debug!("{:?}", toml_conf);
-        
+
         Ok(Self {
             polkadot_path: toml_conf.as_ref().map(|p| p.polkadot_path.clone()),
-            psql_conf: toml_conf.as_ref().map(|m| m.migration_conf(cli_opts.chain.as_str())),
+            psql_conf: toml_conf
+                .as_ref()
+                .map(|m| m.migration_conf(cli_opts.chain.as_str())),
             cli: cli_opts,
             cache_size: toml_conf.as_ref().map(|c| c.cache_size),
             block_workers: toml_conf.as_ref().map(|c| c.block_workers).flatten(),
