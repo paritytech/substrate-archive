@@ -209,7 +209,7 @@ impl Insert for Vec<Extrinsic> {
             batch.append(",");
             batch.bind(ext.module())?;
             batch.append(",");
-            batch.bind(sqlx::types::Json(ext.call_name()))?;
+            batch.bind(sqlx::types::Json(ext.signature()))?;
             batch.append(",");
             batch.bind(sqlx::types::Json(ext.arguments()))?;
             batch.append(")");

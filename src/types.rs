@@ -91,7 +91,7 @@ impl<B: BlockT> BatchBlock<B> {
 }
 
 /// The extrinsics belonging to a single block
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 pub struct Extrinsic {
     block_num: u32,
     /// Hash of the block these extrinsics are from

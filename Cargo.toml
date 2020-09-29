@@ -41,7 +41,6 @@ desub = { path = "../desub/core", package = "desub-core" }
 # desub = { git = "https://github.com/paritytech/desub", branch = "debug-decoding", package = "desub-core" }
 # desub-extras = { git = "https://github.com/paritytech/desub", package="desub-extras", optional = true }
 primitive-types = "0.7"
-jsonrpsee = { git = "https://github.com/dt665m/jsonrpsee", branch = "feature/client-error-handling" }
 kvdb = "0.7"
 kvdb-rocksdb = "0.9"
 codec = { package = "parity-scale-codec", version = "1.3", default-features = false, features = ["derive", "full"] }
