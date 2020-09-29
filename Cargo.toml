@@ -67,7 +67,7 @@ arc-swap = "0.4.7"
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", tag = "v0.8.24" }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/insipx/polkadot", branch = "substrate-archive" }
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
 flate2 = "1.0"
