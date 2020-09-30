@@ -132,7 +132,7 @@ where
         let copied_last_max = self.last_max;
         let max_to_collect = copied_last_max + self.max_block_load;
         let blocks = self
-            .collect_blocks(move |n| n > copied_last_max && n < max_to_collect)
+            .collect_blocks(move |n| n > copied_last_max && n <= max_to_collect)
             .await?;
         self.last_max = blocks
             .iter()

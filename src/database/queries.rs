@@ -70,11 +70,11 @@ pub(crate) async fn missing_blocks_min_max(
         WHERE
         NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
 		ORDER BY generate_series ASC
-		LIMIT $1
+		LIMIT $2
         ",
     )
     .bind(min as i32)
-    .bind(max_block_load)
+    .bind(max_block_load as i32)
     .fetch_all(conn)
     .await?
     .iter()
