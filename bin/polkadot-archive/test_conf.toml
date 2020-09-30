@@ -11,7 +11,7 @@
 # if the db path for polkadot is /home/$user/.local/share/polkadot/chains/polkadot/db
 # and the db path for kusama is /home/$user/.local/share/polkadot/chains/ksmcc3/db
 # then the path only needs to be /home/$user/.local/share/polkadot/
-polkadot_path = "/home/insipx/.local/share/polkadot/"
+polkadot_path = "/home/zeke/.local/share/polkadot/"
 
 # How much should the read-only database keep in cache (MB) (required)
 cache_size = 128

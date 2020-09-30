@@ -21,7 +21,6 @@ use crate::{
     types::{BatchBlock, Block},
     Error::Disconnected,
 };
-use hashbrown::HashSet;
 use sp_runtime::{
     generic::SignedBlock,
     traits::{Block as BlockT, Header as _, NumberFor},
@@ -105,33 +104,26 @@ where
     /// sets the `last_max` value.
     async fn re_index(&mut self) -> Result<()> {
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
-        let mut numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
-        let len = numbers.len();
-        log::info!("{} missing blocks", len);
         self.last_max = if let Some(m) = queries::max_block(&mut conn).await? {
             m
         } else {
             // a `None` means that the blocks table is not populated yet
+            log::info!("{} missing blocks", 0);
             return Ok(());
         };
-
-        if numbers.len() as u32 > self.max_block_load {
-            let mut tmp_set = HashSet::<u32>::with_capacity(self.max_block_load as usize);
-            for height in numbers.drain() {
-                tmp_set.insert(height);
-                tmp_set = if tmp_set.len() as u32 > self.max_block_load  {
-                    self.collect_and_send(move |n| tmp_set.contains(&n)).await?;
-                    HashSet::<u32>::with_capacity(self.max_block_load as usize)
-                } else {
-                    tmp_set
-                };
+        let mut missing_blocks = 0;
+        loop {
+            let batch =
+                queries::missing_blocks_min_max(&mut conn, self.last_max, self.max_block_load)
+                    .await?;
+            if batch.len() > 0 {
+                missing_blocks += batch.len();
+                self.collect_and_send(move |n| batch.contains(&n)).await?;
+            } else {
+                break;
             }
-            if !tmp_set.is_empty() {
-                self.collect_and_send(move |n| tmp_set.contains(&n)).await?;
-            };
-        } else {
-            self.collect_and_send(move |n| numbers.contains(&n)).await?;
-        };
+        }
+        log::info!("{} missing blocks", missing_blocks);
         Ok(())
     }
 
@@ -140,7 +132,7 @@ where
         let copied_last_max = self.last_max;
         let max_to_collect = copied_last_max + self.max_block_load;
         let blocks = self
-            .collect_blocks(move |n| n > copied_last_max && n  < max_to_collect)
+            .collect_blocks(move |n| n > copied_last_max && n < max_to_collect)
             .await?;
         self.last_max = blocks
             .iter()

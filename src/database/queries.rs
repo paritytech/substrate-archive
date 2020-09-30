@@ -62,16 +62,19 @@ pub(crate) async fn missing_blocks(conn: &mut PgConnection) -> Result<Vec<u32>> 
 pub(crate) async fn missing_blocks_min_max(
     conn: &mut PgConnection,
     min: u32,
+    max_block_load: u32,
 ) -> Result<HashSet<u32>> {
     Ok(sqlx::query_as::<_, (i32,)>(
         "SELECT generate_series
         FROM (SELECT $1 as a, max(block_num) as z FROM blocks) x, generate_series(a, z)
         WHERE
         NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
-        ORDER BY generate_series ASC
+		ORDER BY generate_series ASC
+		LIMIT $1
         ",
     )
     .bind(min as i32)
+    .bind(max_block_load)
     .fetch_all(conn)
     .await?
     .iter()
