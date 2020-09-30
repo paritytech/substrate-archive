@@ -11,7 +11,7 @@
 # if the db path for polkadot is /home/$user/.local/share/polkadot/chains/polkadot/db
 # and the db path for kusama is /home/$user/.local/share/polkadot/chains/ksmcc3/db
 # then the path only needs to be /home/$user/.local/share/polkadot/
-polkadot_path = "/home/zeke/.local/share/polkadot/"
+polkadot_path = "/home/insipxga/.local/share/polkadot/"
 
 # How much should the read-only database keep in cache (MB) (required)
 cache_size = 128
@@ -26,8 +26,7 @@ cache_size = 128
 block_workers = 8
 # Number of 64KB Heap Pages to allocate for WASM execution
 wasm_pages = 2048
-# Maximum number of blocks to index at a time. Useful for preventing
-# cpu usage spikes.
+# Maximum number of blocks to index at a time. Useful for preventing cpu usage spikes.
 max_block_load = 100_000
 
 db_host = "localhost"
@@ -42,4 +41,4 @@ db_pass = "123"
 # These variables can also be exposed with DB_NAME environment variable
 westend_db = "westend-archive"
 kusama_db = "kusama-db"
-polkadot_db = "polkadot-db"
+polkadot_db = "polkadotdb"
