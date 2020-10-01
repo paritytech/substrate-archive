@@ -39,9 +39,7 @@ impl CliOpts {
         let log_num = matches.occurrences_of("verbose");
         let file = matches.value_of("config");
 
-        let chain = matches
-            .value_of("chain")
-            .unwrap_or("polkadot");
+        let chain = matches.value_of("chain").unwrap_or("polkadot");
 
         CliOpts {
             file: file.map(|f| PathBuf::from(f)),

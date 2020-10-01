@@ -37,9 +37,6 @@ fern = { version = "0.6", features = ["colored"], optional = true }
 chrono = { version = "0.4", optional = true }
 
 # Parity
-desub = { path = "../desub/core", package = "desub-core" }
-# desub = { git = "https://github.com/paritytech/desub", branch = "debug-decoding", package = "desub-core" }
-# desub-extras = { git = "https://github.com/paritytech/desub", package="desub-extras", optional = true }
 primitive-types = "0.7"
 kvdb = "0.7"
 kvdb-rocksdb = "0.9"
@@ -47,21 +44,21 @@ codec = { package = "parity-scale-codec", version = "1.3", default-features = fa
 hash-db = "0.15"
 
 # Substrate
-sp-database = { git = "https://github.com/paritytech/substrate", package="sp-database" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sp-storage = { git = "https://github.com/paritytech/substrate", package = "sp-storage" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", package = "sp-externalities" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", package = "sp-runtime" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", package = "sc-client-api" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", package = "sp-blockchain" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sp-core = { git = "https://github.com/paritytech/substrate", package = "sp-core" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sp-api = { git = "https://github.com/paritytech/substrate", package = "sp-api" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", package = "sp-block-builder" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sp-version = {  git = "https://github.com/paritytech/substrate", package = "sp-version" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sc-executor = { git = "https://github.com/paritytech/substrate", package = "sc-executor" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", package = "sc-chain-spec" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sp-trie = { git = "https://github.com/paritytech/substrate", package = "sp-trie" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", package = "sp-state-machine" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
-sp-io = { git = "https://github.com/paritytech/substrate", package = "sp-io" , rev = "35fe3cd1bc4b64cadb0bc6196ae40173db65bb28" }
+sp-database = { git = "https://github.com/paritytech/substrate", package="sp-database" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-storage = { git = "https://github.com/paritytech/substrate", package = "sp-storage" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", package = "sp-externalities" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", package = "sp-runtime" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", package = "sc-client-api" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", package = "sp-blockchain" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-core = { git = "https://github.com/paritytech/substrate", package = "sp-core" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-api = { git = "https://github.com/paritytech/substrate", package = "sp-api" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", package = "sp-block-builder" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-version = {  git = "https://github.com/paritytech/substrate", package = "sp-version" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sc-executor = { git = "https://github.com/paritytech/substrate", package = "sc-executor" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", package = "sc-chain-spec" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-trie = { git = "https://github.com/paritytech/substrate", package = "sp-trie" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", package = "sp-state-machine" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-io = { git = "https://github.com/paritytech/substrate", package = "sp-io" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
 itoa = "0.4.6"
 include_dir = "0.6.0"
 tempfile = "3.1.0"
@@ -69,6 +66,7 @@ async-executor = "0.1.2"
 arc-swap = "0.4.7"
 
 [dev-dependencies]
+# desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
 polkadot-service = { package = "polkadot-service", git = "https://github.com/insipx/polkadot", branch = "substrate-archive" }
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
@@ -82,4 +80,3 @@ dotenv = "0.15.0"
 default = ["logging"]
 logging = ["chrono", "fern"]
 test_rocksdb = []
-# default-types = ["desub-extras"]
