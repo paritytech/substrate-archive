@@ -17,7 +17,6 @@
 //! chain defined with the passed-in Client and URL.
 
 mod actor_pool;
-// mod generators;
 pub mod msg;
 mod workers;
 
@@ -246,13 +245,7 @@ where
         let metadata = workers::Metadata::new(db_pool.clone(), ctx.meta().clone())
             .await?
             .spawn();
-        let blocks = workers::BlocksIndexer::new(
-            ctx.backend().clone(),
-            db_pool.clone(),
-            metadata.clone(),
-            ctx.max_block_load,
-        )
-        .spawn();
+        let blocks = workers::BlocksIndexer::new(ctx, db_pool.clone(), metadata.clone()).spawn();
         Ok(Actors {
             storage,
             blocks,

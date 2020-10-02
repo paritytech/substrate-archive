@@ -15,6 +15,7 @@
 
 use super::{ActorPool, DatabaseActor, GetState, Metadata};
 use crate::{
+    actors::ActorContext,
     backend::{ReadOnlyBackend, RuntimeVersionCache},
     database::queries,
     error::Result,
@@ -52,19 +53,14 @@ where
     B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
-    pub fn new(
-        backend: Arc<ReadOnlyBackend<B>>,
-        db_addr: DatabaseAct<B>,
-        meta: Address<Metadata<B>>,
-        max_block_load: u32,
-    ) -> Self {
+    pub fn new(ctx: ActorContext<B>, db_addr: DatabaseAct<B>, meta: Address<Metadata<B>>) -> Self {
         Self {
-            rt_cache: RuntimeVersionCache::new(backend.clone()),
+            rt_cache: RuntimeVersionCache::new(ctx.backend.clone()),
             last_max: 0,
-            backend,
+            backend: ctx.backend().clone(),
             db: db_addr,
             meta,
-            max_block_load,
+            max_block_load: ctx.max_block_load,
         }
     }
 
@@ -103,7 +99,7 @@ where
     /// gets any blocks that are missing from database and indexes those.
     /// sets the `last_max` value.
     async fn re_index(&mut self) -> Result<()> {
-		let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
+        let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
         let cur_max = if let Some(m) = queries::max_block(&mut conn).await? {
             m
         } else {
@@ -117,15 +113,15 @@ where
         loop {
             let batch =
                 queries::missing_blocks_min_max(&mut conn, min, self.max_block_load).await?;
-            if !batch.empty() {
+            if !batch.is_empty() {
                 missing_blocks += batch.len();
                 min += self.max_block_load;
                 self.collect_and_send(move |n| batch.contains(&n)).await?;
             } else {
                 break;
             }
-		}
-		
+        }
+
         self.last_max = cur_max;
         log::info!("{} missing blocks", missing_blocks);
 
