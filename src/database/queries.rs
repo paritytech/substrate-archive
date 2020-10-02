@@ -59,6 +59,8 @@ pub(crate) async fn missing_blocks(conn: &mut PgConnection) -> Result<Vec<u32>> 
     .collect())
 }
 
+/// Find missing blocks from the relational database betwen numbers `min` and
+/// MAX(block_num). LIMIT result to length `max_block_load`.
 pub(crate) async fn missing_blocks_min_max(
     conn: &mut PgConnection,
     min: u32,
