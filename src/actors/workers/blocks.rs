@@ -117,7 +117,7 @@ where
         loop {
             let batch =
                 queries::missing_blocks_min_max(&mut conn, min, self.max_block_load).await?;
-            if batch.len() > 0 {
+            if !batch.empty() {
                 missing_blocks += batch.len();
                 min += self.max_block_load;
                 self.collect_and_send(move |n| batch.contains(&n)).await?;
