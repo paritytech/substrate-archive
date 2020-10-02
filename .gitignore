@@ -4,3 +4,4 @@ target
 .env
 *.nix
 .tmp/
+dev_conf.toml

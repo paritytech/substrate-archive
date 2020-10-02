@@ -11,7 +11,7 @@
 # if the db path for polkadot is /home/$user/.local/share/polkadot/chains/polkadot/db
 # and the db path for kusama is /home/$user/.local/share/polkadot/chains/ksmcc3/db
 # then the path only needs to be /home/$user/.local/share/polkadot/
-polkadot_path = "/home/zeke/.local/share/polkadot/"
+polkadot_path = "/home/insipx/.local/share/polkadot/"
 
 # How much should the read-only database keep in cache (MB) (required)
 cache_size = 128
@@ -40,5 +40,5 @@ db_pass = "123"
 # A fully synced Kusama PostgreSQL database (~2.8Million blocks) takes up around 70GB
 # These variables can also be exposed with DB_NAME environment variable
 westend_db = "westend-archive"
-kusama_db = "kusamadb"
-polkadot_db = "polkadotdb"
+kusama_db = "kusama-db"
+polkadot_db = "polkadot-db"
