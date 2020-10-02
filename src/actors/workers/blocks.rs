@@ -103,26 +103,28 @@ where
     /// gets any blocks that are missing from database and indexes those.
     /// sets the `last_max` value.
     async fn re_index(&mut self) -> Result<()> {
-        let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
-        self.last_max = if let Some(m) = queries::max_block(&mut conn).await? {
-            m
-        } else {
-            // a `None` means that the blocks table is not populated yet
+		let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
+        let cur_max = if let Some(m) = queries::max_block(&mut conn).await? {
+			m
+		} else {
+			// if the query return `None` the the blocks table is empty
             log::info!("{} missing blocks", 0);
             return Ok(());
-        };
+		}
+
         let mut missing_blocks = 0;
         loop {
-            let batch =
-                queries::missing_blocks_min_max(&mut conn, self.last_max, self.max_block_load)
-                    .await?;
+			let batch = queries::missing_blocks_min_max(&mut conn, self.last_max, self.max_block_load).await?;
+			log::info!("batch len: {}", batch.len());
             if batch.len() > 0 {
                 missing_blocks += batch.len();
                 self.collect_and_send(move |n| batch.contains(&n)).await?;
             } else {
                 break;
             }
-        }
+		}
+
+		self.last_max = cur_max;
         log::info!("{} missing blocks", missing_blocks);
         Ok(())
     }
