@@ -1,0 +1,46 @@
+# Must be an absolute path to the folder where polkadot/kusama/and westend chain data is stored 
+# Linux:
+# /home/$USER/.local/share/polkadot
+# MacOSX 
+# /Users/$USER/Library/Application Support/polkadot/
+#
+# if chain data for kusama/polkadot/westend is stored in 
+# a different directory, then the absolute path to that directory
+# is necessary.
+# IE:
+# if the db path for polkadot is /home/$user/.local/share/polkadot/chains/polkadot/db
+# and the db path for kusama is /home/$user/.local/share/polkadot/chains/ksmcc3/db
+# then the path only needs to be /home/$user/.local/share/polkadot/
+polkadot_path = "/home/zeke/.local/share/polkadot/"
+
+# How much should the read-only database keep in cache (MB) (required)
+cache_size = 128
+
+# Number of threads to dedicate for executing blocks
+# Optional. If not specified, threads will be set
+# to the default number of logical system threads
+# More BlockWorkers requires that you also increase the number of WASM pages
+# else the wasm executor will run out of memory. This also increases substrate-archives
+# Generally, you want 32 pages per block worker
+# memory usage
+block_workers = 8
+# Number of 64KB Heap Pages to allocate for WASM execution
+wasm_pages = 2048
+
+# Maximium number of blocks to load and insert into database at a time. Useful
+# for controlling memory usage
+max_block_load = 100_000
+
+db_host = "localhost"
+db_port = "5432"
+db_user = "postgres"
+# Can also be specified with DB_PASS environment variable
+db_pass = "123"
+
+# Names for the PostgreSQL databases for different chains
+# Each chain will get it's own PostgreSQL database if run with that chain
+# A fully synced Kusama PostgreSQL database (~2.8Million blocks) takes up around 70GB
+# These variables can also be exposed with DB_NAME environment variable
+westend_db = "westend-archive"
+kusama_db = "kusamadb"
+polkadot_db = "polkadotdb"
