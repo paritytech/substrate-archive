@@ -22,6 +22,7 @@ use futures::{stream::TryStreamExt, Stream};
 use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
 use sp_runtime::traits::Block as BlockT;
+use sqlx::prelude::*;
 use sqlx::PgConnection;
 
 /// get missing blocks from relational database as a stream
@@ -77,6 +78,30 @@ pub(crate) async fn missing_blocks_min_max(
     .iter()
     .map(|t| t.0 as u32)
     .collect())
+}
+
+#[derive(FromRow)]
+pub struct Extrinsics {
+    pub block_num: i32,
+    pub hash: Vec<u8>,
+    pub spec: i32,
+    pub ext: Vec<u8>,
+}
+
+///  Returns missing extrinsics from the database.
+///  A missing extrinsic is categorized as an extrinsic that belongs to a block we have indexed in
+///  the `blocks` table, but which is not present in the `extrinsics` table.
+pub(crate) async fn missing_extrinsics(conn: &mut PgConnection) -> Result<Vec<Extrinsics>> {
+    sqlx::query_as!(Extrinsics,
+        "SELECT block_num, hash, spec, ext
+           FROM blocks 
+           WHERE NOT EXISTS (SELECT block_num FROM extrinsics WHERE extrinsics.block_num = blocks.block_num)
+           AND blocks.block_num != 0
+           ORDER BY block_num"
+        )
+        .fetch_all(conn)
+        .await
+        .map_err(Into::into)
 }
 
 pub(crate) async fn max_block(conn: &mut PgConnection) -> Result<Option<u32>> {
@@ -202,9 +227,7 @@ pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
 }
 
 pub(crate) async fn get_metadata(conn: &mut PgConnection, spec: &u32) -> Result<Vec<u8>> {
-    let meta = sqlx::query_as::<_, (Vec<u8>,)>(
-        "SELECT meta FROM metadata WHERE version = $1"
-        )
+    let meta = sqlx::query_as::<_, (Vec<u8>,)>("SELECT meta FROM metadata WHERE version = $1")
         .bind(spec)
         .fetch_one(conn)
         .await?;

@@ -25,7 +25,7 @@ pub mod queries;
 use async_trait::async_trait;
 use batch::Batch;
 use codec::Encode;
-use serde::{Serialize, Deserialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
@@ -193,7 +193,7 @@ impl Insert for Vec<Extrinsic> {
             "#,
             r#"
             ON CONFLICT DO NOTHING
-            "#
+            "#,
         );
         for ext in self.into_iter() {
             batch.reserve(6)?;
@@ -307,24 +307,27 @@ impl Insert for Metadata {
 }
 
 #[async_trait]
-impl<K, V> Insert for FrameEntry<K, V> 
+impl<K, V> Insert for FrameEntry<K, V>
 where
     K: Send + Sync + Serialize + DeserializeOwned,
     V: Send + Sync + Serialize + DeserializeOwned,
 {
     async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
-        let mut query = format!("INSERT INTO {} (block_num, hash, key, value)", self.table().to_string());
+        let mut query = format!(
+            "INSERT INTO {} (block_num, hash, key, value)",
+            self.table().to_string()
+        );
         query.push_str("VALUES ($1, $2, $3, $4)");
         query.push_str("ON CONFLICT DO NOTHING");
         sqlx::query(query.as_str())
-         .bind(self.block_num())
-         .bind(self.hash())
-         .bind(sqlx::types::Json(self.key()))
-         .bind(sqlx::types::Json(self.value()))
-         .execute(conn)
-         .await
-         .map(|d| d.rows_affected())
-         .map_err(Into::into)
+            .bind(self.block_num())
+            .bind(self.hash())
+            .bind(sqlx::types::Json(self.key()))
+            .bind(sqlx::types::Json(self.value()))
+            .execute(conn)
+            .await
+            .map(|d| d.rows_affected())
+            .map_err(Into::into)
     }
 }
 
@@ -339,7 +342,7 @@ mod tests {
         pub free: Balance,
         pub reserved: Balance,
         pub misc_frozen: Balance,
-        pub fee_frozen: Balance
+        pub fee_frozen: Balance,
     }
 
     #[test]
@@ -348,21 +351,29 @@ mod tests {
         let _guard = crate::TestGuard::lock();
         smol::block_on(async move {
             let mut conn = crate::PG_POOL.acquire().await.unwrap();
-            
+
             let acc = TestAccountData::<u32> {
                 free: 32,
                 reserved: 3200,
                 misc_frozen: 320000,
-                fee_frozen: 32000000
+                fee_frozen: 32000000,
             };
-            let test_data = FrameEntry::new(Frame::System, 0, crate::DUMMY_HASH.to_vec(), "SystemAccount".to_string(), Some(acc.clone()));
+            let test_data = FrameEntry::new(
+                Frame::System,
+                0,
+                crate::DUMMY_HASH.to_vec(),
+                "SystemAccount".to_string(),
+                Some(acc.clone()),
+            );
             test_data.insert(&mut conn).await.unwrap();
 
-            let data = sqlx::query_as::<_, (Json<String>, Json<TestAccountData<u32>>)>("SELECT key, value FROM frame_system")
-                .fetch_one(&mut conn)
-                .await
-                .unwrap();
+            let data = sqlx::query_as::<_, (Json<String>, Json<TestAccountData<u32>>)>(
+                "SELECT key, value FROM frame_system",
+            )
+            .fetch_one(&mut conn)
+            .await
+            .unwrap();
             assert_eq!(("SystemAccount".to_string(), acc), (data.0.0, data.1.0));
-         });
+        });
     }
 }

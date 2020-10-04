@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::actors::msg::{VecStorageWrap, VecExtrinsic};
+use crate::actors::msg::{VecExtrinsic, VecStorageWrap};
 use crate::database::{Database, DbConn, StorageModel};
 use crate::error::Result;
 use crate::queries;
-use crate::types::{BatchBlock, Block, Metadata, Storage, Extrinsic};
+use crate::types::{BatchBlock, Block, Extrinsic, Metadata, Storage};
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::time::Duration;

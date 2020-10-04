@@ -36,7 +36,7 @@ pub struct Metadata<B: BlockT> {
     meta: Meta<B>,
 }
 
-impl<B: BlockT + Unpin> Metadata<B> 
+impl<B: BlockT + Unpin> Metadata<B>
 where
     NumberFor<B>: Into<u32>,
 {

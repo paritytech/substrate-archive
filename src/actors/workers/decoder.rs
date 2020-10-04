@@ -18,7 +18,11 @@
 //! Requires that metadata is already present in Postgres.
 
 use super::{database::GetState, ActorPool, VecExtrinsic};
-use crate::{database::queries, error::{Result, Error}, types::Extrinsic};
+use crate::{
+    database::queries,
+    error::{Error, Result},
+    types::Extrinsic,
+};
 use codec::Encode;
 use desub::decoder::Decoder as SubstrateDecoder;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
@@ -60,9 +64,12 @@ where
 
     async fn block_handler(&self, blocks: crate::types::BatchBlock<B>) -> Result<()> {
         if blocks.inner().len() > 100_000 {
-            log::info!("Decoding {} blocks, this could take a minute", blocks.inner().len());
+            log::info!(
+                "Decoding {} blocks, this could take a minute",
+                blocks.inner().len()
+            );
         }
-        
+
         let extrinsics = blocks
             .inner()
             .iter()
@@ -71,9 +78,13 @@ where
                 b.inner.block.extrinsics().iter().map(move |e| {
                     let num: u32 = (*b.inner.block.header().number()).into();
                     let hash = b.inner.block.header().hash().as_ref().to_vec();
-                    let decoded = self.decoder.decode_extrinsic(spec, e.encode().as_slice())
-                        .map_err(|e| Error::DetailedDecodeFail(e, num, hex::encode(hash.clone())))?;
-                    
+                    let decoded = self
+                        .decoder
+                        .decode_extrinsic(spec, e.encode().as_slice())
+                        .map_err(|e| {
+                            Error::DetailedDecodeFail(e, num, hex::encode(hash.clone()))
+                        })?;
+
                     Ok(Extrinsic::new(num, hash, decoded))
                 })
             })
@@ -81,7 +92,6 @@ where
             .collect::<Result<Vec<crate::types::Extrinsic>>>()?;
         self.addr.send(blocks.into()).await?.await;
         self.addr.send(VecExtrinsic(extrinsics).into()).await?.await;
-        // sends blocks + decoded extrinsics to database
         Ok(())
     }
 }

@@ -57,6 +57,8 @@ pub enum Error {
         "the chain given to substrate-archive is different then the running chain. Trying to run {0}, running {1}"
     )]
     MismatchedChains(String, String),
+    #[error("{0}")]
+    IntConversionError(#[from] std::num::TryFromIntError),
     #[error("wasm exists but could not extract runtime version")]
     WasmExecutionError,
     #[error("sending on disconnected channel")]

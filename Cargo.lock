@@ -447,6 +447,30 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
+version = "0.53.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c72a978d268b1d70b0e963217e60fdabd9523a941457a6c42a7315d15c7e89e5"
+dependencies = [
+ "bitflags",
+ "cexpr",
+ "cfg-if",
+ "clang-sys",
+ "clap",
+ "env_logger",
+ "lazy_static",
+ "lazycell",
+ "log 0.4.11",
+ "peeking_take_while",
+ "proc-macro2 1.0.23",
+ "quote 1.0.7",
+ "regex",
+ "rustc-hash",
+ "shlex",
+ "which",
+]
+
+[[package]]
+name = "bindgen"
 version = "0.54.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "66c0bb6167449588ff70803f4127f0684f9063097eca5016f37eb52b92c2cf36"
@@ -1063,6 +1087,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "desub-core"
+version = "0.0.1"
+source = "git+https://github.com/paritytech/desub?branch=debug-decoding#5ecd951b7f99db2a22c978baf0960d097d76a736"
+dependencies = [
+ "derive_more 0.99.10",
+ "dyn-clone",
+ "frame-metadata",
+ "frame-metadatav10",
+ "frame-metadatav8",
+ "frame-metadatav9",
+ "hex",
+ "log 0.4.11",
+ "onig",
+ "pallet-democracy",
+ "pallet-identity",
+ "pallet-indices",
+ "parity-scale-codec",
+ "serde",
+ "serde_json",
+ "sp-core",
+ "sp-runtime",
+ "sp-version",
+ "thiserror",
+]
+
+[[package]]
 name = "digest"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1462,6 +1512,39 @@ dependencies = [
 name = "frame-metadata"
 version = "11.0.0-rc6"
 source = "git+https://github.com/paritytech/substrate?rev=647ad15565d7c35ecf00b73b12cccad9858780b9#647ad15565d7c35ecf00b73b12cccad9858780b9"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-std",
+]
+
+[[package]]
+name = "frame-metadatav10"
+version = "10.0.0"
+source = "git+https://github.com/insipx/substrate-metadata-versions?branch=master#d68966b8e4e68d27dc5abf9462e36d37693b5dea"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-std",
+]
+
+[[package]]
+name = "frame-metadatav8"
+version = "2.0.0"
+source = "git+https://github.com/insipx/substrate-metadata-versions?branch=master#d68966b8e4e68d27dc5abf9462e36d37693b5dea"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-std",
+]
+
+[[package]]
+name = "frame-metadatav9"
+version = "2.0.0"
+source = "git+https://github.com/insipx/substrate-metadata-versions?branch=master#d68966b8e4e68d27dc5abf9462e36d37693b5dea"
 dependencies = [
  "parity-scale-codec",
  "serde",
@@ -3017,7 +3100,7 @@ version = "6.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb5b56f651c204634b936be2f92dbb42c36867e00ff7fe2405591f3b9fa66f09"
 dependencies = [
- "bindgen",
+ "bindgen 0.54.0",
  "cc",
  "glob",
  "libc",
@@ -3587,6 +3670,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "260e51e7efe62b592207e9e13a68e43692a7a279171d6ba57abd208bf23645ad"
 dependencies = [
  "parking_lot 0.11.0",
+]
+
+[[package]]
+name = "onig"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4e723fc996fff1aeab8f62205f3e8528bf498bdd5eadb2784d2d31f30077947"
+dependencies = [
+ "bitflags",
+ "lazy_static",
+ "libc",
+ "onig_sys",
+]
+
+[[package]]
+name = "onig_sys"
+version = "69.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3814583fad89f3c60ae0701d80e87e1fd3028741723deda72d0d4a0ecf0cb0db"
+dependencies = [
+ "bindgen 0.53.3",
+ "cc",
+ "pkg-config",
 ]
 
 [[package]]
@@ -7459,6 +7565,7 @@ dependencies = [
  "bincode",
  "chrono",
  "coil",
+ "desub-core",
  "directories 3.0.1",
  "dotenv",
  "fdlimit",

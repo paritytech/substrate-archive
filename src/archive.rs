@@ -21,6 +21,7 @@ use crate::{
     types,
 };
 
+use desub::TypeDetective;
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
@@ -28,7 +29,6 @@ use serde::de::DeserializeOwned;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_blockchain::Backend as BlockchainBackend;
-use desub::TypeDetective;
 use sp_runtime::{
     generic::BlockId,
     traits::{BlakeTwo256, Block as BlockT, NumberFor},
@@ -129,7 +129,7 @@ impl<B, R, D, T: TypeDetective + 'static> Builder<B, R, D, T> {
         self.chain_spec = Some(spec);
         self
     }
-    
+
     /// Specify types for the runtime
     ///
     /// # Defaults to Desub-Extras default
@@ -226,15 +226,25 @@ where
         let client = Arc::new(client);
         let backend = Arc::new(ReadOnlyBackend::new(db.clone(), true));
         let chain = Self::startup_info(&client, &backend)?;
-        
+
         let types = self.types.expect("Types must be defined");
 
-        let ctx = System::<_, R, _>::new(client, backend, block_workers, pg_url.as_str(), types, chain)?;
+        let ctx = System::<_, R, _>::new(
+            client,
+            backend,
+            block_workers,
+            pg_url.as_str(),
+            types,
+            chain,
+        )?;
         Ok(ctx)
     }
 
     /// Log some general startup info
-    fn startup_info(client: &TArchiveClient<B, R, D>, backend: &ReadOnlyBackend<B>) -> Result<desub::decoder::Chain> {
+    fn startup_info(
+        client: &TArchiveClient<B, R, D>,
+        backend: &ReadOnlyBackend<B>,
+    ) -> Result<desub::decoder::Chain> {
         let last_finalized_block = backend.last_finalized()?;
         let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
         log::info!(
@@ -255,14 +265,14 @@ where
                 );
             }
         }
-    
+
         let chain = match rt.spec_name.to_string().to_ascii_lowercase().as_str() {
             "kusama" | "ksmcc3" | "ksm" => desub::decoder::Chain::Kusama,
             "polkadot" | "dot" => desub::decoder::Chain::Polkadot,
             "westend" => desub::decoder::Chain::Westend,
             "rococo" => desub::decoder::Chain::Rococo,
             "centrifuge" | "centrifuge-chain" => desub::decoder::Chain::Centrifuge,
-            _ => desub::decoder::Chain::Custom(rt.spec_name.to_string()) 
+            _ => desub::decoder::Chain::Custom(rt.spec_name.to_string()),
         };
 
         Ok(chain)

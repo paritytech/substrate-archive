@@ -42,6 +42,7 @@ kvdb = "0.7"
 kvdb-rocksdb = "0.9"
 codec = { package = "parity-scale-codec", version = "1.3", default-features = false, features = ["derive", "full"] }
 hash-db = "0.15"
+desub = { git = "https://github.com/paritytech/desub", branch = "debug-decoding", package = "desub-core" }
 
 # Substrate
 sp-database = { git = "https://github.com/paritytech/substrate", package="sp-database" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }

@@ -27,13 +27,16 @@ pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use super::{
     backend::{ApiAccess, Meta, ReadOnlyBackend},
     database::{queries, Channel, Listener},
-    error::Result,
+    error::{Error, Result},
     sql_block_builder::BlockBuilder as SqlBlockBuilder,
     tasks::Environment,
     types::Archive,
 };
 use coil::Job as _;
-use desub::{TypeDetective, decoder::{Decoder as SubstrateDecoder, Chain}};
+use desub::{
+    decoder::{Chain, Decoder as SubstrateDecoder},
+    TypeDetective,
+};
 use futures::FutureExt;
 use hashbrown::HashSet;
 use sc_client_api::backend;
@@ -41,6 +44,7 @@ use serde::de::DeserializeOwned;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use std::convert::TryInto;
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
@@ -89,6 +93,7 @@ where
     pub fn pg_url(&self) -> &str {
         self.pg_url.as_str()
     }
+
     pub fn meta(&self) -> &Meta<B> {
         &self.meta
     }
@@ -203,7 +208,7 @@ where
     }
 
     async fn main_loop(
-        ctx: ActorContext<B>,
+        mut ctx: ActorContext<B>,
         mut rx: flume::Receiver<()>,
         client: Arc<C>,
     ) -> Result<()> {
@@ -217,6 +222,7 @@ where
         let listener = Self::init_listeners(ctx.pg_url()).await?;
         let mut conn = pool.acquire().await?;
         Self::restore_missing_storage(&mut *conn).await?;
+        Self::restore_missing_extrinsics(&mut *conn, &mut ctx.decoder, &actors.db_pool).await?;
         let env =
             Environment::<B, R, C>::new(ctx.backend().clone(), client, actors.storage.clone());
         let env = AssertUnwindSafe(env);
@@ -237,7 +243,7 @@ where
                         smol::Timer::new(std::time::Duration::from_millis(3600)).await;
                     }
                 },
-                _ =  rx.recv_async() => { 
+                _ =  rx.recv_async() => {
                     break;
                 },
             }
@@ -251,9 +257,8 @@ where
         let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
         let db_pool = actor_pool::ActorPool::new(db, 8).spawn();
         let storage = workers::StorageAggregator::new(db_pool.clone()).spawn();
-        let decoder = workers::Decoder::new(ctx.decoder.clone(), db_pool.clone())
-            .spawn();
-        
+        let decoder = workers::Decoder::new(ctx.decoder.clone(), db_pool.clone()).spawn();
+
         let metadata = workers::Metadata::new(db_pool.clone(), decoder.clone(), ctx.meta().clone())
             .await?
             .spawn();
@@ -274,6 +279,7 @@ where
             actors.storage.send(msg::Die),
             actors.blocks.send(msg::Die),
             actors.metadata.send(msg::Die),
+            actors.decoder.send(msg::Die),
         ];
         futures::future::join_all(fut).await;
         let _ = actors.db_pool.send(msg::Die.into()).await?.await;
@@ -324,6 +330,40 @@ where
         log::info!("Restoring {} missing storage entries", jobs.len());
         coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
         log::info!("Storage restored");
+        Ok(())
+    }
+
+    async fn restore_missing_extrinsics(
+        conn: &mut sqlx::PgConnection,
+        decoder: &mut SubstrateDecoder,
+        addr: &Address<ActorPool<DatabaseActor<B>>>,
+    ) -> Result<()> {
+        log::info!("Restoring missing extrinsics...");
+        let missing_ext = queries::missing_extrinsics(conn).await?;
+        for ext in missing_ext.iter() {
+            let spec: u32 = ext.spec.try_into()?;
+            if !decoder.has_version(&spec) {
+                let meta = queries::get_metadata(conn, &spec).await?;
+                decoder.register_version(spec, meta);
+            }
+        }
+
+        let missing_ext = missing_ext
+            .into_iter()
+            .map(|e| {
+                let num: u32 = e.block_num.try_into()?;
+                let spec: u32 = e.spec.try_into()?;
+                let decoded = decoder
+                    .decode_extrinsic(spec, e.ext.as_slice())
+                    .map_err(|err| {
+                        Error::DetailedDecodeFail(err, num, hex::encode(e.hash.clone()))
+                    })?;
+                Ok(crate::types::Extrinsic::new(num, e.hash, decoded))
+            })
+            .collect::<Result<Vec<crate::types::Extrinsic>>>()?;
+        addr.send(msg::VecExtrinsic(missing_ext).into())
+            .await?
+            .await;
         Ok(())
     }
 }

@@ -15,8 +15,8 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::error::Result;
-use desub::decoder::{GenericExtrinsic, ExtrinsicArgument, GenericSignature};
 use codec::{Decode, Encode};
+use desub::decoder::{ExtrinsicArgument, GenericExtrinsic, GenericSignature};
 use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
@@ -97,7 +97,7 @@ pub struct Extrinsic {
     /// Hash of the block these extrinsics are from
     hash: Vec<u8>,
     /// The actual extrinsics
-    extrinsic: GenericExtrinsic
+    extrinsic: GenericExtrinsic,
 }
 
 impl Extrinsic {
@@ -105,14 +105,14 @@ impl Extrinsic {
         Self {
             block_num,
             hash,
-            extrinsic
+            extrinsic,
         }
     }
 
     pub fn block_num(&self) -> &u32 {
         &self.block_num
     }
-    
+
     pub fn hash(&self) -> &[u8] {
         self.hash.as_slice()
     }
@@ -124,9 +124,9 @@ impl Extrinsic {
     pub fn module(&self) -> &str {
         self.extrinsic.ext_module()
     }
-    
+
     pub fn signature(&self) -> Option<&GenericSignature> {
-        self.extrinsic.signature() 
+        self.extrinsic.signature()
     }
 
     pub fn arguments(&self) -> &[ExtrinsicArgument] {
@@ -175,7 +175,7 @@ impl<Block: BlockT> Storage<Block> {
     }
 }
 
-/// Enum of standard substrate Pallets/Frames 
+/// Enum of standard substrate Pallets/Frames
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Frame {
     System,
@@ -192,7 +192,7 @@ impl std::fmt::Display for Frame {
 /// Holds storage entries that originated in a specific substrate pallet
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FrameEntry<K, V> {
-    /// the Postgres table to insert this value into. Corresponds with the name 
+    /// the Postgres table to insert this value into. Corresponds with the name
     /// of the pallet that this storage value originated in
     table: Frame,
     /// Block number the storage entry is from
@@ -213,33 +213,32 @@ impl<K, V> FrameEntry<K, V> {
             block_num,
             hash,
             key,
-            value 
+            value,
         }
     }
 
-    /// Get a reference to the key of this storage entry 
+    /// Get a reference to the key of this storage entry
     pub fn key(&self) -> &K {
         &self.key
     }
-    
+
     /// Get a reference to the value of this storage entry
     pub fn value(&self) -> Option<&V> {
         self.value.as_ref()
     }
-    
+
     /// Get a reference to the hash, as a slice of bytes, of this storage entry
     pub fn hash(&self) -> &[u8] {
         self.hash.as_slice()
     }
-    
+
     /// get the block number this storage entry originated in
     pub fn block_num(&self) -> u32 {
         self.block_num
     }
-    
+
     /// Get the table to insert this storage entry into
     pub fn table(&self) -> &Frame {
         &self.table
     }
 }
-
