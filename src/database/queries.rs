@@ -22,8 +22,9 @@ use futures::{stream::TryStreamExt, Stream};
 use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
 use sp_runtime::traits::Block as BlockT;
-use sqlx::prelude::*;
+use std::convert::TryInto;
 use sqlx::PgConnection;
+use sqlx::prelude::*;
 
 /// get missing blocks from relational database as a stream
 #[allow(unused)]
@@ -224,6 +225,14 @@ pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
         let b: JobIn<B> = rmp_serde::from_read(r.0.as_slice())?;
         Ok(b.block)
     }))
+}
+
+pub(crate) async fn get_version(conn: &mut PgConnection, block_num: u32) -> Result<u32> {
+    let version = sqlx::query_as::<_, (i32, )>("SELECT spec FROM blocks WHERE block_num = $1")
+        .bind(block_num as i64)
+        .fetch_one(conn)
+        .await?;
+    Ok(version.0.try_into()?)
 }
 
 pub(crate) async fn get_metadata(conn: &mut PgConnection, spec: &u32) -> Result<Vec<u8>> {

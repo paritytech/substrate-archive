@@ -50,6 +50,8 @@ pub enum Error {
     Decode(#[from] desub::Error),
     #[error("Failed to decode item because of `{0}` at block {1} of hash {2}")]
     DetailedDecodeFail(desub::Error, u32, String),
+    #[error("Failed to decode storage because of `{0}` with key {1} and value {2} at block {3}")]
+    DetailedStorageDecodeFail(desub::Error, String, String, u32),
     /// Error occured while serializing/deserializing data
     #[error("Error while decoding job data {0}")]
     De(#[from] rmp_serde::decode::Error),

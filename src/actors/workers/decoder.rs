@@ -94,6 +94,37 @@ where
         self.addr.send(VecExtrinsic(extrinsics).into()).await?.await;
         Ok(())
     }
+
+    async fn storage_handler(&mut self, storage: super::VecStorageWrap<B>) -> Result<()> {
+        let storage = storage.0;
+        if storage.len() > 100_000 {
+            log::info!("Decoding {} storage entries, this could take a minute", storage.len());
+        }
+        let mut conn = self.addr.send(GetState::Conn.into()).await?.await?.conn();
+
+        for entry in storage.into_iter() {
+            let version = queries::get_version(&mut *conn, entry.block_num()).await?;
+            self.update_metadata(&version).await?;
+            let num = entry.block_num();
+            for (key, value) in entry.changes.into_iter() {
+                let value = value.map(|v| v.0);
+                let decoded = self.decoder.decode_storage(version, (key.0.as_slice(), value.as_ref()))
+                    .map_err(|e| {
+                        Error::DetailedStorageDecodeFail(e, hex::encode(key.0.as_slice()), hex_encode_opt(value.as_ref()), num)
+                    })?;
+                println!("{:?}", decoded);
+            }
+        }
+        Ok(())
+    }
+}
+
+fn hex_encode_opt<V: AsRef<[u8]>>(v: Option<V>) -> String {
+    if v.is_some() {
+        hex::encode(v.unwrap())
+    } else {
+        String::from("")
+    }
 }
 
 impl<B: BlockT> Actor for Decoder<B> {}
@@ -124,6 +155,19 @@ where
 {
     async fn handle(&mut self, meta: crate::types::Metadata, _: &mut Context<Self>) {
         if let Err(e) = self.metadata_handler(meta).await {
+            log::error!("{}", e.to_string());
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT> Handler<super::VecStorageWrap<B>> for Decoder<B>
+where
+    NumberFor<B>: Into<u32>,
+    B: BlockT + Unpin
+{
+    async fn handle(&mut self, storage: super::VecStorageWrap<B>, _: &mut Context<Self>) {
+        if let Err(e) = self.storage_handler(storage).await {
             log::error!("{}", e.to_string());
         }
     }

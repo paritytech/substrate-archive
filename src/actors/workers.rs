@@ -29,4 +29,4 @@ pub use database::*;
 pub use storage_aggregator::*;
 
 use super::actor_pool::ActorPool;
-use super::msg::{Die, VecExtrinsic};
+use super::msg::{Die, VecExtrinsic, VecStorageWrap};

@@ -21,11 +21,11 @@ use super::{ActorPool, DatabaseActor};
 use crate::actors::msg::VecStorageWrap;
 use crate::error::Result;
 use crate::types::Storage;
-use sp_runtime::traits::Block as BlockT;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use xtra::prelude::*;
 
 pub struct StorageAggregator<B: BlockT + Unpin> {
-    db: Address<ActorPool<DatabaseActor<B>>>,
+    decoder: Address<super::Decoder<B>>,
     storage: Vec<Storage<B>>,
 }
 
@@ -33,9 +33,9 @@ impl<B: BlockT + Unpin> StorageAggregator<B>
 where
     B::Hash: Unpin,
 {
-    pub fn new(db: Address<ActorPool<DatabaseActor<B>>>) -> Self {
+    pub fn new(decoder: Address<super::Decoder<B>>) -> Self {
         Self {
-            db,
+            decoder,
             storage: Vec::with_capacity(500),
         }
     }
@@ -45,6 +45,7 @@ where
 impl<B: BlockT + Unpin> Actor for StorageAggregator<B>
 where
     B::Hash: Unpin,
+    NumberFor<B>: Into<u32>,
 {
     async fn started(&mut self, ctx: &mut Context<Self>) {
         let addr = ctx.address().expect("Actor just started");
@@ -63,15 +64,14 @@ where
         let len = self.storage.len();
         let storage = std::mem::take(&mut self.storage);
         // insert any storage left in queue
-        let task = self.db.send(VecStorageWrap(storage).into()).await;
+        log::info!("waiting for last storage insert...");
+        let task = self.decoder.send(VecStorageWrap(storage)).await;
         match task {
             Err(e) => {
                 log::info!("{} storage entries will be missing, {:?}", len, e);
             }
-            Ok(v) => {
+            Ok(_) => {
                 log::info!("waiting for last storage insert...");
-                v.await;
-                log::info!("storage inserted");
             }
         }
     }
@@ -86,12 +86,13 @@ impl Message for SendStorage {
 impl<B: BlockT + Unpin> Handler<SendStorage> for StorageAggregator<B>
 where
     B::Hash: Unpin,
+    NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, _: SendStorage, _: &mut Context<Self>) {
         let storage = std::mem::take(&mut self.storage);
         if !storage.is_empty() {
             log::info!("Indexing storage {} bps", storage.len());
-            if let Err(e) = self.db.send(VecStorageWrap(storage).into()).await {
+            if let Err(e) = self.decoder.send(VecStorageWrap(storage)).await {
                 log::error!("{:?}", e);
             }
         }
@@ -102,6 +103,7 @@ where
 impl<B: BlockT + Unpin> Handler<Storage<B>> for StorageAggregator<B>
 where
     B::Hash: Unpin,
+    NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, s: Storage<B>, _: &mut Context<Self>) {
         self.storage.push(s)
@@ -112,6 +114,7 @@ where
 impl<B: BlockT + Unpin> Handler<super::Die> for StorageAggregator<B>
 where
     B::Hash: Unpin,
+    NumberFor<B>: Into<u32>,
 {
     async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
         ctx.stop();

@@ -39,6 +39,7 @@ use xtra::prelude::*;
 pub struct Environment<B, R, C>
 where
     B: BlockT + Unpin,
+    NumberFor<B>: Into<u32>,
     B::Hash: Unpin,
 {
     backend: Arc<Backend<B>>,
@@ -51,6 +52,7 @@ type Env<B, R, C> = AssertUnwindSafe<Environment<B, R, C>>;
 impl<B, R, C> Environment<B, R, C>
 where
     B: BlockT + Unpin,
+    NumberFor<B>: Into<u32>,
     B::Hash: Unpin,
 {
     pub fn new(

@@ -200,8 +200,13 @@ where
         let handle = jod_thread::spawn(move || {
             // block until we receive the message to start
             let _ = rx_start.recv();
-            smol::run(Self::main_loop(ctx, rx_kill, client))?;
-            Ok(())
+            match smol::run(Self::main_loop(ctx, rx_kill, client)) {
+                v => v, 
+                Err(e) => { 
+                    log::error!("{}", e.to_string());
+                    Err(e)
+                }
+            }
         });
 
         (tx_start, tx_kill, handle)
@@ -256,9 +261,9 @@ where
     async fn spawn_actors(ctx: ActorContext<B>) -> Result<Actors<B>> {
         let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
         let db_pool = actor_pool::ActorPool::new(db, 8).spawn();
-        let storage = workers::StorageAggregator::new(db_pool.clone()).spawn();
         let decoder = workers::Decoder::new(ctx.decoder.clone(), db_pool.clone()).spawn();
-
+        let storage = workers::StorageAggregator::new(decoder.clone()).spawn();
+        
         let metadata = workers::Metadata::new(db_pool.clone(), decoder.clone(), ctx.meta().clone())
             .await?
             .spawn();
@@ -364,6 +369,7 @@ where
         addr.send(msg::VecExtrinsic(missing_ext).into())
             .await?
             .await;
+        log::info!("Extrinsics restored");
         Ok(())
     }
 }

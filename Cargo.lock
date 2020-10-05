@@ -1089,7 +1089,7 @@ dependencies = [
 [[package]]
 name = "desub-core"
 version = "0.0.1"
-source = "git+https://github.com/paritytech/desub?branch=debug-decoding#5ecd951b7f99db2a22c978baf0960d097d76a736"
+source = "git+https://github.com/paritytech/desub?branch=debug-decoding#b820b4c6648c4f9d4d67f20def6fd23d1df3fced"
 dependencies = [
  "derive_more 0.99.10",
  "dyn-clone",
@@ -8253,7 +8253,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
 dependencies = [
- "rand 0.7.3",
+ "rand 0.3.23",
 ]
 
 [[package]]
