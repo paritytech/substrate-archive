@@ -54,6 +54,8 @@ pub struct Builder<B, R, D> {
     /// Chain spec describing the chain
     pub chain_spec: Option<Box<dyn ChainSpec>>,
     pub _marker: PhantomData<(B, R, D)>,
+    /// maximimum amount of blocks to index at once
+    pub max_block_load: Option<u32>,
 }
 
 impl<B, R, D> Default for Builder<B, R, D> {
@@ -66,6 +68,7 @@ impl<B, R, D> Default for Builder<B, R, D> {
             wasm_pages: None,
             chain_spec: None,
             _marker: PhantomData,
+            max_block_load: None,
         }
     }
 }
@@ -123,6 +126,15 @@ impl<B, R, D> Builder<B, R, D> {
     /// Defaults to storing metadata in a temporary directory.
     pub fn chain_spec(mut self, spec: Box<dyn ChainSpec>) -> Self {
         self.chain_spec = Some(spec);
+        self
+    }
+
+    /// Set the number of blocks to index at once
+    ///
+    /// # Default
+    /// Defaults to 100_000
+    pub fn max_block_load(mut self, max_block_load: u32) -> Self {
+        self.max_block_load = Some(max_block_load);
         self
     }
 }
@@ -202,6 +214,7 @@ where
         let cache_size = self.cache_size.unwrap_or(128);
         let block_workers = self.block_workers.unwrap_or(num_cpus);
         let wasm_pages = self.wasm_pages.unwrap_or(64 * num_cpus as u64);
+        let max_block_load = self.max_block_load.unwrap_or(100_000);
         let db_path = create_database_path(self.chain_spec)?;
         smol::block_on(crate::migrations::migrate(&pg_url))?;
         let db = Arc::new(backend::util::open_database(
@@ -214,7 +227,13 @@ where
         let backend = Arc::new(ReadOnlyBackend::new(db.clone(), true));
         Self::startup_info(&client, &backend)?;
 
-        let ctx = System::<_, R, _>::new(client, backend, block_workers, pg_url.as_str())?;
+        let ctx = System::<_, R, _>::new(
+            client,
+            backend,
+            block_workers,
+            pg_url.as_str(),
+            max_block_load,
+        )?;
         Ok(ctx)
     }
 
