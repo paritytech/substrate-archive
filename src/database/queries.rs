@@ -76,29 +76,33 @@ pub(crate) async fn missing_blocks(conn: &mut PgConnection) -> Result<Vec<u32>> 
     .collect())
 }
 
+/// Find missing blocks from the relational database between numbers `min` and
+/// MAX(block_num). LIMIT result to length `max_block_load`. The highest effective
+/// value for params `min` and `max_block_load` is i32::MAX.
 pub(crate) async fn missing_blocks_min_max(
     conn: &mut PgConnection,
     min: u32,
+    max_block_load: u32,
 ) -> Result<HashSet<u32>> {
-    let safe_min = i32::try_from(min).unwrap_or(i32::MAX);
-    // TODO review
-    // FROM (SELECT $1 as a, max(block_num) as z FROM blocks) x, generate_series(a, z) results in
-    // compiler error: error returned from database: function generate_series(text, integer) does not exist
-    Ok(sqlx::query_as!(
-        Series,
-        "SELECT generate_series
-        FROM (SELECT max(block_num) as z FROM blocks) x, generate_series($1, z)
+    let safe_max_block_load = i64::try_from(max_block_load).unwrap_or(i64::MAX);
+    let safe_min = i64::try_from(min).unwrap_or(i64::MAX);
+    Ok(sqlx::query_as::<_, (i32,)>(
+        "SELECT missing_numbers
+        FROM (SELECT $1 as min_num, MAX(block_num) AS max_num FROM blocks) minmax, 
+            GENERATE_SERIES(min_num, max_num) AS missing_numbers
         WHERE
-        NOT EXISTS(SELECT id FROM blocks WHERE block_num = generate_series)
-        ORDER BY generate_series ASC
+        NOT EXISTS (SELECT id FROM blocks WHERE block_num = missing_numbers)
+        ORDER BY missing_numbers ASC
+        LIMIT $2
         ",
-        safe_min
     )
+    .bind(safe_min)
+    .bind(safe_max_block_load)
     .fetch_all(conn)
     .await?
     .iter()
     // TODO figure out what to do when none
-    .map(|t| t.generate_series.unwrap() as u32)
+    .map(|t| t.0 as u32)
     .collect())
 }
 

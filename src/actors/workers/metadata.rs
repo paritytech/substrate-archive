@@ -69,7 +69,7 @@ impl<B: BlockT + Unpin> Metadata<B> {
     {
         let hash = blk.inner.block.header().hash();
         self.meta_checker(blk.spec, hash).await?;
-        self.addr.send(blk.into()).await?;
+        self.addr.send(blk.into()).await?.await;
         Ok(())
     }
 
