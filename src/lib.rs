@@ -172,9 +172,9 @@ mod test {
                     TRUNCATE TABLE metadata CASCADE;
                     TRUNCATE TABLE storage CASCADE;
                     TRUNCATE TABLE blocks CASCADE;
-                    TRUNCATE TABLE frame_system CASCADE;
                     TRUNCATE TABLE _background_tasks
                     ",
+                    // TRUNCATE TABLE frame_system CASCADE;
                 )
                 .await
                 .unwrap();

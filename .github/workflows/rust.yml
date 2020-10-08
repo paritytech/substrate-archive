@@ -23,6 +23,8 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
+          env: 
+            SQLX_OFFLINE: 'true'
 
   lints:
     name: Lints
@@ -44,9 +46,13 @@ jobs:
         with:
           command: fmt
           args: --all
+          env: 
+            SQLX_OFFLINE: 'true'
 
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: -- -D warnings
+          env: 
+            SQLX_OFFLINE: 'true'
