@@ -17,8 +17,7 @@
 //! Common Sql queries on Archive Database abstracted into rust functions
 
 use super::BlockModel;
-use crate::error::{Error, Result};
-use futures::{stream::TryStreamExt, Stream};
+use crate::error::Result;
 use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
 use sp_runtime::traits::Block as BlockT;
@@ -63,8 +62,8 @@ pub(crate) async fn missing_blocks_min_max(
     min: u32,
     max_block_load: u32,
 ) -> Result<HashSet<u32>> {
-    let safe_max_block_load = i64::try_from(max_block_load).unwrap_or(i64::MAX);
-    let safe_min = i32::try_from(min).unwrap_or(i32::MAX);
+    let min = i32::try_from(min).unwrap_or(i32::MAX);
+    let max_block_load = i64::try_from(max_block_load).unwrap_or(i64::MAX);
     Ok(sqlx::query_as!(
         Series,
         "SELECT missing_num
@@ -75,8 +74,8 @@ pub(crate) async fn missing_blocks_min_max(
         ORDER BY missing_num ASC
         LIMIT $2
         ",
-        safe_min,
-        safe_max_block_load
+        min,
+        max_block_load
     )
     .fetch_all(conn)
     .await?
@@ -87,11 +86,10 @@ pub(crate) async fn missing_blocks_min_max(
 
 /// Get the maximium block number from the relational database
 pub(crate) async fn max_block(conn: &mut PgConnection) -> Result<Option<u32>> {
-    let res = sqlx::query_as!(Max, "SELECT MAX(block_num) FROM blocks")
+    let max = sqlx::query_as!(Max, "SELECT MAX(block_num) FROM blocks")
         .fetch_one(conn)
         .await?;
-
-    Ok(res.max.map(|v| v as u32))
+    Ok(max.max.map(|v| v as u32))
 }
 
 /// Will get blocks such that they exist in the `blocks` table but they
@@ -157,11 +155,14 @@ pub(crate) async fn get_full_block_by_num(
 
 /// Check if the runtime version identified by `spec` exists in the relational database
 pub(crate) async fn check_if_meta_exists(spec: u32, conn: &mut PgConnection) -> Result<bool> {
-    let safe_spec = i32::try_from(spec).unwrap_or(i32::MAX);
+    let spec = match i32::try_from(spec) {
+        Err(_) => return Ok(false),
+        Ok(n) => n,
+    };
     let does_exist = sqlx::query_as!(
         DoesExist,
         r#"SELECT EXISTS(SELECT version FROM metadata WHERE version = $1)"#,
-        safe_spec
+        spec
     )
     .fetch_one(conn)
     .await?;
@@ -187,14 +188,11 @@ pub(crate) async fn has_blocks<B: BlockT>(
     nums: &[u32],
     conn: &mut PgConnection,
 ) -> Result<Vec<u32>> {
-    let safe_nums: Vec<i32> = nums
-        .iter()
-        .map(|n| i32::try_from(*n).unwrap_or(i32::MAX))
-        .collect();
+    let nums: Vec<i32> = nums.iter().filter_map(|n| i32::try_from(*n).ok()).collect();
     Ok(sqlx::query_as!(
         BlockNum,
         "SELECT block_num FROM blocks WHERE block_num = ANY ($1)",
-        &safe_nums,
+        &nums,
     )
     .fetch_all(conn)
     .await?

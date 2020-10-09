@@ -174,7 +174,6 @@ mod test {
                     TRUNCATE TABLE blocks CASCADE;
                     TRUNCATE TABLE _background_tasks
                     ",
-                    // TRUNCATE TABLE frame_system CASCADE;
                 )
                 .await
                 .unwrap();
