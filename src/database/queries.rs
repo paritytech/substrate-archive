@@ -55,45 +55,6 @@ struct Bytes {
     data: Vec<u8>,
 }
 
-///  Get the `block_num` of missing blocks from relational database as a stream
-#[allow(unused)]
-pub(crate) fn missing_blocks_stream(
-    conn: &mut PgConnection,
-) -> impl Stream<Item = Result<Series>> + Send + '_ {
-    sqlx::query_as!(
-        Series,
-        "SELECT missing_num
-        FROM (SELECT 0 as zero, MAX(block_num) as max FROM blocks) zero_to_max, 
-            GENERATE_SERIES(zero, max) as missing_num
-        WHERE
-        NOT EXISTS(SELECT id FROM blocks WHERE block_num = missing_num)
-        ORDER BY missing_num ASC
-        ",
-    )
-    .fetch(conn)
-    .map_err(Error::from)
-}
-
-/// Get the `block_num` of missing blocks from relational database
-#[allow(unused)]
-pub(crate) async fn missing_blocks(conn: &mut PgConnection) -> Result<Vec<u32>> {
-    Ok(sqlx::query_as!(
-        Series,
-        "SELECT missing_num
-        FROM (SELECT 0 as zero, MAX(block_num) as max FROM blocks) zero_to_max, 
-            GENERATE_SERIES(zero, max) as missing_num
-        WHERE
-        NOT EXISTS(SELECT id FROM blocks WHERE block_num = missing_num)
-        ORDER BY missing_num ASC
-        ",
-    )
-    .fetch_all(conn)
-    .await?
-    .iter()
-    .map(|t| t.missing_num.unwrap() as u32)
-    .collect())
-}
-
 /// Get missing blocks from the relational database between numbers `min` and
 /// MAX(block_num). LIMIT result to length `max_block_load`. The highest effective
 /// value for params `min` is i32::MAX.
