@@ -56,7 +56,7 @@ struct Bytes {
 
 /// Get missing blocks from the relational database between numbers `min` and
 /// MAX(block_num). LIMIT result to length `max_block_load`. The highest effective
-/// value for params `min` is i32::MAX.
+/// value for `min` is i32::MAX.
 pub(crate) async fn missing_blocks_min_max(
     conn: &mut PgConnection,
     min: u32,
