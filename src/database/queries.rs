@@ -252,7 +252,7 @@ pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>> {
         .collect())
 }
 
-/// Get all the blocks in `_background_tasks` WHERE job_type = 'execute_block'
+/// Get all the blocks queued for execution in the background task queue.
 pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
     conn: &mut PgConnection,
 ) -> Result<impl Iterator<Item = Result<B>>> {
