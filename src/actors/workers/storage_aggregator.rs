@@ -51,7 +51,7 @@ where
         smol::Task::spawn(async move {
             loop {
                 smol::Timer::new(std::time::Duration::from_secs(1)).await;
-                if let Err(_) = addr.send(SendStorage).await {
+                if addr.send(SendStorage).await.is_err() {
                     break;
                 }
             }
