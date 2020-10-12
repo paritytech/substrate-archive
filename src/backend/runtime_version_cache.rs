@@ -61,11 +61,11 @@ impl<B: BlockT> RuntimeVersionCache<B> {
         // remove some unnecessary host functions
         let funs = sp_io::SubstrateHostFunctions::host_functions()
             .into_iter()
-            .filter(|f| !(f.name().matches("wasm_tracing").count() > 0))
-            .filter(|f| !(f.name().matches("ext_offchain").count() > 0))
-            .filter(|f| !(f.name().matches("ext_storage").count() > 0))
-            .filter(|f| !(f.name().matches("ext_default_child_storage").count() > 0))
-            .filter(|f| !(f.name().matches("ext_logging").count() > 0))
+            .filter(|f| f.name().matches("wasm_tracing").count() == 0)
+            .filter(|f| f.name().matches("ext_offchain").count() == 0)
+            .filter(|f| f.name().matches("ext_storage").count() == 0)
+            .filter(|f| f.name().matches("ext_default_child_storage").count() == 0)
+            .filter(|f| f.name().matches("ext_logging").count() == 0)
             .collect::<Vec<_>>();
 
         let exec = WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(128), funs, 1);
@@ -85,11 +85,11 @@ impl<B: BlockT> RuntimeVersionCache<B> {
         let code = self
             .backend
             .storage(hash, well_known_keys::CODE)
-            .ok_or(Error::from("storage does not exist"))?;
+            .ok_or_else(|| Error::from("storage does not exist"))?;
 
         let code_hash = crate::util::make_hash(&code);
         if self.versions.load().contains_key(&code_hash) {
-            Ok(self.versions.load().get(&code_hash).map(|v| v.clone()))
+            Ok(self.versions.load().get(&code_hash).cloned())
         } else {
             log::debug!("new code hash: {:#X?}", code_hash);
             let mut ext: BasicExternalities = BasicExternalities::default();
@@ -101,10 +101,10 @@ impl<B: BlockT> RuntimeVersionCache<B> {
             log::debug!("Registered New Runtime Version: {:?}", v);
             self.versions.rcu(|cache| {
                 let mut cache = HashMap::clone(&cache);
-                cache.insert(code_hash, v.clone().into());
+                cache.insert(code_hash, v.clone());
                 cache
             });
-            Ok(Some(v.into()))
+            Ok(Some(v))
         }
     }
 
@@ -150,17 +150,17 @@ impl<B: BlockT> RuntimeVersionCache<B> {
         } else if blocks.len() == 1 {
             let version = self
                 .get(blocks[0].block.header().hash())?
-                .ok_or(Error::from("Version not found"))?;
+                .ok_or_else(|| Error::from("Version not found"))?;
             versions.push(VersionRange::new(&blocks[0], &blocks[0], version));
             return Ok(());
         }
 
         let first = self
             .get(blocks.first().unwrap().block.header().hash())?
-            .ok_or(Error::from("Version not found"))?;
+            .ok_or_else(|| Error::from("Version not found"))?;
         let last = self
             .get(blocks.last().unwrap().block.header().hash())?
-            .ok_or(Error::from("Version not found"))?;
+            .ok_or_else(|| Error::from("Version not found"))?;
 
         if first.spec_version != last.spec_version && blocks.len() > 2 {
             let half = blocks.len() / 2;

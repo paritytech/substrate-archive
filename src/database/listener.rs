@@ -121,7 +121,7 @@ where
         let channels = self
             .channels
             .iter()
-            .map(|c| String::from(c))
+            .map(String::from)
             .collect::<Vec<String>>();
         listener
             .listen_all(channels.iter().map(|s| s.as_ref()))
@@ -164,9 +164,7 @@ where
             // in a reasonable amount of time
             let timeout = smol::Timer::new(std::time::Duration::from_secs(1));
             futures::select! {
-                _ = timeout.fuse() => {
-                    return;
-                },
+                _ = timeout.fuse() => {},
                 notifs = listener.collect::<Vec<_>>().fuse() => {
                     for msg in notifs {
                         self.handle_listen_event(msg.unwrap(), &mut conn).await;

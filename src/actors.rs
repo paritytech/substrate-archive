@@ -153,7 +153,7 @@ where
         max_block_load: u32,
     ) -> Result<Self> {
         let context = ActorContext::new(
-            backend.clone(),
+            backend,
             client_api.clone(),
             workers,
             pg_url.to_string(),
@@ -292,13 +292,12 @@ where
             .map(|b| Ok((*b?.header().number()).into()))
             .collect::<Result<_>>()?;
         let mut missing_storage_blocks = queries::blocks_storage_intersection(conn).await?;
-        let missing_storage_nums: HashSet<u32> = missing_storage_blocks
+        let difference: HashSet<u32> = missing_storage_blocks
             .iter()
             .map(|b| b.block_num as u32)
-            .collect();
-        let difference: HashSet<u32> = missing_storage_nums
+            .collect::<HashSet<u32>>()
             .difference(&blocks)
-            .map(|b| *b)
+            .copied()
             .collect();
         missing_storage_blocks.retain(|b| difference.contains(&(b.block_num as u32)));
         let jobs: Vec<crate::tasks::execute_block::Job<B, R, C>> =

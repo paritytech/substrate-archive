@@ -141,10 +141,8 @@ pub fn read_db<Block>(
 where
     Block: BlockT,
 {
-    block_id_to_lookup_key(db, col_index, id).and_then(|key| match key {
-        Some(key) => Ok(db.get(col, key.as_ref())),
-        None => Ok(None),
-    })
+    block_id_to_lookup_key(db, col_index, id)
+        .map(|key| key.and_then(|key| db.get(col, key.as_ref())))
 }
 
 pub fn block_id_to_lookup_key<Block>(
