@@ -63,7 +63,7 @@ Read the [Doc](https://github.com/paritytech/substrate-archive/blob/master/CONTR
 ## Documentation
 
 You can build the documentation for this crate by running `cargo doc` in the `archive` directory.
-More Docs [here]( https://github.com/paritytech/substrate-archive/wiki)
+More Docs [here](https://github.com/paritytech/substrate-archive/wiki)
 
 ## Troubleshooting
 
