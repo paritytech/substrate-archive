@@ -292,11 +292,10 @@ where
             .map(|b| Ok((*b?.header().number()).into()))
             .collect::<Result<_>>()?;
         let mut missing_storage_blocks = queries::blocks_storage_intersection(conn).await?;
-        let missing_storage_nums: HashSet<u32> = missing_storage_blocks
+        let difference: HashSet<u32> = missing_storage_blocks
             .iter()
             .map(|b| b.block_num as u32)
-            .collect();
-        let difference: HashSet<u32> = missing_storage_nums
+            .collect::<HashSet<u32>>()
             .difference(&blocks)
             .copied()
             .collect();
