@@ -334,8 +334,8 @@
       ]
     }
   },
-  "f1a15dd2b69242061774eb65c073174b671182a43ca6839246f5b6e6039ae46b": {
-    "query": "SELECT missing_num\n        FROM (SELECT MAX(block_num) AS max_num FROM blocks) max, \n            GENERATE_SERIES($1, max_num) AS missing_num\n        WHERE\n        NOT EXISTS (SELECT id FROM blocks WHERE block_num = missing_num)\n        ORDER BY missing_num ASC\n        LIMIT $2\n        ",
+  "5f87852941e1c1850206ced095d9f6e66ff7060dad484232bb01955c4159118d": {
+    "query": "SELECT missing_num\n        FROM (SELECT MAX(block_num) AS max_num FROM blocks) max,\n            GENERATE_SERIES($1, max_num) AS missing_num\n        WHERE\n        NOT EXISTS (SELECT id FROM blocks WHERE block_num = missing_num)\n        ORDER BY missing_num ASC\n        LIMIT $2\n        ",
     "describe": {
       "columns": [
         {
