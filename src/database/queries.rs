@@ -67,7 +67,7 @@ pub(crate) async fn missing_blocks_min_max(
     Ok(sqlx::query_as!(
         Series,
         "SELECT missing_num
-        FROM (SELECT MAX(block_num) AS max_num FROM blocks) max, 
+        FROM (SELECT MAX(block_num) AS max_num FROM blocks) max,
             GENERATE_SERIES($1, max_num) AS missing_num
         WHERE
         NOT EXISTS (SELECT id FROM blocks WHERE block_num = missing_num)
