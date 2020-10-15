@@ -1,0 +1,51 @@
+[package]
+name = "substrate-archive-backend"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+# External
+parking_lot = "0.10"
+futures = { version = "0.3" }
+hashbrown = { version = "0.8", features = ["inline-more"] }
+arc-swap = "0.4.7"
+log = "0.4"
+xtra = { version = "0.5.0-beta.4", features = ["with-smol-0_3"] }
+
+
+# Parity
+codec = { package = "parity-scale-codec", version = "1.3", default-features = false, features = ["derive", "full"] }
+kvdb = "0.7"
+kvdb-rocksdb = "0.9"
+hash-db = "0.15"
+parity-util-mem = "0.7"
+
+
+# Substrate
+sp-database = { git = "https://github.com/paritytech/substrate", package="sp-database" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", package = "sp-runtime" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", package = "sp-blockchain" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", package = "sc-client-api" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-core = { git = "https://github.com/paritytech/substrate", package = "sp-core" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", package = "sp-state-machine" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-storage = { git = "https://github.com/paritytech/substrate", package = "sp-storage" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-trie = { git = "https://github.com/paritytech/substrate", package = "sp-trie" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-version = {  git = "https://github.com/paritytech/substrate", package = "sp-version" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sc-executor = { git = "https://github.com/paritytech/substrate", package = "sc-executor" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-api = { git = "https://github.com/paritytech/substrate", package = "sp-api" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", package = "sp-externalities" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", package = "sp-block-builder" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-io = { git = "https://github.com/paritytech/substrate", package = "sp-io" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+
+# Workspace
+substrate-archive-common = { path = '../substrate-archive-common' }
+
+# # Optional
+# fern = { version = "0.6", features = ["colored"], optional = true }
+# chrono = { version = "0.4", optional = true }
+
+[features]
+default = ["logging"]
+logging = ["substrate-archive-common/logging"]
+test_rocksdb = []
