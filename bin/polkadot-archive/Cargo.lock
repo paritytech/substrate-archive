@@ -7482,11 +7482,9 @@ dependencies = [
  "arc-swap",
  "async-executor 0.1.2",
  "async-trait",
- "chrono",
  "coil",
  "directories 3.0.1",
  "fdlimit",
- "fern",
  "flume",
  "futures 0.3.5",
  "hash-db",
@@ -7526,7 +7524,64 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "sqlx",
+ "substrate-archive-backend",
+ "substrate-archive-common",
  "tempfile",
+ "thiserror",
+ "xtra",
+]
+
+[[package]]
+name = "substrate-archive-backend"
+version = "0.1.0"
+dependencies = [
+ "arc-swap",
+ "futures 0.3.5",
+ "hash-db",
+ "hashbrown 0.8.2",
+ "kvdb",
+ "kvdb-rocksdb",
+ "log 0.4.11",
+ "parity-scale-codec",
+ "parity-util-mem",
+ "parking_lot 0.10.2",
+ "sc-client-api",
+ "sc-executor",
+ "sp-api",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-core",
+ "sp-database",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-trie",
+ "sp-version",
+ "substrate-archive-common",
+ "xtra",
+]
+
+[[package]]
+name = "substrate-archive-common"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "coil",
+ "directories 3.0.1",
+ "fern",
+ "flume",
+ "log 0.4.11",
+ "parity-scale-codec",
+ "rayon",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "sp-blockchain",
+ "sp-runtime",
+ "sp-storage",
+ "sqlx",
  "thiserror",
  "xtra",
 ]

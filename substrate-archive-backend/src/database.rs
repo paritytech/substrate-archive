@@ -21,9 +21,10 @@ use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use substrate_archive_common::error::Result;
-
-pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
+use substrate_archive_common::{
+    database::{KeyValuePair, ReadOnlyDatabaseTrait},
+    error::Result,
+};
 
 pub struct Config {
     /// track how many times try_catch_up_with_primary is called
@@ -56,7 +57,16 @@ impl ReadOnlyDatabase {
         })
     }
 
-    pub fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
+    pub fn catch_up_count(&self) -> Option<usize> {
+        if !self.track_catchups {
+            log::warn!("catchup tracking is not enabled");
+            None
+        } else {
+            Some(self.catch_counter.fetch_add(0, Ordering::Relaxed))
+        }
+    }
+
+    fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
         match self.inner.get(col, key) {
             Ok(v) => v,
             Err(e) => {
@@ -75,26 +85,23 @@ impl ReadOnlyDatabase {
             }
         }
     }
+}
 
-    pub fn iter<'a>(&'a self, col: u32) -> impl Iterator<Item = KeyValuePair> + 'a {
-        self.inner.iter(col)
+impl ReadOnlyDatabaseTrait for ReadOnlyDatabase {
+    fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
+        self.get(col, key)
     }
 
-    pub fn try_catch_up_with_primary(&self) -> Result<()> {
+    fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
+        Box::new(self.inner.iter(col))
+    }
+
+    fn try_catch_up_with_primary(&self) -> Result<()> {
         if self.track_catchups {
             self.catch_counter.fetch_add(1, Ordering::Relaxed);
         }
         self.inner.try_catch_up_with_primary()?;
         Ok(())
-    }
-
-    pub fn catch_up_count(&self) -> Option<usize> {
-        if !self.track_catchups {
-            log::warn!("catchup tracking is not enabled");
-            None
-        } else {
-            Some(self.catch_counter.fetch_add(0, Ordering::Relaxed))
-        }
     }
 }
 

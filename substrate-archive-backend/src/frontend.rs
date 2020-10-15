@@ -19,7 +19,6 @@ mod executor;
 
 pub use self::client::{Client, GetMetadata, GetRuntimeVersion};
 use self::executor::ArchiveExecutor;
-use crate::database::ReadOnlyDatabase;
 use futures::{task::SpawnExt, Future};
 use sc_client_api::{
     execution_extensions::{ExecutionExtensions, ExecutionStrategies},
@@ -30,6 +29,7 @@ use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
+use substrate_archive_common::database::ReadOnlyDatabaseTrait;
 use substrate_archive_common::error::Error as ArchiveError;
 
 use super::{ReadOnlyBackend, RuntimeApiCollection};
@@ -43,7 +43,7 @@ type TFullCallExecutor<TBl, TExecDisp> =
     self::executor::ArchiveExecutor<ReadOnlyBackend<TBl>, NativeExecutor<TExecDisp>>;
 
 pub fn runtime_api<Block, Runtime, Dispatch>(
-    db: Arc<ReadOnlyDatabase>,
+    db: Arc<dyn ReadOnlyDatabaseTrait>,
     block_workers: usize,
     wasm_pages: u64,
 ) -> Result<TArchiveClient<Block, Runtime, Dispatch>, ArchiveError>

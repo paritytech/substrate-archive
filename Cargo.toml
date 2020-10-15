@@ -4,3 +4,7 @@ members = [
   "substrate-archive-backend",
   "substrate-archive-common"
 ]
+exclude = [
+  "bin/polkadot-archive",
+  "bin/node-template-archive"
+]

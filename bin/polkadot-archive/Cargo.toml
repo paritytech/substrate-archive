@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-substrate-archive = { path = "../../", features = ["logging"] }
+substrate-archive = { path = "../../substrate-archive", features = ["logging"] }
 polkadot-service = { package = "polkadot-service", git = "https://github.com/insipx/polkadot", branch = "substrate-archive" }
 sc-chain-spec = { package = "sc-chain-spec", git = "https://github.com/paritytech/substrate", rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
 clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }

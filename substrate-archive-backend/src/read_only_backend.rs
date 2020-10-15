@@ -30,8 +30,8 @@ mod state_backend;
 
 pub use self::state_backend::TrieState;
 use self::state_backend::{DbState, StateVault};
-use super::database::ReadOnlyDatabase;
 use super::util::columns;
+use substrate_archive_common::database::ReadOnlyDatabaseTrait;
 
 use codec::Decode;
 use hash_db::Prefix;
@@ -44,10 +44,11 @@ use sp_runtime::{
     Justification,
 };
 use std::{convert::TryInto, sync::Arc};
+// use substrate_archive_common::database::{KeyValuePair, ReadOnlyDatabaseTrait};
 use substrate_archive_common::error::Result;
 
 pub struct ReadOnlyBackend<Block: BlockT> {
-    db: Arc<ReadOnlyDatabase>,
+    db: Arc<dyn ReadOnlyDatabaseTrait>,
     storage: Arc<StateVault<Block>>,
 }
 
@@ -55,13 +56,13 @@ impl<Block> ReadOnlyBackend<Block>
 where
     Block: BlockT,
 {
-    pub fn new(db: Arc<ReadOnlyDatabase>, prefix_keys: bool) -> Self {
+    pub fn new(db: Arc<dyn ReadOnlyDatabaseTrait>, prefix_keys: bool) -> Self {
         let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
         Self { db, storage: vault }
     }
 
     /// get a reference to the backing database
-    pub fn backing_db(&self) -> Arc<ReadOnlyDatabase> {
+    pub fn backing_db(&self) -> Arc<dyn ReadOnlyDatabaseTrait> {
         self.db.clone()
     }
 
@@ -93,7 +94,7 @@ where
         // db / root / key
         // flesh it out
         let header = super::util::read_header::<Block>(
-            &self.db,
+            self.db.clone(),
             columns::KEY_LOOKUP,
             columns::HEADER,
             BlockId::Hash(hash),
