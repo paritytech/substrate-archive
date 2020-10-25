@@ -41,10 +41,6 @@ sp-io = { git = "https://github.com/paritytech/substrate", package = "sp-io" , r
 # Workspace
 substrate-archive-common = { path = '../substrate-archive-common' }
 
-# # Optional
-# fern = { version = "0.6", features = ["colored"], optional = true }
-# chrono = { version = "0.4", optional = true }
-
 [features]
 default = ["logging"]
 logging = ["substrate-archive-common/logging"]

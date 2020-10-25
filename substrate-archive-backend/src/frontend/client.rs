@@ -21,6 +21,7 @@
 //! It's recommended to use the backend (ReadOnlyBackend) for anything that requires getting blocks, querying
 //! storage, or similar operations. Client usage should be reserved for calling into the Runtime
 
+use crate::{ReadOnlyBackend, TrieState};
 use codec::{Decode, Encode};
 use sc_client_api::{
     backend::Backend as _, execution_extensions::ExecutionExtensions, CallExecutor,
@@ -38,8 +39,6 @@ use sp_runtime::{
 };
 use std::{marker::PhantomData, panic::UnwindSafe, sync::Arc};
 use substrate_archive_common::error::{Error, Result};
-
-use crate::{ReadOnlyBackend, TrieState};
 
 // FIXME: should use the trait sp_version::GetRuntimeVersion
 // but that returns a String for an error

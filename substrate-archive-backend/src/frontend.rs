@@ -16,7 +16,6 @@
 
 mod client;
 mod executor;
-
 pub use self::client::{Client, GetMetadata, GetRuntimeVersion};
 use self::executor::ArchiveExecutor;
 use futures::{task::SpawnExt, Future};

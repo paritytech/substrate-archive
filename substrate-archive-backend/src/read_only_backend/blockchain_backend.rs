@@ -47,8 +47,13 @@ impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
     }
 
     fn justification(&self, id: BlockId<Block>) -> ChainResult<Option<Justification>> {
-        let res = util::read_db::<Block>(self.db.clone(), columns::KEY_LOOKUP, columns::JUSTIFICATION, id)
-            .map_err(|e| BlockchainError::Msg(e.to_string()))?;
+        let res = util::read_db::<Block>(
+            self.db.clone(),
+            columns::KEY_LOOKUP,
+            columns::JUSTIFICATION,
+            id,
+        )
+        .map_err(|e| BlockchainError::Msg(e.to_string()))?;
 
         match res {
             Some(justification) => match Decode::decode(&mut &justification[..]) {
@@ -100,8 +105,8 @@ impl<Block: BlockT> HeaderBackend<Block> for ReadOnlyBackend<Block> {
 
     fn info(&self) -> Info<Block> {
         // TODO: Remove expect
-        let meta =
-            util::read_meta::<Block>(self.db.clone(), columns::HEADER).expect("Metadata could not be read");
+        let meta = util::read_meta::<Block>(self.db.clone(), columns::HEADER)
+            .expect("Metadata could not be read");
         log::warn!("Leaves are not counted on the Read Only Backend!");
         Info {
             best_hash: meta.best_hash,

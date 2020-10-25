@@ -26,7 +26,6 @@ use sqlx::postgres::{PgConnection, PgListener, PgNotification};
 use sqlx::prelude::*;
 use std::pin::Pin;
 use substrate_archive_common::error::Result;
-// use super::BlockModel;
 
 /// A notification from Postgres about a new row
 #[derive(PartialEq, Debug, Deserialize)]

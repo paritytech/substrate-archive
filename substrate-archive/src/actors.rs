@@ -342,20 +342,12 @@ where
     fn shutdown(self) -> Result<()> {
         let _ = self.kill_tx.send(());
         self.handle.join()?;
-        // TODO figure out if this is neccesary
-        // if let Some(c) = self.context.backend().backing_db().catch_up_count() {
-        //     log::info!("Caught Up {} times", c);
-        // }
         Ok(())
     }
 
     fn boxed_shutdown(self: Box<Self>) -> Result<()> {
         let _ = self.kill_tx.send(());
         self.handle.join()?;
-        // TODO figure out if this is neccesary
-        // if let Some(c) = self.context.backend().backing_db().catch_up_count() {
-        //     log::info!("Caught Up {} times", c);
-        // }
         Ok(())
     }
 

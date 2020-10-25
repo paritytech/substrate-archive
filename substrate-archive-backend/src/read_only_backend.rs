@@ -31,8 +31,6 @@ mod state_backend;
 pub use self::state_backend::TrieState;
 use self::state_backend::{DbState, StateVault};
 use super::util::columns;
-use substrate_archive_common::database::ReadOnlyDatabaseTrait;
-
 use codec::Decode;
 use hash_db::Prefix;
 use kvdb::DBValue;
@@ -44,7 +42,7 @@ use sp_runtime::{
     Justification,
 };
 use std::{convert::TryInto, sync::Arc};
-// use substrate_archive_common::database::{KeyValuePair, ReadOnlyDatabaseTrait};
+use substrate_archive_common::database::ReadOnlyDatabaseTrait;
 use substrate_archive_common::error::Result;
 
 pub struct ReadOnlyBackend<Block: BlockT> {

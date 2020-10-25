@@ -1,3 +1,21 @@
+// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// This file is part of substrate-archive.
+
+// substrate-archive is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// substrate-archive is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
+
+//! logging and general utilities
+
 #[cfg(feature = "logging")]
 use fern::colors::{Color, ColoredLevelConfig};
 use log::*;
@@ -80,7 +98,6 @@ macro_rules! p_err {
     };
 }
 
-#[allow(unused)]
 fn format_opt(file: Option<String>) -> String {
     match file {
         None => "".to_string(),
@@ -89,7 +106,6 @@ fn format_opt(file: Option<String>) -> String {
 }
 
 /// get the path to a local substrate directory where we can save data
-// #[allow(unused)]
 pub fn substrate_dir() -> PathBuf {
     if let Some(base_dirs) = dirs::BaseDirs::new() {
         let mut path = base_dirs.data_local_dir().to_path_buf();
@@ -102,7 +118,6 @@ pub fn substrate_dir() -> PathBuf {
 
 /// create an arbitrary directory on disk
 /// panics if it fails because of anything other than the directory already exists
-#[allow(unused)]
 pub fn create_dir(path: &Path) {
     if let Err(e) = std::fs::create_dir_all(path) {
         match e.kind() {
