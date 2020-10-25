@@ -14,17 +14,13 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{ActorPool, DatabaseActor, GetState, Metadata};
-use crate::{
-    actors::ActorContext,
-    backend::{ReadOnlyBackend, RuntimeVersionCache},
-    database::queries,
-    Error::Disconnected,
-};
+use crate::{actors::ActorContext, database::queries, Error::Disconnected};
 use sp_runtime::{
     generic::SignedBlock,
     traits::{Block as BlockT, Header as _, NumberFor},
 };
 use std::sync::Arc;
+use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
 use substrate_archive_common::{
     error::Result,
     types::{BatchBlock, Block},

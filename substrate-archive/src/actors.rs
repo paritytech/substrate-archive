@@ -23,7 +23,6 @@ pub use self::actor_pool::ActorPool;
 use self::workers::GetState;
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use super::{
-    backend::{ApiAccess, Meta, ReadOnlyBackend},
     database::{queries, Channel, Listener},
     sql_block_builder::BlockBuilder as SqlBlockBuilder,
     tasks::Environment,
@@ -40,6 +39,7 @@ use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
 pub use substrate_archive_common::{error::Result, msg, msg::Die};
 use xtra::prelude::*;
 

@@ -14,12 +14,13 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{database::GetState, ActorPool};
-use crate::{backend::Meta, database::DbConn, queries};
+use crate::{database::DbConn, queries};
 use itertools::Itertools;
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, Header as _, NumberFor},
 };
+use substrate_archive_backend::Meta;
 use substrate_archive_common::{
     error::Result,
     types::{BatchBlock, Block, Metadata as MetadataT},

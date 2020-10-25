@@ -17,10 +17,7 @@
 //! Background tasks that take their parameters from Postgres, and are either
 //! executed on a threadpool or spaned onto the executor.
 
-use super::{
-    actors::StorageAggregator,
-    backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend},
-};
+use super::actors::StorageAggregator;
 use sc_client_api::backend;
 use serde::de::DeserializeOwned;
 use sp_api::{ApiExt, ConstructRuntimeApi};
@@ -32,6 +29,7 @@ use sp_runtime::{
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use substrate_archive_backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend};
 use substrate_archive_common::types::Storage;
 use xtra::prelude::*;
 

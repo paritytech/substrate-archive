@@ -18,22 +18,27 @@
 
 mod block_exec;
 mod database;
-pub mod frontend;
+mod frontend;
 mod read_only_backend;
 mod runtime_version_cache;
-pub mod util;
-
-// re-exports
-pub use self::block_exec::{BlockChanges, BlockExecutor};
-pub use self::frontend::{GetMetadata, GetRuntimeVersion, TArchiveClient};
-pub use self::read_only_backend::{ReadOnlyBackend, TrieState};
-pub use self::runtime_version_cache::{RuntimeVersionCache, VersionRange};
-pub use self::{database::ReadOnlyDatabase, frontend::runtime_api, util::open_database};
-
+mod util;
+use self::{
+    frontend::{GetMetadata, GetRuntimeVersion},
+    read_only_backend::TrieState,
+};
 use sc_client_api::Backend as BackendT;
 use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
+
+// re-exports
+pub use self::{
+    block_exec::BlockExecutor,
+    frontend::{runtime_api, TArchiveClient},
+    read_only_backend::ReadOnlyBackend,
+    runtime_version_cache::RuntimeVersionCache,
+    util::open_database,
+};
 
 #[cfg(feature = "logging")]
 pub use substrate_archive_common::util::init_logger;
