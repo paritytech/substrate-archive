@@ -105,7 +105,12 @@ fn format_opt(file: Option<String>) -> String {
     }
 }
 
-/// get the path to a local substrate directory where we can save data
+/// Get the path to a local substrate directory where we can save data.
+/// Platform | Value | Example
+/// -- | -- | --
+/// Linux | $XDG_DATA_HOME or $HOME/.local/share/substrate_archive | /home/alice/.local/share/substrate_archive/
+/// macOS | $HOME/Library/Application Support/substrate_archive | /Users/Alice/Library/Application Support/substrate_archive/
+/// Windows | {FOLDERID_LocalAppData}\substrate_archive | C:\Users\Alice\AppData\Local\substrate_archive
 pub fn substrate_dir() -> PathBuf {
     if let Some(base_dirs) = dirs::BaseDirs::new() {
         let mut path = base_dirs.data_local_dir().to_path_buf();
