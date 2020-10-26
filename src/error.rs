@@ -46,6 +46,12 @@ pub enum Error {
     BgJobGet(#[from] coil::FetchError),
     #[error("could not build threadpool")]
     ThreadPool(#[from] rayon::ThreadPoolBuildError),
+    #[error("{0}")]
+    Decode(#[from] desub::Error),
+    #[error("Failed to decode item because of `{0}` at block {1} of hash {2}")]
+    DetailedDecodeFail(desub::Error, u32, String),
+    #[error("Failed to decode storage because of `{0}` with key {1} and value {2} at block {3}")]
+    DetailedStorageDecodeFail(desub::Error, String, String, u32),
     /// Error occured while serializing/deserializing data
     #[error("Error while decoding job data {0}")]
     De(#[from] rmp_serde::decode::Error),
@@ -53,6 +59,8 @@ pub enum Error {
         "the chain given to substrate-archive is different then the running chain. Trying to run {0}, running {1}"
     )]
     MismatchedChains(String, String),
+    #[error("{0}")]
+    IntConversionError(#[from] std::num::TryFromIntError),
     #[error("wasm exists but could not extract runtime version")]
     WasmExecutionError,
     #[error("sending on disconnected channel")]

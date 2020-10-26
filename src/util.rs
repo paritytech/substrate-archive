@@ -77,6 +77,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("staking", log::LevelFilter::Warn)
         .level_for("cranelift_codegen", log::LevelFilter::Warn)
         .level_for("header", log::LevelFilter::Warn)
+        .level_for("polling", log::LevelFilter::Warn)
         .level_for("", log::LevelFilter::Error)
         .format(move |out, message, record| {
             out.finish(format_args!(
@@ -93,8 +94,10 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .level_for("substrate_archive", file)
         .level_for("cranelift_wasm", log::LevelFilter::Error)
         .level_for("sqlx", log::LevelFilter::Warn)
+        .level_for("", log::LevelFilter::Warn)
         .level_for("staking", log::LevelFilter::Warn)
         .level_for("cranelift_codegen", log::LevelFilter::Warn)
+        .level_for("polling", log::LevelFilter::Warn)
         // .level_for("desub_core", log::LevelFilter::Debug)
         // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
         // .level_for("kvdb_rocksdb", log::LevelFilter::Debug)

@@ -23,9 +23,6 @@ pub mod backend;
 mod database;
 mod error;
 mod migrations;
-// mod rpc;
-// #[cfg(test)]
-// mod simple_db;
 mod sql_block_builder;
 mod tasks;
 mod types;

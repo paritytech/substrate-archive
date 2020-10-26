@@ -39,6 +39,7 @@ use xtra::prelude::*;
 pub struct Environment<B, R, C>
 where
     B: BlockT + Unpin,
+    NumberFor<B>: Into<u32>,
     B::Hash: Unpin,
 {
     backend: Arc<Backend<B>>,
@@ -51,6 +52,7 @@ type Env<B, R, C> = AssertUnwindSafe<Environment<B, R, C>>;
 impl<B, R, C> Environment<B, R, C>
 where
     B: BlockT + Unpin,
+    NumberFor<B>: Into<u32>,
     B::Hash: Unpin,
 {
     pub fn new(
@@ -105,7 +107,7 @@ where
     );
     let now = std::time::Instant::now();
     let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
-    log::debug!("Took {:?} to execute block", now.elapsed());
+    log::trace!("Took {:?} to execute block", now.elapsed());
     let storage = Storage::from(block);
     smol::block_on(env.storage.send(storage))?;
     Ok(())

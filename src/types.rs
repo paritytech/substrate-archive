@@ -16,17 +16,10 @@
 
 use crate::error::Result;
 use codec::{Decode, Encode};
+use desub::decoder::{ExtrinsicArgument, GenericExtrinsic, GenericSignature};
 use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
-
-pub trait ThreadPool: Send + Sync {
-    type In: Send + Sync + std::fmt::Debug;
-    type Out: Send + Sync + std::fmt::Debug;
-    /// Adds a task to the threadpool.
-    /// Should not block!
-    fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> Result<usize>;
-}
 
 #[async_trait::async_trait(?Send)]
 pub trait Archive<B: BlockT + Unpin>
@@ -97,6 +90,50 @@ impl<B: BlockT> BatchBlock<B> {
     }
 }
 
+/// The extrinsics belonging to a single block
+#[derive(Serialize, Debug)]
+pub struct Extrinsic {
+    block_num: u32,
+    /// Hash of the block these extrinsics are from
+    hash: Vec<u8>,
+    /// The actual extrinsics
+    extrinsic: GenericExtrinsic,
+}
+
+impl Extrinsic {
+    pub fn new(block_num: u32, hash: Vec<u8>, extrinsic: GenericExtrinsic) -> Self {
+        Self {
+            block_num,
+            hash,
+            extrinsic,
+        }
+    }
+
+    pub fn block_num(&self) -> &u32 {
+        &self.block_num
+    }
+
+    pub fn hash(&self) -> &[u8] {
+        self.hash.as_slice()
+    }
+
+    pub fn call_name(&self) -> &str {
+        self.extrinsic.ext_call()
+    }
+
+    pub fn module(&self) -> &str {
+        self.extrinsic.ext_module()
+    }
+
+    pub fn signature(&self) -> Option<&GenericSignature> {
+        self.extrinsic.signature()
+    }
+
+    pub fn arguments(&self) -> &[ExtrinsicArgument] {
+        self.extrinsic.args()
+    }
+}
+
 /// NewType for Storage Data
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Storage<Block: BlockT> {
@@ -135,5 +172,73 @@ impl<Block: BlockT> Storage<Block> {
 
     pub fn changes(&self) -> &[(StorageKey, Option<StorageData>)] {
         self.changes.as_slice()
+    }
+}
+
+/// Enum of standard substrate Pallets/Frames
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Frame {
+    System,
+}
+
+impl std::fmt::Display for Frame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Frame::System => write!(f, "{}", "frame_system"),
+        }
+    }
+}
+
+/// Holds storage entries that originated in a specific substrate pallet
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct FrameEntry<K, V> {
+    /// the Postgres table to insert this value into. Corresponds with the name
+    /// of the pallet that this storage value originated in
+    table: Frame,
+    /// Block number the storage entry is from
+    block_num: u32,
+    /// Hash of the block the storage entry is from
+    hash: Vec<u8>,
+    // TODO: should support map/double-map types explicitly via an enum?
+    /// Key of the storage entry
+    key: K,
+    /// Value of the storage entry
+    value: Option<V>,
+}
+
+impl<K, V> FrameEntry<K, V> {
+    pub fn new(table: Frame, block_num: u32, hash: Vec<u8>, key: K, value: Option<V>) -> Self {
+        Self {
+            table,
+            block_num,
+            hash,
+            key,
+            value,
+        }
+    }
+
+    /// Get a reference to the key of this storage entry
+    pub fn key(&self) -> &K {
+        &self.key
+    }
+
+    /// Get a reference to the value of this storage entry
+    pub fn value(&self) -> Option<&V> {
+        self.value.as_ref()
+    }
+
+    /// Get a reference to the hash, as a slice of bytes, of this storage entry
+    pub fn hash(&self) -> &[u8] {
+        self.hash.as_slice()
+    }
+
+    /// get the block number this storage entry originated in
+    pub fn block_num(&self) -> u32 {
+        self.block_num
+    }
+
+    /// Get the table to insert this storage entry into
+    pub fn table(&self) -> &Frame {
+        &self.table
     }
 }

@@ -13,14 +13,17 @@ pub fn main() {
     let db_url = std::env::var("DATABASE_URL").unwrap();
     // export CHAIN_DATA_DB="/home/insipx/.local/share/polkadot/chains/ksmcc3/db"
     let chain_backend_url = std::env::var("CHAIN_DATA_DB").unwrap();
+    
+    let types = desub_extras::TypeResolver::default();
 
-    let mut archive = ArchiveBuilder::<Block, RuntimeApi, KusamaExecutor>::default()
+    let mut archive = ArchiveBuilder::<Block, RuntimeApi, KusamaExecutor, _>::default()
         .block_workers(2)
         .wasm_pages(512)
         .cache_size(128)
         .pg_url(db_url)
         .chain_data_db(chain_backend_url)
         .chain_spec(Box::new(spec))
+        .types(types)
         .build()
         .unwrap();
 

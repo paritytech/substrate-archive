@@ -16,15 +16,17 @@
 
 mod blocks;
 mod database;
+mod decoder;
 mod metadata;
 mod storage_aggregator;
 
 /// Database message to get state internal database state
 pub use self::database::*;
+pub use self::decoder::Decoder;
 pub use self::metadata::*;
 pub use blocks::*;
 pub use database::*;
 pub use storage_aggregator::*;
 
 use super::actor_pool::ActorPool;
-use super::msg::Die;
+use super::msg::{Die, VecExtrinsic, VecStorageWrap};

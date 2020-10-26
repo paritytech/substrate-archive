@@ -48,3 +48,15 @@ pub struct VecStorageWrap<B: BlockT>(pub Vec<Storage<B>>);
 impl<B: BlockT> Message for VecStorageWrap<B> {
     type Result = ();
 }
+
+#[derive(Debug)]
+pub struct VecExtrinsic(pub Vec<Extrinsic>);
+impl Message for VecExtrinsic {
+    type Result = ();
+}
+
+impl From<Vec<Extrinsic>> for VecExtrinsic {
+    fn from(ext: Vec<Extrinsic>) -> VecExtrinsic {
+        VecExtrinsic(ext)
+    }
+}

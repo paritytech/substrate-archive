@@ -24,7 +24,7 @@ use crate::{
 use itertools::Itertools;
 use sp_runtime::{
     generic::BlockId,
-    traits::{Block as BlockT, Header as _, NumberFor},
+    traits::{Block as BlockT, NumberFor},
 };
 use xtra::prelude::*;
 
@@ -32,16 +32,20 @@ use xtra::prelude::*;
 /// Accepts workers to decode blocks and a URL for the RPC
 pub struct Metadata<B: BlockT> {
     conn: DbConn,
-    addr: Address<ActorPool<super::DatabaseActor<B>>>,
+    addr: Address<super::Decoder<B>>,
     meta: Meta<B>,
 }
 
-impl<B: BlockT + Unpin> Metadata<B> {
+impl<B: BlockT + Unpin> Metadata<B>
+where
+    NumberFor<B>: Into<u32>,
+{
     pub async fn new(
-        addr: Address<ActorPool<super::DatabaseActor<B>>>,
+        db_addr: Address<ActorPool<super::DatabaseActor<B>>>,
+        addr: Address<super::Decoder<B>>,
         meta: Meta<B>,
     ) -> Result<Self> {
-        let conn = addr.send(GetState::Conn.into()).await?.await?.conn();
+        let conn = db_addr.send(GetState::Conn.into()).await?.await?.conn();
         Ok(Self { conn, addr, meta })
     }
 
@@ -58,18 +62,9 @@ impl<B: BlockT + Unpin> Metadata<B> {
             let meta = smol::unblock!(meta.metadata(&BlockId::hash(hash)))?;
             let meta: sp_core::Bytes = meta.into();
             let meta = MetadataT::new(ver, meta.0);
-            self.addr.send(meta.into()).await?.await;
+            log::debug!("Sending hash {}", hex::encode(hash.as_ref()));
+            self.addr.send(meta).await?;
         }
-        Ok(())
-    }
-
-    async fn block_handler(&mut self, blk: Block<B>) -> Result<()>
-    where
-        NumberFor<B>: Into<u32>,
-    {
-        let hash = blk.inner.block.header().hash();
-        self.meta_checker(blk.spec, hash).await?;
-        self.addr.send(blk.into()).await?.await;
         Ok(())
     }
 
@@ -85,25 +80,12 @@ impl<B: BlockT + Unpin> Metadata<B> {
         for b in versions.iter() {
             self.meta_checker(b.spec, b.inner.block.hash()).await?;
         }
-        self.addr.send(blks.into()).await?;
+        self.addr.send(blks).await?;
         Ok(())
     }
 }
 
 impl<B: BlockT> Actor for Metadata<B> {}
-
-#[async_trait::async_trait]
-impl<B> Handler<Block<B>> for Metadata<B>
-where
-    B: BlockT + Unpin,
-    NumberFor<B>: Into<u32>,
-{
-    async fn handle(&mut self, blk: Block<B>, _: &mut Context<Self>) {
-        if let Err(e) = self.block_handler(blk).await {
-            log::error!("{}", e.to_string());
-        }
-    }
-}
 
 #[async_trait::async_trait]
 impl<B> Handler<BatchBlock<B>> for Metadata<B>
