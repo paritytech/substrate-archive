@@ -22,7 +22,7 @@ use sp_runtime::{
 };
 use substrate_archive_backend::Meta;
 use substrate_archive_common::{
-    error::Result,
+    Result,
     types::{BatchBlock, Block, Metadata as MetadataT},
 };
 use xtra::prelude::*;

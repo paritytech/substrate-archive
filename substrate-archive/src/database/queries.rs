@@ -22,7 +22,7 @@ use serde::{de::DeserializeOwned, Deserialize};
 use sp_runtime::traits::Block as BlockT;
 use sqlx::PgConnection;
 use std::convert::TryFrom;
-use substrate_archive_common::error::Result;
+use substrate_archive_common::Result;
 
 /// Return type of queries that `SELECT version`
 struct Version {

@@ -16,8 +16,8 @@
 
 //! Main messages and NewTypes that can be sent between actors
 use crate::{
-    error::Result,
     types::{BatchBlock, Block, Metadata, Storage},
+    Result,
 };
 use sp_runtime::traits::Block as BlockT;
 use xtra::prelude::*;

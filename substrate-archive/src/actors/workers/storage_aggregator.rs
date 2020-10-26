@@ -20,7 +20,7 @@
 use super::{ActorPool, DatabaseActor};
 use crate::actors::msg::VecStorageWrap;
 use sp_runtime::traits::Block as BlockT;
-use substrate_archive_common::{error::Result, types::Storage};
+use substrate_archive_common::{types::Storage, Result};
 use xtra::prelude::*;
 
 pub struct StorageAggregator<B: BlockT + Unpin> {

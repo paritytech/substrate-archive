@@ -24,7 +24,7 @@ use sqlx::{
     postgres::{PgArguments, PgConnection, Postgres},
     Arguments,
 };
-use substrate_archive_common::error::Result;
+use substrate_archive_common::Result;
 
 const CHUNK_MAX: usize = 30_000;
 

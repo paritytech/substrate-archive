@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_runtime::traits::Block as BlockT;
-use substrate_archive_common::error::Result;
+use substrate_archive_common::Result;
 
 pub trait ThreadPool: Send + Sync {
     type In: Send + Sync + std::fmt::Debug;

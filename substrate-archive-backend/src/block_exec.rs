@@ -23,7 +23,7 @@ use sp_runtime::{
 };
 use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
 use std::sync::Arc;
-use substrate_archive_common::{error::Result, types::Storage};
+use substrate_archive_common::{types::Storage, Result};
 
 pub type StorageKey = Vec<u8>;
 pub type StorageValue = Vec<u8>;

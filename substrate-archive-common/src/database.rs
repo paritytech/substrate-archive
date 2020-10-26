@@ -1,4 +1,4 @@
-use super::error::Result;
+use super::Result;
 
 pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
 

@@ -23,7 +23,7 @@ use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use substrate_archive_common::{
     database::{KeyValuePair, ReadOnlyDatabaseTrait},
-    error::Result,
+    Result,
 };
 
 pub struct Config {

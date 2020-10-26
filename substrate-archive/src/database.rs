@@ -27,7 +27,7 @@ use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
-use substrate_archive_common::{error::Result, models, types::*};
+use substrate_archive_common::{Result, models, types::*};
 
 pub use self::listener::*;
 pub use self::models::*;

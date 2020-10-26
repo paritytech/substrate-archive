@@ -28,7 +28,7 @@ use sp_runtime::{
 };
 use std::{marker::PhantomData, path::PathBuf, sync::Arc};
 use substrate_archive_backend::{open_database, runtime_api, ReadOnlyBackend, TArchiveClient};
-use substrate_archive_common::error::Result;
+use substrate_archive_common::Result;
 
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
 const POSTGRES_VAR: &str = "DATABASE_URL";

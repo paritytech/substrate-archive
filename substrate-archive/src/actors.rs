@@ -40,7 +40,7 @@ use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
-pub use substrate_archive_common::{error::Result, msg, msg::Die};
+pub use substrate_archive_common::{Result, msg, msg::Die};
 use xtra::prelude::*;
 
 // TODO: Split this up into two objects
