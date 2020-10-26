@@ -62,7 +62,7 @@ impl ReadOnlyDatabase {
             log::warn!("catchup tracking is not enabled");
             None
         } else {
-            Some(self.catch_counter.fetch_add(0, Ordering::Relaxed))
+            Some(self.catch_counter.load(Ordering::Relaxed))
         }
     }
 
