@@ -57,6 +57,8 @@ pub struct Builder<B, R, D, T> {
     /// Types describing the runtime
     pub types: Option<T>,
     pub _marker: PhantomData<(B, R, D)>,
+    /// maximimum amount of blocks to index at once
+    pub max_block_load: Option<u32>,
 }
 
 impl<B, R, D, T: TypeDetective> Default for Builder<B, R, D, T> {
@@ -70,6 +72,7 @@ impl<B, R, D, T: TypeDetective> Default for Builder<B, R, D, T> {
             chain_spec: None,
             types: None,
             _marker: PhantomData,
+            max_block_load: None,
         }
     }
 }
@@ -135,6 +138,15 @@ impl<B, R, D, T: TypeDetective + 'static> Builder<B, R, D, T> {
     /// # Defaults to Desub-Extras default
     pub fn types(mut self, types: T) -> Self {
         self.types = Some(types);
+        self
+    }
+
+    /// Set the number of blocks to index at once
+    ///
+    /// # Default
+    /// Defaults to 100_000
+    pub fn max_block_load(mut self, max_block_load: u32) -> Self {
+        self.max_block_load = Some(max_block_load);
         self
     }
 }
@@ -215,6 +227,7 @@ where
         let cache_size = self.cache_size.unwrap_or(128);
         let block_workers = self.block_workers.unwrap_or(num_cpus);
         let wasm_pages = self.wasm_pages.unwrap_or(64 * num_cpus as u64);
+        let max_block_load = self.max_block_load.unwrap_or(100_000);
         let db_path = create_database_path(self.chain_spec)?;
         smol::block_on(crate::migrations::migrate(&pg_url))?;
         let db = Arc::new(backend::util::open_database(
@@ -236,6 +249,7 @@ where
             pg_url.as_str(),
             types,
             chain,
+            max_block_load,
         )?;
         Ok(ctx)
     }

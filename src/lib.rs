@@ -76,12 +76,12 @@ impl sp_core::traits::SpawnNamed for TaskExecutor {
         _: &'static str,
         fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>,
     ) {
-        smol::Task::spawn(async move { smol::unblock!(fut) }).detach();
+        smol::Task::spawn(async move { smol::unblock!(fut).await }).detach();
     }
 }
 
 #[cfg(test)]
-use test::{initialize, TestGuard, DATABASE_URL, DUMMY_HASH, PG_POOL};
+use test::{initialize, TestGuard, DATABASE_URL, PG_POOL};
 
 #[cfg(test)]
 mod test {
@@ -169,7 +169,6 @@ mod test {
                     TRUNCATE TABLE metadata CASCADE;
                     TRUNCATE TABLE storage CASCADE;
                     TRUNCATE TABLE blocks CASCADE;
-                    TRUNCATE TABLE frame_system CASCADE;
                     TRUNCATE TABLE _background_tasks
                     ",
                 )

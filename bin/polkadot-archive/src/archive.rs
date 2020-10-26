@@ -62,6 +62,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                     cache_size: config.cache_size(),
                     block_workers: config.block_workers(),
                     wasm_pages: config.wasm_pages(),
+                    max_block_load: config.max_block_load(),
                     ..ArchiveBuilder::default()
                 }
                 .chain_data_db(db_path)
@@ -81,6 +82,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                 cache_size: config.cache_size(),
                 block_workers: config.block_workers(),
                 wasm_pages: config.wasm_pages(),
+                max_block_load: config.max_block_load(),
                 ..ArchiveBuilder::default()
             }
             .chain_data_db(db_path)
@@ -96,6 +98,7 @@ pub fn run_archive(config: Config) -> Result<Box<dyn Archive<Block>>> {
                     cache_size: config.cache_size(),
                     block_workers: config.block_workers(),
                     wasm_pages: config.wasm_pages(),
+                    max_block_load: config.max_block_load(),
                     ..ArchiveBuilder::default()
                 }
                 .chain_data_db(db_path)

@@ -63,7 +63,7 @@ Read the [Doc](https://github.com/paritytech/substrate-archive/blob/master/CONTR
 ## Documentation
 
 You can build the documentation for this crate by running `cargo doc` in the `archive` directory.
-More Docs [here]( https://github.com/paritytech/substrate-archive/wiki)
+More Docs [here](https://github.com/paritytech/substrate-archive/wiki)
 
 ## Troubleshooting
 
@@ -89,6 +89,12 @@ Because of the way a [RocksDB Secondary Instance](https://github.com/facebook/ro
     ```
 
 For macOS and Linux, a warning message will be raised on the startup when there is a low fd sources limit in the current system, but Windows won't have such a low fd limit warning.
+
+## FAQ
+
+### Does Substrate Archive only index finalized blocks? What about chains that do not support finalization?
+
+Substrate Archive is [finality](https://substrate.dev/docs/en/knowledgebase/getting-started/glossary#finality)-agnostic. It directly indexes blocks from the [backend database](https://substrate.dev/docs/en/knowledgebase/advanced/storage) of a Substrate chain; any and all blocks added to the database backend will be indexed by Substrate Archived. For chains that use Substrate's [GRANDPA](https://substrate.dev/docs/en/knowledgebase/advanced/consensus#grandpa) finalization gadget, only finalized blocks are recorded in the backend database and, as such, only finalized blocks will be indexed by Substrate archive.
 
 ## Contact
 

@@ -24,7 +24,7 @@ use crate::{
 use itertools::Itertools;
 use sp_runtime::{
     generic::BlockId,
-    traits::{Block as BlockT, Header as _, NumberFor},
+    traits::{Block as BlockT, NumberFor},
 };
 use xtra::prelude::*;
 

@@ -26,6 +26,12 @@ use sp_runtime::{
 };
 use std::marker::PhantomData;
 
+struct GenericParts<B: BlockT>(
+    <B::Header as HeaderT>::Hash,
+    <B::Header as HeaderT>::Hash,
+    <B::Header as HeaderT>::Hash,
+);
+
 pub struct BlockBuilder<B: BlockT> {
     _marker: PhantomData<B>,
 }
@@ -48,7 +54,7 @@ impl<'a, B: BlockT> BlockBuilder<B> {
 
     pub fn with_single(block: BlockModel) -> Result<(B, u32), Error> {
         let digest: DigestFor<B> = Decode::decode(&mut block.digest.as_slice())?;
-        let (parent_hash, state_root, extrinsics_root) = Self::into_generic(
+        let GenericParts(parent_hash, state_root, extrinsics_root) = Self::generic_parts_from(
             block.parent_hash.as_slice(),
             block.state_root.as_slice(),
             block.extrinsics_root.as_slice(),
@@ -63,19 +69,12 @@ impl<'a, B: BlockT> BlockBuilder<B> {
         Ok((B::new(header, ext), spec as u32))
     }
 
-    fn into_generic(
+    fn generic_parts_from(
         mut parent_hash: &[u8],
         mut state_root: &[u8],
         mut extrinsics_root: &[u8],
-    ) -> Result<
-        (
-            <B::Header as HeaderT>::Hash,
-            <B::Header as HeaderT>::Hash,
-            <B::Header as HeaderT>::Hash,
-        ),
-        Error,
-    > {
-        Ok((
+    ) -> Result<GenericParts<B>, Error> {
+        Ok(GenericParts(
             Decode::decode(&mut parent_hash)?,
             Decode::decode(&mut state_root)?,
             Decode::decode(&mut extrinsics_root)?,

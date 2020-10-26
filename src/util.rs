@@ -138,6 +138,6 @@ macro_rules! p_err {
 fn format_opt(file: Option<String>) -> String {
     match file {
         None => "".to_string(),
-        Some(f) => f.to_string(),
+        Some(f) => f,
     }
 }

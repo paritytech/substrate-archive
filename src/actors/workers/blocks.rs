@@ -15,10 +15,12 @@
 
 use super::{ActorPool, DatabaseActor, GetState, Metadata};
 use crate::{
+    actors::ActorContext,
     backend::{ReadOnlyBackend, RuntimeVersionCache},
     database::queries,
     error::Result,
     types::{BatchBlock, Block},
+    Error::Disconnected,
 };
 use sp_runtime::{
     generic::SignedBlock,
@@ -42,6 +44,8 @@ where
     rt_cache: RuntimeVersionCache<B>,
     /// the last maximum block number from which we are sure every block before then is indexed
     last_max: u32,
+    /// the maximimum amount of blocks to index at once
+    max_block_load: u32,
 }
 
 impl<B: BlockT + Unpin> BlocksIndexer<B>
@@ -49,17 +53,14 @@ where
     B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
-    pub fn new(
-        backend: Arc<ReadOnlyBackend<B>>,
-        db_addr: DatabaseAct<B>,
-        meta: Address<Metadata<B>>,
-    ) -> Self {
+    pub fn new(ctx: ActorContext<B>, db_addr: DatabaseAct<B>, meta: Address<Metadata<B>>) -> Self {
         Self {
-            rt_cache: RuntimeVersionCache::new(backend.clone()),
+            rt_cache: RuntimeVersionCache::new(ctx.backend.clone()),
             last_max: 0,
-            backend,
+            backend: ctx.backend().clone(),
             db: db_addr,
             meta,
+            max_block_load: ctx.max_block_load,
         }
     }
 
@@ -85,27 +86,55 @@ where
         Ok(blocks)
     }
 
+    /// Collect blocks according to the predicate `fun` and send those blocks to
+    ///  the metadata actor.
+    async fn collect_and_send(&self, fun: impl Fn(u32) -> bool + Send + 'static) -> Result<()> {
+        self.meta
+            .send(BatchBlock::new(self.collect_blocks(fun).await?))
+            .await?;
+        Ok(())
+    }
+
     /// First run of indexing
     /// gets any blocks that are missing from database and indexes those.
     /// sets the `last_max` value.
-    async fn re_index(&mut self) -> Result<Option<Vec<Block<B>>>> {
+    async fn re_index(&mut self) -> Result<()> {
         let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
-        let numbers = queries::missing_blocks_min_max(&mut conn, self.last_max).await?;
-        let len = numbers.len();
-        log::info!("{} missing blocks", len);
-        self.last_max = if let Some(m) = queries::max_block(&mut conn).await? {
+        let cur_max = if let Some(m) = queries::max_block(&mut conn).await? {
             m
         } else {
             // a `None` means that the blocks table is not populated yet
-            return Ok(None);
+            log::info!("{} missing blocks", 0);
+            return Ok(());
         };
-        let blocks = self.collect_blocks(move |n| numbers.contains(&n)).await?;
-        Ok(Some(blocks))
+
+        let mut missing_blocks = 0;
+        let mut min = self.last_max;
+        loop {
+            let batch =
+                queries::missing_blocks_min_max(&mut conn, min, self.max_block_load).await?;
+            if !batch.is_empty() {
+                missing_blocks += batch.len();
+                min += self.max_block_load;
+                self.collect_and_send(move |n| batch.contains(&n)).await?;
+            } else {
+                break;
+            }
+        }
+
+        self.last_max = cur_max;
+        log::info!("{} missing blocks", missing_blocks);
+
+        Ok(())
     }
 
+    /// Crawl up to `max_block_load` blocks that are greater than the last max
     async fn crawl(&mut self) -> Result<Vec<Block<B>>> {
         let copied_last_max = self.last_max;
-        let blocks = self.collect_blocks(move |n| n > copied_last_max).await?;
+        let max_to_collect = copied_last_max + self.max_block_load;
+        let blocks = self
+            .collect_blocks(move |n| n > copied_last_max && n <= max_to_collect)
+            .await?;
         self.last_max = blocks
             .iter()
             .map(|b| (*b.inner.block.header().number()).into())
@@ -148,10 +177,8 @@ where
         match self.crawl().await {
             Err(e) => log::error!("{}", e.to_string()),
             Ok(b) => {
-                if !b.is_empty() {
-                    if let Err(_) = self.meta.send(BatchBlock::new(b)).await {
-                        ctx.stop();
-                    }
+                if !b.is_empty() && self.meta.send(BatchBlock::new(b)).await.is_err() {
+                    ctx.stop();
                 }
             }
         }
@@ -171,14 +198,9 @@ where
 {
     async fn handle(&mut self, _: ReIndex, ctx: &mut Context<Self>) {
         match self.re_index().await {
-            Ok(Some(b)) => {
-                if let Err(_) = self.meta.send(BatchBlock::new(b)).await {
-                    ctx.stop();
-                }
-            }
-            Ok(None) => {
-                return;
-            }
+            // stop if disconnected from the metadata actor
+            Err(Disconnected) => ctx.stop(),
+            Ok(()) => {}
             Err(e) => log::error!("{}", e.to_string()),
         }
     }

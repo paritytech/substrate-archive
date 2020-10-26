@@ -17,7 +17,6 @@
 //! chain defined with the passed-in Client and URL.
 
 mod actor_pool;
-// mod generators;
 pub mod msg;
 mod workers;
 
@@ -34,7 +33,7 @@ use super::{
 };
 use coil::Job as _;
 use desub::{
-    decoder::{Chain, Decoder as SubstrateDecoder},
+    decoder::{Decoder as SubstrateDecoder},
     TypeDetective,
 };
 use futures::FutureExt;
@@ -64,6 +63,7 @@ where
     meta: Meta<B>,
     workers: usize,
     decoder: SubstrateDecoder,
+    max_block_load: u32,
 }
 
 impl<B: BlockT + Unpin> ActorContext<B>
@@ -76,6 +76,7 @@ where
         workers: usize,
         pg_url: String,
         decoder: SubstrateDecoder,
+        max_block_load: u32,
     ) -> Self {
         Self {
             backend,
@@ -83,6 +84,7 @@ where
             workers,
             pg_url,
             decoder,
+            max_block_load,
         }
     }
 
@@ -160,15 +162,17 @@ where
         pg_url: &str,
         types: impl TypeDetective + 'static,
         chain: desub::decoder::Chain,
+        max_block_load: u32,
     ) -> Result<Self> {
         let decoder = SubstrateDecoder::new(types, chain);
 
         let context = ActorContext::new(
-            backend.clone(),
+            backend,
             client_api.clone(),
             workers,
             pg_url.to_string(),
             decoder,
+            max_block_load,
         );
         let (start_tx, kill_tx, handle) = Self::start(context.clone(), client_api);
 
@@ -201,11 +205,11 @@ where
             // block until we receive the message to start
             let _ = rx_start.recv();
             match smol::run(Self::main_loop(ctx, rx_kill, client)) {
-                v => v, 
-                Err(e) => { 
+                Err(e) => {
                     log::error!("{}", e.to_string());
                     Err(e)
-                }
+                },
+                v => v,
             }
         });
 
@@ -263,13 +267,11 @@ where
         let db_pool = actor_pool::ActorPool::new(db, 8).spawn();
         let decoder = workers::Decoder::new(ctx.decoder.clone(), db_pool.clone()).spawn();
         let storage = workers::StorageAggregator::new(decoder.clone()).spawn();
-        
+
         let metadata = workers::Metadata::new(db_pool.clone(), decoder.clone(), ctx.meta().clone())
             .await?
             .spawn();
-        let blocks =
-            workers::BlocksIndexer::new(ctx.backend().clone(), db_pool.clone(), metadata.clone())
-                .spawn();
+        let blocks = workers::BlocksIndexer::new(ctx, db_pool.clone(), metadata.clone()).spawn();
         Ok(Actors {
             storage,
             blocks,
@@ -318,13 +320,12 @@ where
             .map(|b| Ok((*b?.header().number()).into()))
             .collect::<Result<_>>()?;
         let mut missing_storage_blocks = queries::blocks_storage_intersection(conn).await?;
-        let missing_storage_nums: HashSet<u32> = missing_storage_blocks
+        let difference: HashSet<u32> = missing_storage_blocks
             .iter()
             .map(|b| b.block_num as u32)
-            .collect();
-        let difference: HashSet<u32> = missing_storage_nums
+            .collect::<HashSet<u32>>()
             .difference(&blocks)
-            .map(|b| *b)
+            .copied()
             .collect();
         missing_storage_blocks.retain(|b| difference.contains(&(b.block_num as u32)));
         let jobs: Vec<crate::tasks::execute_block::Job<B, R, C>> =

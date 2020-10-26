@@ -17,7 +17,6 @@
 //! Module that accepts individual storage entries and wraps them up into batch requests for
 //! Postgres
 
-use super::{ActorPool, DatabaseActor};
 use crate::actors::msg::VecStorageWrap;
 use crate::error::Result;
 use crate::types::Storage;
@@ -52,7 +51,7 @@ where
         smol::Task::spawn(async move {
             loop {
                 smol::Timer::new(std::time::Duration::from_secs(1)).await;
-                if let Err(_) = addr.send(SendStorage).await {
+                if addr.send(SendStorage).await.is_err() {
                     break;
                 }
             }

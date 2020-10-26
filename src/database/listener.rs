@@ -121,7 +121,7 @@ where
         let channels = self
             .channels
             .iter()
-            .map(|c| String::from(c))
+            .map(String::from)
             .collect::<Vec<String>>();
         listener
             .listen_all(channels.iter().map(|s| s.as_ref()))
@@ -164,9 +164,7 @@ where
             // in a reasonable amount of time
             let timeout = smol::Timer::new(std::time::Duration::from_secs(5));
             futures::select! {
-                _ = timeout.fuse() => {
-                    return;
-                },
+                _ = timeout.fuse() => {},
                 notifs = listener.collect::<Vec<_>>().fuse() => {
                     for msg in notifs {
                         self.handle_listen_event(msg.unwrap(), &mut conn).await;
@@ -223,12 +221,7 @@ impl Listener {
 mod tests {
     use super::*;
     use futures::{SinkExt, StreamExt};
-    use once_cell::sync::Lazy;
-    use sqlx::{Connection, Executor};
-    use std::sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    };
+    use sqlx::Connection;
 
     #[test]
     fn should_get_notifications() {
@@ -237,7 +230,7 @@ mod tests {
         smol::block_on(async move {
             let (tx, mut rx) = futures::channel::mpsc::channel(5);
 
-            let listener = Builder::new(&crate::DATABASE_URL, move |_, _| {
+            let _listener = Builder::new(&crate::DATABASE_URL, move |_, _| {
                 let mut tx1 = tx.clone();
                 async move {
                     log::info!("Hello");
