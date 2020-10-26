@@ -4,7 +4,7 @@
 
 ### Blockchain Indexing Engine
 
-[Install the CLI](#install-the-cli) • [Documentation](#documentation) • [Contributing](#contributing)
+[Install the CLI](#install-the-cli) • [Documentation](#documentation) • [Contributing](#contributing) • [FAQ](#faq)
 
 ![Rust](https://github.com/paritytech/substrate-archive/workflows/Rust/badge.svg)
 
@@ -54,6 +54,8 @@ cargo run --release --  -c test_conf.toml --chain=polkadot
 
 You can access the help dialog via `cargo run --release -- --help`. Note that `up` and `down` scripts are meant for convenience and are not meant to be complete. Look in the [wiki](https://github.com/paritytech/substrate-archive/wiki) for more information about the database setup.
 
+## [FAQ](https://github.com/paritytech/substrate-archive/wiki/0.\)-FAQ)
+
 ## Contributing
 
 Contributors are welcome!
@@ -89,12 +91,6 @@ Because of the way a [RocksDB Secondary Instance](https://github.com/facebook/ro
     ```
 
 For macOS and Linux, a warning message will be raised on the startup when there is a low fd sources limit in the current system, but Windows won't have such a low fd limit warning.
-
-## FAQ
-
-### Does Substrate Archive only index finalized blocks? What about chains that do not support finalization?
-
-Substrate Archive is [finality](https://substrate.dev/docs/en/knowledgebase/getting-started/glossary#finality)-agnostic. It directly indexes blocks from the [backend database](https://substrate.dev/docs/en/knowledgebase/advanced/storage) of a Substrate chain; any and all blocks added to the database backend will be indexed by Substrate Archived. For chains that use Substrate's [GRANDPA](https://substrate.dev/docs/en/knowledgebase/advanced/consensus#grandpa) finalization gadget, only finalized blocks are recorded in the backend database and, as such, only finalized blocks will be indexed by Substrate archive.
 
 ## Contact
 
