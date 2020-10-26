@@ -42,11 +42,11 @@ use sp_runtime::{
     Justification,
 };
 use std::{convert::TryInto, sync::Arc};
-use substrate_archive_common::database::ReadOnlyDatabaseTrait;
+use substrate_archive_common::database::ReadOnlyDatabase;
 use substrate_archive_common::Result;
 
 pub struct ReadOnlyBackend<Block: BlockT> {
-    db: Arc<dyn ReadOnlyDatabaseTrait>,
+    db: Arc<dyn ReadOnlyDatabase>,
     storage: Arc<StateVault<Block>>,
 }
 
@@ -54,13 +54,13 @@ impl<Block> ReadOnlyBackend<Block>
 where
     Block: BlockT,
 {
-    pub fn new(db: Arc<dyn ReadOnlyDatabaseTrait>, prefix_keys: bool) -> Self {
+    pub fn new(db: Arc<dyn ReadOnlyDatabase>, prefix_keys: bool) -> Self {
         let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
         Self { db, storage: vault }
     }
 
     /// get a reference to the backing database
-    pub fn backing_db(&self) -> Arc<dyn ReadOnlyDatabaseTrait> {
+    pub fn backing_db(&self) -> Arc<dyn ReadOnlyDatabase> {
         self.db.clone()
     }
 
@@ -145,7 +145,7 @@ where
         fun: impl Fn(u32) -> bool + 'a,
     ) -> Result<impl Iterator<Item = SignedBlock<Block>> + 'a> {
         let readable_db = self.db.clone();
-        self.db.try_catch_up_with_primary()?;
+        self.db.catch_up_with_primary()?;
         Ok(self
             .db
             .iter(super::util::columns::KEY_LOOKUP)

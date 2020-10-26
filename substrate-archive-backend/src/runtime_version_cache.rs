@@ -34,6 +34,7 @@ use std::sync::Arc;
 use substrate_archive_common::{
     error::{Error, Result},
     types::Block,
+    util,
 };
 
 #[derive(Clone)]
@@ -87,7 +88,7 @@ impl<B: BlockT> RuntimeVersionCache<B> {
             .storage(hash, well_known_keys::CODE)
             .ok_or_else(|| Error::from("storage does not exist"))?;
 
-        let code_hash = substrate_archive_common::util::make_hash(&code);
+        let code_hash = util::make_hash(&code);
         if self.versions.load().contains_key(&code_hash) {
             Ok(self.versions.load().get(&code_hash).cloned())
         } else {

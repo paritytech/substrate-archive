@@ -16,7 +16,7 @@
 
 //! various utilities that make interfacing with substrate easier
 
-use crate::database::{Config, ReadOnlyDatabase};
+use crate::database::{Config, SecondaryRocksDB};
 use codec::Decode;
 use kvdb::DBValue;
 use kvdb_rocksdb::DatabaseConfig;
@@ -27,7 +27,7 @@ use sp_runtime::{
 use std::convert::TryInto;
 use std::path::PathBuf;
 use std::sync::Arc;
-use substrate_archive_common::database::ReadOnlyDatabaseTrait;
+use substrate_archive_common::database::ReadOnlyDatabase;
 use substrate_archive_common::error::{Error, Result};
 
 pub const NUM_COLUMNS: u32 = 11;
@@ -39,7 +39,7 @@ pub fn open_database(
     path: &str,
     cache_size: usize,
     db_path: PathBuf,
-) -> sp_blockchain::Result<ReadOnlyDatabase> {
+) -> sp_blockchain::Result<SecondaryRocksDB> {
     // need to make sure this is `Some` to open secondary instance
     let db_path = db_path.as_path().to_str().expect("Creating db path failed");
     let mut db_config = Config {
@@ -69,7 +69,7 @@ pub fn open_database(
         NUM_COLUMNS,
         other_col_budget,
     );
-    super::database::ReadOnlyDatabase::open(db_config, &path)
+    super::database::SecondaryRocksDB::open(db_config, &path)
         .map_err(|err| sp_blockchain::Error::Backend(format!("{:?}", err)))
 }
 
@@ -117,7 +117,7 @@ pub mod meta_keys {
 }
 
 pub fn read_header<Block: BlockT>(
-    db: Arc<dyn ReadOnlyDatabaseTrait>,
+    db: Arc<dyn ReadOnlyDatabase>,
     col_index: u32,
     col: u32,
     id: BlockId<Block>,
@@ -132,7 +132,7 @@ pub fn read_header<Block: BlockT>(
 }
 
 pub fn read_db<Block>(
-    db: Arc<dyn ReadOnlyDatabaseTrait>,
+    db: Arc<dyn ReadOnlyDatabase>,
     col_index: u32,
     col: u32,
     id: BlockId<Block>,
@@ -145,7 +145,7 @@ where
 }
 
 pub fn block_id_to_lookup_key<Block>(
-    db: Arc<dyn ReadOnlyDatabaseTrait>,
+    db: Arc<dyn ReadOnlyDatabase>,
     key_lookup_col: u32,
     id: BlockId<Block>,
 ) -> Result<Option<Vec<u8>>>
@@ -194,7 +194,7 @@ pub struct Meta<N, H> {
 
 /// Read meta from the database.
 pub fn read_meta<Block>(
-    db: Arc<dyn ReadOnlyDatabaseTrait>,
+    db: Arc<dyn ReadOnlyDatabase>,
     col_header: u32,
 ) -> sp_blockchain::Result<Meta<<<Block as BlockT>::Header as HeaderT>::Number, Block::Hash>>
 where
@@ -247,7 +247,7 @@ where
 
 /// Read genesis hash from database.
 pub fn read_genesis_hash<Hash: Decode>(
-    db: Arc<dyn ReadOnlyDatabaseTrait>,
+    db: Arc<dyn ReadOnlyDatabase>,
 ) -> sp_blockchain::Result<Option<Hash>> {
     match db.get(columns::META, meta_keys::GENESIS_HASH) {
         Some(h) => match Decode::decode(&mut &h[..]) {

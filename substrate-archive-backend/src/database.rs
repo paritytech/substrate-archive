@@ -22,7 +22,7 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use substrate_archive_common::{
-    database::{KeyValuePair, ReadOnlyDatabaseTrait},
+    database::{KeyValuePair, ReadOnlyDatabase},
     Result,
 };
 
@@ -33,20 +33,20 @@ pub struct Config {
 }
 
 #[derive(parity_util_mem::MallocSizeOf)]
-pub struct ReadOnlyDatabase {
+pub struct SecondaryRocksDB {
     inner: Database,
     catch_counter: AtomicUsize,
     track_catchups: bool,
 }
 
-impl std::fmt::Debug for ReadOnlyDatabase {
+impl std::fmt::Debug for SecondaryRocksDB {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let stats = self.inner.io_stats(kvdb::IoStatsKind::Overall);
         f.write_fmt(format_args!("Read Only Database Stats: {:?}", stats))
     }
 }
 
-impl ReadOnlyDatabase {
+impl SecondaryRocksDB {
     pub fn open(config: Config, path: &str) -> Result<Self> {
         let inner = Database::open(&config.config, path)?;
         inner.try_catch_up_with_primary()?;
@@ -74,7 +74,7 @@ impl ReadOnlyDatabase {
                     "{}, Catching up with primary and trying again...",
                     e.to_string()
                 );
-                self.try_catch_up_with_primary().ok()?;
+                self.catch_up_with_primary().ok()?;
                 match self.inner.get(col, key) {
                     Ok(v) => v,
                     Err(e) => {
@@ -87,7 +87,7 @@ impl ReadOnlyDatabase {
     }
 }
 
-impl ReadOnlyDatabaseTrait for ReadOnlyDatabase {
+impl ReadOnlyDatabase for SecondaryRocksDB {
     fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
         self.get(col, key)
     }
@@ -96,7 +96,7 @@ impl ReadOnlyDatabaseTrait for ReadOnlyDatabase {
         Box::new(self.inner.iter(col))
     }
 
-    fn try_catch_up_with_primary(&self) -> Result<()> {
+    fn catch_up_with_primary(&self) -> Result<()> {
         if self.track_catchups {
             self.catch_counter.fetch_add(1, Ordering::Relaxed);
         }
@@ -108,7 +108,7 @@ impl ReadOnlyDatabaseTrait for ReadOnlyDatabase {
 type DBError = std::result::Result<(), sp_database::error::DatabaseError>;
 //TODO: Remove panics with a warning that database has not been written to / is read-only
 /// Preliminary trait for ReadOnlyDatabase
-impl<H: Clone> DatabaseTrait<H> for ReadOnlyDatabase {
+impl<H: Clone> DatabaseTrait<H> for SecondaryRocksDB {
     fn commit(&self, _transaction: Transaction<H>) -> DBError {
         panic!("Read only db")
     }
