@@ -64,6 +64,7 @@ pub(crate) async fn missing_blocks_min_max(
 ) -> Result<HashSet<u32>> {
     let min = i32::try_from(min).unwrap_or(i32::MAX);
     let max_block_load = i64::try_from(max_block_load).unwrap_or(i64::MAX);
+    #[allow(clippy::toplevel_ref_arg)]
     Ok(sqlx::query_as!(
         Series,
         "SELECT missing_num
@@ -100,6 +101,7 @@ pub(crate) async fn max_block(conn: &mut PgConnection) -> Result<Option<u32>> {
 pub(crate) async fn blocks_storage_intersection(
     conn: &mut sqlx::PgConnection,
 ) -> Result<Vec<BlockModel>> {
+    #[allow(clippy::toplevel_ref_arg)]
     sqlx::query_as!(
         BlockModel,
         "SELECT *
@@ -118,6 +120,7 @@ pub(crate) async fn get_full_block_by_id(
     conn: &mut sqlx::PgConnection,
     id: i32,
 ) -> Result<BlockModel> {
+    #[allow(clippy::toplevel_ref_arg)]
     sqlx::query_as!(
         BlockModel,
         "
@@ -139,6 +142,7 @@ pub(crate) async fn get_full_block_by_num(
     block_num: u32,
 ) -> Result<BlockModel> {
     let safe_block_num = i32::try_from(block_num).unwrap_or(i32::MAX);
+    #[allow(clippy::toplevel_ref_arg)]
     sqlx::query_as!(
         BlockModel,
         "
@@ -159,6 +163,7 @@ pub(crate) async fn check_if_meta_exists(spec: u32, conn: &mut PgConnection) -> 
         Err(_) => return Ok(false),
         Ok(n) => n,
     };
+    #[allow(clippy::toplevel_ref_arg)]
     let does_exist = sqlx::query_as!(
         DoesExist,
         r#"SELECT EXISTS(SELECT version FROM metadata WHERE version = $1)"#,
@@ -172,6 +177,7 @@ pub(crate) async fn check_if_meta_exists(spec: u32, conn: &mut PgConnection) -> 
 /// Check if the block identified by `hash` exists in the relational database
 pub(crate) async fn has_block<B: BlockT>(hash: B::Hash, conn: &mut PgConnection) -> Result<bool> {
     let hash = hash.as_ref();
+    #[allow(clippy::toplevel_ref_arg)]
     let does_exist = sqlx::query_as!(
         DoesExist,
         r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash = $1)"#,
@@ -189,6 +195,7 @@ pub(crate) async fn has_blocks<B: BlockT>(
     conn: &mut PgConnection,
 ) -> Result<Vec<u32>> {
     let nums: Vec<i32> = nums.iter().filter_map(|n| i32::try_from(*n).ok()).collect();
+    #[allow(clippy::toplevel_ref_arg)]
     Ok(sqlx::query_as!(
         BlockNum,
         "SELECT block_num FROM blocks WHERE block_num = ANY ($1)",
@@ -203,6 +210,7 @@ pub(crate) async fn has_blocks<B: BlockT>(
 
 /// Get all the metadata versions stored in the relational database
 pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>> {
+    #[allow(clippy::toplevel_ref_arg)]
     Ok(sqlx::query_as!(Version, "SELECT version FROM metadata")
         .fetch_all(conn)
         .await?
@@ -215,6 +223,7 @@ pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>> {
 pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
     conn: &mut PgConnection,
 ) -> Result<impl Iterator<Item = Result<B>>> {
+    #[allow(clippy::toplevel_ref_arg)]
     let blocks = sqlx::query_as!(
         Bytes,
         "SELECT data FROM _background_tasks WHERE job_type = 'execute_block'",

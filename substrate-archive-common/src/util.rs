@@ -18,7 +18,8 @@
 
 #[cfg(feature = "logging")]
 use fern::colors::{Color, ColoredLevelConfig};
-use log::*;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::Hasher as _;
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "logging")]
@@ -30,10 +31,13 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .debug(Color::Blue)
         .trace(Color::Magenta);
 
-    // let mut log_dir = dirs::data_local_dir().expect("failed to find local data dir for logs");
-    // log_dir.push("substrate_archive");
-    let mut log_dir = substrate_dir();
-    create_dir(log_dir.as_path());
+    let mut log_dir = match substrate_dir() {
+        Err(e) => panic!(e),
+        Ok(dir) => dir,
+    };
+    if create_dir(log_dir.as_path()).is_err() {
+        panic!("A directory in the path of the substrate directory could not be created")
+    }
     log_dir.push("archive.logs");
 
     let stdout_dispatcher = fern::Dispatch::new()
@@ -111,32 +115,27 @@ fn format_opt(file: Option<String>) -> String {
 /// Linux | $XDG_DATA_HOME or $HOME/.local/share/substrate_archive | /home/alice/.local/share/substrate_archive/
 /// macOS | $HOME/Library/Application Support/substrate_archive | /Users/Alice/Library/Application Support/substrate_archive/
 /// Windows | {FOLDERID_LocalAppData}\substrate_archive | C:\Users\Alice\AppData\Local\substrate_archive
-pub fn substrate_dir() -> PathBuf {
+pub fn substrate_dir() -> Result<PathBuf, &'static str> {
     if let Some(base_dirs) = dirs::BaseDirs::new() {
         let mut path = base_dirs.data_local_dir().to_path_buf();
         path.push("substrate_archive");
-        path
+        Ok(path)
     } else {
-        panic!("Couldn't establish substrate data local path");
+        Err("No valid home directory path could be retrieved from the operating system")
     }
 }
 
-/// create an arbitrary directory on disk
-/// panics if it fails because of anything other than the directory already exists
-pub fn create_dir(path: &Path) {
+/// Create an arbitrary directory on disk.
+pub fn create_dir(path: &Path) -> Result<(), &'static str> {
     if let Err(e) = std::fs::create_dir_all(path) {
         match e.kind() {
             std::io::ErrorKind::AlreadyExists => (),
-            _ => {
-                error!("{}", e);
-                std::process::exit(0x0100);
-            }
+            _ => return Err("A directory in path could not be created"),
         }
     }
+    Ok(())
 }
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::Hasher as _;
 /// Make a hash out of a byte string using the default hasher
 pub fn make_hash<K: std::hash::Hash + ?Sized>(val: &K) -> u64 {
     let mut state = DefaultHasher::new();
