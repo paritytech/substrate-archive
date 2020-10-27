@@ -59,18 +59,18 @@ pub fn backend(db: &str) -> ReadOnlyBackend<Block> {
         ..DatabaseConfig::with_columns(NUM_COLUMNS)
     };
     let db =
-        Arc::new(ReadOnlyDatabase::open(&conf, db).expect("Couldn't open a secondary instance"));
+        Arc::new(ReadOnlyDB::open(&conf, db).expect("Couldn't open a secondary instance"));
 
     ReadOnlyBackend::new(db, true)
 }
 
-use crate::backend::database::ReadOnlyDatabase;
+use crate::backend::database::ReadOnlyDB;
 use crate::backend::util::NUM_COLUMNS;
 use kvdb_rocksdb::DatabaseConfig;
 
 pub fn harness<F>(db: &str, fun: F)
 where
-    F: FnOnce(ReadOnlyDatabase),
+    F: FnOnce(ReadOnlyDB),
 {
     let secondary_db = tempfile::Builder::new()
         .prefix("archive-test")
@@ -81,6 +81,6 @@ where
         secondary: Some(secondary_db.to_str().unwrap().to_string()),
         ..DatabaseConfig::with_columns(NUM_COLUMNS)
     };
-    let db = ReadOnlyDatabase::open(&conf, db).expect("Couldn't open a secondary instance");
+    let db = ReadOnlyDB::open(&conf, db).expect("Couldn't open a secondary instance");
     fun(db);
 }

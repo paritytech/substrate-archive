@@ -28,33 +28,33 @@ use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
-use substrate_archive_common::database::ReadOnlyDatabase;
+use substrate_archive_common::database::{ReadOnlyDB, ReadOnlyDBContainer};
 use substrate_archive_common::error::Error as ArchiveError;
 
 use super::{ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
-pub type TArchiveClient<TBl, TRtApi, TExecDisp> =
-    Client<TFullCallExecutor<TBl, TExecDisp>, TBl, TRtApi>;
+pub type TArchiveClient<TBl, TRtApi, TExecDisp, D: ReadOnlyDB> =
+    Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;
 
 /// Full client call executor type.
-type TFullCallExecutor<TBl, TExecDisp> =
-    self::executor::ArchiveExecutor<ReadOnlyBackend<TBl>, NativeExecutor<TExecDisp>>;
+type TFullCallExecutor<TBl, TExecDisp, D: ReadOnlyDB> =
+    self::executor::ArchiveExecutor<ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
 
-pub fn runtime_api<Block, Runtime, Dispatch>(
-    db: Arc<dyn ReadOnlyDatabase>,
+pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDB>(
+    db: Arc<ReadOnlyDBContainer<D>>,
     block_workers: usize,
     wasm_pages: u64,
-) -> Result<TArchiveClient<Block, Runtime, Dispatch>, ArchiveError>
+) -> Result<TArchiveClient<Block, Runtime, Dispatch, D>, ArchiveError>
 where
     Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch>>
+    Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch, D>>
         + Send
         + Sync
         + 'static,
     Runtime::RuntimeApi: RuntimeApiCollection<
             Block,
-            StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block>, Block>,
+            StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block, D>, Block>,
         > + Send
         + Sync
         + 'static,

@@ -24,22 +24,26 @@ use sp_runtime::traits::{Block as BlockT, HashFor};
 use sp_state_machine::{StateMachineStats, TrieBackend, UsageInfo as StateUsageInfo};
 use std::marker::PhantomData;
 use std::sync::Arc;
-use substrate_archive_common::database::ReadOnlyDatabase;
+use substrate_archive_common::database::{ReadOnlyDB, ReadOnlyDBContainer};
 
 /// DB-backed patricia trie state, transaction type is an overlay of changes to commit.
 pub type DbState<B> = TrieBackend<Arc<dyn sp_state_machine::Storage<HashFor<B>>>, HashFor<B>>;
 
 /// Holds a reference to the disk backend
 /// that trie operations can make use of
-pub struct StateVault<Block: BlockT> {
+pub struct StateVault<Block: BlockT, D: ReadOnlyDB> {
     /// disk backend
-    pub db: Arc<dyn ReadOnlyDatabase>,
+    pub db: Arc<ReadOnlyDBContainer<D>>,
     prefix_keys: bool,
     _marker: PhantomData<Block>,
 }
 
-impl<Block: BlockT> StateVault<Block> {
-    pub fn new(db: Arc<dyn ReadOnlyDatabase>, prefix_keys: bool) -> Self {
+impl<Block, D> StateVault<Block, D>
+where
+    Block: BlockT,
+    D: ReadOnlyDB,
+{
+    pub fn new(db: Arc<ReadOnlyDBContainer<D>>, prefix_keys: bool) -> Self {
         Self {
             db,
             prefix_keys,
@@ -48,7 +52,11 @@ impl<Block: BlockT> StateVault<Block> {
     }
 }
 
-impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for StateVault<Block> {
+impl<Block, D> sp_state_machine::Storage<HashFor<Block>> for StateVault<Block, D>
+where
+    Block: BlockT,
+    D: ReadOnlyDB,
+{
     fn get(&self, key: &Block::Hash, prefix: Prefix) -> Result<Option<DBValue>, String> {
         if self.prefix_keys {
             let key = sp_trie::prefixed_key::<HashFor<Block>>(key, prefix);
@@ -62,17 +70,17 @@ impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for StateVault<Blo
 /// TrieState
 /// Returns a reference that implements StateBackend
 /// It makes sure that the hash we are using stays pinned in storage
-pub struct TrieState<Block: BlockT> {
+pub struct TrieState<Block: BlockT, D: ReadOnlyDB> {
     state: DbState<Block>,
     #[allow(unused)]
-    storage: Arc<StateVault<Block>>,
+    storage: Arc<StateVault<Block, D>>,
     parent_hash: Option<Block::Hash>,
 }
 
-impl<B: BlockT> TrieState<B> {
+impl<B: BlockT, D: ReadOnlyDB> TrieState<B, D> {
     pub fn new(
         state: DbState<B>,
-        storage: Arc<StateVault<B>>,
+        storage: Arc<StateVault<B, D>>,
         parent_hash: Option<B::Hash>,
     ) -> Self {
         TrieState {
@@ -83,13 +91,13 @@ impl<B: BlockT> TrieState<B> {
     }
 }
 
-impl<Block: BlockT> std::fmt::Debug for TrieState<Block> {
+impl<B: BlockT, D: ReadOnlyDB> std::fmt::Debug for TrieState<B, D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Block {:?}", self.parent_hash)
     }
 }
 
-impl<B: BlockT> StateBackend<HashFor<B>> for TrieState<B> {
+impl<B: BlockT, D: ReadOnlyDB> StateBackend<HashFor<B>> for TrieState<B, D> {
     type Error = <DbState<B> as StateBackend<HashFor<B>>>::Error;
     type Transaction = <DbState<B> as StateBackend<HashFor<B>>>::Transaction;
     type TrieBackendStorage = <DbState<B> as StateBackend<HashFor<B>>>::TrieBackendStorage;

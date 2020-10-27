@@ -42,29 +42,32 @@ use sp_runtime::{
     Justification,
 };
 use std::{convert::TryInto, sync::Arc};
-use substrate_archive_common::database::ReadOnlyDatabase;
-use substrate_archive_common::Result;
+use substrate_archive_common::{
+    database::{ReadOnlyDB, ReadOnlyDBContainer},
+    Result,
+};
 
-pub struct ReadOnlyBackend<Block: BlockT> {
-    db: Arc<dyn ReadOnlyDatabase>,
-    storage: Arc<StateVault<Block>>,
+pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDB> {
+    db: Arc<ReadOnlyDBContainer<D>>,
+    storage: Arc<StateVault<Block, D>>,
 }
 
-impl<Block> ReadOnlyBackend<Block>
+impl<Block, D> ReadOnlyBackend<Block, D>
 where
     Block: BlockT,
+    D: ReadOnlyDB,
 {
-    pub fn new(db: Arc<dyn ReadOnlyDatabase>, prefix_keys: bool) -> Self {
+    pub fn new(db: Arc<ReadOnlyDBContainer<D>>, prefix_keys: bool) -> Self {
         let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
         Self { db, storage: vault }
     }
 
     /// get a reference to the backing database
-    pub fn backing_db(&self) -> Arc<dyn ReadOnlyDatabase> {
+    pub fn backing_db(&self) -> Arc<ReadOnlyDBContainer<D>> {
         self.db.clone()
     }
 
-    fn state_at(&self, hash: Block::Hash) -> Option<TrieState<Block>> {
+    fn state_at(&self, hash: Block::Hash) -> Option<TrieState<Block, D>> {
         // genesis
         if hash == Default::default() {
             let genesis_storage = DbGenesisStorage::<Block>(Block::Hash::default());

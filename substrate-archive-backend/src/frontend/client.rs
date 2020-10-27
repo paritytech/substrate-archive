@@ -38,7 +38,10 @@ use sp_runtime::{
     traits::{Block as BlockT, Header as HeaderT, One},
 };
 use std::{marker::PhantomData, panic::UnwindSafe, sync::Arc};
-use substrate_archive_common::error::{Error, Result};
+use substrate_archive_common::{
+    database::ReadOnlyDB,
+    error::{Error, Result},
+};
 
 // FIXME: should use the trait sp_version::GetRuntimeVersion
 // but that returns a String for an error
@@ -53,20 +56,21 @@ pub trait GetMetadata<Block: BlockT>: Send + Sync {
 }
 
 /// Archive Client
-pub struct Client<Exec, Block: BlockT, RA> {
-    backend: Arc<ReadOnlyBackend<Block>>,
+pub struct Client<Exec, Block: BlockT, RA, D: ReadOnlyDB> {
+    backend: Arc<ReadOnlyBackend<Block, D>>,
     executor: Exec,
     execution_extensions: ExecutionExtensions<Block>,
     _marker: PhantomData<RA>,
 }
 
-impl<Exec, Block, RA> Client<Exec, Block, RA>
+impl<Exec, Block, RA, D> Client<Exec, Block, RA, D>
 where
+    D: ReadOnlyDB,
     Exec: CallExecutor<Block>,
     Block: BlockT,
 {
     pub fn new(
-        backend: Arc<ReadOnlyBackend<Block>>,
+        backend: Arc<ReadOnlyBackend<Block, D>>,
         executor: Exec,
         execution_extensions: ExecutionExtensions<Block>,
     ) -> Result<Self> {
@@ -78,7 +82,7 @@ where
         })
     }
 
-    pub fn state_at(&self, id: &BlockId<Block>) -> Option<TrieState<Block>> {
+    pub fn state_at(&self, id: &BlockId<Block>) -> Option<TrieState<Block, D>> {
         self.backend.state_at(*id).ok()
     }
 
@@ -87,7 +91,7 @@ where
     }
 
     /// get the backend for this client instance
-    pub fn backend(&self) -> Arc<ReadOnlyBackend<Block>> {
+    pub fn backend(&self) -> Arc<ReadOnlyBackend<Block, D>> {
         self.backend.clone()
     }
 
@@ -109,9 +113,10 @@ where
     }
 }
 
-impl<Exec, Block, RA> GetRuntimeVersion<Block> for Client<Exec, Block, RA>
+impl<Exec, Block, RA, D> GetRuntimeVersion<Block> for Client<Exec, Block, RA, D>
 where
-    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block>> + Send + Sync,
+    D: ReadOnlyDB,
+    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
     Block: BlockT,
     RA: Send + Sync,
 {
@@ -120,9 +125,10 @@ where
     }
 }
 
-impl<Exec, Block, RA> GetMetadata<Block> for Client<Exec, Block, RA>
+impl<Exec, Block, RA, D> GetMetadata<Block> for Client<Exec, Block, RA, D>
 where
-    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block>> + Send + Sync,
+    D: ReadOnlyDB,
+    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
     Block: BlockT,
     RA: ConstructRuntimeApi<Block, Self> + Send + Sync,
     RA::RuntimeApi: sp_api::Metadata<Block, Error = sp_blockchain::Error> + Send + Sync + 'static,
@@ -132,9 +138,10 @@ where
     }
 }
 
-impl<Exec, Block, RA> ProvideRuntimeApi<Block> for Client<Exec, Block, RA>
+impl<Exec, Block, RA, D> ProvideRuntimeApi<Block> for Client<Exec, Block, RA, D>
 where
-    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block>> + Send + Sync,
+    D: ReadOnlyDB,
+    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
     Block: BlockT,
     RA: ConstructRuntimeApi<Block, Self>,
 {
@@ -144,13 +151,14 @@ where
     }
 }
 
-impl<E, Block, RA> CallApiAt<Block> for Client<E, Block, RA>
+impl<E, Block, RA, D> CallApiAt<Block> for Client<E, Block, RA, D>
 where
-    E: CallExecutor<Block, Backend = ReadOnlyBackend<Block>> + Send + Sync,
+    D: ReadOnlyDB,
+    E: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
     Block: BlockT,
 {
     type Error = sp_blockchain::Error;
-    type StateBackend = TrieState<Block>;
+    type StateBackend = TrieState<Block, D>;
 
     fn call_api_at<
         'a,
@@ -159,7 +167,7 @@ where
         C: CoreApi<Block, Error = sp_blockchain::Error>,
     >(
         &self,
-        params: CallApiAtParams<'a, Block, C, NC, TrieState<Block>>,
+        params: CallApiAtParams<'a, Block, C, NC, TrieState<Block, D>>,
     ) -> sp_blockchain::Result<NativeOrEncoded<R>> {
         let core_api = params.core_api;
         let at = params.at;

@@ -32,21 +32,22 @@ use sp_storage::well_known_keys;
 use sp_version::RuntimeVersion;
 use std::sync::Arc;
 use substrate_archive_common::{
+    database::ReadOnlyDB,
     error::{Error, Result},
     types::Block,
     util,
 };
 
 #[derive(Clone)]
-pub struct RuntimeVersionCache<B: BlockT> {
+pub struct RuntimeVersionCache<B: BlockT, D: ReadOnlyDB> {
     /// Hash of the WASM Blob -> RuntimeVersion
     versions: ArcSwap<HashMap<u64, RuntimeVersion>>,
-    backend: Arc<ReadOnlyBackend<B>>,
+    backend: Arc<ReadOnlyBackend<B, D>>,
     exec: WasmExecutor,
 }
 
-impl<B: BlockT> RuntimeVersionCache<B> {
-    pub fn new(backend: Arc<ReadOnlyBackend<B>>) -> Self {
+impl<B: BlockT, D: ReadOnlyDB> RuntimeVersionCache<B, D> {
+    pub fn new(backend: Arc<ReadOnlyBackend<B, D>>) -> Self {
         // all _available_ functions
         // sp_io::storage::HostFunctions
         // sp_io::default_child_storage

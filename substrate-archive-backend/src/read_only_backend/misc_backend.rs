@@ -31,6 +31,7 @@ use sp_runtime::{
 };
 use sp_state_machine::{ChangesTrieTransaction, ChildStorageCollection, StorageCollection};
 use sp_storage::Storage;
+use substrate_archive_common::database::ReadOnlyDB;
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
@@ -38,7 +39,7 @@ type ChainResult<T> = Result<T, BlockchainError>;
 pub struct RealBlockImportOperation;
 
 impl<Block: BlockT> BlockImportOperation<Block> for RealBlockImportOperation {
-    type State = super::state_backend::TrieState<Block>;
+    type State = super::state_backend::TrieState<Block, D>;
 
     fn state(&self) -> ChainResult<Option<&Self::State>> {
         log::warn!("Block import operations not supported.");
@@ -143,7 +144,7 @@ impl OffchainStorage for OffchainStorageBackend {
     }
 }
 
-impl<Block: BlockT> AuxStore for ReadOnlyBackend<Block> {
+impl<Block: BlockT, DB: ReadOnlyDB> AuxStore for ReadOnlyBackend<Block, DB> {
     fn insert_aux<
         'a,
         'b: 'a,

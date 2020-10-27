@@ -29,10 +29,11 @@ use sp_runtime::{
     Justification,
 };
 use std::sync::Arc;
+use substrate_archive_common::database::ReadOnlyDB;
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
-impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
+impl<Block: BlockT, D: ReadOnlyDB> BlockchainBackend<Block> for ReadOnlyBackend<Block, D> {
     fn body(&self, id: BlockId<Block>) -> ChainResult<Option<Vec<<Block as BlockT>::Extrinsic>>> {
         let res = util::read_db::<Block>(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
             .map_err(|e| BlockchainError::Msg(e.to_string()))?;
@@ -47,13 +48,9 @@ impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
     }
 
     fn justification(&self, id: BlockId<Block>) -> ChainResult<Option<Justification>> {
-        let res = util::read_db::<Block>(
-            &*self.db,
-            columns::KEY_LOOKUP,
-            columns::JUSTIFICATION,
-            id,
-        )
-        .map_err(|e| BlockchainError::Msg(e.to_string()))?;
+        let res =
+            util::read_db::<Block>(&*self.db, columns::KEY_LOOKUP, columns::JUSTIFICATION, id)
+                .map_err(|e| BlockchainError::Msg(e.to_string()))?;
 
         match res {
             Some(justification) => match Decode::decode(&mut &justification[..]) {
@@ -97,7 +94,7 @@ impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
     }
 }
 
-impl<Block: BlockT> HeaderBackend<Block> for ReadOnlyBackend<Block> {
+impl<Block: BlockT, D: ReadOnlyDB> HeaderBackend<Block> for ReadOnlyBackend<Block, D> {
     fn header(&self, id: BlockId<Block>) -> ChainResult<Option<Block::Header>> {
         util::read_header::<Block>(&*self.db, columns::KEY_LOOKUP, columns::HEADER, id)
             .map_err(|e| BlockchainError::Msg(e.to_string()))
@@ -137,7 +134,7 @@ impl<Block: BlockT> HeaderBackend<Block> for ReadOnlyBackend<Block> {
     }
 }
 
-impl<Block: BlockT> HeaderMetadata<Block> for ReadOnlyBackend<Block> {
+impl<Block: BlockT, D: ReadOnlyDB> HeaderMetadata<Block> for ReadOnlyBackend<Block, D> {
     type Error = BlockchainError;
     // TODO: Header Metadata isn't actually cached. We could cache it
     fn header_metadata(&self, hash: Block::Hash) -> ChainResult<CachedHeaderMetadata<Block>> {

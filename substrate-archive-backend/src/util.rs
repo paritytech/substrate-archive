@@ -26,7 +26,7 @@ use sp_runtime::{
 };
 use std::convert::TryInto;
 use std::path::PathBuf;
-use substrate_archive_common::database::ReadOnlyDatabase;
+use substrate_archive_common::database::{ReadOnlyDB, ReadOnlyDBContainer};
 use substrate_archive_common::error::{Error, Result};
 
 pub const NUM_COLUMNS: u32 = 11;
@@ -115,8 +115,8 @@ pub mod meta_keys {
     pub const CHILDREN_PREFIX: &[u8; 8] = b"children";
 }
 
-pub fn read_header<Block: BlockT>(
-    db: &dyn ReadOnlyDatabase,
+pub fn read_header<Block: BlockT, D: ReadOnlyDB>(
+    db: &ReadOnlyDBContainer<D>,
     col_index: u32,
     col: u32,
     id: BlockId<Block>,
@@ -130,31 +130,29 @@ pub fn read_header<Block: BlockT>(
     }
 }
 
-pub fn read_db<Block>(
-    db: &dyn ReadOnlyDatabase,
+pub fn read_db<Block: BlockT, D: ReadOnlyDB>(
+    db: &ReadOnlyDBContainer<D>,
     col_index: u32,
     col: u32,
     id: BlockId<Block>,
-) -> Result<Option<DBValue>>
-where
-    Block: BlockT,
-{
+) -> Result<Option<DBValue>> {
     block_id_to_lookup_key(&*db, col_index, id)
         .map(|key| key.and_then(|key| db.get(col, key.as_ref())))
 }
 
-pub fn block_id_to_lookup_key<Block>(
-    db: &dyn ReadOnlyDatabase,
+pub fn block_id_to_lookup_key<Block, D>(
+    db: &ReadOnlyDBContainer<D>,
     key_lookup_col: u32,
     id: BlockId<Block>,
 ) -> Result<Option<Vec<u8>>>
 where
     Block: BlockT,
     sp_runtime::traits::NumberFor<Block>: UniqueSaturatedFrom<u64> + UniqueSaturatedInto<u64>,
+    D: ReadOnlyDB,
 {
     Ok(match id {
-        BlockId::Number(n) => db.get(key_lookup_col, number_index_key(n)?.as_ref()),
-        BlockId::Hash(h) => db.get(key_lookup_col, h.as_ref()),
+        BlockId::Number(n) => db.inner.get(key_lookup_col, number_index_key(n)?.as_ref()),
+        BlockId::Hash(h) => db.inner.get(key_lookup_col, h.as_ref()),
     })
 }
 
@@ -192,8 +190,8 @@ pub struct Meta<N, H> {
 }
 
 /// Read meta from the database.
-pub fn read_meta<Block>(
-    db: &dyn ReadOnlyDatabase,
+pub fn read_meta<Block: BlockT, D: ReadOnlyDB>(
+    db: &ReadOnlyDBContainer<D>,
     col_header: u32,
 ) -> sp_blockchain::Result<Meta<<<Block as BlockT>::Header as HeaderT>::Number, Block::Hash>>
 where
@@ -213,7 +211,7 @@ where
     };
 
     let load_meta_block = |desc, key| -> sp_blockchain::Result<_> {
-        if let Some(Some(header)) = match db.get(columns::META, key) {
+        if let Some(Some(header)) = match db.inner.get(columns::META, key) {
             Some(id) => db
                 .get(col_header, &id)
                 .map(|b| Block::Header::decode(&mut &b[..]).ok()),
@@ -245,10 +243,10 @@ where
 }
 
 /// Read genesis hash from database.
-pub fn read_genesis_hash<Hash: Decode>(
-    db: &dyn ReadOnlyDatabase,
+pub fn read_genesis_hash<Hash: Decode, D: ReadOnlyDB>(
+    db: &ReadOnlyDBContainer<D>,
 ) -> sp_blockchain::Result<Option<Hash>> {
-    match db.get(columns::META, meta_keys::GENESIS_HASH) {
+    match db.inner.get(columns::META, meta_keys::GENESIS_HASH) {
         Some(h) => match Decode::decode(&mut &h[..]) {
             Ok(h) => Ok(Some(h)),
             Err(err) => Err(sp_blockchain::Error::Backend(format!(

@@ -28,14 +28,15 @@ use sp_runtime::{
     traits::{Block as BlockT, NumberFor},
     Justification,
 };
+use substrate_archive_common::database::ReadOnlyDB;
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
-impl<Block: BlockT> Backend<Block> for ReadOnlyBackend<Block> {
+impl<Block: BlockT, D: ReadOnlyDB> Backend<Block> for ReadOnlyBackend<Block, D> {
     type BlockImportOperation = RealBlockImportOperation;
     type OffchainStorage = OffchainStorageBackend;
     type Blockchain = Self;
-    type State = super::state_backend::TrieState<Block>;
+    type State = super::state_backend::TrieState<Block, D>;
 
     fn begin_operation(&self) -> ChainResult<Self::BlockImportOperation> {
         log::warn!("Block import operations are not supported for Read Only Backend");

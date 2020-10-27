@@ -22,7 +22,7 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use substrate_archive_common::{
-    database::{KeyValuePair, ReadOnlyDatabase},
+    database::{KeyValuePair, ReadOnlyDB},
     Result,
 };
 
@@ -87,7 +87,7 @@ impl SecondaryRocksDB {
     }
 }
 
-impl ReadOnlyDatabase for SecondaryRocksDB {
+impl ReadOnlyDB for SecondaryRocksDB {
     fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
         self.get(col, key)
     }
@@ -107,7 +107,7 @@ impl ReadOnlyDatabase for SecondaryRocksDB {
 
 type DBError = std::result::Result<(), sp_database::error::DatabaseError>;
 //TODO: Remove panics with a warning that database has not been written to / is read-only
-/// Preliminary trait for ReadOnlyDatabase
+/// Preliminary trait for ReadOnlyDB
 impl<H: Clone> DatabaseTrait<H> for SecondaryRocksDB {
     fn commit(&self, _transaction: Transaction<H>) -> DBError {
         panic!("Read only db")
@@ -143,7 +143,7 @@ impl<H: Clone> DatabaseTrait<H> for SecondaryRocksDB {
 }
 
 /*
-impl KeyValueDB for ReadOnlyDatabase {
+impl KeyValueDB for ReadOnlyDB {
     fn get(&self, col: u32, key: &[u8]) -> std::io::Result<Option<DBValue>> {
         self.inner.get(col, key)
     }
