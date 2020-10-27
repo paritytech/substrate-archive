@@ -65,7 +65,7 @@ pub struct Client<Exec, Block: BlockT, RA, D: ReadOnlyDB> {
 
 impl<Exec, Block, RA, D> Client<Exec, Block, RA, D>
 where
-    D: ReadOnlyDB,
+    D: ReadOnlyDB + 'static,
     Exec: CallExecutor<Block>,
     Block: BlockT,
 {
@@ -115,7 +115,7 @@ where
 
 impl<Exec, Block, RA, D> GetRuntimeVersion<Block> for Client<Exec, Block, RA, D>
 where
-    D: ReadOnlyDB,
+    D: ReadOnlyDB + 'static,
     Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
     Block: BlockT,
     RA: Send + Sync,
@@ -127,7 +127,7 @@ where
 
 impl<Exec, Block, RA, D> GetMetadata<Block> for Client<Exec, Block, RA, D>
 where
-    D: ReadOnlyDB,
+    D: ReadOnlyDB + 'static,
     Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
     Block: BlockT,
     RA: ConstructRuntimeApi<Block, Self> + Send + Sync,
@@ -140,7 +140,7 @@ where
 
 impl<Exec, Block, RA, D> ProvideRuntimeApi<Block> for Client<Exec, Block, RA, D>
 where
-    D: ReadOnlyDB,
+    D: ReadOnlyDB + 'static,
     Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
     Block: BlockT,
     RA: ConstructRuntimeApi<Block, Self>,
@@ -153,7 +153,7 @@ where
 
 impl<E, Block, RA, D> CallApiAt<Block> for Client<E, Block, RA, D>
 where
-    D: ReadOnlyDB,
+    D: ReadOnlyDB + 'static,
     E: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
     Block: BlockT,
 {

@@ -46,7 +46,7 @@ pub struct RuntimeVersionCache<B: BlockT, D: ReadOnlyDB> {
     exec: WasmExecutor,
 }
 
-impl<B: BlockT, D: ReadOnlyDB> RuntimeVersionCache<B, D> {
+impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
     pub fn new(backend: Arc<ReadOnlyBackend<B, D>>) -> Self {
         // all _available_ functions
         // sp_io::storage::HostFunctions

@@ -24,7 +24,7 @@ use sp_runtime::traits::{Block as BlockT, HashFor};
 use sp_state_machine::{StateMachineStats, TrieBackend, UsageInfo as StateUsageInfo};
 use std::marker::PhantomData;
 use std::sync::Arc;
-use substrate_archive_common::database::{ReadOnlyDB, ReadOnlyDBContainer};
+use substrate_archive_common::database::{ReadOnlyDB};
 
 /// DB-backed patricia trie state, transaction type is an overlay of changes to commit.
 pub type DbState<B> = TrieBackend<Arc<dyn sp_state_machine::Storage<HashFor<B>>>, HashFor<B>>;
@@ -33,7 +33,7 @@ pub type DbState<B> = TrieBackend<Arc<dyn sp_state_machine::Storage<HashFor<B>>>
 /// that trie operations can make use of
 pub struct StateVault<Block: BlockT, D: ReadOnlyDB> {
     /// disk backend
-    pub db: Arc<ReadOnlyDBContainer<D>>,
+    pub db: Arc<D>,
     prefix_keys: bool,
     _marker: PhantomData<Block>,
 }
@@ -43,7 +43,7 @@ where
     Block: BlockT,
     D: ReadOnlyDB,
 {
-    pub fn new(db: Arc<ReadOnlyDBContainer<D>>, prefix_keys: bool) -> Self {
+    pub fn new(db: Arc<D>, prefix_keys: bool) -> Self {
         Self {
             db,
             prefix_keys,

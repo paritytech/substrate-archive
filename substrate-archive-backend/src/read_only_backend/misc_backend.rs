@@ -32,13 +32,16 @@ use sp_runtime::{
 use sp_state_machine::{ChangesTrieTransaction, ChildStorageCollection, StorageCollection};
 use sp_storage::Storage;
 use substrate_archive_common::database::ReadOnlyDB;
+use std::marker::PhantomData;
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
 //// Dummy Block Import Operation struct
-pub struct RealBlockImportOperation;
+pub struct RealBlockImportOperation<D> {
+    _marker: PhantomData<D>
+}
 
-impl<Block: BlockT> BlockImportOperation<Block> for RealBlockImportOperation {
+impl<Block: BlockT, D: ReadOnlyDB> BlockImportOperation<Block> for RealBlockImportOperation<D> {
     type State = super::state_backend::TrieState<Block, D>;
 
     fn state(&self) -> ChainResult<Option<&Self::State>> {

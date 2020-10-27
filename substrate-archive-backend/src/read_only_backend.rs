@@ -38,32 +38,29 @@ use sc_client_api::backend::StateBackend;
 use sp_blockchain::{Backend as _, HeaderBackend as _};
 use sp_runtime::{
     generic::{BlockId, SignedBlock},
-    traits::{Block as BlockT, HashFor, Header},
+    traits::{Block as BlockT, HashFor},
     Justification,
 };
 use std::{convert::TryInto, sync::Arc};
-use substrate_archive_common::{
-    database::{ReadOnlyDB, ReadOnlyDBContainer},
-    Result,
-};
+use substrate_archive_common::{database::ReadOnlyDB, Result};
 
 pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDB> {
-    db: Arc<ReadOnlyDBContainer<D>>,
+    db: Arc<D>,
     storage: Arc<StateVault<Block, D>>,
 }
 
 impl<Block, D> ReadOnlyBackend<Block, D>
 where
     Block: BlockT,
-    D: ReadOnlyDB,
+    D: ReadOnlyDB + 'static ,
 {
-    pub fn new(db: Arc<ReadOnlyDBContainer<D>>, prefix_keys: bool) -> Self {
+    pub fn new(db: Arc<D>, prefix_keys: bool) -> Self {
         let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
         Self { db, storage: vault }
     }
 
     /// get a reference to the backing database
-    pub fn backing_db(&self) -> Arc<ReadOnlyDBContainer<D>> {
+    pub fn backing_db(&self) -> Arc<D> {
         self.db.clone()
     }
 
@@ -73,14 +70,14 @@ where
             let genesis_storage = DbGenesisStorage::<Block>(Block::Hash::default());
             let root = Block::Hash::default();
             let state = DbState::<Block>::new(Arc::new(genesis_storage), root);
-            Some(TrieState::<Block>::new(
+            Some(TrieState::<Block, D>::new(
                 state,
                 self.storage.clone(),
                 Some(Block::Hash::default()),
             ))
         } else if let Some(state_root) = self.state_root(hash) {
             let state = DbState::<Block>::new(self.storage.clone(), state_root);
-            Some(TrieState::<Block>::new(
+            Some(TrieState::<Block, D>::new(
                 state,
                 self.storage.clone(),
                 Some(hash),
@@ -94,7 +91,7 @@ where
     fn state_root(&self, hash: Block::Hash) -> Option<Block::Hash> {
         // db / root / key
         // flesh it out
-        let header = super::util::read_header::<Block>(
+        let header = super::util::read_header::<Block, D>(
             &*self.db,
             columns::KEY_LOOKUP,
             columns::HEADER,

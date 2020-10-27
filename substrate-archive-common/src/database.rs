@@ -27,8 +27,3 @@ pub trait ReadOnlyDB: Send + Sync {
     /// Catch up with the latest information added to the database
     fn catch_up_with_primary(&self) -> Result<()>;
 }
-
-// Container to house the concrete blockchain database type
-pub struct ReadOnlyDBContainer<T: ReadOnlyDB> {
-    pub inner: T,
-}
