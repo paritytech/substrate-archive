@@ -23,13 +23,13 @@ mod database;
 mod migrations;
 mod sql_block_builder;
 mod tasks;
-mod types;
+mod traits;
 
 pub use actors::System;
 pub use archive::Builder as ArchiveBuilder;
 pub use database::queries;
 pub use migrations::MigrationConfig;
-pub use types::Archive;
+pub use traits::Archive;
 
 #[cfg(feature = "logging")]
 pub use substrate_archive_common::util::init_logger;

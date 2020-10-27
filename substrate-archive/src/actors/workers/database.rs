@@ -22,8 +22,8 @@ use std::marker::PhantomData;
 use std::time::Duration;
 use substrate_archive_common::types::{BatchBlock, Metadata};
 use substrate_archive_common::{
-    Result,
     types::{Block, Storage},
+    Result,
 };
 use xtra::prelude::*;
 

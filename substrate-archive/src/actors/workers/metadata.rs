@@ -22,8 +22,8 @@ use sp_runtime::{
 };
 use substrate_archive_backend::Meta;
 use substrate_archive_common::{
-    Result,
     types::{BatchBlock, Block, Metadata as MetadataT},
+    Result,
 };
 use xtra::prelude::*;
 

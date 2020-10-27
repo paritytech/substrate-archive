@@ -17,14 +17,6 @@
 use sp_runtime::traits::Block as BlockT;
 use substrate_archive_common::Result;
 
-pub trait ThreadPool: Send + Sync {
-    type In: Send + Sync + std::fmt::Debug;
-    type Out: Send + Sync + std::fmt::Debug;
-    /// Adds a task to the threadpool.
-    /// Should not block!
-    fn add_task(&self, d: Vec<Self::In>, tx: flume::Sender<Self::Out>) -> Result<usize>;
-}
-
 #[async_trait::async_trait(?Send)]
 pub trait Archive<B: BlockT + Unpin>
 where

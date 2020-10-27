@@ -26,7 +26,7 @@ use super::{
     database::{queries, Channel, Listener},
     sql_block_builder::BlockBuilder as SqlBlockBuilder,
     tasks::Environment,
-    types::Archive,
+    traits::Archive,
 };
 use coil::Job as _;
 use futures::FutureExt;
@@ -40,7 +40,7 @@ use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
-pub use substrate_archive_common::{Result, msg, msg::Die};
+pub use substrate_archive_common::{msg, msg::Die, Result};
 use xtra::prelude::*;
 
 // TODO: Split this up into two objects
@@ -315,7 +315,7 @@ where
 impl<B, R, C> Archive<B> for System<B, R, C>
 where
     B: BlockT + Unpin + DeserializeOwned,
-    B::Hash: Unpin,
+    <B as BlockT>::Hash: Unpin,
     R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + sp_api::Metadata<B, Error = sp_blockchain::Error>

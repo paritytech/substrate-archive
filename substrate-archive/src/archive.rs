@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{actors::System, types};
+use crate::{actors::System, traits};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
@@ -204,7 +204,7 @@ where
     /// # Panics
     /// Panics if one of chain_data_db or pg_url is not passed to the builder
     /// and their respective environment variables are not set.
-    pub fn build(self) -> Result<impl types::Archive<B>> {
+    pub fn build(self) -> Result<impl traits::Archive<B>> {
         let num_cpus = num_cpus::get();
         let (chain_path, pg_url) = parse_urls(self.chain_data_path, self.pg_url);
         let cache_size = self.cache_size.unwrap_or(128);
