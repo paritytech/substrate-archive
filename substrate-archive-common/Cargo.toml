@@ -8,7 +8,7 @@ edition = "2018"
 rayon = "1.4"
 sqlx = { version = "0.4.0-beta.1", default-features = false, features = ["postgres", "macros", "runtime-async-std", "migrate", "json", "offline"] }
 xtra = { version = "0.5.0-beta.4", features = ["with-smol-0_3"] }
-flume = "0.7"
+flume = "=0.7.2"
 thiserror = "1.0"
 log = "0.4"
 coil = { git = "https://github.com/insipx/coil", package = "coil"}

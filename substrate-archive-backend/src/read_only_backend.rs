@@ -92,7 +92,7 @@ where
         // db / root / key
         // flesh it out
         let header = super::util::read_header::<Block>(
-            self.db.clone(),
+            &*self.db,
             columns::KEY_LOOKUP,
             columns::HEADER,
             BlockId::Hash(hash),

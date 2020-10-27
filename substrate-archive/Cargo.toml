@@ -18,7 +18,7 @@ async-trait = "0.1"
 hex = "0.4"
 itertools = "0.9"
 # 0.7.2 introduces breaking changes with Send/Sync bounds
-flume = "0.7"
+flume = "=0.7.2"
 parking_lot = "0.10"
 parity-util-mem = "0.7"
 hashbrown = { version = "0.8", features = ["inline-more"] }

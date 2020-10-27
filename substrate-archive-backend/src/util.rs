@@ -26,7 +26,6 @@ use sp_runtime::{
 };
 use std::convert::TryInto;
 use std::path::PathBuf;
-use std::sync::Arc;
 use substrate_archive_common::database::ReadOnlyDatabase;
 use substrate_archive_common::error::{Error, Result};
 
@@ -117,7 +116,7 @@ pub mod meta_keys {
 }
 
 pub fn read_header<Block: BlockT>(
-    db: Arc<dyn ReadOnlyDatabase>,
+    db: &dyn ReadOnlyDatabase,
     col_index: u32,
     col: u32,
     id: BlockId<Block>,
@@ -132,7 +131,7 @@ pub fn read_header<Block: BlockT>(
 }
 
 pub fn read_db<Block>(
-    db: Arc<dyn ReadOnlyDatabase>,
+    db: &dyn ReadOnlyDatabase,
     col_index: u32,
     col: u32,
     id: BlockId<Block>,
@@ -140,12 +139,12 @@ pub fn read_db<Block>(
 where
     Block: BlockT,
 {
-    block_id_to_lookup_key(db.clone(), col_index, id)
+    block_id_to_lookup_key(&*db, col_index, id)
         .map(|key| key.and_then(|key| db.get(col, key.as_ref())))
 }
 
 pub fn block_id_to_lookup_key<Block>(
-    db: Arc<dyn ReadOnlyDatabase>,
+    db: &dyn ReadOnlyDatabase,
     key_lookup_col: u32,
     id: BlockId<Block>,
 ) -> Result<Option<Vec<u8>>>
@@ -194,13 +193,13 @@ pub struct Meta<N, H> {
 
 /// Read meta from the database.
 pub fn read_meta<Block>(
-    db: Arc<dyn ReadOnlyDatabase>,
+    db: &dyn ReadOnlyDatabase,
     col_header: u32,
 ) -> sp_blockchain::Result<Meta<<<Block as BlockT>::Header as HeaderT>::Number, Block::Hash>>
 where
     Block: BlockT,
 {
-    let genesis_hash: Block::Hash = match read_genesis_hash(db.clone())? {
+    let genesis_hash: Block::Hash = match read_genesis_hash(&*db)? {
         Some(genesis_hash) => genesis_hash,
         None => {
             return Ok(Meta {
@@ -247,7 +246,7 @@ where
 
 /// Read genesis hash from database.
 pub fn read_genesis_hash<Hash: Decode>(
-    db: Arc<dyn ReadOnlyDatabase>,
+    db: &dyn ReadOnlyDatabase,
 ) -> sp_blockchain::Result<Option<Hash>> {
     match db.get(columns::META, meta_keys::GENESIS_HASH) {
         Some(h) => match Decode::decode(&mut &h[..]) {

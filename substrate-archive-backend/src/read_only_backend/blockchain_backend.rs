@@ -34,7 +34,7 @@ type ChainResult<T> = Result<T, BlockchainError>;
 
 impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
     fn body(&self, id: BlockId<Block>) -> ChainResult<Option<Vec<<Block as BlockT>::Extrinsic>>> {
-        let res = util::read_db::<Block>(self.db.clone(), columns::KEY_LOOKUP, columns::BODY, id)
+        let res = util::read_db::<Block>(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
             .map_err(|e| BlockchainError::Msg(e.to_string()))?;
 
         match res {
@@ -48,7 +48,7 @@ impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
 
     fn justification(&self, id: BlockId<Block>) -> ChainResult<Option<Justification>> {
         let res = util::read_db::<Block>(
-            self.db.clone(),
+            &*self.db,
             columns::KEY_LOOKUP,
             columns::JUSTIFICATION,
             id,
@@ -67,7 +67,7 @@ impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
     }
 
     fn last_finalized(&self) -> ChainResult<Block::Hash> {
-        Ok(util::read_meta::<Block>(self.db.clone(), columns::HEADER)?.finalized_hash)
+        Ok(util::read_meta::<Block>(&*self.db, columns::HEADER)?.finalized_hash)
     }
 
     // no cache for Read Only Backend (yet)
@@ -99,13 +99,13 @@ impl<Block: BlockT> BlockchainBackend<Block> for ReadOnlyBackend<Block> {
 
 impl<Block: BlockT> HeaderBackend<Block> for ReadOnlyBackend<Block> {
     fn header(&self, id: BlockId<Block>) -> ChainResult<Option<Block::Header>> {
-        util::read_header::<Block>(self.db.clone(), columns::KEY_LOOKUP, columns::HEADER, id)
+        util::read_header::<Block>(&*self.db, columns::KEY_LOOKUP, columns::HEADER, id)
             .map_err(|e| BlockchainError::Msg(e.to_string()))
     }
 
     fn info(&self) -> Info<Block> {
         // TODO: Remove expect
-        let meta = util::read_meta::<Block>(self.db.clone(), columns::HEADER)
+        let meta = util::read_meta::<Block>(&*self.db, columns::HEADER)
             .expect("Metadata could not be read");
         log::warn!("Leaves are not counted on the Read Only Backend!");
         Info {
