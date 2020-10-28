@@ -45,7 +45,7 @@ hash-db = "0.15"
 
 # Substrate is pinned to the latest substrate version that the latest stable polkadot release is
 # using. This is necessary to make substrate-archive compatible with the polkadot runtime.
-sp-database = { git = "https://github.com/paritytech/substrate", package="sp-database" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-database = { git = "https://github.com/paritytech/substrate", package = "sp-database", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
 sp-storage = { git = "https://github.com/paritytech/substrate", package = "sp-storage" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
 sp-externalities = { git = "https://github.com/paritytech/substrate", package = "sp-externalities" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", package = "sp-runtime" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
