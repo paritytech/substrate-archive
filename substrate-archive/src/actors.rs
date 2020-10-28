@@ -40,7 +40,7 @@ use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
-pub use substrate_archive_common::{msg, msg::Die, Result};
+pub use substrate_archive_common::{msg, msg::Die, Result, database::ReadOnlyDB};
 use xtra::prelude::*;
 
 // TODO: Split this up into two objects
@@ -48,23 +48,23 @@ use xtra::prelude::*;
 
 /// Context that every actor may use
 #[derive(Clone)]
-pub struct ActorContext<B: BlockT + Unpin>
+pub struct ActorContext<B: BlockT + Unpin, D: ReadOnlyDB + 'static>
 where
     B::Hash: Unpin,
 {
-    backend: Arc<ReadOnlyBackend<B>>,
+    backend: Arc<ReadOnlyBackend<B, D>>,
     pg_url: String,
     meta: Meta<B>,
     workers: usize,
     max_block_load: u32,
 }
 
-impl<B: BlockT + Unpin> ActorContext<B>
+impl<B: BlockT + Unpin, D: ReadOnlyDB> ActorContext<B, D>
 where
     B::Hash: Unpin,
 {
     pub fn new(
-        backend: Arc<ReadOnlyBackend<B>>,
+        backend: Arc<ReadOnlyBackend<B, D>>,
         meta: Meta<B>,
         workers: usize,
         pg_url: String,
@@ -79,7 +79,7 @@ where
         }
     }
 
-    pub fn backend(&self) -> &Arc<ReadOnlyBackend<B>> {
+    pub fn backend(&self) -> &Arc<ReadOnlyBackend<B, D>> {
         &self.backend
     }
 
@@ -91,44 +91,46 @@ where
     }
 }
 
-struct Actors<B: BlockT + Unpin>
+struct Actors<B: BlockT + Unpin, D: ReadOnlyDB + 'static>
 where
     B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
     storage: Address<workers::StorageAggregator<B>>,
-    blocks: Address<workers::BlocksIndexer<B>>,
+    blocks: Address<workers::BlocksIndexer<B, D>>,
     metadata: Address<workers::Metadata<B>>,
     db_pool: Address<ActorPool<DatabaseActor<B>>>,
 }
 
 /// Control the execution of the indexing engine.
 /// Will exit on Drop.
-pub struct System<B, R, C>
+pub struct System<B, R, C, D>
 where
+    D: ReadOnlyDB + 'static,
     B: BlockT + Unpin,
     B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
     start_tx: flume::Sender<()>,
     kill_tx: flume::Sender<()>,
-    context: ActorContext<B>,
+    context: ActorContext<B, D>,
     /// handle to the futures runtime indexing the running chain
     handle: jod_thread::JoinHandle<Result<()>>,
-    _marker: PhantomData<(B, R, C)>,
+    _marker: PhantomData<(B, R, C, D)>,
 }
 
-impl<B, R, C> System<B, R, C>
+impl<B, R, C, D> System<B, R, C, D>
 where
+    D: ReadOnlyDB + 'static,
     B: BlockT + Unpin + DeserializeOwned,
     R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + sp_api::Metadata<B, Error = sp_blockchain::Error>
-        + ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B>, B>>
+        + ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B, D>, B>>
         + Send
         + Sync
         + 'static,
-    C: ApiAccess<B, ReadOnlyBackend<B>, R> + 'static,
+    C: ApiAccess<B, ReadOnlyBackend<B, D>, R> + 'static,
     NumberFor<B>: Into<u32> + From<u32> + Unpin,
     B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,
@@ -146,7 +148,7 @@ where
         // one client per-threadpool. This way we don't have conflicting cache resources
         // for WASM runtime-instances
         client_api: Arc<C>,
-        backend: Arc<ReadOnlyBackend<B>>,
+        backend: Arc<ReadOnlyBackend<B, D>>,
         workers: usize,
         pg_url: &str,
         max_block_load: u32,
@@ -175,7 +177,7 @@ where
 
     /// Start the actors and begin driving tself.pg_poolheir execution
     pub fn start(
-        ctx: ActorContext<B>,
+        ctx: ActorContext<B, D>,
         client: Arc<C>,
     ) -> (
         flume::Sender<()>,
@@ -196,7 +198,7 @@ where
     }
 
     async fn main_loop(
-        ctx: ActorContext<B>,
+        ctx: ActorContext<B, D>,
         mut rx: flume::Receiver<()>,
         client: Arc<C>,
     ) -> Result<()> {
@@ -211,11 +213,11 @@ where
         let mut conn = pool.acquire().await?;
         Self::restore_missing_storage(&mut *conn).await?;
         let env =
-            Environment::<B, R, C>::new(ctx.backend().clone(), client, actors.storage.clone());
+            Environment::<B, R, C, D>::new(ctx.backend().clone(), client, actors.storage.clone());
         let env = AssertUnwindSafe(env);
 
         let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
-            .register_job::<crate::tasks::execute_block::Job<B, R, C>>()
+            .register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
             .num_threads(ctx.workers)
             .max_tasks(500)
             .build()?;
@@ -237,7 +239,7 @@ where
         Ok(())
     }
 
-    async fn spawn_actors(ctx: ActorContext<B>) -> Result<Actors<B>> {
+    async fn spawn_actors(ctx: ActorContext<B, D>) -> Result<Actors<B, D>> {
         let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
         let db_pool = actor_pool::ActorPool::new(db, 8).spawn();
         let storage = workers::StorageAggregator::new(db_pool.clone()).spawn();
@@ -253,7 +255,7 @@ where
         })
     }
 
-    async fn kill_actors(actors: Actors<B>) -> Result<()> {
+    async fn kill_actors(actors: Actors<B, D>) -> Result<()> {
         let fut = vec![
             actors.storage.send(msg::Die),
             actors.blocks.send(msg::Die),
@@ -269,7 +271,7 @@ where
             async move {
                 let block = queries::get_full_block_by_id(conn, notif.id).await?;
                 let b: (B, u32) = SqlBlockBuilder::with_single(block)?;
-                crate::tasks::execute_block::<B, R, C>(b.0, PhantomData)
+                crate::tasks::execute_block::<B, R, C, D>(b.0, PhantomData)
                     .enqueue(conn)
                     .await?;
                 Ok(())
@@ -299,10 +301,10 @@ where
             .copied()
             .collect();
         missing_storage_blocks.retain(|b| difference.contains(&(b.block_num as u32)));
-        let jobs: Vec<crate::tasks::execute_block::Job<B, R, C>> =
+        let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> =
             SqlBlockBuilder::with_vec(missing_storage_blocks)?
                 .into_iter()
-                .map(|b| crate::tasks::execute_block::<B, R, C>(b.inner.block, PhantomData))
+                .map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
                 .collect();
         log::info!("Restoring {} missing storage entries", jobs.len());
         coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
@@ -312,18 +314,19 @@ where
 }
 
 #[async_trait::async_trait(?Send)]
-impl<B, R, C> Archive<B> for System<B, R, C>
+impl<B, R, C, D> Archive<B, D> for System<B, R, C, D>
 where
+    D: ReadOnlyDB + 'static,
     B: BlockT + Unpin + DeserializeOwned,
     <B as BlockT>::Hash: Unpin,
     R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + sp_api::Metadata<B, Error = sp_blockchain::Error>
-        + ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B>, B>>
+        + ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B, D>, B>>
         + Send
         + Sync
         + 'static,
-    C: ApiAccess<B, ReadOnlyBackend<B>, R> + 'static,
+    C: ApiAccess<B, ReadOnlyBackend<B, D>, R> + 'static,
     NumberFor<B>: Into<u32> + From<u32> + Unpin,
     B::Hash: From<primitive_types::H256> + Unpin,
     B::Header: serde::de::DeserializeOwned,
@@ -351,7 +354,7 @@ where
         Ok(())
     }
 
-    fn context(&self) -> Result<super::actors::ActorContext<B>> {
+    fn context(&self) -> Result<super::actors::ActorContext<B, D>> {
         Ok(self.context.clone())
     }
 }

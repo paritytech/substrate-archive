@@ -15,10 +15,10 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_runtime::traits::Block as BlockT;
-use substrate_archive_common::Result;
+use substrate_archive_common::{database::ReadOnlyDB, Result};
 
 #[async_trait::async_trait(?Send)]
-pub trait Archive<B: BlockT + Unpin>
+pub trait Archive<B: BlockT + Unpin, D: ReadOnlyDB>
 where
     B::Hash: Unpin,
 {
@@ -35,5 +35,5 @@ where
     fn boxed_shutdown(self: Box<Self>) -> Result<()>;
 
     /// Get a reference to the context the actors are using
-    fn context(&self) -> Result<super::actors::ActorContext<B>>;
+    fn context(&self) -> Result<super::actors::ActorContext<B, D>>;
 }

@@ -30,29 +30,31 @@ use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use substrate_archive_backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend};
-use substrate_archive_common::types::Storage;
+use substrate_archive_common::{database::ReadOnlyDB, types::Storage};
 use xtra::prelude::*;
 
 /// The environment passed to each task
-pub struct Environment<B, R, C>
+pub struct Environment<B, R, C, D>
 where
+    D: ReadOnlyDB,
     B: BlockT + Unpin,
     B::Hash: Unpin,
 {
-    backend: Arc<Backend<B>>,
+    backend: Arc<Backend<B, D>>,
     client: Arc<C>,
     storage: Address<StorageAggregator<B>>,
     _marker: PhantomData<R>,
 }
 
-type Env<B, R, C> = AssertUnwindSafe<Environment<B, R, C>>;
-impl<B, R, C> Environment<B, R, C>
+type Env<B, R, C, D> = AssertUnwindSafe<Environment<B, R, C, D>>;
+impl<B, R, C, D> Environment<B, R, C, D>
 where
+    D: ReadOnlyDB,
     B: BlockT + Unpin,
     B::Hash: Unpin,
 {
     pub fn new(
-        backend: Arc<Backend<B>>,
+        backend: Arc<Backend<B, D>>,
         client: Arc<C>,
         storage: Address<StorageAggregator<B>>,
     ) -> Self {
@@ -72,19 +74,20 @@ where
 // TODO: We should detect when the chain is behind our node, and not execute blocks in this case.
 /// Execute a block, and send it to the database actor
 #[coil::background_job]
-pub fn execute_block<B, RA, Api>(
-    env: &Env<B, RA, Api>,
+pub fn execute_block<B, RA, Api, D>(
+    env: &Env<B, RA, Api, D>,
     block: B,
-    _m: PhantomData<(RA, Api)>,
+    _m: PhantomData<(RA, Api, D)>,
 ) -> Result<(), coil::PerformError>
 where
+    D: ReadOnlyDB + 'static,
     B: BlockT + DeserializeOwned + Unpin,
     NumberFor<B>: Into<u32>,
     B::Hash: Unpin,
     RA: ConstructRuntimeApi<B, Api> + Send + Sync + 'static,
     RA::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
-        + ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B>, B>>,
-    Api: ApiAccess<B, Backend<B>, RA> + 'static,
+        + ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B, D>, B>>,
+    Api: ApiAccess<B, Backend<B, D>, RA> + 'static,
 {
     let api = env.client.runtime_api();
 

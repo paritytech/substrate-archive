@@ -24,34 +24,36 @@ use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
 use substrate_archive_common::{
     types::{BatchBlock, Block},
     Result,
+    database::ReadOnlyDB,
 };
 use xtra::prelude::*;
 
 type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
 
-pub struct BlocksIndexer<B: BlockT>
+pub struct BlocksIndexer<B: BlockT, D>
 where
+    D: ReadOnlyDB,
     NumberFor<B>: Into<u32>,
     B: Unpin,
     B::Hash: Unpin,
 {
     /// background task to crawl blocks
-    backend: Arc<ReadOnlyBackend<B>>,
+    backend: Arc<ReadOnlyBackend<B, D>>,
     db: DatabaseAct<B>,
     meta: Address<Metadata<B>>,
-    rt_cache: RuntimeVersionCache<B>,
+    rt_cache: RuntimeVersionCache<B, D>,
     /// the last maximum block number from which we are sure every block before then is indexed
     last_max: u32,
     /// the maximimum amount of blocks to index at once
     max_block_load: u32,
 }
 
-impl<B: BlockT + Unpin> BlocksIndexer<B>
+impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> BlocksIndexer<B, D>
 where
     B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
-    pub fn new(ctx: ActorContext<B>, db_addr: DatabaseAct<B>, meta: Address<Metadata<B>>) -> Self {
+    pub fn new(ctx: ActorContext<B, D>, db_addr: DatabaseAct<B>, meta: Address<Metadata<B>>) -> Self {
         Self {
             rt_cache: RuntimeVersionCache::new(ctx.backend.clone()),
             last_max: 0,
@@ -142,7 +144,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Actor for BlocksIndexer<B>
+impl<B: BlockT, D: ReadOnlyDB + 'static> Actor for BlocksIndexer<B, D>
 where
     NumberFor<B>: Into<u32>,
     B: Unpin,
@@ -166,7 +168,7 @@ impl Message for Crawl {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<Crawl> for BlocksIndexer<B>
+impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<Crawl> for BlocksIndexer<B, D>
 where
     NumberFor<B>: Into<u32>,
     B::Hash: Unpin,
@@ -189,7 +191,7 @@ impl Message for ReIndex {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<ReIndex> for BlocksIndexer<B>
+impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<ReIndex> for BlocksIndexer<B, D>
 where
     NumberFor<B>: Into<u32>,
     B::Hash: Unpin,
@@ -205,7 +207,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<super::Die> for BlocksIndexer<B>
+impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<super::Die> for BlocksIndexer<B, D>
 where
     NumberFor<B>: Into<u32>,
     B::Hash: Unpin,

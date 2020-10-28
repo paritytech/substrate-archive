@@ -38,12 +38,13 @@ use sc_client_api::backend::StateBackend;
 use sp_blockchain::{Backend as _, HeaderBackend as _};
 use sp_runtime::{
     generic::{BlockId, SignedBlock},
-    traits::{Block as BlockT, HashFor},
+    traits::{Block as BlockT, HashFor, Header as HeaderT},
     Justification,
 };
 use std::{convert::TryInto, sync::Arc};
 use substrate_archive_common::{database::ReadOnlyDB, Result};
 
+#[derive(Clone)]
 pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDB> {
     db: Arc<D>,
     storage: Arc<StateVault<Block, D>>,
@@ -52,6 +53,7 @@ pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDB> {
 impl<Block, D> ReadOnlyBackend<Block, D>
 where
     Block: BlockT,
+    Block::Header: HeaderT,
     D: ReadOnlyDB + 'static ,
 {
     pub fn new(db: Arc<D>, prefix_keys: bool) -> Self {

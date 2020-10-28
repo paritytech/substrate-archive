@@ -38,7 +38,7 @@ type ChainResult<T> = Result<T, BlockchainError>;
 
 //// Dummy Block Import Operation struct
 pub struct RealBlockImportOperation<D> {
-    _marker: PhantomData<D>
+    pub _marker: PhantomData<D>
 }
 
 impl<Block: BlockT, D: ReadOnlyDB> BlockImportOperation<Block> for RealBlockImportOperation<D> {

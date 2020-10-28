@@ -28,7 +28,7 @@ use sp_runtime::{
 };
 use std::{marker::PhantomData, path::PathBuf, sync::Arc};
 use substrate_archive_backend::{open_database, runtime_api, ReadOnlyBackend, TArchiveClient};
-use substrate_archive_common::Result;
+use substrate_archive_common::{database::ReadOnlyDB, Result};
 
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
 const POSTGRES_VAR: &str = "DATABASE_URL";
@@ -36,7 +36,7 @@ const POSTGRES_VAR: &str = "DATABASE_URL";
 /// The recommended open file descriptor limit to be configured for the process.
 const RECOMMENDED_OPEN_FILE_DESCRIPTOR_LIMIT: u64 = 10_000;
 
-pub struct Builder<B, R, D> {
+pub struct Builder<B, R, D, DB> {
     /// Path to the rocksdb database
     pub chain_data_path: Option<String>,
     /// url to the Postgres Database
@@ -49,12 +49,12 @@ pub struct Builder<B, R, D> {
     pub wasm_pages: Option<u64>,
     /// Chain spec describing the chain
     pub chain_spec: Option<Box<dyn ChainSpec>>,
-    pub _marker: PhantomData<(B, R, D)>,
+    pub _marker: PhantomData<(B, R, D, DB)>,
     /// maximimum amount of blocks to index at once
     pub max_block_load: Option<u32>,
 }
 
-impl<B, R, D> Default for Builder<B, R, D> {
+impl<B, R, D, DB> Default for Builder<B, R, D, DB> {
     fn default() -> Self {
         Self {
             chain_data_path: None,
@@ -69,7 +69,7 @@ impl<B, R, D> Default for Builder<B, R, D> {
     }
 }
 
-impl<B, R, D> Builder<B, R, D> {
+impl<B, R, D, DB> Builder<B, R, D, DB> {
     /// Set the chain data backend path to use for this instance.
     ///
     /// # Default
@@ -182,13 +182,14 @@ fn create_database_path(spec: Option<Box<dyn ChainSpec>>) -> Result<PathBuf> {
     Ok(path)
 }
 
-impl<B, R, D> Builder<B, R, D>
+impl<B, R, D, DB> Builder<B, R, D, DB>
 where
+    DB: ReadOnlyDB + 'static,
     B: BlockT + Unpin + DeserializeOwned,
-    R: ConstructRuntimeApi<B, TArchiveClient<B, R, D>> + Send + Sync + 'static,
+    R: ConstructRuntimeApi<B, TArchiveClient<B, R, D, DB>> + Send + Sync + 'static,
     R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
         + sp_api::Metadata<B, Error = sp_blockchain::Error>
-        + ApiExt<B, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<B>, B>>
+        + ApiExt<B, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<B, DB>, B>>
         + Send
         + Sync
         + 'static,
@@ -204,7 +205,7 @@ where
     /// # Panics
     /// Panics if one of chain_data_db or pg_url is not passed to the builder
     /// and their respective environment variables are not set.
-    pub fn build(self) -> Result<impl traits::Archive<B>> {
+    pub fn build(self) -> Result<impl traits::Archive<B, DB>> {
         let num_cpus = num_cpus::get();
         let (chain_path, pg_url) = parse_urls(self.chain_data_path, self.pg_url);
         let cache_size = self.cache_size.unwrap_or(128);
@@ -214,12 +215,12 @@ where
         let db_path = create_database_path(self.chain_spec)?;
         smol::block_on(crate::migrations::migrate(&pg_url))?;
         let db = Arc::new(open_database(chain_path.as_str(), cache_size, db_path)?);
-        let client = runtime_api::<B, R, D>(db.clone(), block_workers, wasm_pages)?;
+        let client = runtime_api::<B, R, D, DB>(db.clone(), block_workers, wasm_pages)?;
         let client = Arc::new(client);
         let backend = Arc::new(ReadOnlyBackend::new(db, true));
         Self::startup_info(&client, &backend)?;
 
-        let ctx = System::<_, R, _>::new(
+        let ctx = System::<_, R, _, _>::new(
             client,
             backend,
             block_workers,
@@ -230,7 +231,7 @@ where
     }
 
     /// Log some general startup info
-    fn startup_info(client: &TArchiveClient<B, R, D>, backend: &ReadOnlyBackend<B>) -> Result<()> {
+    fn startup_info(client: &TArchiveClient<B, R, D, DB>, backend: &ReadOnlyBackend<B, DB>) -> Result<()> {
         let last_finalized_block = backend.last_finalized()?;
         let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
         log::info!(

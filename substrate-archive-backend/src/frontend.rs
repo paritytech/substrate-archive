@@ -34,11 +34,11 @@ use substrate_archive_common::error::Error as ArchiveError;
 use super::{ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
-pub type TArchiveClient<TBl, TRtApi, TExecDisp, D: ReadOnlyDB> =
+pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> =
     Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;
 
 /// Full client call executor type.
-type TFullCallExecutor<TBl, TExecDisp, D: ReadOnlyDB> =
+type TFullCallExecutor<TBl, TExecDisp, D> =
     self::executor::ArchiveExecutor<ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
 
 pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDB + 'static>(
