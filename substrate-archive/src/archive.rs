@@ -27,7 +27,8 @@ use sp_runtime::{
     traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
 use std::{marker::PhantomData, path::PathBuf, sync::Arc};
-use substrate_archive_backend::{open_database, runtime_api, ReadOnlyBackend, TArchiveClient};
+// use substrate_archive_backend::{open_database, runtime_api, ReadOnlyBackend, TArchiveClient, SecondaryRocksDB};
+use substrate_archive_backend::{runtime_api, ReadOnlyBackend, TArchiveClient};
 use substrate_archive_common::{database::ReadOnlyDB, Result};
 
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
@@ -214,11 +215,11 @@ where
         let max_block_load = self.max_block_load.unwrap_or(100_000);
         let db_path = create_database_path(self.chain_spec)?;
         smol::block_on(crate::migrations::migrate(&pg_url))?;
-        let db = Arc::new(open_database(chain_path.as_str(), cache_size, db_path)?);
+        let db = Arc::new(DB::open_database(chain_path.as_str(), cache_size, db_path)?);
         let client = runtime_api::<B, R, D, DB>(db.clone(), block_workers, wasm_pages)?;
         let client = Arc::new(client);
         let backend = Arc::new(ReadOnlyBackend::new(db, true));
-        Self::startup_info(&client, &backend)?;
+        Self::startup_info(&*client, &*backend)?;
 
         let ctx = System::<_, R, _, _>::new(
             client,

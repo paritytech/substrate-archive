@@ -38,12 +38,21 @@ use substrate_archive_common::{
     util,
 };
 
-#[derive(Clone)]
 pub struct RuntimeVersionCache<B: BlockT, D: ReadOnlyDB> {
     /// Hash of the WASM Blob -> RuntimeVersion
     versions: ArcSwap<HashMap<u64, RuntimeVersion>>,
     backend: Arc<ReadOnlyBackend<B, D>>,
     exec: WasmExecutor,
+}
+
+impl<B: BlockT, D: ReadOnlyDB + 'static> Clone for RuntimeVersionCache<B, D> {
+    fn clone(&self) -> RuntimeVersionCache<B, D> {
+        RuntimeVersionCache {
+            versions: self.versions.clone(),
+            backend: self.backend.clone(),
+            exec: self.exec.clone(),
+        }
+    }
 }
 
 impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {

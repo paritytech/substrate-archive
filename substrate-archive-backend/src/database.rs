@@ -21,8 +21,9 @@ use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::path::PathBuf;
 use substrate_archive_common::{
-    database::{KeyValuePair, ReadOnlyDB},
+    database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS},
     Result,
 };
 
@@ -102,6 +103,44 @@ impl ReadOnlyDB for SecondaryRocksDB {
         }
         self.inner.try_catch_up_with_primary()?;
         Ok(())
+    }
+
+    fn open_database(
+        path: &str,
+        cache_size: usize,
+        db_path: PathBuf,
+    ) -> sp_blockchain::Result<SecondaryRocksDB> {
+        // need to make sure this is `Some` to open secondary instance
+        let db_path = db_path.as_path().to_str().expect("Creating db path failed");
+        let mut db_config = Config {
+            track_catchups: true,
+            config: DatabaseConfig {
+                secondary: Some(db_path.to_string()),
+                ..DatabaseConfig::with_columns(NUM_COLUMNS)
+            },
+        };
+        let state_col_budget = (cache_size as f64 * 0.9) as usize;
+        let other_col_budget = (cache_size - state_col_budget) / (NUM_COLUMNS as usize - 1);
+        let mut memory_budget = std::collections::HashMap::new();
+
+        for i in 0..NUM_COLUMNS {
+            if i == 1 {
+                memory_budget.insert(i, state_col_budget);
+            } else {
+                memory_budget.insert(i, other_col_budget);
+            }
+        }
+        db_config.config.memory_budget = memory_budget;
+        log::info!(
+            target: "db",
+            "Open RocksDB at {}, state column budget: {} MiB, others({}) column cache: {} MiB",
+            path,
+            state_col_budget,
+            NUM_COLUMNS,
+            other_col_budget,
+        );
+        Self::open(db_config, &path)
+            .map_err(|err| sp_blockchain::Error::Backend(format!("{:?}", err)))
     }
 }
 

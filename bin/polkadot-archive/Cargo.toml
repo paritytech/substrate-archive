@@ -8,6 +8,8 @@ edition = "2018"
 
 [dependencies]
 substrate-archive = { path = "../../substrate-archive", features = ["logging"] }
+substrate-archive-common = { path = "../../substrate-archive-common" }
+substrate-archive-backend = { path = "../../substrate-archive-backend" }
 polkadot-service = { package = "polkadot-service", git = "https://github.com/insipx/polkadot", branch = "substrate-archive" }
 sc-chain-spec = { package = "sc-chain-spec", git = "https://github.com/paritytech/substrate", rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
 clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }

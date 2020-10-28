@@ -47,7 +47,6 @@ use xtra::prelude::*;
 // System should be a factory that produces objects that should be spawned
 
 /// Context that every actor may use
-#[derive(Clone)]
 pub struct ActorContext<B: BlockT + Unpin, D: ReadOnlyDB + 'static>
 where
     B::Hash: Unpin,
@@ -57,6 +56,21 @@ where
     meta: Meta<B>,
     workers: usize,
     max_block_load: u32,
+}
+
+impl<B: BlockT + Unpin, D: ReadOnlyDB> Clone for ActorContext<B, D>
+where
+    B::Hash: Unpin,
+{
+    fn clone(&self) -> ActorContext<B, D> {
+        ActorContext {
+            backend: Arc::clone(&self.backend),
+            pg_url: self.pg_url.clone(),
+            meta: self.meta.clone(),
+            workers: self.workers,
+            max_block_load: self.max_block_load
+        }
+    }
 }
 
 impl<B: BlockT + Unpin, D: ReadOnlyDB> ActorContext<B, D>

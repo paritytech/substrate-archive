@@ -16,61 +16,17 @@
 
 //! various utilities that make interfacing with substrate easier
 
-use crate::database::{Config, SecondaryRocksDB};
 use codec::Decode;
 use kvdb::DBValue;
-use kvdb_rocksdb::DatabaseConfig;
 use sp_runtime::{
     generic::BlockId,
     traits::{Block as BlockT, Header as HeaderT, UniqueSaturatedFrom, UniqueSaturatedInto, Zero},
 };
 use std::convert::TryInto;
-use std::path::PathBuf;
 use substrate_archive_common::database::ReadOnlyDB;
 use substrate_archive_common::error::{Error, Result};
 
-pub const NUM_COLUMNS: u32 = 11;
-
 pub type NumberIndexKey = [u8; 4];
-
-/// Open a database as read-only
-pub fn open_database(
-    path: &str,
-    cache_size: usize,
-    db_path: PathBuf,
-) -> sp_blockchain::Result<SecondaryRocksDB> {
-    // need to make sure this is `Some` to open secondary instance
-    let db_path = db_path.as_path().to_str().expect("Creating db path failed");
-    let mut db_config = Config {
-        track_catchups: true,
-        config: DatabaseConfig {
-            secondary: Some(db_path.to_string()),
-            ..DatabaseConfig::with_columns(NUM_COLUMNS)
-        },
-    };
-    let state_col_budget = (cache_size as f64 * 0.9) as usize;
-    let other_col_budget = (cache_size - state_col_budget) / (NUM_COLUMNS as usize - 1);
-    let mut memory_budget = std::collections::HashMap::new();
-
-    for i in 0..NUM_COLUMNS {
-        if i == 1 {
-            memory_budget.insert(i, state_col_budget);
-        } else {
-            memory_budget.insert(i, other_col_budget);
-        }
-    }
-    db_config.config.memory_budget = memory_budget;
-    log::info!(
-        target: "db",
-        "Open RocksDB at {}, state column budget: {} MiB, others({}) column cache: {} MiB",
-        path,
-        state_col_budget,
-        NUM_COLUMNS,
-        other_col_budget,
-    );
-    super::database::SecondaryRocksDB::open(db_config, &path)
-        .map_err(|err| sp_blockchain::Error::Backend(format!("{:?}", err)))
-}
 
 #[allow(unused)]
 pub(crate) mod columns {

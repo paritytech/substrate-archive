@@ -37,7 +37,8 @@ pub use self::{
     frontend::{runtime_api, TArchiveClient},
     read_only_backend::ReadOnlyBackend,
     runtime_version_cache::RuntimeVersionCache,
-    util::open_database,
+    // util::open_database,
+    database::SecondaryRocksDB
 };
 
 #[cfg(feature = "logging")]
