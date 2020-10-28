@@ -27,7 +27,6 @@ use sp_runtime::{
     traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
 use std::{marker::PhantomData, path::PathBuf, sync::Arc};
-// use substrate_archive_backend::{open_database, runtime_api, ReadOnlyBackend, TArchiveClient, SecondaryRocksDB};
 use substrate_archive_backend::{runtime_api, ReadOnlyBackend, TArchiveClient};
 use substrate_archive_common::{database::ReadOnlyDB, Result};
 
