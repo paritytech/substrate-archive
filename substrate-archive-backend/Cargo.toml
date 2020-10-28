@@ -23,20 +23,20 @@ parity-util-mem = "0.7"
 
 
 # Substrate
-sp-database = { git = "https://github.com/paritytech/substrate", package="sp-database" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", package = "sp-runtime" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", package = "sp-blockchain" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", package = "sc-client-api" }
-sp-core = { git = "https://github.com/paritytech/substrate", package = "sp-core" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", package = "sp-state-machine" }
-sp-storage = { git = "https://github.com/paritytech/substrate", package = "sp-storage" }
-sp-trie = { git = "https://github.com/paritytech/substrate", package = "sp-trie" }
-sp-version = {  git = "https://github.com/paritytech/substrate", package = "sp-version" }
-sc-executor = { git = "https://github.com/paritytech/substrate", package = "sc-executor" }
-sp-api = { git = "https://github.com/paritytech/substrate", package = "sp-api" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", package = "sp-externalities" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", package = "sp-block-builder" }
-sp-io = { git = "https://github.com/paritytech/substrate", package = "sp-io" }
+sp-database = { git = "https://github.com/paritytech/substrate", package="sp-database", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", package = "sp-runtime", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", package = "sp-blockchain", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", package = "sc-client-api", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-core = { git = "https://github.com/paritytech/substrate", package = "sp-core", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", package = "sp-state-machine", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-storage = { git = "https://github.com/paritytech/substrate", package = "sp-storage", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-trie = { git = "https://github.com/paritytech/substrate", package = "sp-trie", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-version = {  git = "https://github.com/paritytech/substrate", package = "sp-version", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sc-executor = { git = "https://github.com/paritytech/substrate", package = "sc-executor", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-api = { git = "https://github.com/paritytech/substrate", package = "sp-api", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", package = "sp-externalities", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", package = "sp-block-builder", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-io = { git = "https://github.com/paritytech/substrate", package = "sp-io", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
 
 # Workspace
 substrate-archive-common = { path = '../substrate-archive-common' }
