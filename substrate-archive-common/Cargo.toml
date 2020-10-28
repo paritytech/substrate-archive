@@ -22,9 +22,9 @@ serde = { version = "1.0", features = ["derive"] }
 codec = { package = "parity-scale-codec", version = "1.3", default-features = false, features = ["derive", "full"] }
 
 # Substrate
-sp-runtime = { git = "https://github.com/paritytech/substrate", package = "sp-runtime" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", package = "sp-blockchain" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
-sp-storage = { git = "https://github.com/paritytech/substrate", package = "sp-storage" , rev = "647ad15565d7c35ecf00b73b12cccad9858780b9" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", package = "sp-runtime" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", package = "sp-blockchain" }
+sp-storage = { git = "https://github.com/paritytech/substrate", package = "sp-storage" }
 
 # Optional
 fern = { version = "0.6", features = ["colored"], optional = true }
