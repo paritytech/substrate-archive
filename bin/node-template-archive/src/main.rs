@@ -21,12 +21,18 @@ use node_template_runtime::{self as runtime, opaque::Block};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use substrate_archive::{Archive, ArchiveBuilder};
+use substrate_archive_backend::SecondaryRocksDB;
 
 pub fn main() -> Result<()> {
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
 
-    let archive = ArchiveBuilder::<Block, runtime::RuntimeApi, node_template::service::Executor> {
+    let archive = ArchiveBuilder::<
+        Block,
+        runtime::RuntimeApi,
+        node_template::service::Executor,
+        SecondaryRocksDB,
+    > {
         block_workers: config.block_workers(),
         wasm_pages: config.wasm_pages(),
         cache_size: config.cache_size(),

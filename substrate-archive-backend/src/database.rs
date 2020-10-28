@@ -58,7 +58,6 @@ impl SecondaryRocksDB {
         })
     }
 
-
     fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
         match self.inner.get(col, key) {
             Ok(v) => v,

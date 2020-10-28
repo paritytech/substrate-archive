@@ -44,7 +44,6 @@ use sp_runtime::{
 use std::{convert::TryInto, sync::Arc};
 use substrate_archive_common::{database::ReadOnlyDB, Result};
 
-#[derive(Clone)]
 pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDB> {
     db: Arc<D>,
     storage: Arc<StateVault<Block, D>>,
