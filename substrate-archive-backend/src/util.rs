@@ -69,7 +69,7 @@ pub fn open_database(
         other_col_budget,
     );
     super::database::SecondaryRocksDB::open(db_config, &path)
-        .map_err(|err| sp_blockchain::Error::Backend(format!("{:?}", err))) as 
+        .map_err(|err| sp_blockchain::Error::Backend(format!("{:?}", err)))
 }
 
 #[allow(unused)]
