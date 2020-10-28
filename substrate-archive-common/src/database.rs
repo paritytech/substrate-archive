@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::Result;
-use std::{ marker::Sized, path::PathBuf};
+use std::{marker::Sized, path::PathBuf};
 
 pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
 
@@ -30,6 +30,11 @@ pub trait ReadOnlyDB: Send + Sync {
     /// Catch up with the latest information added to the database
     fn catch_up_with_primary(&self) -> Result<()>;
     // Open database as read-only
-    fn open_database( path: &str, cache_size: usize, db_path: PathBuf) -> sp_blockchain::Result<Self>
-        where Self: Sized;
+    fn open_database(
+        path: &str,
+        cache_size: usize,
+        db_path: PathBuf,
+    ) -> sp_blockchain::Result<Self>
+    where
+        Self: Sized;
 }

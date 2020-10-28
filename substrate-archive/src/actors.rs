@@ -40,7 +40,7 @@ use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
-pub use substrate_archive_common::{msg, msg::Die, Result, database::ReadOnlyDB};
+pub use substrate_archive_common::{database::ReadOnlyDB, msg, msg::Die, Result};
 use xtra::prelude::*;
 
 // TODO: Split this up into two objects
@@ -68,7 +68,7 @@ where
             pg_url: self.pg_url.clone(),
             meta: self.meta.clone(),
             workers: self.workers,
-            max_block_load: self.max_block_load
+            max_block_load: self.max_block_load,
         }
     }
 }

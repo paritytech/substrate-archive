@@ -34,11 +34,10 @@ use std::sync::Arc;
 // re-exports
 pub use self::{
     block_exec::BlockExecutor,
+    database::SecondaryRocksDB,
     frontend::{runtime_api, TArchiveClient},
     read_only_backend::ReadOnlyBackend,
     runtime_version_cache::RuntimeVersionCache,
-    // util::open_database,
-    database::SecondaryRocksDB
 };
 
 #[cfg(feature = "logging")]

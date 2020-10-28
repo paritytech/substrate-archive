@@ -7573,6 +7573,7 @@ dependencies = [
 name = "substrate-archive-common"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "chrono",
  "coil",
  "directories 3.0.1",

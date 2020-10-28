@@ -20,8 +20,8 @@
 use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use substrate_archive_common::{
     database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS},
     Result,
@@ -58,14 +58,6 @@ impl SecondaryRocksDB {
         })
     }
 
-    pub fn catch_up_count(&self) -> Option<usize> {
-        if !self.track_catchups {
-            log::warn!("catchup tracking is not enabled");
-            None
-        } else {
-            Some(self.catch_counter.load(Ordering::Relaxed))
-        }
-    }
 
     fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
         match self.inner.get(col, key) {
@@ -180,35 +172,3 @@ impl<H: Clone> DatabaseTrait<H> for SecondaryRocksDB {
         }
     */
 }
-
-/*
-impl KeyValueDB for ReadOnlyDB {
-    fn get(&self, col: u32, key: &[u8]) -> std::io::Result<Option<DBValue>> {
-        self.inner.get(col, key)
-    }
-
-    fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Option<Box<[u8]>> {
-        self.inner.get_by_prefix(col, prefix)
-    }
-
-    fn write(&self, _: DBTransaction) -> std::io::Result<()> {
-        panic!("Can't write to a read-only database")
-    }
-
-    fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
-        Box::new(self.inner.iter(col))
-    }
-
-    fn iter_with_prefix<'a>(&'a self, col: u32, prefix: &'a [u8]) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
-        self.inner.iter_with_prefix(col, prefix)
-    }
-
-    fn restore(&self, new_db: &str) -> std::io::Result<()> {
-        self.inner.restore(new_db)
-    }
-
-    fn io_stats(&self, kind: kvdb::IoStatsKind) -> kvdb::IoStats {
-        self.io_stats(kind)
-    }
-}
-*/

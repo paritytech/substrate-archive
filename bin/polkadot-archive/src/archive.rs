@@ -74,7 +74,7 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
                 Block,
                 westend_rt::RuntimeApi,
                 polkadot_service::WestendExecutor,
-                D
+                D,
             > {
                 pg_url: config.psql_conf().map(|u| u.url()),
                 cache_size: config.cache_size(),
@@ -89,18 +89,22 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
             Ok(Box::new(archive))
         }
         "polkadot" | "dot" => {
-            let archive =
-                ArchiveBuilder::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor, D> {
-                    pg_url: config.psql_conf().map(|u| u.url()),
-                    cache_size: config.cache_size(),
-                    block_workers: config.block_workers(),
-                    wasm_pages: config.wasm_pages(),
-                    max_block_load: config.max_block_load(),
-                    ..ArchiveBuilder::default()
-                }
-                .chain_data_db(db_path)
-                .chain_spec(spec)
-                .build()?;
+            let archive = ArchiveBuilder::<
+                Block,
+                dot_rt::RuntimeApi,
+                polkadot_service::PolkadotExecutor,
+                D,
+            > {
+                pg_url: config.psql_conf().map(|u| u.url()),
+                cache_size: config.cache_size(),
+                block_workers: config.block_workers(),
+                wasm_pages: config.wasm_pages(),
+                max_block_load: config.max_block_load(),
+                ..ArchiveBuilder::default()
+            }
+            .chain_data_db(db_path)
+            .chain_spec(spec)
+            .build()?;
             Ok(Box::new(archive))
         }
         c => Err(anyhow!("unknown chain {}", c)),

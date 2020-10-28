@@ -22,9 +22,9 @@ use sp_runtime::{
 use std::sync::Arc;
 use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
 use substrate_archive_common::{
+    database::ReadOnlyDB,
     types::{BatchBlock, Block},
     Result,
-    database::ReadOnlyDB,
 };
 use xtra::prelude::*;
 
@@ -53,7 +53,11 @@ where
     B::Hash: Unpin,
     NumberFor<B>: Into<u32>,
 {
-    pub fn new(ctx: ActorContext<B, D>, db_addr: DatabaseAct<B>, meta: Address<Metadata<B>>) -> Self {
+    pub fn new(
+        ctx: ActorContext<B, D>,
+        db_addr: DatabaseAct<B>,
+        meta: Address<Metadata<B>>,
+    ) -> Self {
         Self {
             rt_cache: RuntimeVersionCache::new(ctx.backend.clone()),
             last_max: 0,

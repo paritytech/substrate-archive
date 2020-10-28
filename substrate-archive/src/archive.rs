@@ -232,7 +232,10 @@ where
     }
 
     /// Log some general startup info
-    fn startup_info(client: &TArchiveClient<B, R, D, DB>, backend: &ReadOnlyBackend<B, DB>) -> Result<()> {
+    fn startup_info(
+        client: &TArchiveClient<B, R, D, DB>,
+        backend: &ReadOnlyBackend<B, DB>,
+    ) -> Result<()> {
         let last_finalized_block = backend.last_finalized()?;
         let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
         log::info!(

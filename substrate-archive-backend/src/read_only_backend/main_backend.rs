@@ -28,8 +28,8 @@ use sp_runtime::{
     traits::{Block as BlockT, NumberFor},
     Justification,
 };
-use substrate_archive_common::database::ReadOnlyDB;
 use std::marker::PhantomData;
+use substrate_archive_common::database::ReadOnlyDB;
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
@@ -41,7 +41,9 @@ impl<Block: BlockT, D: ReadOnlyDB + 'static> Backend<Block> for ReadOnlyBackend<
 
     fn begin_operation(&self) -> ChainResult<Self::BlockImportOperation> {
         log::warn!("Block import operations are not supported for Read Only Backend");
-        Ok(RealBlockImportOperation{ _marker: PhantomData })
+        Ok(RealBlockImportOperation {
+            _marker: PhantomData,
+        })
     }
 
     fn begin_state_operation(

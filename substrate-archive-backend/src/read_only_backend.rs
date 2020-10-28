@@ -54,7 +54,7 @@ impl<Block, D> ReadOnlyBackend<Block, D>
 where
     Block: BlockT,
     Block::Header: HeaderT,
-    D: ReadOnlyDB + 'static ,
+    D: ReadOnlyDB + 'static,
 {
     pub fn new(db: Arc<D>, prefix_keys: bool) -> Self {
         let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
