@@ -29,7 +29,7 @@ xtra = { version = "0.5.0-beta.4", features = ["with-smol-0_3"] }
 # Just a simple wrapper around std::thread that `joins on drop`
 jod-thread = "0.1.2"
 smol = { version = "0.3" }
-coil = { git = "https://github.com/insipx/coil", package = "coil"}
+coil = { git = "https://github.com/insipx/coil" }
 rmp-serde = "0.14"
 
 # Optional
@@ -43,23 +43,23 @@ kvdb-rocksdb = "0.9"
 codec = { package = "parity-scale-codec", version = "1.3", default-features = false, features = ["derive", "full"] }
 hash-db = "0.15"
 
-# Substrate is pinned to the latest substrate version that polkadot release v0.8.25 is
+# Substrate is pinned to the latest substrate version that polkadot release v0.8.26 is
 # using. This is necessary to make substrate-archive compatible with the polkadot runtime.
-sp-database = { git = "https://github.com/paritytech/substrate", package = "sp-database", rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sp-storage = { git = "https://github.com/paritytech/substrate", package = "sp-storage" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", package = "sp-externalities" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", package = "sp-runtime" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", package = "sc-client-api" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", package = "sp-blockchain" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sp-core = { git = "https://github.com/paritytech/substrate", package = "sp-core" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sp-api = { git = "https://github.com/paritytech/substrate", package = "sp-api" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", package = "sp-block-builder" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sp-version = {  git = "https://github.com/paritytech/substrate", package = "sp-version" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sc-executor = { git = "https://github.com/paritytech/substrate", package = "sc-executor" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", package = "sc-chain-spec" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sp-trie = { git = "https://github.com/paritytech/substrate", package = "sp-trie" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", package = "sp-state-machine" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
-sp-io = { git = "https://github.com/paritytech/substrate", package = "sp-io" , rev = "7314a78d49d0dc3862c6ef7c8115cb1b3d0c0fd2" }
+sp-database = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-version = {  git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 itoa = "0.4.6"
 include_dir = "0.6.0"
 tempfile = "3.1.0"
@@ -68,7 +68,7 @@ arc-swap = "0.4.7"
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
-polkadot-service = { package = "polkadot-service", git = "https://github.com/insipx/polkadot", branch = "substrate-archive" }
+polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master" }
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
 flate2 = "1.0"
