@@ -7,6 +7,7 @@
 [Install the CLI](#install-the-cli) • [Documentation](#documentation) • [Contributing](#contributing) • [FAQ](#faq)
 
 ![Rust](https://github.com/paritytech/substrate-archive/workflows/Rust/badge.svg)
+![Matrix](https://img.shields.io/matrix/substrate-archive:matrix.parity.io?server_fqdn=matrix.parity.io)
 
 </div>
 
