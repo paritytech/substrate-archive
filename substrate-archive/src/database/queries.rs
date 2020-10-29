@@ -64,6 +64,7 @@ pub(crate) async fn missing_blocks_min_max(
 ) -> Result<HashSet<u32>> {
     let min = i32::try_from(min).unwrap_or(i32::MAX);
     let max_block_load = i64::try_from(max_block_load).unwrap_or(i64::MAX);
+    // Remove after launchbadge/sqlx#594 is fixed
     #[allow(clippy::toplevel_ref_arg)]
     Ok(sqlx::query_as!(
         Series,

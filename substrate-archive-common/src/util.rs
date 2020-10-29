@@ -31,10 +31,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .debug(Color::Blue)
         .trace(Color::Magenta);
 
-    let mut log_dir = match substrate_dir() {
-        Err(e) => panic!(e),
-        Ok(dir) => dir,
-    };
+    let mut log_dir = substrate_dir().unwrap();
     if create_dir(log_dir.as_path()).is_err() {
         panic!("A directory in the path of the substrate directory could not be created")
     }
