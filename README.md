@@ -7,8 +7,9 @@
 [Install the CLI](#install-the-cli) • [Documentation](#documentation) • [Contributing](#contributing) • [FAQ](#faq)
 
 ![Rust](https://github.com/paritytech/substrate-archive/workflows/Rust/badge.svg)
-![Matrix](https://img.shields.io/matrix/substrate-archive:matrix.parity.io?server_fqdn=matrix.parity.io)
-
+<a href="https://matrix.to/#/!roCGBGBArdcqwsdeXc:matrix.parity.io?via=matrix.parity.io&via=matrix.org&via=web3.foundation">
+![Matrix](https://img.shields.io/badge/archive-chatroom-blue)
+</a>
 </div>
 
 Run alongside a substrate-backed chain to index all Blocks, State, and Extrinsic data into PostgreSQL.
