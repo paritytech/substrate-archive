@@ -29,7 +29,7 @@ xtra = { version = "0.5.0-beta.4", features = ["with-smol-0_3"] }
 # Just a simple wrapper around std::thread that `joins on drop`
 jod-thread = "0.1.2"
 smol = { version = "0.3" }
-coil = { git = "https://github.com/insipx/coil", package = "coil"}
+coil = { git = "https://github.com/insipx/coil" }
 rmp-serde = "0.14"
 
 # Optional
@@ -45,21 +45,21 @@ hash-db = "0.15"
 
 # Substrate is pinned to the latest substrate version that polkadot release v0.8.26 is
 # using. This is necessary to make substrate-archive compatible with the polkadot runtime.
-sp-database = { git = "https://github.com/paritytech/substrate", package = "sp-database", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", package = "sp-storage" , branch = "master" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", package = "sp-externalities" , branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", package = "sp-runtime" , branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", package = "sc-client-api" , branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", package = "sp-blockchain" , branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", package = "sp-core" , branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", package = "sp-api" , branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", package = "sp-block-builder" , branch = "master" }
-sp-version = {  git = "https://github.com/paritytech/substrate", package = "sp-version" , branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", package = "sc-executor" , branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", package = "sc-chain-spec" , branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", package = "sp-trie" , branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", package = "sp-state-machine" , branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", package = "sp-io" , branch = "master" }
+sp-database = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-version = {  git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 itoa = "0.4.6"
 include_dir = "0.6.0"
 tempfile = "3.1.0"
@@ -68,7 +68,7 @@ arc-swap = "0.4.7"
 
 [dev-dependencies]
 # desub-extras = { path = "../desub/extras/", package="desub-extras", features = ["polkadot"] }
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master" }
+polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master" }
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
 flate2 = "1.0"

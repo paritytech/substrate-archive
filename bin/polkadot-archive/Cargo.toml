@@ -8,8 +8,8 @@ edition = "2018"
 
 [dependencies]
 substrate-archive = { path = "../../", features = ["logging"] }
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master" }
-sc-chain-spec = { package = "sc-chain-spec", git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }
 toml = "0.5"
 log = "0.4"
