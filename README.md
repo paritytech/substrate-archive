@@ -96,9 +96,8 @@ For macOS and Linux, a warning message will be raised on the startup when there 
 
 ## Contact
 
-You can contact me on
- - matrix @aplaza:matrix.parity.io
+You can contact us at:
+ - matrix: #substrate-archive:matrix.parity.io
  - email: andrew.plaza@parity.io
- - keybase: https://keybase.io/insi
 
 [contribution]: CONTRIBUTING.md
