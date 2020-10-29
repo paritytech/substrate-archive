@@ -8,7 +8,7 @@
 
 ![Rust](https://github.com/paritytech/substrate-archive/workflows/Rust/badge.svg)
 <a href="https://matrix.to/#/!roCGBGBArdcqwsdeXc:matrix.parity.io?via=matrix.parity.io&via=matrix.org&via=web3.foundation">
-![Matrix](https://img.shields.io/badge/archive-chatroom-blue)
+![Matrix](https://img.shields.io/badge/matrix-archive%20chatroom-blue)
 </a>
 </div>
 
