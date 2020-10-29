@@ -28,7 +28,7 @@ use substrate_archive_common::{
 };
 
 pub struct Config {
-    /// track how many times try_catch_up_with_primary is called
+    /// Track how many calls to `catch_up_with_primary` were made.
     pub track_catchups: bool,
     pub config: DatabaseConfig,
 }
