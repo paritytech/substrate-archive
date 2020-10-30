@@ -20,12 +20,13 @@ mod config;
 use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use substrate_archive_backend::SecondaryRocksDB;
 
 pub fn main() -> Result<()> {
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug);
 
-    let mut archive = archive::run_archive(config.clone())?;
+    let mut archive = archive::run_archive::<SecondaryRocksDB>(config.clone())?;
     archive.drive()?;
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
