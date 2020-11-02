@@ -16,6 +16,7 @@
 
 //! logging and general utilities
 
+use crate::error::Error as ArchiveError;
 #[cfg(feature = "logging")]
 use fern::colors::{Color, ColoredLevelConfig};
 use std::collections::hash_map::DefaultHasher;
@@ -23,7 +24,7 @@ use std::hash::Hasher as _;
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "logging")]
-pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
+pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) -> Result<(), ArchiveError> {
     let colors = ColoredLevelConfig::new()
         .info(Color::Green)
         .warn(Color::Yellow)
@@ -32,9 +33,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .trace(Color::Magenta);
 
     let mut log_dir = substrate_dir().unwrap();
-    if create_dir(log_dir.as_path()).is_err() {
-        panic!("A directory in the path of the substrate directory could not be created")
-    }
+    create_dir(log_dir.as_path())?;
     log_dir.push("archive.logs");
 
     let stdout_dispatcher = fern::Dispatch::new()
@@ -83,20 +82,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) {
         .chain(file_dispatcher)
         .apply()
         .expect("Could not init logging");
-}
-
-/// log an error without doing anything else
-#[macro_export]
-macro_rules! p_err {
-    ($e: expr) => {
-        match $e {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!("{}", e.to_string());
-                panic!();
-            }
-        };
-    };
+    Ok(())
 }
 
 fn format_opt(file: Option<String>) -> String {
@@ -112,22 +98,28 @@ fn format_opt(file: Option<String>) -> String {
 /// Linux | $XDG_DATA_HOME or $HOME/.local/share/substrate_archive | /home/alice/.local/share/substrate_archive/
 /// macOS | $HOME/Library/Application Support/substrate_archive | /Users/Alice/Library/Application Support/substrate_archive/
 /// Windows | {FOLDERID_LocalAppData}\substrate_archive | C:\Users\Alice\AppData\Local\substrate_archive
-pub fn substrate_dir() -> Result<PathBuf, &'static str> {
+pub fn substrate_dir() -> Result<PathBuf, ArchiveError> {
     if let Some(base_dirs) = dirs::BaseDirs::new() {
         let mut path = base_dirs.data_local_dir().to_path_buf();
         path.push("substrate_archive");
         Ok(path)
     } else {
-        Err("No valid home directory path could be retrieved from the operating system")
+        Err(ArchiveError::from(
+            "No valid home directory path could be retrieved from the operating system",
+        ))
     }
 }
 
 /// Create an arbitrary directory on disk.
-pub fn create_dir(path: &Path) -> Result<(), &'static str> {
+pub fn create_dir(path: &Path) -> Result<(), ArchiveError> {
     if let Err(e) = std::fs::create_dir_all(path) {
         match e.kind() {
             std::io::ErrorKind::AlreadyExists => (),
-            _ => return Err("A directory in path could not be created"),
+            _ => {
+                return Err(ArchiveError::from(
+                    "A directory in path could not be created",
+                ))
+            }
         }
     }
     Ok(())
