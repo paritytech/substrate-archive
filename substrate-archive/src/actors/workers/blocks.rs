@@ -22,9 +22,8 @@ use sp_runtime::{
 use std::sync::Arc;
 use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
 use substrate_archive_common::{
-    database::ReadOnlyDB,
     types::{BatchBlock, Block},
-    Result,
+    ReadOnlyDB, Result,
 };
 use xtra::prelude::*;
 

@@ -30,7 +30,7 @@ use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use substrate_archive_backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend};
-use substrate_archive_common::{database::ReadOnlyDB, types::Storage};
+use substrate_archive_common::{types::Storage, ReadOnlyDB};
 use xtra::prelude::*;
 
 /// The environment passed to each task

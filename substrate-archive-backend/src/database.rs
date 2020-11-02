@@ -22,10 +22,7 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use substrate_archive_common::{
-    database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS},
-    Result,
-};
+use substrate_archive_common::{KeyValuePair, ReadOnlyDB, Result, NUM_COLUMNS};
 
 pub struct Config {
     /// Track how many calls to `catch_up_with_primary` were made.
