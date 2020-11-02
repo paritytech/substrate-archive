@@ -26,49 +26,49 @@ use substrate_archive_common::Result;
 
 /// Return type of queries that `SELECT version`
 struct Version {
-    version: i32,
+	version: i32,
 }
 
 /// Return type of querys that `SELECT missing_num ... FROM ... GENERATE_SERIES(a, z)`
 pub struct Series {
-    missing_num: Option<i32>,
+	missing_num: Option<i32>,
 }
 
 /// Return type of querys that `SELECT MAX(int)`
 struct Max {
-    max: Option<i32>,
+	max: Option<i32>,
 }
 
 /// Return type querys that `SELECT EXISTS`
 struct DoesExist {
-    exists: Option<bool>,
+	exists: Option<bool>,
 }
 
 // Return type of querys that `SELECT block_num`
 struct BlockNum {
-    block_num: i32,
+	block_num: i32,
 }
 
 // Return type of querys that `SELECT data`
 struct Bytes {
-    data: Vec<u8>,
+	data: Vec<u8>,
 }
 
 /// Get missing blocks from the relational database between numbers `min` and
 /// MAX(block_num). LIMIT result to length `max_block_load`. The highest effective
 /// value for `min` is i32::MAX.
 pub(crate) async fn missing_blocks_min_max(
-    conn: &mut PgConnection,
-    min: u32,
-    max_block_load: u32,
+	conn: &mut PgConnection,
+	min: u32,
+	max_block_load: u32,
 ) -> Result<HashSet<u32>> {
-    let min = i32::try_from(min).unwrap_or(i32::MAX);
-    let max_block_load = i64::try_from(max_block_load).unwrap_or(i64::MAX);
-    // Remove after launchbadge/sqlx#594 is fixed
-    #[allow(clippy::toplevel_ref_arg)]
-    Ok(sqlx::query_as!(
-        Series,
-        "SELECT missing_num
+	let min = i32::try_from(min).unwrap_or(i32::MAX);
+	let max_block_load = i64::try_from(max_block_load).unwrap_or(i64::MAX);
+	// Remove after launchbadge/sqlx#594 is fixed
+	#[allow(clippy::toplevel_ref_arg)]
+	Ok(sqlx::query_as!(
+		Series,
+		"SELECT missing_num
         FROM (SELECT MAX(block_num) AS max_num FROM blocks) max,
             GENERATE_SERIES($1, max_num) AS missing_num
         WHERE
@@ -76,22 +76,20 @@ pub(crate) async fn missing_blocks_min_max(
         ORDER BY missing_num ASC
         LIMIT $2
         ",
-        min,
-        max_block_load
-    )
-    .fetch_all(conn)
-    .await?
-    .iter()
-    .map(|t| t.missing_num.unwrap() as u32)
-    .collect())
+		min,
+		max_block_load
+	)
+	.fetch_all(conn)
+	.await?
+	.iter()
+	.map(|t| t.missing_num.unwrap() as u32)
+	.collect())
 }
 
 /// Get the maximium block number from the relational database
 pub(crate) async fn max_block(conn: &mut PgConnection) -> Result<Option<u32>> {
-    let max = sqlx::query_as!(Max, "SELECT MAX(block_num) FROM blocks")
-        .fetch_one(conn)
-        .await?;
-    Ok(max.max.map(|v| v as u32))
+	let max = sqlx::query_as!(Max, "SELECT MAX(block_num) FROM blocks").fetch_one(conn).await?;
+	Ok(max.max.map(|v| v as u32))
 }
 
 /// Will get blocks such that they exist in the `blocks` table but they
@@ -99,153 +97,127 @@ pub(crate) async fn max_block(conn: &mut PgConnection) -> Result<Option<u32>> {
 /// blocks are ordered by spec version
 ///
 /// # Returns full blocks
-pub(crate) async fn blocks_storage_intersection(
-    conn: &mut sqlx::PgConnection,
-) -> Result<Vec<BlockModel>> {
-    #[allow(clippy::toplevel_ref_arg)]
-    sqlx::query_as!(
-        BlockModel,
-        "SELECT *
+pub(crate) async fn blocks_storage_intersection(conn: &mut sqlx::PgConnection) -> Result<Vec<BlockModel>> {
+	#[allow(clippy::toplevel_ref_arg)]
+	sqlx::query_as!(
+		BlockModel,
+		"SELECT *
         FROM blocks
         WHERE NOT EXISTS (SELECT * FROM storage WHERE storage.block_num = blocks.block_num)
         AND blocks.block_num != 0
         ORDER BY blocks.spec",
-    )
-    .fetch_all(conn)
-    .await
-    .map_err(Into::into)
+	)
+	.fetch_all(conn)
+	.await
+	.map_err(Into::into)
 }
 
 /// Get a block by id from the relational database
-pub(crate) async fn get_full_block_by_id(
-    conn: &mut sqlx::PgConnection,
-    id: i32,
-) -> Result<BlockModel> {
-    #[allow(clippy::toplevel_ref_arg)]
-    sqlx::query_as!(
-        BlockModel,
-        "
+pub(crate) async fn get_full_block_by_id(conn: &mut sqlx::PgConnection, id: i32) -> Result<BlockModel> {
+	#[allow(clippy::toplevel_ref_arg)]
+	sqlx::query_as!(
+		BlockModel,
+		"
         SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
         FROM blocks
         WHERE id = $1
         ",
-        id
-    )
-    .fetch_one(conn)
-    .await
-    .map_err(Into::into)
+		id
+	)
+	.fetch_one(conn)
+	.await
+	.map_err(Into::into)
 }
 
 /// Get a block by block number from the relational database
 #[cfg(test)]
-pub(crate) async fn get_full_block_by_num(
-    conn: &mut sqlx::PgConnection,
-    block_num: u32,
-) -> Result<BlockModel> {
-    let safe_block_num = i32::try_from(block_num).unwrap_or(i32::MAX);
-    #[allow(clippy::toplevel_ref_arg)]
-    sqlx::query_as!(
-        BlockModel,
-        "
+pub(crate) async fn get_full_block_by_num(conn: &mut sqlx::PgConnection, block_num: u32) -> Result<BlockModel> {
+	let safe_block_num = i32::try_from(block_num).unwrap_or(i32::MAX);
+	#[allow(clippy::toplevel_ref_arg)]
+	sqlx::query_as!(
+		BlockModel,
+		"
         SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
         FROM blocks
         WHERE block_num = $1
         ",
-        safe_block_num
-    )
-    .fetch_one(conn)
-    .await
-    .map_err(Into::into)
+		safe_block_num
+	)
+	.fetch_one(conn)
+	.await
+	.map_err(Into::into)
 }
 
 /// Check if the runtime version identified by `spec` exists in the relational database
 pub(crate) async fn check_if_meta_exists(spec: u32, conn: &mut PgConnection) -> Result<bool> {
-    let spec = match i32::try_from(spec) {
-        Err(_) => return Ok(false),
-        Ok(n) => n,
-    };
-    #[allow(clippy::toplevel_ref_arg)]
-    let does_exist = sqlx::query_as!(
-        DoesExist,
-        r#"SELECT EXISTS(SELECT version FROM metadata WHERE version = $1)"#,
-        spec
-    )
-    .fetch_one(conn)
-    .await?;
-    Ok(does_exist.exists.unwrap_or(false))
+	let spec = match i32::try_from(spec) {
+		Err(_) => return Ok(false),
+		Ok(n) => n,
+	};
+	#[allow(clippy::toplevel_ref_arg)]
+	let does_exist = sqlx::query_as!(DoesExist, r#"SELECT EXISTS(SELECT version FROM metadata WHERE version = $1)"#, spec)
+		.fetch_one(conn)
+		.await?;
+	Ok(does_exist.exists.unwrap_or(false))
 }
 
 /// Check if the block identified by `hash` exists in the relational database
 pub(crate) async fn has_block<B: BlockT>(hash: B::Hash, conn: &mut PgConnection) -> Result<bool> {
-    let hash = hash.as_ref();
-    #[allow(clippy::toplevel_ref_arg)]
-    let does_exist = sqlx::query_as!(
-        DoesExist,
-        r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash = $1)"#,
-        hash,
-    )
-    .fetch_one(conn)
-    .await?;
-    Ok(does_exist.exists.unwrap_or(false))
+	let hash = hash.as_ref();
+	#[allow(clippy::toplevel_ref_arg)]
+	let does_exist = sqlx::query_as!(DoesExist, r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash = $1)"#, hash,)
+		.fetch_one(conn)
+		.await?;
+	Ok(does_exist.exists.unwrap_or(false))
 }
 
 /// Get a list of block_numbers, out of the passed-in blocknumbers, which exist in the relational
 /// database
-pub(crate) async fn has_blocks<B: BlockT>(
-    nums: &[u32],
-    conn: &mut PgConnection,
-) -> Result<Vec<u32>> {
-    let nums: Vec<i32> = nums.iter().filter_map(|n| i32::try_from(*n).ok()).collect();
-    #[allow(clippy::toplevel_ref_arg)]
-    Ok(sqlx::query_as!(
-        BlockNum,
-        "SELECT block_num FROM blocks WHERE block_num = ANY ($1)",
-        &nums,
-    )
-    .fetch_all(conn)
-    .await?
-    .into_iter()
-    .map(|r| r.block_num as u32)
-    .collect())
+pub(crate) async fn has_blocks<B: BlockT>(nums: &[u32], conn: &mut PgConnection) -> Result<Vec<u32>> {
+	let nums: Vec<i32> = nums.iter().filter_map(|n| i32::try_from(*n).ok()).collect();
+	#[allow(clippy::toplevel_ref_arg)]
+	Ok(sqlx::query_as!(BlockNum, "SELECT block_num FROM blocks WHERE block_num = ANY ($1)", &nums,)
+		.fetch_all(conn)
+		.await?
+		.into_iter()
+		.map(|r| r.block_num as u32)
+		.collect())
 }
 
 /// Get all the metadata versions stored in the relational database
 pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>> {
-    #[allow(clippy::toplevel_ref_arg)]
-    Ok(sqlx::query_as!(Version, "SELECT version FROM metadata")
-        .fetch_all(conn)
-        .await?
-        .into_iter()
-        .map(|r| r.version as u32)
-        .collect())
+	#[allow(clippy::toplevel_ref_arg)]
+	Ok(sqlx::query_as!(Version, "SELECT version FROM metadata")
+		.fetch_all(conn)
+		.await?
+		.into_iter()
+		.map(|r| r.version as u32)
+		.collect())
 }
 
 /// Get all the blocks queued for execution in the background task queue.
 pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
-    conn: &mut PgConnection,
+	conn: &mut PgConnection,
 ) -> Result<impl Iterator<Item = Result<B>>> {
-    #[allow(clippy::toplevel_ref_arg)]
-    let blocks = sqlx::query_as!(
-        Bytes,
-        "SELECT data FROM _background_tasks WHERE job_type = 'execute_block'",
-    )
-    .fetch_all(conn)
-    .await?;
+	#[allow(clippy::toplevel_ref_arg)]
+	let blocks = sqlx::query_as!(Bytes, "SELECT data FROM _background_tasks WHERE job_type = 'execute_block'",)
+		.fetch_all(conn)
+		.await?;
 
-    // temporary struct to deserialize job
-    #[derive(Deserialize)]
-    struct JobIn<BL: BlockT> {
-        block: BL,
-    }
-    Ok(blocks.into_iter().map(|r| {
-        let b: JobIn<B> = rmp_serde::from_read(r.data.as_slice())?;
-        Ok(b.block)
-    }))
+	// temporary struct to deserialize job
+	#[derive(Deserialize)]
+	struct JobIn<BL: BlockT> {
+		block: BL,
+	}
+	Ok(blocks.into_iter().map(|r| {
+		let b: JobIn<B> = rmp_serde::from_read(r.data.as_slice())?;
+		Ok(b.block)
+	}))
 }
 
 #[cfg(test)]
 mod tests {
-    //! Must be connected to a postgres database
-    use super::*;
-    // use diesel::test_transaction;
+	//! Must be connected to a postgres database
+	use super::*;
+	// use diesel::test_transaction;
 }

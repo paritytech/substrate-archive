@@ -21,80 +21,80 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Substrate Archive Error Enum
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("Io Error")]
-    Io(#[from] io::Error),
-    #[error("environment variable for `DATABASE_URL` not found")]
-    Env(#[from] env::VarError),
-    #[error("decode {0}")]
-    Codec(#[from] codec::Error),
-    #[error("Formatting {0}")]
-    Fmt(#[from] std::fmt::Error),
-    #[error("serialization error")]
-    Serialization(#[from] serde_json::Error),
-    #[error("sqlx error: {0}")]
-    Sql(#[from] sqlx::Error),
-    #[error("migration error: {0}")]
-    Migration(#[from] sqlx::migrate::MigrateError),
-    #[error("blockchain error: {0}")]
-    Blockchain(String),
-    /// an error occurred while enqueuing a background job
-    #[error("Background job err {0}")]
-    BgJob(#[from] coil::EnqueueError),
-    #[error("Background Job {0}")]
-    BgJobGen(#[from] coil::Error),
-    #[error("Failed getting background task {0}")]
-    BgJobGet(#[from] coil::FetchError),
-    #[error("could not build threadpool")]
-    ThreadPool(#[from] rayon::ThreadPoolBuildError),
-    /// Error occured while serializing/deserializing data
-    #[error("Error while decoding job data {0}")]
-    De(#[from] rmp_serde::decode::Error),
-    #[error(
-        "the chain given to substrate-archive is different then the running chain. Trying to run {0}, running {1}"
-    )]
-    MismatchedChains(String, String),
-    #[error("wasm exists but could not extract runtime version")]
-    WasmExecutionError,
-    #[error("sending on disconnected channel")]
-    Channel,
-    #[error("Trying to send to disconnected actor")]
-    Disconnected,
-    #[error("Unexpected Error {0}")]
-    General(String),
+	#[error("Io Error")]
+	Io(#[from] io::Error),
+	#[error("environment variable for `DATABASE_URL` not found")]
+	Env(#[from] env::VarError),
+	#[error("decode {0}")]
+	Codec(#[from] codec::Error),
+	#[error("Formatting {0}")]
+	Fmt(#[from] std::fmt::Error),
+	#[error("serialization error")]
+	Serialization(#[from] serde_json::Error),
+	#[error("sqlx error: {0}")]
+	Sql(#[from] sqlx::Error),
+	#[error("migration error: {0}")]
+	Migration(#[from] sqlx::migrate::MigrateError),
+	#[error("blockchain error: {0}")]
+	Blockchain(String),
+	/// an error occurred while enqueuing a background job
+	#[error("Background job err {0}")]
+	BgJob(#[from] coil::EnqueueError),
+	#[error("Background Job {0}")]
+	BgJobGen(#[from] coil::Error),
+	#[error("Failed getting background task {0}")]
+	BgJobGet(#[from] coil::FetchError),
+	#[error("could not build threadpool")]
+	ThreadPool(#[from] rayon::ThreadPoolBuildError),
+	/// Error occured while serializing/deserializing data
+	#[error("Error while decoding job data {0}")]
+	De(#[from] rmp_serde::decode::Error),
+	#[error(
+		"the chain given to substrate-archive is different then the running chain. Trying to run {0}, running {1}"
+	)]
+	MismatchedChains(String, String),
+	#[error("wasm exists but could not extract runtime version")]
+	WasmExecutionError,
+	#[error("sending on disconnected channel")]
+	Channel,
+	#[error("Trying to send to disconnected actor")]
+	Disconnected,
+	#[error("Unexpected Error {0}")]
+	General(String),
 
-    #[cfg(test)]
-    #[error("{0}")]
-    Bincode(#[from] Box<bincode::ErrorKind>),
+	#[cfg(test)]
+	#[error("{0}")]
+	Bincode(#[from] Box<bincode::ErrorKind>),
 }
 
 impl From<&str> for Error {
-    fn from(e: &str) -> Error {
-        Error::General(e.to_string())
-    }
+	fn from(e: &str) -> Error {
+		Error::General(e.to_string())
+	}
 }
 
 impl From<String> for Error {
-    fn from(e: String) -> Error {
-        Error::General(e)
-    }
+	fn from(e: String) -> Error {
+		Error::General(e)
+	}
 }
 
 // this conversion is required for our Error type to be
 // Send + Sync
 impl From<sp_blockchain::Error> for Error {
-    fn from(e: sp_blockchain::Error) -> Error {
-        Error::Blockchain(e.to_string())
-    }
+	fn from(e: sp_blockchain::Error) -> Error {
+		Error::Blockchain(e.to_string())
+	}
 }
 
 impl From<xtra::Disconnected> for Error {
-    fn from(_: xtra::Disconnected) -> Error {
-        Error::Disconnected
-    }
+	fn from(_: xtra::Disconnected) -> Error {
+		Error::Disconnected
+	}
 }
 
 impl<T> From<flume::SendError<T>> for Error {
-    fn from(_: flume::SendError<T>) -> Error {
-        Error::Channel
-    }
+	fn from(_: flume::SendError<T>) -> Error {
+		Error::Channel
+	}
 }

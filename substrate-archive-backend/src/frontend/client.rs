@@ -23,177 +23,158 @@
 
 use crate::{ReadOnlyBackend, TrieState};
 use codec::{Decode, Encode};
-use sc_client_api::{
-    backend::Backend as _, execution_extensions::ExecutionExtensions, CallExecutor,
-};
+use sc_client_api::{backend::Backend as _, execution_extensions::ExecutionExtensions, CallExecutor};
 use sc_executor::RuntimeVersion;
-use sp_api::{
-    ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Core as CoreApi, Metadata,
-    ProvideRuntimeApi,
-};
+use sp_api::{ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Core as CoreApi, Metadata, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend as _;
 use sp_core::NativeOrEncoded;
 use sp_runtime::{
-    generic::BlockId,
-    traits::{Block as BlockT, Header as HeaderT, One},
+	generic::BlockId,
+	traits::{Block as BlockT, Header as HeaderT, One},
 };
 use std::{marker::PhantomData, panic::UnwindSafe, sync::Arc};
 use substrate_archive_common::{
-    database::ReadOnlyDB,
-    error::{Error, Result},
+	database::ReadOnlyDB,
+	error::{Error, Result},
 };
 
 // FIXME: should use the trait sp_version::GetRuntimeVersion
 // but that returns a String for an error
 pub trait GetRuntimeVersion<Block: BlockT>: Send + Sync {
-    fn runtime_version(&self, at: &BlockId<Block>) -> Result<sp_version::RuntimeVersion>;
+	fn runtime_version(&self, at: &BlockId<Block>) -> Result<sp_version::RuntimeVersion>;
 }
 
 // This trait allows circumvents putting <R, C> on an object that just needs to get the metadata
 /// Trait to get the opaque metadata from the Runtime Api
 pub trait GetMetadata<Block: BlockT>: Send + Sync {
-    fn metadata(&self, id: &BlockId<Block>) -> Result<sp_core::OpaqueMetadata>;
+	fn metadata(&self, id: &BlockId<Block>) -> Result<sp_core::OpaqueMetadata>;
 }
 
 /// Archive Client
 pub struct Client<Exec, Block: BlockT, RA, D: ReadOnlyDB> {
-    backend: Arc<ReadOnlyBackend<Block, D>>,
-    executor: Exec,
-    execution_extensions: ExecutionExtensions<Block>,
-    _marker: PhantomData<RA>,
+	backend: Arc<ReadOnlyBackend<Block, D>>,
+	executor: Exec,
+	execution_extensions: ExecutionExtensions<Block>,
+	_marker: PhantomData<RA>,
 }
 
 impl<Exec, Block, RA, D> Client<Exec, Block, RA, D>
 where
-    D: ReadOnlyDB + 'static,
-    Exec: CallExecutor<Block>,
-    Block: BlockT,
+	D: ReadOnlyDB + 'static,
+	Exec: CallExecutor<Block>,
+	Block: BlockT,
 {
-    pub fn new(
-        backend: Arc<ReadOnlyBackend<Block, D>>,
-        executor: Exec,
-        execution_extensions: ExecutionExtensions<Block>,
-    ) -> Result<Self> {
-        Ok(Client {
-            backend,
-            executor,
-            execution_extensions,
-            _marker: PhantomData,
-        })
-    }
+	pub fn new(
+		backend: Arc<ReadOnlyBackend<Block, D>>,
+		executor: Exec,
+		execution_extensions: ExecutionExtensions<Block>,
+	) -> Result<Self> {
+		Ok(Client { backend, executor, execution_extensions, _marker: PhantomData })
+	}
 
-    pub fn state_at(&self, id: &BlockId<Block>) -> Option<TrieState<Block, D>> {
-        self.backend.state_at(*id).ok()
-    }
+	pub fn state_at(&self, id: &BlockId<Block>) -> Option<TrieState<Block, D>> {
+		self.backend.state_at(*id).ok()
+	}
 
-    pub fn runtime_version_at(&self, id: &BlockId<Block>) -> Result<RuntimeVersion> {
-        self.executor.runtime_version(id).map_err(Error::from)
-    }
+	pub fn runtime_version_at(&self, id: &BlockId<Block>) -> Result<RuntimeVersion> {
+		self.executor.runtime_version(id).map_err(Error::from)
+	}
 
-    /// get the backend for this client instance
-    pub fn backend(&self) -> Arc<ReadOnlyBackend<Block, D>> {
-        self.backend.clone()
-    }
+	/// get the backend for this client instance
+	pub fn backend(&self) -> Arc<ReadOnlyBackend<Block, D>> {
+		self.backend.clone()
+	}
 
-    fn prepare_environment_block(
-        &self,
-        parent: &BlockId<Block>,
-    ) -> sp_blockchain::Result<Block::Header> {
-        let parent_header = self.backend.blockchain().expect_header(*parent)?;
-        Ok(<<Block as BlockT>::Header as HeaderT>::new(
-            self.backend
-                .blockchain()
-                .expect_block_number_from_id(parent)?
-                + One::one(),
-            Default::default(),
-            Default::default(),
-            parent_header.hash(),
-            Default::default(),
-        ))
-    }
+	fn prepare_environment_block(&self, parent: &BlockId<Block>) -> sp_blockchain::Result<Block::Header> {
+		let parent_header = self.backend.blockchain().expect_header(*parent)?;
+		Ok(<<Block as BlockT>::Header as HeaderT>::new(
+			self.backend.blockchain().expect_block_number_from_id(parent)? + One::one(),
+			Default::default(),
+			Default::default(),
+			parent_header.hash(),
+			Default::default(),
+		))
+	}
 }
 
 impl<Exec, Block, RA, D> GetRuntimeVersion<Block> for Client<Exec, Block, RA, D>
 where
-    D: ReadOnlyDB + 'static,
-    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
-    Block: BlockT,
-    RA: Send + Sync,
+	D: ReadOnlyDB + 'static,
+	Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
+	Block: BlockT,
+	RA: Send + Sync,
 {
-    fn runtime_version(&self, at: &BlockId<Block>) -> Result<sp_version::RuntimeVersion> {
-        self.runtime_version_at(at)
-    }
+	fn runtime_version(&self, at: &BlockId<Block>) -> Result<sp_version::RuntimeVersion> {
+		self.runtime_version_at(at)
+	}
 }
 
 impl<Exec, Block, RA, D> GetMetadata<Block> for Client<Exec, Block, RA, D>
 where
-    D: ReadOnlyDB + 'static,
-    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
-    Block: BlockT,
-    RA: ConstructRuntimeApi<Block, Self> + Send + Sync,
-    RA::RuntimeApi: sp_api::Metadata<Block, Error = sp_blockchain::Error> + Send + Sync + 'static,
+	D: ReadOnlyDB + 'static,
+	Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
+	Block: BlockT,
+	RA: ConstructRuntimeApi<Block, Self> + Send + Sync,
+	RA::RuntimeApi: sp_api::Metadata<Block, Error = sp_blockchain::Error> + Send + Sync + 'static,
 {
-    fn metadata(&self, id: &BlockId<Block>) -> Result<sp_core::OpaqueMetadata> {
-        self.runtime_api().metadata(id).map_err(Into::into)
-    }
+	fn metadata(&self, id: &BlockId<Block>) -> Result<sp_core::OpaqueMetadata> {
+		self.runtime_api().metadata(id).map_err(Into::into)
+	}
 }
 
 impl<Exec, Block, RA, D> ProvideRuntimeApi<Block> for Client<Exec, Block, RA, D>
 where
-    D: ReadOnlyDB + 'static,
-    Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
-    Block: BlockT,
-    RA: ConstructRuntimeApi<Block, Self>,
+	D: ReadOnlyDB + 'static,
+	Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
+	Block: BlockT,
+	RA: ConstructRuntimeApi<Block, Self>,
 {
-    type Api = <RA as ConstructRuntimeApi<Block, Self>>::RuntimeApi;
-    fn runtime_api(&self) -> ApiRef<'_, Self::Api> {
-        RA::construct_runtime_api(self)
-    }
+	type Api = <RA as ConstructRuntimeApi<Block, Self>>::RuntimeApi;
+	fn runtime_api(&self) -> ApiRef<'_, Self::Api> {
+		RA::construct_runtime_api(self)
+	}
 }
 
 impl<E, Block, RA, D> CallApiAt<Block> for Client<E, Block, RA, D>
 where
-    D: ReadOnlyDB + 'static,
-    E: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
-    Block: BlockT,
+	D: ReadOnlyDB + 'static,
+	E: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + Send + Sync,
+	Block: BlockT,
 {
-    type Error = sp_blockchain::Error;
-    type StateBackend = TrieState<Block, D>;
+	type Error = sp_blockchain::Error;
+	type StateBackend = TrieState<Block, D>;
 
-    fn call_api_at<
-        'a,
-        R: Encode + Decode + PartialEq,
-        NC: FnOnce() -> std::result::Result<R, String> + UnwindSafe,
-        C: CoreApi<Block, Error = sp_blockchain::Error>,
-    >(
-        &self,
-        params: CallApiAtParams<'a, Block, C, NC, TrieState<Block, D>>,
-    ) -> sp_blockchain::Result<NativeOrEncoded<R>> {
-        let core_api = params.core_api;
-        let at = params.at;
+	fn call_api_at<
+		'a,
+		R: Encode + Decode + PartialEq,
+		NC: FnOnce() -> std::result::Result<R, String> + UnwindSafe,
+		C: CoreApi<Block, Error = sp_blockchain::Error>,
+	>(
+		&self,
+		params: CallApiAtParams<'a, Block, C, NC, TrieState<Block, D>>,
+	) -> sp_blockchain::Result<NativeOrEncoded<R>> {
+		let core_api = params.core_api;
+		let at = params.at;
 
-        let (manager, extensions) = self
-            .execution_extensions
-            .manager_and_extensions(at, params.context);
+		let (manager, extensions) = self.execution_extensions.manager_and_extensions(at, params.context);
 
-        self.executor.contextual_call::<_, fn(_, _) -> _, _, _>(
-            || core_api.initialize_block(at, &self.prepare_environment_block(at)?),
-            at,
-            params.function,
-            &params.arguments,
-            params.overlayed_changes,
-            params.offchain_changes,
-            Some(params.storage_transaction_cache),
-            params.initialize_block,
-            manager,
-            params.native_call,
-            params.recorder,
-            Some(extensions),
-        )
-    }
+		self.executor.contextual_call::<_, fn(_, _) -> _, _, _>(
+			|| core_api.initialize_block(at, &self.prepare_environment_block(at)?),
+			at,
+			params.function,
+			&params.arguments,
+			params.overlayed_changes,
+			params.offchain_changes,
+			Some(params.storage_transaction_cache),
+			params.initialize_block,
+			manager,
+			params.native_call,
+			params.recorder,
+			Some(extensions),
+		)
+	}
 
-    fn runtime_version_at(&self, at: &BlockId<Block>) -> sp_blockchain::Result<RuntimeVersion> {
-        self.runtime_version_at(at)
-            .map_err(|e| sp_blockchain::Error::Msg(e.to_string()))
-    }
+	fn runtime_version_at(&self, at: &BlockId<Block>) -> sp_blockchain::Result<RuntimeVersion> {
+		self.runtime_version_at(at).map_err(|e| sp_blockchain::Error::Msg(e.to_string()))
+	}
 }

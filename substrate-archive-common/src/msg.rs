@@ -16,8 +16,8 @@
 
 //! Main messages and NewTypes that can be sent between actors
 use crate::{
-    types::{BatchBlock, Block, Metadata, Storage},
-    Result,
+	types::{BatchBlock, Block, Metadata, Storage},
+	Result,
 };
 use sp_runtime::traits::Block as BlockT;
 use xtra::prelude::*;
@@ -25,28 +25,28 @@ use xtra::prelude::*;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Die;
 impl Message for Die {
-    type Result = Result<()>;
+	type Result = Result<()>;
 }
 
 impl Message for Metadata {
-    type Result = ();
+	type Result = ();
 }
 
 impl<B: BlockT> Message for Block<B> {
-    type Result = ();
+	type Result = ();
 }
 
 impl<B: BlockT> Message for BatchBlock<B> {
-    type Result = ();
+	type Result = ();
 }
 
 impl<Block: BlockT> Message for Storage<Block> {
-    type Result = ();
+	type Result = ();
 }
 
 #[derive(Debug)]
 pub struct VecStorageWrap<B: BlockT>(pub Vec<Storage<B>>);
 
 impl<B: BlockT> Message for VecStorageWrap<B> {
-    type Result = ();
+	type Result = ();
 }
