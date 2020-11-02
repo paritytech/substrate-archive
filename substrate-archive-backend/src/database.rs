@@ -21,23 +21,18 @@ use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use substrate_archive_common::{
     database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS},
     Result,
 };
 
 pub struct Config {
-    /// Track how many calls to `catch_up_with_primary` were made.
-    pub track_catchups: bool,
     pub config: DatabaseConfig,
 }
 
 #[derive(parity_util_mem::MallocSizeOf)]
 pub struct SecondaryRocksDB {
     inner: Database,
-    catch_counter: AtomicUsize,
-    track_catchups: bool,
 }
 
 impl std::fmt::Debug for SecondaryRocksDB {
@@ -51,11 +46,7 @@ impl SecondaryRocksDB {
     pub fn open(config: Config, path: &str) -> Result<Self> {
         let inner = Database::open(&config.config, path)?;
         inner.try_catch_up_with_primary()?;
-        Ok(Self {
-            inner,
-            catch_counter: AtomicUsize::new(0),
-            track_catchups: config.track_catchups,
-        })
+        Ok(Self { inner })
     }
 
     fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
@@ -89,9 +80,6 @@ impl ReadOnlyDB for SecondaryRocksDB {
     }
 
     fn catch_up_with_primary(&self) -> Result<()> {
-        if self.track_catchups {
-            self.catch_counter.fetch_add(1, Ordering::Relaxed);
-        }
         self.inner.try_catch_up_with_primary()?;
         Ok(())
     }
@@ -104,7 +92,6 @@ impl ReadOnlyDB for SecondaryRocksDB {
         // need to make sure this is `Some` to open secondary instance
         let db_path = db_path.as_path().to_str().expect("Creating db path failed");
         let mut db_config = Config {
-            track_catchups: true,
             config: DatabaseConfig {
                 secondary: Some(db_path.to_string()),
                 ..DatabaseConfig::with_columns(NUM_COLUMNS)
