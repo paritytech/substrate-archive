@@ -23,8 +23,7 @@ use sp_runtime::{
     traits::{Block as BlockT, Header as HeaderT, UniqueSaturatedFrom, UniqueSaturatedInto, Zero},
 };
 use std::convert::TryInto;
-use substrate_archive_common::ReadOnlyDB;
-use substrate_archive_common::{Error, Result};
+use substrate_archive_common::{ReadOnlyDB, Error, Result};
 
 pub type NumberIndexKey = [u8; 4];
 
