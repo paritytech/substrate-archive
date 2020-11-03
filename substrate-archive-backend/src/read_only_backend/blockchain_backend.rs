@@ -29,7 +29,7 @@ use sp_runtime::{
     Justification,
 };
 use std::sync::Arc;
-use substrate_archive_common::database::ReadOnlyDB;
+use substrate_archive_common::ReadOnlyDB;
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
