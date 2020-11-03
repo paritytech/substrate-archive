@@ -14,10 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-pub mod database;
-pub mod error;
+mod database;
+mod error;
 pub mod models;
 pub mod msg;
 pub mod types;
 pub mod util;
-pub use error::Result;
+pub use database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS};
+pub use error::{Error, Result};

@@ -32,7 +32,7 @@ use sp_runtime::{
 use sp_state_machine::{ChangesTrieTransaction, ChildStorageCollection, StorageCollection};
 use sp_storage::Storage;
 use std::marker::PhantomData;
-use substrate_archive_common::database::ReadOnlyDB;
+use substrate_archive_common::ReadOnlyDB;
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
