@@ -116,9 +116,10 @@ pub fn create_dir(path: &Path) -> Result<(), ArchiveError> {
         match e.kind() {
             std::io::ErrorKind::AlreadyExists => (),
             _ => {
-                return Err(ArchiveError::from(
-                    format!("A directory in the path '{:?}' could not be created", path),
-                ))
+                return Err(ArchiveError::from(format!(
+                    "A directory in the path '{:?}' could not be created",
+                    path
+                )))
             }
         }
     }
