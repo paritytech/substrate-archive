@@ -162,9 +162,7 @@ fn create_database_path(spec: Option<Box<dyn ChainSpec>>) -> Result<PathBuf> {
     let path = if let Some(spec) = spec {
         let (chain, id) = (spec.name(), spec.id());
         let mut path = substrate_archive_common::util::substrate_dir()?;
-        path.push("rocksdb_secondary");
-        path.push(chain);
-        path.push(id);
+        let mut path = util::substrate_dir()?.extend(&["rocksdb_secondary", chain, id]);
         std::fs::create_dir_all(path.as_path())?;
         path
     } else {
