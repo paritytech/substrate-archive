@@ -20,8 +20,8 @@ pub use self::client::{Client, GetMetadata, GetRuntimeVersion};
 use self::executor::ArchiveExecutor;
 use futures::{task::SpawnExt, Future};
 use sc_client_api::{
-    execution_extensions::{ExecutionExtensions, ExecutionStrategies},
-    ExecutionStrategy,
+	execution_extensions::{ExecutionExtensions, ExecutionStrategies},
+	ExecutionStrategy,
 };
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
 use sp_api::ConstructRuntimeApi;
@@ -33,99 +33,72 @@ use substrate_archive_common::{Error as ArchiveError, ReadOnlyDB};
 use super::{ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
-pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> =
-    Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;
+pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;
 
 /// Full client call executor type.
 type TFullCallExecutor<TBl, TExecDisp, D> =
-    self::executor::ArchiveExecutor<ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
+	self::executor::ArchiveExecutor<ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
 
 pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDB + 'static>(
-    db: Arc<D>,
-    block_workers: usize,
-    wasm_pages: u64,
+	db: Arc<D>,
+	block_workers: usize,
+	wasm_pages: u64,
 ) -> Result<TArchiveClient<Block, Runtime, Dispatch, D>, ArchiveError>
 where
-    Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch, D>>
-        + Send
-        + Sync
-        + 'static,
-    Runtime::RuntimeApi: RuntimeApiCollection<
-            Block,
-            StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block, D>, Block>,
-        > + Send
-        + Sync
-        + 'static,
-    Dispatch: NativeExecutionDispatch + 'static,
-    <Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+	Block: BlockT,
+	Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch, D>> + Send + Sync + 'static,
+	Runtime::RuntimeApi: RuntimeApiCollection<Block, StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block, D>, Block>>
+		+ Send
+		+ Sync
+		+ 'static,
+	Dispatch: NativeExecutionDispatch + 'static,
+	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
-    let backend = Arc::new(ReadOnlyBackend::new(db, true));
+	let backend = Arc::new(ReadOnlyBackend::new(db, true));
 
-    let executor = NativeExecutor::<Dispatch>::new(
-        WasmExecutionMethod::Interpreted,
-        Some(wasm_pages),
-        block_workers as usize,
-    );
+	let executor =
+		NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Interpreted, Some(wasm_pages), block_workers as usize);
 
-    let executor = ArchiveExecutor::new(backend.clone(), executor, TaskExecutor::new());
+	let executor = ArchiveExecutor::new(backend.clone(), executor, TaskExecutor::new());
 
-    let client = Client::new(
-        backend,
-        executor,
-        ExecutionExtensions::new(execution_strategies(), None),
-    )?;
-    Ok(client)
+	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None))?;
+	Ok(client)
 }
 
 impl SpawnNamed for TaskExecutor {
-    fn spawn(
-        &self,
-        _: &'static str,
-        fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
-    ) {
-        let _ = self.pool.spawn(fut);
-    }
+	fn spawn(&self, _: &'static str, fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
+		let _ = self.pool.spawn(fut);
+	}
 
-    fn spawn_blocking(
-        &self,
-        _: &'static str,
-        fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>,
-    ) {
-        let _ = self.pool.spawn(fut);
-    }
+	fn spawn_blocking(&self, _: &'static str, fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
+		let _ = self.pool.spawn(fut);
+	}
 }
 
 #[derive(Debug, Clone)]
 pub struct TaskExecutor {
-    pool: futures::executor::ThreadPool,
+	pool: futures::executor::ThreadPool,
 }
 
 impl TaskExecutor {
-    fn new() -> Self {
-        let pool = futures::executor::ThreadPool::builder()
-            .pool_size(1)
-            .create()
-            .unwrap();
-        Self { pool }
-    }
+	fn new() -> Self {
+		let pool = futures::executor::ThreadPool::builder().pool_size(1).create().unwrap();
+		Self { pool }
+	}
 }
 
 impl futures::task::Spawn for TaskExecutor {
-    fn spawn_obj(
-        &self,
-        future: futures::task::FutureObj<'static, ()>,
-    ) -> Result<(), futures::task::SpawnError> {
-        self.pool.spawn_obj(future)
-    }
+	fn spawn_obj(&self, future: futures::task::FutureObj<'static, ()>) -> Result<(), futures::task::SpawnError> {
+		self.pool.spawn_obj(future)
+	}
 }
 
 fn execution_strategies() -> ExecutionStrategies {
-    ExecutionStrategies {
-        syncing: ExecutionStrategy::NativeElseWasm,
-        importing: ExecutionStrategy::NativeElseWasm,
-        block_construction: ExecutionStrategy::NativeElseWasm,
-        offchain_worker: ExecutionStrategy::NativeWhenPossible,
-        other: ExecutionStrategy::AlwaysWasm,
-    }
+	ExecutionStrategies {
+		syncing: ExecutionStrategy::NativeElseWasm,
+		importing: ExecutionStrategy::NativeElseWasm,
+		block_construction: ExecutionStrategy::NativeElseWasm,
+		offchain_worker: ExecutionStrategy::NativeWhenPossible,
+		other: ExecutionStrategy::AlwaysWasm,
+	}
 }

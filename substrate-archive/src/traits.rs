@@ -20,20 +20,20 @@ use substrate_archive_common::{ReadOnlyDB, Result};
 #[async_trait::async_trait(?Send)]
 pub trait Archive<B: BlockT + Unpin, D: ReadOnlyDB>
 where
-    B::Hash: Unpin,
+	B::Hash: Unpin,
 {
-    /// start driving the execution of the archive
-    fn drive(&mut self) -> Result<()>;
+	/// start driving the execution of the archive
+	fn drive(&mut self) -> Result<()>;
 
-    /// this method will block indefinitely
-    async fn block_until_stopped(&self) -> ();
+	/// this method will block indefinitely
+	async fn block_until_stopped(&self) -> ();
 
-    /// shutdown the system
-    fn shutdown(self) -> Result<()>;
+	/// shutdown the system
+	fn shutdown(self) -> Result<()>;
 
-    /// Shutdown the system when self is boxed (useful when erasing the types of the runtime)
-    fn boxed_shutdown(self: Box<Self>) -> Result<()>;
+	/// Shutdown the system when self is boxed (useful when erasing the types of the runtime)
+	fn boxed_shutdown(self: Box<Self>) -> Result<()>;
 
-    /// Get a reference to the context the actors are using
-    fn context(&self) -> Result<super::actors::ActorContext<B, D>>;
+	/// Get a reference to the context the actors are using
+	fn context(&self) -> Result<super::actors::ActorContext<B, D>>;
 }

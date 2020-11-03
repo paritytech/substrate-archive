@@ -24,134 +24,122 @@ use std::path::PathBuf;
 use substrate_archive_common::{KeyValuePair, ReadOnlyDB, Result, NUM_COLUMNS};
 
 pub struct Config {
-    pub config: DatabaseConfig,
+	pub config: DatabaseConfig,
 }
 
 #[derive(parity_util_mem::MallocSizeOf)]
 pub struct SecondaryRocksDB {
-    inner: Database,
+	inner: Database,
 }
 
 impl std::fmt::Debug for SecondaryRocksDB {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let stats = self.inner.io_stats(kvdb::IoStatsKind::Overall);
-        f.write_fmt(format_args!("Read Only Database Stats: {:?}", stats))
-    }
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let stats = self.inner.io_stats(kvdb::IoStatsKind::Overall);
+		f.write_fmt(format_args!("Read Only Database Stats: {:?}", stats))
+	}
 }
 
 impl SecondaryRocksDB {
-    pub fn open(config: Config, path: &str) -> Result<Self> {
-        let inner = Database::open(&config.config, path)?;
-        inner.try_catch_up_with_primary()?;
-        Ok(Self { inner })
-    }
+	pub fn open(config: Config, path: &str) -> Result<Self> {
+		let inner = Database::open(&config.config, path)?;
+		inner.try_catch_up_with_primary()?;
+		Ok(Self { inner })
+	}
 
-    fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
-        match self.inner.get(col, key) {
-            Ok(v) => v,
-            Err(e) => {
-                log::debug!(
-                    "{}, Catching up with primary and trying again...",
-                    e.to_string()
-                );
-                self.catch_up_with_primary().ok()?;
-                match self.inner.get(col, key) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        log::error!("{}", e.to_string());
-                        None
-                    }
-                }
-            }
-        }
-    }
+	fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
+		match self.inner.get(col, key) {
+			Ok(v) => v,
+			Err(e) => {
+				log::debug!("{}, Catching up with primary and trying again...", e.to_string());
+				self.catch_up_with_primary().ok()?;
+				match self.inner.get(col, key) {
+					Ok(v) => v,
+					Err(e) => {
+						log::error!("{}", e.to_string());
+						None
+					}
+				}
+			}
+		}
+	}
 }
 
 impl ReadOnlyDB for SecondaryRocksDB {
-    fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
-        self.get(col, key)
-    }
+	fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
+		self.get(col, key)
+	}
 
-    fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
-        Box::new(self.inner.iter(col))
-    }
+	fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = KeyValuePair> + 'a> {
+		Box::new(self.inner.iter(col))
+	}
 
-    fn catch_up_with_primary(&self) -> Result<()> {
-        self.inner.try_catch_up_with_primary()?;
-        Ok(())
-    }
+	fn catch_up_with_primary(&self) -> Result<()> {
+		self.inner.try_catch_up_with_primary()?;
+		Ok(())
+	}
 
-    fn open_database(
-        path: &str,
-        cache_size: usize,
-        db_path: PathBuf,
-    ) -> sp_blockchain::Result<SecondaryRocksDB> {
-        // need to make sure this is `Some` to open secondary instance
-        let db_path = db_path.as_path().to_str().expect("Creating db path failed");
-        let mut db_config = Config {
-            config: DatabaseConfig {
-                secondary: Some(db_path.to_string()),
-                ..DatabaseConfig::with_columns(NUM_COLUMNS)
-            },
-        };
-        let state_col_budget = (cache_size as f64 * 0.9) as usize;
-        let other_col_budget = (cache_size - state_col_budget) / (NUM_COLUMNS as usize - 1);
-        let mut memory_budget = std::collections::HashMap::new();
+	fn open_database(path: &str, cache_size: usize, db_path: PathBuf) -> sp_blockchain::Result<SecondaryRocksDB> {
+		// need to make sure this is `Some` to open secondary instance
+		let db_path = db_path.as_path().to_str().expect("Creating db path failed");
+		let mut db_config = Config {
+			config: DatabaseConfig {
+				secondary: Some(db_path.to_string()),
+				..DatabaseConfig::with_columns(NUM_COLUMNS)
+			},
+		};
+		let state_col_budget = (cache_size as f64 * 0.9) as usize;
+		let other_col_budget = (cache_size - state_col_budget) / (NUM_COLUMNS as usize - 1);
+		let mut memory_budget = std::collections::HashMap::new();
 
-        for i in 0..NUM_COLUMNS {
-            if i == 1 {
-                memory_budget.insert(i, state_col_budget);
-            } else {
-                memory_budget.insert(i, other_col_budget);
-            }
-        }
-        db_config.config.memory_budget = memory_budget;
-        log::info!(
-            target: "db",
-            "Open RocksDB at {}, state column budget: {} MiB, others({}) column cache: {} MiB",
-            path,
-            state_col_budget,
-            NUM_COLUMNS,
-            other_col_budget,
-        );
-        Self::open(db_config, &path)
-            .map_err(|err| sp_blockchain::Error::Backend(format!("{:?}", err)))
-    }
+		for i in 0..NUM_COLUMNS {
+			if i == 1 {
+				memory_budget.insert(i, state_col_budget);
+			} else {
+				memory_budget.insert(i, other_col_budget);
+			}
+		}
+		db_config.config.memory_budget = memory_budget;
+		log::info!(
+			target: "db",
+			"Open RocksDB at {}, state column budget: {} MiB, others({}) column cache: {} MiB",
+			path,
+			state_col_budget,
+			NUM_COLUMNS,
+			other_col_budget,
+		);
+		Self::open(db_config, &path).map_err(|err| sp_blockchain::Error::Backend(format!("{:?}", err)))
+	}
 }
 
 type DBError = std::result::Result<(), sp_database::error::DatabaseError>;
 //TODO: Remove panics with a warning that database has not been written to / is read-only
 /// Preliminary trait for ReadOnlyDB
 impl<H: Clone> DatabaseTrait<H> for SecondaryRocksDB {
-    fn commit(&self, _transaction: Transaction<H>) -> DBError {
-        panic!("Read only db")
-    }
+	fn commit(&self, _transaction: Transaction<H>) -> DBError {
+		panic!("Read only db")
+	}
 
-    fn commit_ref<'a>(&self, _transaction: &mut dyn Iterator<Item = ChangeRef<'a, H>>) -> DBError {
-        panic!("Read only db")
-    }
+	fn commit_ref<'a>(&self, _transaction: &mut dyn Iterator<Item = ChangeRef<'a, H>>) -> DBError {
+		panic!("Read only db")
+	}
 
-    fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
-        self.get(col, key)
-    }
-    // with_get -> default is fine
+	fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
+		self.get(col, key)
+	}
+	// with_get -> default is fine
 
-    fn remove(
-        &self,
-        _col: ColumnId,
-        _key: &[u8],
-    ) -> std::result::Result<(), sp_database::error::DatabaseError> {
-        panic!("Read only db")
-    }
+	fn remove(&self, _col: ColumnId, _key: &[u8]) -> std::result::Result<(), sp_database::error::DatabaseError> {
+		panic!("Read only db")
+	}
 
-    fn lookup(&self, _hash: &H) -> Option<Vec<u8>> {
-        unimplemented!();
-    }
+	fn lookup(&self, _hash: &H) -> Option<Vec<u8>> {
+		unimplemented!();
+	}
 
-    // with_lookup -> default
-    /*
-        fn store(&self, _hash: , _preimage: _) {
-            panic!("Read only db")
-        }
-    */
+	// with_lookup -> default
+	/*
+		fn store(&self, _hash: , _preimage: _) {
+			panic!("Read only db")
+		}
+	*/
 }

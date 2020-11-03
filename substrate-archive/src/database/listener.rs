@@ -30,266 +30,238 @@ use substrate_archive_common::Result;
 /// A notification from Postgres about a new row
 #[derive(PartialEq, Debug, Deserialize)]
 pub struct Notif {
-    pub table: Table,
-    pub action: Action,
-    #[serde(deserialize_with = "deserialize_number_from_string")]
-    pub id: i32,
+	pub table: Table,
+	pub action: Action,
+	#[serde(deserialize_with = "deserialize_number_from_string")]
+	pub id: i32,
 }
 
 #[derive(PartialEq, Debug, Deserialize)]
 pub enum Table {
-    #[serde(rename = "blocks")]
-    Blocks,
-    #[serde(rename = "storage")]
-    Storage,
+	#[serde(rename = "blocks")]
+	Blocks,
+	#[serde(rename = "storage")]
+	Storage,
 }
 
 #[derive(PartialEq, Debug, Deserialize)]
 pub enum Action {
-    #[serde(rename = "INSERT")]
-    Insert,
-    #[serde(rename = "UPDATE")]
-    Update,
-    #[serde(rename = "DELETE")]
-    Delete,
+	#[serde(rename = "INSERT")]
+	Insert,
+	#[serde(rename = "UPDATE")]
+	Update,
+	#[serde(rename = "DELETE")]
+	Delete,
 }
 
 pub enum Channel {
-    /// Listen on the blocks table for new INSERTS
-    Blocks,
+	/// Listen on the blocks table for new INSERTS
+	Blocks,
 }
 
 impl From<&Channel> for String {
-    fn from(chan: &Channel) -> String {
-        match chan {
-            Channel::Blocks => "blocks_update".to_string(),
-        }
-    }
+	fn from(chan: &Channel) -> String {
+		match chan {
+			Channel::Blocks => "blocks_update".to_string(),
+		}
+	}
 }
 
 #[derive(Serialize, Deserialize)]
 struct ListenEvent {
-    table: String,
-    action: String,
-    data: serde_json::Value,
+	table: String,
+	action: String,
+	data: serde_json::Value,
 }
 
 pub struct Builder<F>
 where
-    F: 'static
-        + Send
-        + Sync
-        + for<'a> Fn(
-            Notif,
-            &'a mut PgConnection,
-        ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
+	F: 'static
+		+ Send
+		+ Sync
+		+ for<'a> Fn(Notif, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
 {
-    task: F,
-    channels: Vec<Channel>,
-    pg_url: String,
+	task: F,
+	channels: Vec<Channel>,
+	pg_url: String,
 }
 
 impl<F> Builder<F>
 where
-    F: 'static
-        + Send
-        + Sync
-        + for<'a> Fn(
-            Notif,
-            &'a mut PgConnection,
-        ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
+	F: 'static
+		+ Send
+		+ Sync
+		+ for<'a> Fn(Notif, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
 {
-    pub fn new(url: &str, f: F) -> Self {
-        Self {
-            task: f,
-            channels: Vec::new(),
-            pg_url: url.to_string(),
-        }
-    }
+	pub fn new(url: &str, f: F) -> Self {
+		Self { task: f, channels: Vec::new(), pg_url: url.to_string() }
+	}
 
-    pub fn listen_on(mut self, channel: Channel) -> Self {
-        self.channels.push(channel);
-        self
-    }
+	pub fn listen_on(mut self, channel: Channel) -> Self {
+		self.channels.push(channel);
+		self
+	}
 
-    /// Spawns this listener which will work on its assigned tasks in the background
-    pub async fn spawn(self) -> Result<Listener> {
-        let (tx, mut rx) = flume::bounded(1);
+	/// Spawns this listener which will work on its assigned tasks in the background
+	pub async fn spawn(self) -> Result<Listener> {
+		let (tx, mut rx) = flume::bounded(1);
 
-        let mut listener = PgListener::connect(&self.pg_url).await?;
-        let channels = self
-            .channels
-            .iter()
-            .map(String::from)
-            .collect::<Vec<String>>();
-        listener
-            .listen_all(channels.iter().map(|s| s.as_ref()))
-            .await?;
-        let mut conn = PgConnection::connect(&self.pg_url).await.unwrap();
+		let mut listener = PgListener::connect(&self.pg_url).await?;
+		let channels = self.channels.iter().map(String::from).collect::<Vec<String>>();
+		listener.listen_all(channels.iter().map(|s| s.as_ref())).await?;
+		let mut conn = PgConnection::connect(&self.pg_url).await.unwrap();
 
-        let fut = async move {
-            let mut listener = listener.into_stream();
-            loop {
-                let mut listen_fut = listener.next().fuse();
-                // pin_mut!(listen_fut);
+		let fut = async move {
+			let mut listener = listener.into_stream();
+			loop {
+				let mut listen_fut = listener.next().fuse();
+				// pin_mut!(listen_fut);
 
-                futures::select! {
-                    notif = listen_fut => {
-                        match notif {
-                            Some(Ok(v)) => {
-                                let fut = self.handle_listen_event(v, &mut conn);
-                                fut.await;
-                            },
-                            Some(Err(e)) => {
-                                log::error!("{:?}", e);
-                            },
-                            None => {
-                                break;
-                            },
-                        }
-                    },
-                    r = rx.recv_async() => {
-                        match r {
-                            Ok(_) => break,
-                            Err(e) => {
-                                log::warn!("Ending due to: {:?}", e);
-                            }
-                        }
-                    },
-                    complete => break,
-                };
-            }
-            // collect the rest of the results, before exiting, as long as the collection completes
-            // in a reasonable amount of time
-            let timeout = smol::Timer::new(std::time::Duration::from_secs(1));
-            futures::select! {
-                _ = timeout.fuse() => {},
-                notifs = listener.collect::<Vec<_>>().fuse() => {
-                    for msg in notifs {
-                        self.handle_listen_event(msg.unwrap(), &mut conn).await;
-                    }
-                }
-            }
-        };
+				futures::select! {
+					notif = listen_fut => {
+						match notif {
+							Some(Ok(v)) => {
+								let fut = self.handle_listen_event(v, &mut conn);
+								fut.await;
+							},
+							Some(Err(e)) => {
+								log::error!("{:?}", e);
+							},
+							None => {
+								break;
+							},
+						}
+					},
+					r = rx.recv_async() => {
+						match r {
+							Ok(_) => break,
+							Err(e) => {
+								log::warn!("Ending due to: {:?}", e);
+							}
+						}
+					},
+					complete => break,
+				};
+			}
+			// collect the rest of the results, before exiting, as long as the collection completes
+			// in a reasonable amount of time
+			let timeout = smol::Timer::new(std::time::Duration::from_secs(1));
+			futures::select! {
+				_ = timeout.fuse() => {},
+				notifs = listener.collect::<Vec<_>>().fuse() => {
+					for msg in notifs {
+						self.handle_listen_event(msg.unwrap(), &mut conn).await;
+					}
+				}
+			}
+		};
 
-        smol::Task::spawn(fut).detach();
+		smol::Task::spawn(fut).detach();
 
-        Ok(Listener { tx })
-    }
+		Ok(Listener { tx })
+	}
 
-    /// Handle a listen event from Postges
-    async fn handle_listen_event(&self, notif: PgNotification, conn: &mut PgConnection) {
-        let payload: Notif = serde_json::from_str(notif.payload()).unwrap();
-        (self.task)(payload, conn).await.unwrap();
-    }
+	/// Handle a listen event from Postges
+	async fn handle_listen_event(&self, notif: PgNotification, conn: &mut PgConnection) {
+		let payload: Notif = serde_json::from_str(notif.payload()).unwrap();
+		(self.task)(payload, conn).await.unwrap();
+	}
 }
 
 /// A Postgres listener which listens for events
 /// on postgres channels using LISTEN/NOTIFY pattern
 /// Dropping this will kill the listener,
 pub struct Listener {
-    // Shutdown signal
-    tx: flume::Sender<()>,
+	// Shutdown signal
+	tx: flume::Sender<()>,
 }
 
 impl Listener {
-    pub fn builder<F>(pg_url: &str, f: F) -> Builder<F>
-    where
-        F: 'static
-            + Send
-            + Sync
-            + for<'a> Fn(
-                Notif,
-                &'a mut PgConnection,
-            ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
-    {
-        Builder::new(pg_url, f)
-    }
+	pub fn builder<F>(pg_url: &str, f: F) -> Builder<F>
+	where
+		F: 'static
+			+ Send
+			+ Sync
+			+ for<'a> Fn(Notif, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
+	{
+		Builder::new(pg_url, f)
+	}
 
-    #[allow(unused)]
-    pub fn kill(&self) {
-        let _ = self.tx.send(());
-    }
+	#[allow(unused)]
+	pub fn kill(&self) {
+		let _ = self.tx.send(());
+	}
 
-    pub async fn kill_async(&self) {
-        let _ = self.tx.send_async(()).await;
-    }
+	pub async fn kill_async(&self) {
+		let _ = self.tx.send_async(()).await;
+	}
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use futures::{SinkExt, StreamExt};
-    use sqlx::Connection;
+	use super::*;
+	use futures::{SinkExt, StreamExt};
+	use sqlx::Connection;
 
-    #[test]
-    fn should_get_notifications() {
-        crate::initialize();
-        let _guard = crate::TestGuard::lock();
-        smol::block_on(async move {
-            let (tx, mut rx) = futures::channel::mpsc::channel(5);
+	#[test]
+	fn should_get_notifications() {
+		crate::initialize();
+		let _guard = crate::TestGuard::lock();
+		smol::block_on(async move {
+			let (tx, mut rx) = futures::channel::mpsc::channel(5);
 
-            let _listener = Builder::new(&crate::DATABASE_URL, move |_, _| {
-                let mut tx1 = tx.clone();
-                async move {
-                    log::info!("Hello");
-                    tx1.send(()).await.unwrap();
-                    Ok(())
-                }
-                .boxed()
-            })
-            .listen_on(Channel::Blocks)
-            .spawn()
-            .await
-            .unwrap();
-            let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL)
-                .await
-                .expect("Connection dead");
-            let json = serde_json::json!({
-                "table": "blocks",
-                "action": "INSERT",
-                "id":  1337
-            })
-            .to_string();
-            for _ in 0usize..5usize {
-                sqlx::query("SELECT pg_notify('blocks_update', $1)")
-                    .bind(json.clone())
-                    .execute(&mut conn)
-                    .await
-                    .expect("Could not exec notify query");
-                smol::Timer::new(std::time::Duration::from_millis(50)).await;
-            }
-            let mut counter: usize = 0;
+			let _listener = Builder::new(&crate::DATABASE_URL, move |_, _| {
+				let mut tx1 = tx.clone();
+				async move {
+					log::info!("Hello");
+					tx1.send(()).await.unwrap();
+					Ok(())
+				}
+				.boxed()
+			})
+			.listen_on(Channel::Blocks)
+			.spawn()
+			.await
+			.unwrap();
+			let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
+			let json = serde_json::json!({
+				"table": "blocks",
+				"action": "INSERT",
+				"id":  1337
+			})
+			.to_string();
+			for _ in 0usize..5usize {
+				sqlx::query("SELECT pg_notify('blocks_update', $1)")
+					.bind(json.clone())
+					.execute(&mut conn)
+					.await
+					.expect("Could not exec notify query");
+				smol::Timer::new(std::time::Duration::from_millis(50)).await;
+			}
+			let mut counter: usize = 0;
 
-            loop {
-                let mut timeout = smol::Timer::new(std::time::Duration::from_millis(75)).fuse();
-                futures::select!(
-                    _ = rx.next() => counter += 1,
-                    _ = timeout => break,
-                )
-            }
+			loop {
+				let mut timeout = smol::Timer::new(std::time::Duration::from_millis(75)).fuse();
+				futures::select!(
+					_ = rx.next() => counter += 1,
+					_ = timeout => break,
+				)
+			}
 
-            assert_eq!(5, counter);
-        });
-    }
+			assert_eq!(5, counter);
+		});
+	}
 
-    #[test]
-    fn should_deserialize_into_block() {
-        let json = serde_json::json!({
-            "table": "blocks",
-            "action": "INSERT",
-            "id":  1337
-        });
+	#[test]
+	fn should_deserialize_into_block() {
+		let json = serde_json::json!({
+			"table": "blocks",
+			"action": "INSERT",
+			"id":  1337
+		});
 
-        let notif: Notif = serde_json::from_value(json).unwrap();
+		let notif: Notif = serde_json::from_value(json).unwrap();
 
-        assert_eq!(
-            Notif {
-                table: Table::Blocks,
-                action: Action::Insert,
-                id: 1337
-            },
-            notif
-        );
-    }
+		assert_eq!(Notif { table: Table::Blocks, action: Action::Insert, id: 1337 }, notif);
+	}
 }

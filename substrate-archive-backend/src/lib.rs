@@ -23,8 +23,8 @@ mod read_only_backend;
 mod runtime_version_cache;
 mod util;
 use self::{
-    frontend::{GetMetadata, GetRuntimeVersion},
-    read_only_backend::TrieState,
+	frontend::{GetMetadata, GetRuntimeVersion},
+	read_only_backend::TrieState,
 };
 use sc_client_api::Backend as BackendT;
 use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
@@ -33,11 +33,11 @@ use std::sync::Arc;
 
 // re-exports
 pub use self::{
-    block_exec::BlockExecutor,
-    database::SecondaryRocksDB,
-    frontend::{runtime_api, TArchiveClient},
-    read_only_backend::ReadOnlyBackend,
-    runtime_version_cache::RuntimeVersionCache,
+	block_exec::BlockExecutor,
+	database::SecondaryRocksDB,
+	frontend::{runtime_api, TArchiveClient},
+	read_only_backend::ReadOnlyBackend,
+	runtime_version_cache::RuntimeVersionCache,
 };
 
 #[cfg(feature = "logging")]
@@ -47,47 +47,47 @@ pub type Meta<B> = Arc<dyn GetMetadata<B>>;
 
 /// supertrait for accessing methods that rely on internal runtime api
 pub trait ApiAccess<Block, Backend, Runtime>:
-    ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
-    + Sized
-    + Send
-    + Sync
-    + CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
-    + GetMetadata<Block>
-    + GetRuntimeVersion<Block>
+	ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
+	+ Sized
+	+ Send
+	+ Sync
+	+ CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
+	+ GetMetadata<Block>
+	+ GetRuntimeVersion<Block>
 where
-    Block: BlockT,
-    Backend: BackendT<Block>,
-    Runtime: ConstructRuntimeApi<Block, Self>,
+	Block: BlockT,
+	Backend: BackendT<Block>,
+	Runtime: ConstructRuntimeApi<Block, Self>,
 {
 }
 
 impl<Client, Block, Backend, Runtime> ApiAccess<Block, Backend, Runtime> for Client
 where
-    Block: BlockT,
-    Runtime: ConstructRuntimeApi<Block, Self>,
-    Backend: BackendT<Block>,
-    Client: ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
-        + CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
-        + GetMetadata<Block>
-        + GetRuntimeVersion<Block>
-        + Sized
-        + Send
-        + Sync,
+	Block: BlockT,
+	Runtime: ConstructRuntimeApi<Block, Self>,
+	Backend: BackendT<Block>,
+	Client: ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
+		+ CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
+		+ GetMetadata<Block>
+		+ GetRuntimeVersion<Block>
+		+ Sized
+		+ Send
+		+ Sync,
 {
 }
 
 /// A set of APIs that runtimes must implement in order to be compatible with substrate-archive.
 pub trait RuntimeApiCollection<Block>: sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 where
-    Block: BlockT,
-    <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+	Block: BlockT,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }
 
 impl<Api, Block> RuntimeApiCollection<Block> for Api
 where
-    Block: BlockT,
-    Api: sp_api::ApiExt<Block, Error = sp_blockchain::Error>,
-    <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+	Block: BlockT,
+	Api: sp_api::ApiExt<Block, Error = sp_blockchain::Error>,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }

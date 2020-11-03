@@ -24,96 +24,93 @@ use substrate_archive_common::{types::Storage, Result};
 use xtra::prelude::*;
 
 pub struct StorageAggregator<B: BlockT + Unpin> {
-    db: Address<ActorPool<DatabaseActor<B>>>,
-    storage: Vec<Storage<B>>,
+	db: Address<ActorPool<DatabaseActor<B>>>,
+	storage: Vec<Storage<B>>,
 }
 
 impl<B: BlockT + Unpin> StorageAggregator<B>
 where
-    B::Hash: Unpin,
+	B::Hash: Unpin,
 {
-    pub fn new(db: Address<ActorPool<DatabaseActor<B>>>) -> Self {
-        Self {
-            db,
-            storage: Vec::with_capacity(500),
-        }
-    }
+	pub fn new(db: Address<ActorPool<DatabaseActor<B>>>) -> Self {
+		Self { db, storage: Vec::with_capacity(500) }
+	}
 }
 
 #[async_trait::async_trait]
 impl<B: BlockT + Unpin> Actor for StorageAggregator<B>
 where
-    B::Hash: Unpin,
+	B::Hash: Unpin,
 {
-    async fn started(&mut self, ctx: &mut Context<Self>) {
-        let addr = ctx.address().expect("Actor just started");
-        smol::Task::spawn(async move {
-            loop {
-                smol::Timer::new(std::time::Duration::from_secs(1)).await;
-                if addr.send(SendStorage).await.is_err() {
-                    break;
-                }
-            }
-        })
-        .detach();
-    }
+	async fn started(&mut self, ctx: &mut Context<Self>) {
+		let addr = ctx.address().expect("Actor just started");
+		smol::Task::spawn(async move {
+			loop {
+				smol::Timer::new(std::time::Duration::from_secs(1)).await;
+				if addr.send(SendStorage).await.is_err() {
+					break;
+				}
+			}
+		})
+		.detach();
+	}
 
-    async fn stopped(&mut self, _: &mut Context<Self>) {
-        let len = self.storage.len();
-        let storage = std::mem::take(&mut self.storage);
-        // insert any storage left in queue
-        let task = self.db.send(VecStorageWrap(storage).into()).await;
-        match task {
-            Err(e) => {
-                log::info!("{} storage entries will be missing, {:?}", len, e);
-            }
-            Ok(v) => {
-                log::info!("waiting for last storage insert...");
-                v.await;
-                log::info!("storage inserted");
-            }
-        }
-    }
+	async fn stopped(&mut self, _: &mut Context<Self>) {
+		let len = self.storage.len();
+		let storage = std::mem::take(&mut self.storage);
+		// insert any storage left in queue
+		let task = self.db.send(VecStorageWrap(storage).into()).await;
+		match task {
+			Err(e) => {
+				log::info!("{} storage entries will be missing, {:?}", len, e);
+			}
+			Ok(v) => {
+				log::info!("waiting for last storage insert...");
+				v.await;
+				log::info!("storage inserted");
+			}
+		}
+	}
 }
 
 struct SendStorage;
 impl Message for SendStorage {
-    type Result = ();
+	type Result = ();
 }
 
 #[async_trait::async_trait]
 impl<B: BlockT + Unpin> Handler<SendStorage> for StorageAggregator<B>
 where
-    B::Hash: Unpin,
+	B::Hash: Unpin,
 {
-    async fn handle(&mut self, _: SendStorage, _: &mut Context<Self>) {
-        let storage = std::mem::take(&mut self.storage);
-        if !storage.is_empty() {
-            log::info!("Indexing storage {} bps", storage.len());
-            if let Err(e) = self.db.send(VecStorageWrap(storage).into()).await {
-                log::error!("{:?}", e);
-            }
-        }
-    }
+	async fn handle(&mut self, _: SendStorage, _: &mut Context<Self>) {
+		let storage = std::mem::take(&mut self.storage);
+		if !storage.is_empty() {
+			log::info!("Indexing storage {} bps", storage.len());
+			if let Err(e) = self.db.send(VecStorageWrap(storage).into()).await {
+				log::error!("{:?}", e);
+			}
+		}
+	}
 }
 
 #[async_trait::async_trait]
 impl<B: BlockT + Unpin> Handler<Storage<B>> for StorageAggregator<B>
 where
-    B::Hash: Unpin,
+	B::Hash: Unpin,
 {
-    async fn handle(&mut self, s: Storage<B>, _: &mut Context<Self>) {
-        self.storage.push(s)
-    }
+	async fn handle(&mut self, s: Storage<B>, _: &mut Context<Self>) {
+		self.storage.push(s)
+	}
 }
 
 #[async_trait::async_trait]
 impl<B: BlockT + Unpin> Handler<super::Die> for StorageAggregator<B>
 where
-    B::Hash: Unpin,
+	B::Hash: Unpin,
 {
-    async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
-        ctx.stop();
-        Ok(())
-    }
+	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+		ctx.stop();
+		Ok(())
+	}
 }

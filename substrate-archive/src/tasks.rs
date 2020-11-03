@@ -23,8 +23,8 @@ use serde::de::DeserializeOwned;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
-    generic::BlockId,
-    traits::{Block as BlockT, Header, NumberFor},
+	generic::BlockId,
+	traits::{Block as BlockT, Header, NumberFor},
 };
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
@@ -36,35 +36,26 @@ use xtra::prelude::*;
 /// The environment passed to each task
 pub struct Environment<B, R, C, D>
 where
-    D: ReadOnlyDB,
-    B: BlockT + Unpin,
-    B::Hash: Unpin,
+	D: ReadOnlyDB,
+	B: BlockT + Unpin,
+	B::Hash: Unpin,
 {
-    backend: Arc<Backend<B, D>>,
-    client: Arc<C>,
-    storage: Address<StorageAggregator<B>>,
-    _marker: PhantomData<R>,
+	backend: Arc<Backend<B, D>>,
+	client: Arc<C>,
+	storage: Address<StorageAggregator<B>>,
+	_marker: PhantomData<R>,
 }
 
 type Env<B, R, C, D> = AssertUnwindSafe<Environment<B, R, C, D>>;
 impl<B, R, C, D> Environment<B, R, C, D>
 where
-    D: ReadOnlyDB,
-    B: BlockT + Unpin,
-    B::Hash: Unpin,
+	D: ReadOnlyDB,
+	B: BlockT + Unpin,
+	B::Hash: Unpin,
 {
-    pub fn new(
-        backend: Arc<Backend<B, D>>,
-        client: Arc<C>,
-        storage: Address<StorageAggregator<B>>,
-    ) -> Self {
-        Self {
-            backend,
-            client,
-            storage,
-            _marker: PhantomData,
-        }
-    }
+	pub fn new(backend: Arc<Backend<B, D>>, client: Arc<C>, storage: Address<StorageAggregator<B>>) -> Self {
+		Self { backend, client, storage, _marker: PhantomData }
+	}
 }
 
 // FIXME:
@@ -75,39 +66,39 @@ where
 /// Execute a block, and send it to the database actor
 #[coil::background_job]
 pub fn execute_block<B, RA, Api, D>(
-    env: &Env<B, RA, Api, D>,
-    block: B,
-    _m: PhantomData<(RA, Api, D)>,
+	env: &Env<B, RA, Api, D>,
+	block: B,
+	_m: PhantomData<(RA, Api, D)>,
 ) -> Result<(), coil::PerformError>
 where
-    D: ReadOnlyDB + 'static,
-    B: BlockT + DeserializeOwned + Unpin,
-    NumberFor<B>: Into<u32>,
-    B::Hash: Unpin,
-    RA: ConstructRuntimeApi<B, Api> + Send + Sync + 'static,
-    RA::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
-        + ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B, D>, B>>,
-    Api: ApiAccess<B, Backend<B, D>, RA> + 'static,
+	D: ReadOnlyDB + 'static,
+	B: BlockT + DeserializeOwned + Unpin,
+	NumberFor<B>: Into<u32>,
+	B::Hash: Unpin,
+	RA: ConstructRuntimeApi<B, Api> + Send + Sync + 'static,
+	RA::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
+		+ ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B, D>, B>>,
+	Api: ApiAccess<B, Backend<B, D>, RA> + 'static,
 {
-    let api = env.client.runtime_api();
+	let api = env.client.runtime_api();
 
-    if *block.header().parent_hash() == Default::default() {
-        return Ok(());
-    }
+	if *block.header().parent_hash() == Default::default() {
+		return Ok(());
+	}
 
-    log::trace!(
-        "Executing Block: {}:{}, version {}",
-        block.header().hash(),
-        block.header().number(),
-        env.client
-            .runtime_version_at(&BlockId::Hash(block.header().hash()))
-            .map_err(|e| format!("{:?}", e))?
-            .spec_version,
-    );
-    let now = std::time::Instant::now();
-    let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
-    log::debug!("Took {:?} to execute block", now.elapsed());
-    let storage = Storage::from(block);
-    smol::block_on(env.storage.send(storage))?;
-    Ok(())
+	log::trace!(
+		"Executing Block: {}:{}, version {}",
+		block.header().hash(),
+		block.header().number(),
+		env.client
+			.runtime_version_at(&BlockId::Hash(block.header().hash()))
+			.map_err(|e| format!("{:?}", e))?
+			.spec_version,
+	);
+	let now = std::time::Instant::now();
+	let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
+	log::debug!("Took {:?} to execute block", now.elapsed());
+	let storage = Storage::from(block);
+	smol::block_on(env.storage.send(storage))?;
+	Ok(())
 }
