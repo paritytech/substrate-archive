@@ -28,7 +28,7 @@ use sp_runtime::{
 };
 use std::{marker::PhantomData, path::PathBuf, sync::Arc};
 use substrate_archive_backend::{runtime_api, ReadOnlyBackend, TArchiveClient};
-use substrate_archive_common::{ReadOnlyDB, Result};
+use substrate_archive_common::{util, ReadOnlyDB, Result};
 
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
 const POSTGRES_VAR: &str = "DATABASE_URL";
@@ -161,8 +161,8 @@ fn parse_urls(chain_data_path: Option<String>, pg_url: Option<String>) -> (Strin
 fn create_database_path(spec: Option<Box<dyn ChainSpec>>) -> Result<PathBuf> {
     let path = if let Some(spec) = spec {
         let (chain, id) = (spec.name(), spec.id());
-        let mut path = substrate_archive_common::util::substrate_dir()?;
-        let mut path = util::substrate_dir()?.extend(&["rocksdb_secondary", chain, id]);
+        let mut path = util::substrate_dir()?;
+        path.extend(&["rocksdb_secondary", chain, id]);
         std::fs::create_dir_all(path.as_path())?;
         path
     } else {
