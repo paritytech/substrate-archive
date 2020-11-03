@@ -60,7 +60,7 @@ pub enum Error {
     #[error("Trying to send to disconnected actor")]
     Disconnected,
     #[error("Unexpected Error {0}")]
-    General(String),
+    Msg(String),
 
     #[cfg(test)]
     #[error("{0}")]
@@ -69,13 +69,13 @@ pub enum Error {
 
 impl From<&str> for Error {
     fn from(e: &str) -> Error {
-        Error::General(e.to_string())
+        Error::Msg(e.to_string())
     }
 }
 
 impl From<String> for Error {
     fn from(e: String) -> Error {
-        Error::General(e)
+        Error::Msg(e)
     }
 }
 

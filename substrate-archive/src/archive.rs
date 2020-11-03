@@ -28,7 +28,7 @@ use sp_runtime::{
 };
 use std::{marker::PhantomData, path::PathBuf, sync::Arc};
 use substrate_archive_backend::{runtime_api, ReadOnlyBackend, TArchiveClient};
-use substrate_archive_common::{database::ReadOnlyDB, Result};
+use substrate_archive_common::{util, ReadOnlyDB, Result};
 
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
 const POSTGRES_VAR: &str = "DATABASE_URL";
@@ -161,18 +161,9 @@ fn parse_urls(chain_data_path: Option<String>, pg_url: Option<String>) -> (Strin
 fn create_database_path(spec: Option<Box<dyn ChainSpec>>) -> Result<PathBuf> {
     let path = if let Some(spec) = spec {
         let (chain, id) = (spec.name(), spec.id());
-        let path = if let Some(base_dirs) = dirs::BaseDirs::new() {
-            let mut path = base_dirs.data_local_dir().to_path_buf();
-            path.push("substrate_archive");
-            path.push("rocksdb_secondary");
-            path.push(chain);
-            path.push(id);
-            path
-        } else {
-            panic!("Couldn't establish substrate data local path");
-        };
-        std::fs::create_dir_all(path.as_path())
-            .expect("Unable to create rocksdb secondary directory");
+        let mut path = util::substrate_dir()?;
+        path.extend(&["rocksdb_secondary", chain, id]);
+        std::fs::create_dir_all(path.as_path())?;
         path
     } else {
         // TODO: make sure this is cleaned up on kill
