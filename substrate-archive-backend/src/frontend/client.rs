@@ -33,10 +33,7 @@ use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT, One},
 };
 use std::{marker::PhantomData, panic::UnwindSafe, sync::Arc};
-use substrate_archive_common::{
-	database::ReadOnlyDB,
-	error::{Error, Result},
-};
+use substrate_archive_common::{Error, ReadOnlyDB, Result};
 
 // FIXME: should use the trait sp_version::GetRuntimeVersion
 // but that returns a String for an error

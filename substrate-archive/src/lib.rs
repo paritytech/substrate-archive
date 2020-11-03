@@ -38,7 +38,7 @@ pub use substrate_archive_common::util::init_logger;
 pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
 pub use sp_runtime::MultiSignature;
-pub use substrate_archive_common::error::Error;
+pub use substrate_archive_common::Error;
 pub mod chain_traits {
 	//! Traits defining functions on the client needed for indexing
 	pub use sc_client_api::client::BlockBackend;

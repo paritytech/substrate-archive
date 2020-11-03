@@ -42,7 +42,7 @@ use sp_runtime::{
 	Justification,
 };
 use std::{convert::TryInto, sync::Arc};
-use substrate_archive_common::{database::ReadOnlyDB, Result};
+use substrate_archive_common::{ReadOnlyDB, Result};
 
 pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDB> {
 	db: Arc<D>,

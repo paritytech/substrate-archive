@@ -25,7 +25,7 @@ use sp_runtime::{
 	traits::{Block as BlockT, DigestFor, Header as HeaderT},
 };
 use std::marker::PhantomData;
-use substrate_archive_common::{error::Error, types};
+use substrate_archive_common::{types, Error};
 
 struct GenericParts<B: BlockT>(
 	<B::Header as HeaderT>::Hash,

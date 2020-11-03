@@ -28,7 +28,7 @@ use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::sync::Arc;
-use substrate_archive_common::{database::ReadOnlyDB, error::Error as ArchiveError};
+use substrate_archive_common::{Error as ArchiveError, ReadOnlyDB};
 
 use super::{ReadOnlyBackend, RuntimeApiCollection};
 
