@@ -18,6 +18,7 @@ mod blocks;
 mod database;
 mod metadata;
 mod storage_aggregator;
+mod state_tracing;
 
 /// Database message to get state internal database state
 pub use self::database::*;

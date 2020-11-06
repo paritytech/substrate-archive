@@ -31,6 +31,13 @@ jod-thread = "0.1.2"
 smol = { version = "0.3" }
 coil = { git = "https://github.com/insipx/coil", package = "coil"}
 rmp-serde = "0.14"
+itoa = "0.4.6"
+include_dir = "0.6.0"
+tempfile = "3.1.0"
+async-executor = "0.1.2"
+arc-swap = "0.4.7"
+tracing = "0.1.21"
+tracing-subscriber = "0.2.15"
 
 # Parity
 primitive-types = "0.7"
@@ -45,22 +52,19 @@ sp-database = { git = "https://github.com/paritytech/substrate", branch = "maste
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-version = {  git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-itoa = "0.4.6"
-include_dir = "0.6.0"
-tempfile = "3.1.0"
-async-executor = "0.1.2"
-arc-swap = "0.4.7"
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Workspace
 substrate-archive-backend = { path = '../substrate-archive-backend' }

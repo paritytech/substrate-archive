@@ -23,7 +23,7 @@ use polkadot_service::westend_runtime as westend_rt;
 use polkadot_service::Block;
 use sc_chain_spec::ChainSpec;
 use substrate_archive::{Archive, ArchiveBuilder};
-use substrate_archive_common::database::ReadOnlyDB;
+use substrate_archive_common::ReadOnlyDB;
 
 pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Archive<Block, D>>> {
     let mut db_path = if let Some(p) = config.polkadot_path() {
