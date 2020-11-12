@@ -108,6 +108,7 @@ where
 	blocks: Address<workers::BlocksIndexer<B, D>>,
 	metadata: Address<workers::Metadata<B>>,
 	db_pool: Address<ActorPool<DatabaseActor<B>>>,
+	tracing: Address<workers::ArchiveTraceHandler>,
 }
 
 /// Control the execution of the indexing engine.
@@ -194,7 +195,8 @@ where
 		let pool = actors.db_pool.send(GetState::Pool.into()).await?.await?.pool();
 		let listener = Self::init_listeners(ctx.pg_url()).await?;
 		let mut conn = pool.acquire().await?;
-		Self::restore_missing_storage(&mut *conn).await?;
+		// TODO: UNCOMMENT BEFORE MERGING INTO MASTER (for testing purposes)
+		// Self::restore_missing_storage(&mut *conn).await?;
 		let env = Environment::<B, R, C, D>::new(ctx.backend().clone(), client, actors.storage.clone());
 		let env = AssertUnwindSafe(env);
 
@@ -216,8 +218,8 @@ where
 				_ = rx.recv_async() => break,
 			}
 		}
-		listener.kill_async().await;
 		Self::kill_actors(actors).await?;
+		listener.kill_async().await;
 		Ok(())
 	}
 
@@ -227,11 +229,17 @@ where
 		let storage = workers::StorageAggregator::new(db_pool.clone()).spawn();
 		let metadata = workers::Metadata::new(db_pool.clone(), ctx.meta().clone()).await?.spawn();
 		let blocks = workers::BlocksIndexer::new(ctx, db_pool.clone(), metadata.clone()).spawn();
-		Ok(Actors { storage, blocks, metadata, db_pool })
+		let tracing = workers::ArchiveTraceHandler::new().spawn();
+		Ok(Actors { storage, blocks, metadata, db_pool, tracing })
 	}
 
 	async fn kill_actors(actors: Actors<B, D>) -> Result<()> {
-		let fut = vec![actors.storage.send(msg::Die), actors.blocks.send(msg::Die), actors.metadata.send(msg::Die)];
+		let fut = vec![
+			actors.storage.send(msg::Die),
+			actors.blocks.send(msg::Die),
+			actors.metadata.send(msg::Die),
+			actors.tracing.send(msg::Die),
+		];
 		futures::future::join_all(fut).await;
 		let _ = actors.db_pool.send(msg::Die.into()).await?.await;
 		Ok(())

@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use sc_tracing::{ProfilingLayer, SpanDatum, TraceEvent, TraceHandler};
 use substrate_archive_common::Result;
-use sc_tracing::{SpanDatum, TraceEvent, TraceHandler, ProfilingLayer};
 use tracing_subscriber::layer::SubscriberExt;
 use xtra::prelude::*;
 
@@ -27,87 +27,77 @@ session,society,staking,sudo,support,system,timestamp,transaction-payment,treasu
 
 #[derive(Clone)]
 pub struct ArchiveTraceHandler {
-    addr: Option<Address<Self>>
+	addr: Option<Address<Self>>,
 }
 
 impl ArchiveTraceHandler {
-    pub fn new() -> Self {
-        Self {
-            addr: None
-        }
-    }
+	pub fn new() -> Self {
+		Self { addr: None }
+	}
 }
 
 impl TraceHandler for ArchiveTraceHandler {
-    fn handle_span(&self, sd: SpanDatum) {
-       log::info!("Got message");
-        println!("Outside");
-        if let Some(a) = self.addr.as_ref() {
-            println!("Inside");
-            let _ = a.do_send(SpanMessage(sd));
-        }
-    }
+	fn handle_span(&self, sd: SpanDatum) {
+		if let Some(a) = self.addr.as_ref() {
+			let _ = a.do_send(SpanMessage(sd));
+		}
+	}
 
-    fn handle_event(&self, ev: TraceEvent) {
-        log::info!("Got message event");
-        println!("Outside");
-        if let Some(a) = self.addr.as_ref() {
-            println!("Inside");
-            let _ = a.do_send(EventMessage(ev));
-        }
-    }
+	fn handle_event(&self, ev: TraceEvent) {
+		if let Some(a) = self.addr.as_ref() {
+			let _ = a.do_send(EventMessage(ev));
+		}
+	}
 }
 
 #[async_trait::async_trait]
 impl Actor for ArchiveTraceHandler {
-    async fn started(&mut self, ctx: &mut Context<Self>) {
-        let layer = ProfilingLayer::new_with_handler(Box::new(self.clone()), TRACE_TARGETS);
-        let addr = ctx.address().expect("Actor just started");
-        self.addr = Some(addr);
+	async fn started(&mut self, ctx: &mut Context<Self>) {
+		let layer = ProfilingLayer::new_with_handler(Box::new(self.clone()), TRACE_TARGETS);
+		let addr = ctx.address().expect("Actor just started");
+		self.addr = Some(addr);
 		let subscriber = tracing_subscriber::fmt().finish().with(layer);
-        tracing::subscriber::set_global_default(subscriber).unwrap();
+		tracing::subscriber::set_global_default(subscriber).unwrap();
 	}
 
-    async fn stopped(&mut self, _: &mut Context<Self>) {
-        self.addr = None;
-    }
+	async fn stopped(&mut self, _: &mut Context<Self>) {
+		self.addr = None;
+	}
 }
 
 #[derive(Debug)]
 struct SpanMessage(SpanDatum);
 
-
 impl Message for SpanMessage {
-    type Result = ();
+	type Result = ();
 }
 
 #[async_trait::async_trait]
 impl Handler<SpanMessage> for ArchiveTraceHandler {
-    async fn handle(&mut self, msg: SpanMessage, _: &mut Context<Self>) {
-        log::info!("Span: {:?}", msg);
-    }
+	async fn handle(&mut self, msg: SpanMessage, _: &mut Context<Self>) {
+		log::info!("Span: {:?}", msg);
+	}
 }
 
 #[derive(Debug)]
 struct EventMessage(TraceEvent);
 
-
 impl Message for EventMessage {
-    type Result = ();
+	type Result = ();
 }
 
 #[async_trait::async_trait]
 impl Handler<EventMessage> for ArchiveTraceHandler {
-    async fn handle(&mut self, msg: EventMessage, _: &mut Context<Self>) {
-        log::info!("Event: {:?}", msg);
-    }
+	async fn handle(&mut self, msg: EventMessage, _: &mut Context<Self>) {
+		log::info!("Event: {:?}", msg);
+	}
 }
 
 #[async_trait::async_trait]
 impl Handler<super::Die> for ArchiveTraceHandler {
-    async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
-        log::info!("Traces dying");
-        ctx.stop();
-        Ok(())
-    }
+	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+		log::info!("Traces dying");
+		ctx.stop();
+		Ok(())
+	}
 }

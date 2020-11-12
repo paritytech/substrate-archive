@@ -86,7 +86,7 @@ where
 		return Ok(());
 	}
 
-	log::trace!(
+	log::debug!(
 		"Executing Block: {}:{}, version {}",
 		block.header().hash(),
 		block.header().number(),
