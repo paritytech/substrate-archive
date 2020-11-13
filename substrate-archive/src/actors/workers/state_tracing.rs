@@ -18,21 +18,23 @@ use sc_tracing::{ProfilingLayer, SpanDatum, TraceEvent, TraceHandler};
 use substrate_archive_common::Result;
 use tracing_subscriber::layer::SubscriberExt;
 use xtra::prelude::*;
-
+/*
 const TRACE_TARGETS: &str = "assets,atomic-swap,aura,authority-discovery,authorship, \
 babe,balances,collective,contracts,democracy,elections,elections-phragmen,evm,executive, \
 finality-tracker,generic-asset,grandpa,identity,im-online,indices,membership,metadata, \
 multisig,nicks,offences,proxy,randomness-collective-flip,recovery,scheduler,scored-pool, \
 session,society,staking,sudo,support,system,timestamp,transaction-payment,treasury,utility,vesting";
+*/
 
 #[derive(Clone)]
 pub struct ArchiveTraceHandler {
 	addr: Option<Address<Self>>,
+	targets: String,
 }
 
 impl ArchiveTraceHandler {
-	pub fn new() -> Self {
-		Self { addr: None }
+	pub fn new(targets: String) -> Self {
+		Self { addr: None, targets }
 	}
 }
 
@@ -53,7 +55,7 @@ impl TraceHandler for ArchiveTraceHandler {
 #[async_trait::async_trait]
 impl Actor for ArchiveTraceHandler {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
-		let layer = ProfilingLayer::new_with_handler(Box::new(self.clone()), TRACE_TARGETS);
+		let layer = ProfilingLayer::new_with_handler(Box::new(self.clone()), self.targets.as_str());
 		let addr = ctx.address().expect("Actor just started");
 		self.addr = Some(addr);
 		let subscriber = tracing_subscriber::fmt().finish().with(layer);
