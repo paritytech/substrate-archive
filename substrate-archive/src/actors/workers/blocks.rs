@@ -14,7 +14,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{ActorPool, DatabaseActor, GetState, Metadata};
-use crate::{actors::ActorContext, database::queries, Error::Disconnected};
+use crate::{actors::SystemConfig, database::queries, Error::Disconnected};
 use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, Header as _, NumberFor},
@@ -52,7 +52,7 @@ where
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
 {
-	pub fn new(ctx: ActorContext<B, D>, db_addr: DatabaseAct<B>, meta: Address<Metadata<B>>) -> Self {
+	pub fn new(ctx: SystemConfig<B, D>, db_addr: DatabaseAct<B>, meta: Address<Metadata<B>>) -> Self {
 		Self {
 			rt_cache: RuntimeVersionCache::new(ctx.backend.clone()),
 			last_max: 0,

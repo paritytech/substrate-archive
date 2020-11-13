@@ -35,5 +35,5 @@ where
 	fn boxed_shutdown(self: Box<Self>) -> Result<()>;
 
 	/// Get a reference to the context the actors are using
-	fn context(&self) -> Result<super::actors::ActorContext<B, D>>;
+	fn context(&self) -> Result<super::actors::SystemConfig<B, D>>;
 }

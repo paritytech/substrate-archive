@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{actors::System, traits};
+use crate::{
+	actors::{System, SystemConfig},
+	traits,
+};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
@@ -52,6 +55,10 @@ pub struct Builder<B, R, D, DB> {
 	pub _marker: PhantomData<(B, R, D, DB)>,
 	/// maximimum amount of blocks to index at once
 	pub max_block_load: Option<u32>,
+	/// Enable state tracing while also specifying the targets
+	/// that should be traced.
+	/// Specify targets which should be traced
+	pub tracing_targets: Option<String>,
 }
 
 impl<B, R, D, DB> Default for Builder<B, R, D, DB> {
@@ -65,6 +72,7 @@ impl<B, R, D, DB> Default for Builder<B, R, D, DB> {
 			chain_spec: None,
 			_marker: PhantomData,
 			max_block_load: None,
+			tracing_targets: None,
 		}
 	}
 }
@@ -131,6 +139,11 @@ impl<B, R, D, DB> Builder<B, R, D, DB> {
 	/// Defaults to 100_000
 	pub fn max_block_load(mut self, max_block_load: u32) -> Self {
 		self.max_block_load = Some(max_block_load);
+		self
+	}
+
+	pub fn tracing_targets(mut self, targets: &str) -> Self {
+		self.tracing_targets = Some(targets.to_string());
 		self
 	}
 }
@@ -211,7 +224,16 @@ where
 		let backend = Arc::new(ReadOnlyBackend::new(db, true));
 		Self::startup_info(&*client, &*backend)?;
 
-		let ctx = System::<_, R, _, _>::new(client, backend, block_workers, pg_url.as_str(), max_block_load)?;
+		let config = SystemConfig::new(
+			backend,
+			client.clone(),
+			block_workers,
+			pg_url.clone(),
+			max_block_load,
+			self.tracing_targets,
+		);
+
+		let ctx = System::<_, R, _, _>::new(client, config)?;
 		Ok(ctx)
 	}
 
