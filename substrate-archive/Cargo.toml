@@ -48,23 +48,23 @@ hash-db = "0.15"
 
 # Substrate is pinned to the latest substrate version that polkadot release v0.8.25 is
 # using. This is necessary to make substrate-archive compatible with the polkadot runtime.
-sp-database = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-version = {  git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-database = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-version = {  git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "insipx/public-client-config" }
 
 # Workspace
 substrate-archive-backend = { path = '../substrate-archive-backend' }
