@@ -1,5 +1,5 @@
-name: polkadot-archive 
-version: "0.2"
+name: polkadot-archive
+version: "0.2.2"
 author: Andrew P. <andrew.plaza@parity.io>
 about: Indexes the Polkadot, Kusama and Westend Networks
 args:
