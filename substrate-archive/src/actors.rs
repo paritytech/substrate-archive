@@ -173,7 +173,7 @@ where
 		self.start_tx.send(()).expect("Could not start actors");
 	}
 
-	/// Start the actors and begin driving tself.pg_poolheir execution
+	/// Start the actors and begin driving their execution
 	pub fn start(
 		conf: SystemConfig<B, D>,
 		client: Arc<C>,
