@@ -45,10 +45,10 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 	}
 
 	let db_path = db_path.as_path().to_str().context("could not convert rocksdb path to str")?.to_string();
-
+	let tracing = config.wasm_tracing();
 	match config.cli().chain.to_ascii_lowercase().as_str() {
 		"kusama" | "ksm" => {
-			let archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor, D> {
+			let mut archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor, D> {
 				pg_url: config.psql_conf().map(|u| u.url()),
 				cache_size: config.cache_size(),
 				block_workers: config.block_workers(),
@@ -57,12 +57,15 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 				..ArchiveBuilder::default()
 			}
 			.chain_data_db(db_path)
-			.chain_spec(spec)
-			.build()?;
+			.chain_spec(spec);
+			if let Some(t) = tracing {
+				archive = archive.wasm_tracing(t);
+			}
+			let archive = archive.build()?;
 			Ok(Box::new(archive))
 		}
 		"westend" => {
-			let archive = ArchiveBuilder::<Block, westend_rt::RuntimeApi, polkadot_service::WestendExecutor, D> {
+			let mut archive = ArchiveBuilder::<Block, westend_rt::RuntimeApi, polkadot_service::WestendExecutor, D> {
 				pg_url: config.psql_conf().map(|u| u.url()),
 				cache_size: config.cache_size(),
 				block_workers: config.block_workers(),
@@ -71,12 +74,15 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 				..ArchiveBuilder::default()
 			}
 			.chain_data_db(db_path)
-			.chain_spec(spec)
-			.build()?;
+			.chain_spec(spec);
+			if let Some(t) = tracing {
+				archive = archive.wasm_tracing(t);
+			}
+			let archive = archive.build()?;
 			Ok(Box::new(archive))
 		}
 		"polkadot" | "dot" => {
-			let archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor, D> {
+			let mut archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor, D> {
 				pg_url: config.psql_conf().map(|u| u.url()),
 				cache_size: config.cache_size(),
 				block_workers: config.block_workers(),
@@ -85,8 +91,11 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 				..ArchiveBuilder::default()
 			}
 			.chain_data_db(db_path)
-			.chain_spec(spec)
-			.build()?;
+			.chain_spec(spec);
+			if let Some(t) = tracing {
+				archive = archive.wasm_tracing(t);
+			}
+			let archive = archive.build()?;
 			Ok(Box::new(archive))
 		}
 		c => Err(anyhow!("unknown chain {}", c)),

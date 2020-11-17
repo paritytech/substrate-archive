@@ -16,54 +16,59 @@
 
 use sc_tracing::{ProfilingLayer, SpanDatum, TraceEvent, TraceHandler};
 use substrate_archive_common::Result;
+use tracing::Level;
 use tracing_subscriber::layer::SubscriberExt;
 use xtra::prelude::*;
-/*
-const TRACE_TARGETS: &str = "assets,atomic-swap,aura,authority-discovery,authorship, \
-babe,balances,collective,contracts,democracy,elections,elections-phragmen,evm,executive, \
-finality-tracker,generic-asset,grandpa,identity,im-online,indices,membership,metadata, \
-multisig,nicks,offences,proxy,randomness-collective-flip,recovery,scheduler,scored-pool, \
-session,society,staking,sudo,support,system,timestamp,transaction-payment,treasury,utility,vesting";
-*/
 
 #[derive(Clone)]
-pub struct ArchiveTraceHandler {
-	addr: Option<Address<Self>>,
+struct ArchiveTraceHandler {
+	addr: Address<TracingActor>,
 	tracing_targets: String,
 }
 
 impl ArchiveTraceHandler {
-	pub fn new(tracing_targets: String) -> Self {
-		Self { addr: None, tracing_targets }
+	fn new(addr: Address<TracingActor>, tracing_targets: String) -> Self {
+		Self { addr, tracing_targets }
 	}
 }
 
 impl TraceHandler for ArchiveTraceHandler {
 	fn handle_span(&self, sd: SpanDatum) {
-		if let Some(a) = self.addr.as_ref() {
-			let _ = a.do_send(SpanMessage(sd));
-		}
+		println!("S");
+		self.addr.do_send(SpanMessage(sd)).unwrap();
 	}
 
 	fn handle_event(&self, ev: TraceEvent) {
-		if let Some(a) = self.addr.as_ref() {
-			let _ = a.do_send(EventMessage(ev));
-		}
+		println!("E");
+		self.addr.do_send(EventMessage(ev)).unwrap();
+	}
+}
+
+pub struct TracingActor {
+	layer: Option<ProfilingLayer>,
+	targets: String,
+}
+
+impl TracingActor {
+	pub fn new(targets: String) -> Self {
+		TracingActor { layer: None, targets }
 	}
 }
 
 #[async_trait::async_trait]
-impl Actor for ArchiveTraceHandler {
+impl Actor for TracingActor {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
-		let layer = ProfilingLayer::new_with_handler(Box::new(self.clone()), self.tracing_targets.as_str());
+		log::info!("Starting State Tracing");
 		let addr = ctx.address().expect("Actor just started");
-		self.addr = Some(addr);
-		let subscriber = tracing_subscriber::fmt().finish().with(layer);
+		let handler = ArchiveTraceHandler::new(addr.clone(), self.targets.clone());
+		let layer = ProfilingLayer::new_with_handler(Box::new(handler), self.targets.as_str());
+		let subscriber = tracing_subscriber::fmt().with_max_level(Level::TRACE).finish().with(layer);
+		// self.layer = Some(layer);
 		tracing::subscriber::set_global_default(subscriber).unwrap();
 	}
 
 	async fn stopped(&mut self, _: &mut Context<Self>) {
-		self.addr = None;
+		self.layer = None;
 	}
 }
 
@@ -75,7 +80,7 @@ impl Message for SpanMessage {
 }
 
 #[async_trait::async_trait]
-impl Handler<SpanMessage> for ArchiveTraceHandler {
+impl Handler<SpanMessage> for TracingActor {
 	async fn handle(&mut self, msg: SpanMessage, _: &mut Context<Self>) {
 		log::info!("Span: {:?}", msg);
 	}
@@ -89,14 +94,14 @@ impl Message for EventMessage {
 }
 
 #[async_trait::async_trait]
-impl Handler<EventMessage> for ArchiveTraceHandler {
+impl Handler<EventMessage> for TracingActor {
 	async fn handle(&mut self, msg: EventMessage, _: &mut Context<Self>) {
 		log::info!("Event: {:?}", msg);
 	}
 }
 
 #[async_trait::async_trait]
-impl Handler<super::Die> for ArchiveTraceHandler {
+impl Handler<super::Die> for TracingActor {
 	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
 		log::info!("Traces dying");
 		ctx.stop();

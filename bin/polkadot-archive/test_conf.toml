@@ -44,3 +44,6 @@ db_pass = "123"
 westend_db = "westend-archive"
 kusama_db = "kusama-db"
 polkadot_db = "polkadot-db"
+
+wasm_tracing_targets = '''
+assets,atomic-swap,aura,authority-discovery,authorship,babe,balances,collective,contracts,democracy,elections,elections-phragmen,evm,executive,finality-tracker,generic-asset,grandpa,identity,im-online,indices,membership,metadata,multisig,nicks,offences,proxy,randomness-collective-flip,recovery,scheduler,scored-pool,session,society,staking,sudo,support,system,timestamp,transaction-payment,treasury,utility,vesting'''

@@ -37,10 +37,27 @@ pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TB
 /// Full client call executor type.
 type TFullCallExecutor<TBl, TExecDisp, D> = LocalCallExecutor<ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
 
+#[derive(Clone, Debug)]
 pub struct RuntimeConfig {
 	pub block_workers: usize,
 	pub wasm_pages: u64,
 	pub wasm_runtime_overrides: Option<PathBuf>,
+}
+
+impl From<RuntimeConfig> for ClientConfig {
+	fn from(config: RuntimeConfig) -> ClientConfig {
+		ClientConfig {
+			offchain_worker_enabled: false,
+			offchain_indexing_api: false,
+			wasm_runtime_overrides: config.wasm_runtime_overrides,
+		}
+	}
+}
+
+impl Default for RuntimeConfig {
+	fn default() -> RuntimeConfig {
+		Self { block_workers: 2, wasm_pages: 512, wasm_runtime_overrides: None }
+	}
 }
 
 pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDB + 'static>(
@@ -64,9 +81,8 @@ where
 		Some(config.wasm_pages),
 		config.block_workers,
 	);
-
-	let executor =
-		LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), ClientConfig::default())?;
+	log::debug!("{:?}", config);
+	let executor = LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.into())?;
 
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None))?;
 	Ok(client)
@@ -102,10 +118,10 @@ impl futures::task::Spawn for TaskExecutor {
 
 fn execution_strategies() -> ExecutionStrategies {
 	ExecutionStrategies {
-		syncing: ExecutionStrategy::NativeElseWasm,
-		importing: ExecutionStrategy::NativeElseWasm,
-		block_construction: ExecutionStrategy::NativeElseWasm,
-		offchain_worker: ExecutionStrategy::NativeWhenPossible,
+		syncing: ExecutionStrategy::AlwaysWasm,
+		importing: ExecutionStrategy::AlwaysWasm,
+		block_construction: ExecutionStrategy::AlwaysWasm,
+		offchain_worker: ExecutionStrategy::AlwaysWasm,
 		other: ExecutionStrategy::AlwaysWasm,
 	}
 }

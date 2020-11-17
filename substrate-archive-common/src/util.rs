@@ -43,7 +43,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) -> Result<(), 
 		.level_for("staking", log::LevelFilter::Warn)
 		.level_for("cranelift_codegen", log::LevelFilter::Warn)
 		.level_for("header", log::LevelFilter::Warn)
-		.level_for("", log::LevelFilter::Error)
+		// .level_for("", log::LevelFilter::Error)
 		.format(move |out, message, record| {
 			out.finish(format_args!(
 				"{} {} {}",

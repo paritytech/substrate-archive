@@ -23,6 +23,7 @@ pub struct CliOpts {
 	pub log_level: log::LevelFilter,
 	pub log_num: u64,
 	pub chain: String,
+	pub wasm_overrides_path: Option<PathBuf>,
 }
 
 impl CliOpts {
@@ -41,6 +42,14 @@ impl CliOpts {
 
 		let chain = matches.value_of("chain").unwrap_or("polkadot");
 
-		CliOpts { file: file.map(|f| PathBuf::from(f)), log_level, log_num, chain: chain.to_string() }
+		let wasm_overrides = matches.value_of("wasm_overrides_path");
+
+		CliOpts {
+			file: file.map(|f| PathBuf::from(f)),
+			log_level,
+			log_num,
+			chain: chain.to_string(),
+			wasm_overrides_path: wasm_overrides.map(|p| PathBuf::from(p)),
+		}
 	}
 }
