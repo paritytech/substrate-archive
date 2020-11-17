@@ -30,7 +30,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
 use std::{marker::PhantomData, path::PathBuf, sync::Arc};
-use substrate_archive_backend::{runtime_api, ReadOnlyBackend, TArchiveClient};
+use substrate_archive_backend::{runtime_api, ReadOnlyBackend, RuntimeConfig, TArchiveClient};
 use substrate_archive_common::{util, ReadOnlyDB, Result};
 
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
@@ -38,6 +38,12 @@ const POSTGRES_VAR: &str = "DATABASE_URL";
 
 /// The recommended open file descriptor limit to be configured for the process.
 const RECOMMENDED_OPEN_FILE_DESCRIPTOR_LIMIT: u64 = 10_000;
+
+#[derive(Clone, Debug)]
+pub struct TracingConfig {
+	pub targets: String,
+	pub folder: PathBuf,
+}
 
 pub struct Builder<B, R, D, DB> {
 	/// Path to the rocksdb database
@@ -56,9 +62,8 @@ pub struct Builder<B, R, D, DB> {
 	/// maximimum amount of blocks to index at once
 	pub max_block_load: Option<u32>,
 	/// Enable state tracing while also specifying the targets
-	/// that should be traced.
-	/// Specify targets which should be traced
-	pub tracing_targets: Option<String>,
+	/// and directory where WASM is stored.
+	pub wasm_tracing: Option<TracingConfig>,
 }
 
 impl<B, R, D, DB> Default for Builder<B, R, D, DB> {
@@ -72,7 +77,7 @@ impl<B, R, D, DB> Default for Builder<B, R, D, DB> {
 			chain_spec: None,
 			_marker: PhantomData,
 			max_block_load: None,
-			tracing_targets: None,
+			wasm_tracing: None,
 		}
 	}
 }
@@ -142,8 +147,8 @@ impl<B, R, D, DB> Builder<B, R, D, DB> {
 		self
 	}
 
-	pub fn tracing_targets(mut self, targets: &str) -> Self {
-		self.tracing_targets = Some(targets.to_string());
+	pub fn wasm_tracing(mut self, config: TracingConfig) -> Self {
+		self.wasm_tracing = Some(config);
 		self
 	}
 }
@@ -219,7 +224,12 @@ where
 		let db_path = create_database_path(self.chain_spec)?;
 		smol::block_on(crate::migrations::migrate(&pg_url))?;
 		let db = Arc::new(DB::open_database(chain_path.as_str(), cache_size, db_path)?);
-		let client = runtime_api::<B, R, D, DB>(db.clone(), block_workers, wasm_pages)?;
+		let config = RuntimeConfig {
+			block_workers,
+			wasm_pages,
+			wasm_runtime_overrides: self.wasm_tracing.as_ref().map(|c| c.folder.clone()),
+		};
+		let client = runtime_api::<B, R, D, DB>(db.clone(), config)?;
 		let client = Arc::new(client);
 		let backend = Arc::new(ReadOnlyBackend::new(db, true));
 		Self::startup_info(&*client, &*backend)?;
@@ -230,7 +240,7 @@ where
 			block_workers,
 			pg_url.clone(),
 			max_block_load,
-			self.tracing_targets,
+			self.wasm_tracing.map(|t| t.targets),
 		);
 
 		let ctx = System::<_, R, _, _>::new(client, config)?;

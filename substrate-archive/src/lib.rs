@@ -26,7 +26,7 @@ mod tasks;
 mod traits;
 
 pub use actors::System;
-pub use archive::Builder as ArchiveBuilder;
+pub use archive::{Builder as ArchiveBuilder, TracingConfig};
 pub use database::queries;
 pub use migrations::MigrationConfig;
 pub use traits::Archive;

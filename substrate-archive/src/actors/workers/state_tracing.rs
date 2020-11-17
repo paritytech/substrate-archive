@@ -29,12 +29,12 @@ session,society,staking,sudo,support,system,timestamp,transaction-payment,treasu
 #[derive(Clone)]
 pub struct ArchiveTraceHandler {
 	addr: Option<Address<Self>>,
-	targets: String,
+	tracing_targets: String,
 }
 
 impl ArchiveTraceHandler {
-	pub fn new(targets: String) -> Self {
-		Self { addr: None, targets }
+	pub fn new(tracing_targets: String) -> Self {
+		Self { addr: None, tracing_targets }
 	}
 }
 
@@ -55,7 +55,7 @@ impl TraceHandler for ArchiveTraceHandler {
 #[async_trait::async_trait]
 impl Actor for ArchiveTraceHandler {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
-		let layer = ProfilingLayer::new_with_handler(Box::new(self.clone()), self.targets.as_str());
+		let layer = ProfilingLayer::new_with_handler(Box::new(self.clone()), self.tracing_targets.as_str());
 		let addr = ctx.address().expect("Actor just started");
 		self.addr = Some(addr);
 		let subscriber = tracing_subscriber::fmt().finish().with(layer);
