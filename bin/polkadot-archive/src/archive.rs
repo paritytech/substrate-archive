@@ -19,11 +19,32 @@ use super::config::Config;
 use anyhow::{anyhow, Context, Result};
 use polkadot_service::kusama_runtime as ksm_rt;
 use polkadot_service::polkadot_runtime as dot_rt;
-use polkadot_service::westend_runtime as westend_rt;
+use polkadot_service::westend_runtime as wnd_rt;
 use polkadot_service::Block;
 use sc_chain_spec::ChainSpec;
-use substrate_archive::{Archive, ArchiveBuilder};
+use substrate_archive::{native_executor_instance, Archive, ArchiveBuilder};
 use substrate_archive_common::ReadOnlyDB;
+
+native_executor_instance!(
+	pub PolkadotExecutor,
+	dot_rt::api::dispatch,
+	dot_rt::native_version,
+	sp_io::SubstrateHostFunctions,
+);
+
+native_executor_instance!(
+	pub KusamaExecutor,
+	ksm_rt::api::dispatch,
+	ksm_rt::native_version,
+	sp_io::SubstrateHostFunctions,
+);
+
+native_executor_instance!(
+	pub WestendExecutor,
+	wnd_rt::api::dispatch,
+	wnd_rt::native_version,
+	sp_io::SubstrateHostFunctions,
+);
 
 pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Archive<Block, D>>> {
 	let mut db_path = if let Some(p) = config.polkadot_path() {
@@ -48,7 +69,7 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 	let tracing = config.wasm_tracing();
 	match config.cli().chain.to_ascii_lowercase().as_str() {
 		"kusama" | "ksm" => {
-			let mut archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, polkadot_service::KusamaExecutor, D> {
+			let mut archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, KusamaExecutor, D> {
 				pg_url: config.psql_conf().map(|u| u.url()),
 				cache_size: config.cache_size(),
 				block_workers: config.block_workers(),
@@ -65,7 +86,7 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 			Ok(Box::new(archive))
 		}
 		"westend" => {
-			let mut archive = ArchiveBuilder::<Block, westend_rt::RuntimeApi, polkadot_service::WestendExecutor, D> {
+			let mut archive = ArchiveBuilder::<Block, wnd_rt::RuntimeApi, WestendExecutor, D> {
 				pg_url: config.psql_conf().map(|u| u.url()),
 				cache_size: config.cache_size(),
 				block_workers: config.block_workers(),
@@ -82,7 +103,7 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 			Ok(Box::new(archive))
 		}
 		"polkadot" | "dot" => {
-			let mut archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, polkadot_service::PolkadotExecutor, D> {
+			let mut archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, PolkadotExecutor, D> {
 				pg_url: config.psql_conf().map(|u| u.url()),
 				cache_size: config.cache_size(),
 				block_workers: config.block_workers(),

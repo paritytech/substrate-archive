@@ -106,7 +106,7 @@ where
 
 		let state = self.backend.state_at(self.id)?;
 
-		// FIXME: For some reason, wasm runtime calculates a different number of digest items
+		// Wasm runtime calculates a different number of digest items
 		// then what we have in the block
 		// We don't do anything with consensus
 		// so digest isn't very important (we don't currently index digest items anyway)

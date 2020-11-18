@@ -81,7 +81,6 @@ where
 		Some(config.wasm_pages),
 		config.block_workers,
 	);
-	log::debug!("{:?}", config);
 	let executor = LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.into())?;
 
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None))?;
