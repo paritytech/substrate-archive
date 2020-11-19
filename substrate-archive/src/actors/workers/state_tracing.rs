@@ -14,10 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use sc_tracing::{ProfilingLayer, SpanDatum, TraceEvent, TraceHandler};
 use substrate_archive_common::Result;
-use tracing::Level;
-use tracing_subscriber::layer::SubscriberExt;
+use tracing::{
+	event::Event,
+	span::{Attributes, Id, Record},
+	Level, Metadata, Subscriber,
+};
 use xtra::prelude::*;
 
 #[derive(Clone)]
@@ -31,13 +33,39 @@ impl ArchiveTraceHandler {
 	}
 }
 
-impl TraceHandler for ArchiveTraceHandler {
-	fn handle_span(&self, sd: SpanDatum) {
-		self.addr.do_send(SpanMessage(sd)).unwrap();
+impl Subscriber for ArchiveTraceHandler {
+	fn enabled(&self, metadata: &Metadata<'_>) -> bool {
+		log::info!("{}", metadata.target());
+		true
 	}
 
-	fn handle_event(&self, ev: TraceEvent) {
-		self.addr.do_send(EventMessage(ev)).unwrap();
+	fn new_span(&self, span: &Attributes<'_>) -> Id {
+		let meta = span.metadata();
+		match meta.target() {
+			"sp_io::hashing" | "sp_io::allocator" | "sp_io::storage" => {}
+			_ => log::info!("{}", meta.target()),
+		}
+		Id::from_u64(1)
+	}
+
+	fn record(&self, span: &Id, values: &Record<'_>) {
+		// log::info!("{:?}", values);
+	}
+
+	fn record_follows_from(&self, span: &Id, follows: &Id) {
+		// log::info!("{:?} follows {:?}", span, follows);
+	}
+
+	fn event(&self, event: &Event<'_>) {
+		log::info!("EVENT {:?}", event);
+	}
+
+	fn enter(&self, span: &Id) {
+		// log::info!("Entered Span {:?}", span);
+	}
+
+	fn exit(&self, span: &Id) {
+		// log::info!("Span Exiting: {:?}", span);
 	}
 }
 
@@ -58,12 +86,11 @@ impl Actor for TracingActor {
 		let addr = ctx.address().expect("Actor just started");
 		let handler = ArchiveTraceHandler::new(addr.clone());
 		log::debug!("Trace Targets [{}]", self.targets.as_str());
-		let layer = ProfilingLayer::new_with_handler(Box::new(handler), self.targets.as_str());
-		let subscriber = tracing_subscriber::fmt().with_max_level(Level::TRACE).finish().with(layer);
-		tracing::subscriber::set_global_default(subscriber).unwrap();
+		tracing::subscriber::set_global_default(handler).unwrap();
 	}
 }
 
+/* TODO: Uncomment when wasm_tracing issues resolved
 #[derive(Debug)]
 struct SpanMessage(SpanDatum);
 
@@ -95,7 +122,7 @@ impl Handler<EventMessage> for TracingActor {
 		log::info!("Event: {:?}", msg);
 	}
 }
-
+*/
 #[async_trait::async_trait]
 impl Handler<super::Die> for TracingActor {
 	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {

@@ -37,7 +37,6 @@ tempfile = "3.1.0"
 async-executor = "0.1.2"
 arc-swap = "0.4.7"
 tracing = "0.1.21"
-tracing-subscriber = "0.2.15"
 
 # Parity
 primitive-types = "0.7"
@@ -60,11 +59,9 @@ sp-version = {  git = "https://github.com/paritytech/substrate", branch = "maste
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { git = "https://github.com/paritytech/substrate", features = ["with-tracing"] , branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["with-tracing"] }
 sc-executor = { git = "https://github.com/paritytech/substrate", features = ["wasm-extern-trace"] , branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Workspace
 substrate-archive-backend = { path = '../substrate-archive-backend' }
