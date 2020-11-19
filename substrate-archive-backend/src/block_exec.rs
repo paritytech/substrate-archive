@@ -107,7 +107,7 @@ where
 		let state = self.backend.state_at(self.id)?;
 
 		// Wasm runtime calculates a different number of digest items
-		// then what we have in the block
+		// than what we have in the block
 		// We don't do anything with consensus
 		// so digest isn't very important (we don't currently index digest items anyway)
 		// popping a digest item has no effect on storage changes afaik
