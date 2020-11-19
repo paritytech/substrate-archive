@@ -62,7 +62,7 @@ pub struct Builder<B, R, D, DB> {
 	/// maximimum amount of blocks to index at once
 	pub max_block_load: Option<u32>,
 	/// Enable state tracing while also specifying the targets
-	/// and directory where WASM is stored.
+	/// and directory where the WASM runtimes are stored.
 	pub wasm_tracing: Option<TracingConfig>,
 }
 
