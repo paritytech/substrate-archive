@@ -38,18 +38,12 @@ impl CliOpts {
 			4 | _ => log::LevelFilter::Trace,
 		};
 		let log_num = matches.occurrences_of("verbose");
-		let file = matches.value_of("config").map(|f| PathBuf::from(f));
+		let file = matches.value_of("config").map(PathBuf::from);
 
-		let chain = matches.value_of("chain").unwrap_or("polkadot");
+		let chain = matches.value_of("chain").unwrap_or("polkadot").to_string();
 
-		let wasm_overrides = matches.value_of("wasm_overrides_path");
+		let wasm_overrides = matches.value_of("wasm_overrides_path").map(PathBuf::from);
 
-		CliOpts {
-			file,
-			log_level,
-			log_num,
-			chain: chain.to_string(),
-			wasm_overrides_path: wasm_overrides.map(|p| PathBuf::from(p)),
-		}
+		CliOpts { file, log_level, log_num, chain, wasm_overrides_path: wasm_overrides }
 	}
 }
