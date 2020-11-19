@@ -66,7 +66,6 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 	}
 
 	let db_path = db_path.as_path().to_str().context("could not convert rocksdb path to str")?.to_string();
-	let tracing = config.wasm_tracing();
 	match config.cli().chain.to_ascii_lowercase().as_str() {
 		"kusama" | "ksm" => {
 			let mut archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, KusamaExecutor, D> {
@@ -79,7 +78,7 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 			}
 			.chain_data_db(db_path)
 			.chain_spec(spec);
-			if let Some(t) = tracing {
+			if let Some(t) = config.wasm_tracing() {
 				archive = archive.wasm_tracing(t);
 			}
 			let archive = archive.build()?;
@@ -96,7 +95,7 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 			}
 			.chain_data_db(db_path)
 			.chain_spec(spec);
-			if let Some(t) = tracing {
+			if let Some(t) = config.wasm_tracing() {
 				archive = archive.wasm_tracing(t);
 			}
 			let archive = archive.build()?;
@@ -113,7 +112,7 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 			}
 			.chain_data_db(db_path)
 			.chain_spec(spec);
-			if let Some(t) = tracing {
+			if let Some(t) = config.wasm_tracing() {
 				archive = archive.wasm_tracing(t);
 			}
 			let archive = archive.build()?;

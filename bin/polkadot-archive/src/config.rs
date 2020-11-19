@@ -72,7 +72,7 @@ impl Config {
 	pub fn new() -> Result<Self> {
 		let cli_opts = CliOpts::parse();
 		let toml_conf = cli_opts.clone().file.map(|f| Self::parse_file(f.as_path())).transpose()?;
-		let tracing = match (
+		let wasm_tracing = match (
 			toml_conf.as_ref().map(|c| c.wasm_tracing_targets.as_ref()).flatten(),
 			cli_opts.wasm_overrides_path.as_ref(),
 		) {
@@ -88,7 +88,7 @@ impl Config {
 			block_workers: toml_conf.as_ref().map(|c| c.block_workers).flatten(),
 			wasm_pages: toml_conf.as_ref().map(|c| c.wasm_pages).flatten(),
 			max_block_load: toml_conf.as_ref().map(|c| c.max_block_load).flatten(),
-			wasm_tracing: tracing,
+			wasm_tracing,
 		})
 	}
 
