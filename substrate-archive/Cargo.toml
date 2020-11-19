@@ -60,7 +60,7 @@ sp-version = {  git = "https://github.com/paritytech/substrate", branch = "maste
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { git = "https://github.com/paritytech/substrate", features = ["with-tracing"] , branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["with-tracing"] }
 sc-executor = { git = "https://github.com/paritytech/substrate", features = ["wasm-extern-trace"] , branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }

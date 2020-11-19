@@ -102,3 +102,10 @@ impl<Block: BlockT> Storage<Block> {
 		self.changes.as_slice()
 	}
 }
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Tracing {
+	block_num: u32,
+	target: String,
+	// ... TODO
+}
