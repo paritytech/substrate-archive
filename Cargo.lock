@@ -714,9 +714,9 @@ checksum = "631ae5198c9be5e753e5cc215e1bd73c2b466a3565173db433f52bb9d3e66dba"
 
 [[package]]
 name = "cc"
-version = "1.0.62"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1770ced377336a88a67c473594ccc14eca6f4559217c34f64aac8f83d641b40"
+checksum = "ad9c6140b5a2c7db40ea56eb1821245e5362b44385c05b76288b1a599934ac87"
 dependencies = [
  "jobserver",
 ]
@@ -1497,7 +1497,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 [[package]]
 name = "fork-tree"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
 ]
@@ -1515,7 +1515,7 @@ dependencies = [
 [[package]]
 name = "frame-benchmarking"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1533,7 +1533,7 @@ dependencies = [
 [[package]]
 name = "frame-executive"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1549,7 +1549,7 @@ dependencies = [
 [[package]]
 name = "frame-metadata"
 version = "12.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "serde",
@@ -1560,7 +1560,7 @@ dependencies = [
 [[package]]
 name = "frame-support"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "bitflags",
  "frame-metadata",
@@ -1585,7 +1585,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support-procedural-tools",
  "proc-macro2 1.0.24",
@@ -1596,7 +1596,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support-procedural-tools-derive",
  "proc-macro-crate",
@@ -1608,7 +1608,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools-derive"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
@@ -1618,7 +1618,7 @@ dependencies = [
 [[package]]
 name = "frame-system"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "impl-trait-for-tuples",
@@ -1634,7 +1634,7 @@ dependencies = [
 [[package]]
 name = "frame-system-rpc-runtime-api"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -1712,25 +1712,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "futures-channel-preview"
-version = "0.3.0-alpha.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5e5f4df964fa9c1c2f8bddeb5c3611631cacd93baf810fc8bb2fb4b495c263a"
-dependencies = [
- "futures-core-preview",
-]
-
-[[package]]
 name = "futures-core"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "847ce131b72ffb13b6109a221da9ad97a64cbe48feb1028356b836b47b8f1748"
-
-[[package]]
-name = "futures-core-preview"
-version = "0.3.0-alpha.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b35b6263fb1ef523c3056565fa67b1d16f0a8604ff12b11b08c25f28a734c60a"
 
 [[package]]
 name = "futures-cpupool"
@@ -1859,22 +1844,10 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "memchr",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "pin-utils",
  "proc-macro-hack",
  "proc-macro-nested",
- "slab",
-]
-
-[[package]]
-name = "futures-util-preview"
-version = "0.3.0-alpha.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ce968633c17e5f97936bd2797b6e38fb56cf16a7422319f7ec2e30d3c470e8d"
-dependencies = [
- "futures-channel-preview",
- "futures-core-preview",
- "pin-utils",
  "slab",
 ]
 
@@ -2247,7 +2220,7 @@ dependencies = [
  "time",
  "tokio 0.1.22",
  "tokio-buf",
- "tokio-executor 0.1.10",
+ "tokio-executor",
  "tokio-io",
  "tokio-reactor",
  "tokio-tcp",
@@ -2272,7 +2245,7 @@ dependencies = [
  "httparse",
  "httpdate",
  "itoa",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "socket2",
  "tokio 0.2.23",
  "tower-service",
@@ -2673,7 +2646,7 @@ dependencies = [
 [[package]]
 name = "kusama-runtime"
 version = "0.8.26"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "bitvec 0.17.4",
  "frame-executive",
@@ -2858,7 +2831,7 @@ dependencies = [
  "multihash",
  "parity-multiaddr",
  "parking_lot 0.11.1",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "smallvec 1.5.0",
  "wasm-timer",
 ]
@@ -2883,7 +2856,7 @@ dependencies = [
  "multistream-select",
  "parity-multiaddr",
  "parking_lot 0.11.1",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "prost",
  "prost-build",
  "rand 0.7.3",
@@ -3524,7 +3497,7 @@ dependencies = [
  "bytes 0.5.6",
  "futures 0.3.8",
  "log",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "smallvec 1.5.0",
  "unsigned-varint 0.5.1",
 ]
@@ -3743,7 +3716,7 @@ dependencies = [
 [[package]]
 name = "pallet-authority-discovery"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3759,7 +3732,7 @@ dependencies = [
 [[package]]
 name = "pallet-authorship"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3774,7 +3747,7 @@ dependencies = [
 [[package]]
 name = "pallet-babe"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3799,7 +3772,7 @@ dependencies = [
 [[package]]
 name = "pallet-balances"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3813,7 +3786,7 @@ dependencies = [
 [[package]]
 name = "pallet-collective"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3828,7 +3801,7 @@ dependencies = [
 [[package]]
 name = "pallet-democracy"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3843,7 +3816,7 @@ dependencies = [
 [[package]]
 name = "pallet-elections-phragmen"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3857,7 +3830,7 @@ dependencies = [
 [[package]]
 name = "pallet-grandpa"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3878,7 +3851,7 @@ dependencies = [
 [[package]]
 name = "pallet-identity"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
@@ -3894,7 +3867,7 @@ dependencies = [
 [[package]]
 name = "pallet-im-online"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3913,7 +3886,7 @@ dependencies = [
 [[package]]
 name = "pallet-indices"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3929,7 +3902,7 @@ dependencies = [
 [[package]]
 name = "pallet-membership"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3943,7 +3916,7 @@ dependencies = [
 [[package]]
 name = "pallet-multisig"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3958,7 +3931,7 @@ dependencies = [
 [[package]]
 name = "pallet-nicks"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3972,7 +3945,7 @@ dependencies = [
 [[package]]
 name = "pallet-offences"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3987,7 +3960,7 @@ dependencies = [
 [[package]]
 name = "pallet-proxy"
 version = "2.0.1"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4002,7 +3975,7 @@ dependencies = [
 [[package]]
 name = "pallet-randomness-collective-flip"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4015,7 +3988,7 @@ dependencies = [
 [[package]]
 name = "pallet-recovery"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "enumflags2",
  "frame-support",
@@ -4030,7 +4003,7 @@ dependencies = [
 [[package]]
 name = "pallet-scheduler"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4045,7 +4018,7 @@ dependencies = [
 [[package]]
 name = "pallet-session"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4065,7 +4038,7 @@ dependencies = [
 [[package]]
 name = "pallet-society"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4079,7 +4052,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4099,7 +4072,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking-reward-curve"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2 1.0.24",
@@ -4110,7 +4083,7 @@ dependencies = [
 [[package]]
 name = "pallet-sudo"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4124,7 +4097,7 @@ dependencies = [
 [[package]]
 name = "pallet-timestamp"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4141,7 +4114,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4158,7 +4131,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -4176,7 +4149,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc-runtime-api"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "parity-scale-codec",
@@ -4189,7 +4162,7 @@ dependencies = [
 [[package]]
 name = "pallet-treasury"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4203,7 +4176,7 @@ dependencies = [
 [[package]]
 name = "pallet-utility"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4218,7 +4191,7 @@ dependencies = [
 [[package]]
 name = "pallet-vesting"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "enumflags2",
  "frame-support",
@@ -4535,11 +4508,11 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee41d838744f60d959d7074e3afb6b35c7456d0f61cad38a24e35e6553f73841"
+checksum = "9ccc2237c2c489783abd8c4c80e5450fc0e98644555b1364da68cc29aa151ca7"
 dependencies = [
- "pin-project-internal 1.0.1",
+ "pin-project-internal 1.0.2",
 ]
 
 [[package]]
@@ -4555,9 +4528,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-internal"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81a4ffa594b66bff340084d4081df649a7dc049ac8d7fc458d8e628bfbbb2f86"
+checksum = "f8e8d2bf0b23038a4424865103a4df472855692821aab4e4f5c3312d461d9e5f"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
@@ -4585,7 +4558,7 @@ checksum = "3831453b3449ceb48b6d9c7ad7c96d5ea673e9b470a1dc578c2ce6521230884c"
 [[package]]
 name = "polkadot-core-primitives"
 version = "0.7.30"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "parity-scale-codec",
  "sp-core",
@@ -4596,7 +4569,7 @@ dependencies = [
 [[package]]
 name = "polkadot-erasure-coding"
 version = "0.8.26"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
@@ -4609,7 +4582,7 @@ dependencies = [
 [[package]]
 name = "polkadot-node-core-av-store"
 version = "0.1.0"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "futures 0.3.8",
  "futures-timer 3.0.2",
@@ -4629,7 +4602,7 @@ dependencies = [
 [[package]]
 name = "polkadot-node-core-proposer"
 version = "0.1.0"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "futures 0.3.8",
  "futures-timer 3.0.2",
@@ -4653,7 +4626,7 @@ dependencies = [
 [[package]]
 name = "polkadot-node-network-protocol"
 version = "0.1.0"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "parity-scale-codec",
  "polkadot-node-primitives",
@@ -4664,7 +4637,7 @@ dependencies = [
 [[package]]
 name = "polkadot-node-primitives"
 version = "0.1.0"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "futures 0.3.8",
  "parity-scale-codec",
@@ -4677,7 +4650,7 @@ dependencies = [
 [[package]]
 name = "polkadot-node-subsystem"
 version = "0.1.0"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -4685,7 +4658,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-primitives",
@@ -4700,14 +4673,14 @@ dependencies = [
 [[package]]
 name = "polkadot-node-subsystem-util"
 version = "0.1.0"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "async-trait",
  "futures 0.3.8",
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
@@ -4723,7 +4696,7 @@ dependencies = [
 [[package]]
 name = "polkadot-overseer"
 version = "0.1.0"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "async-trait",
  "futures 0.3.8",
@@ -4740,7 +4713,7 @@ dependencies = [
 [[package]]
 name = "polkadot-parachain"
 version = "0.8.26"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "derive_more",
  "futures 0.3.8",
@@ -4763,7 +4736,7 @@ dependencies = [
 [[package]]
 name = "polkadot-primitives"
 version = "0.8.26"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "bitvec 0.17.4",
  "frame-system",
@@ -4788,7 +4761,7 @@ dependencies = [
 [[package]]
 name = "polkadot-rpc"
 version = "0.8.26"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "jsonrpc-core",
  "pallet-transaction-payment-rpc",
@@ -4818,7 +4791,7 @@ dependencies = [
 [[package]]
 name = "polkadot-runtime"
 version = "0.8.26"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "bitvec 0.17.4",
  "frame-executive",
@@ -4881,7 +4854,7 @@ dependencies = [
 [[package]]
 name = "polkadot-runtime-common"
 version = "0.8.26"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "bitvec 0.17.4",
  "frame-support",
@@ -4916,7 +4889,7 @@ dependencies = [
 [[package]]
 name = "polkadot-runtime-parachains"
 version = "0.8.0"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "bitvec 0.17.4",
  "derive_more",
@@ -4952,7 +4925,7 @@ dependencies = [
 [[package]]
 name = "polkadot-service"
 version = "0.8.3"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "frame-benchmarking",
  "frame-system-rpc-runtime-api",
@@ -5017,7 +4990,7 @@ dependencies = [
 [[package]]
 name = "polkadot-statement-table"
 version = "0.8.26"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
@@ -5629,7 +5602,7 @@ dependencies = [
 [[package]]
 name = "rococo-runtime"
 version = "0.8.26"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "frame-executive",
  "frame-support",
@@ -5774,7 +5747,7 @@ dependencies = [
 [[package]]
 name = "sc-authority-discovery"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "async-trait",
  "bytes 0.5.6",
@@ -5804,7 +5777,7 @@ dependencies = [
 [[package]]
 name = "sc-basic-authorship"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "futures 0.3.8",
  "futures-timer 3.0.2",
@@ -5822,13 +5795,12 @@ dependencies = [
  "sp-runtime",
  "sp-transaction-pool",
  "substrate-prometheus-endpoint",
- "tokio-executor 0.2.0-alpha.6",
 ]
 
 [[package]]
 name = "sc-block-builder"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "sc-client-api",
@@ -5845,7 +5817,7 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -5866,7 +5838,7 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec-derive"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2 1.0.24",
@@ -5877,7 +5849,7 @@ dependencies = [
 [[package]]
 name = "sc-client-api"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "fnv",
@@ -5914,7 +5886,7 @@ dependencies = [
 [[package]]
 name = "sc-client-db"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "blake2-rfc",
  "hash-db",
@@ -5944,7 +5916,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "sc-client-api",
  "sp-blockchain",
@@ -5955,7 +5927,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "fork-tree",
@@ -6000,7 +5972,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe-rpc"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "futures 0.3.8",
@@ -6024,7 +5996,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-epochs"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "fork-tree",
  "parity-scale-codec",
@@ -6037,7 +6009,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-slots"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "futures 0.3.8",
  "futures-timer 3.0.2",
@@ -6062,7 +6034,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-uncles"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "log",
  "sc-client-api",
@@ -6076,7 +6048,7 @@ dependencies = [
 [[package]]
 name = "sc-executor"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "lazy_static",
@@ -6104,7 +6076,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-common"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "log",
@@ -6121,7 +6093,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-wasmi"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -6136,7 +6108,7 @@ dependencies = [
 [[package]]
 name = "sc-finality-grandpa"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "finality-grandpa",
@@ -6173,7 +6145,7 @@ dependencies = [
 [[package]]
 name = "sc-finality-grandpa-rpc"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "finality-grandpa",
@@ -6197,7 +6169,7 @@ dependencies = [
 [[package]]
 name = "sc-informant"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "ansi_term 0.12.1",
  "futures 0.3.8",
@@ -6215,7 +6187,7 @@ dependencies = [
 [[package]]
 name = "sc-keystore"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -6235,7 +6207,7 @@ dependencies = [
 [[package]]
 name = "sc-light"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "hash-db",
  "lazy_static",
@@ -6254,7 +6226,7 @@ dependencies = [
 [[package]]
 name = "sc-network"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "async-std",
  "async-trait",
@@ -6308,7 +6280,7 @@ dependencies = [
 [[package]]
 name = "sc-network-gossip"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "futures 0.3.8",
  "futures-timer 3.0.2",
@@ -6323,7 +6295,7 @@ dependencies = [
 [[package]]
 name = "sc-offchain"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "bytes 0.5.6",
  "fnv",
@@ -6350,7 +6322,7 @@ dependencies = [
 [[package]]
 name = "sc-peerset"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "futures 0.3.8",
  "libp2p",
@@ -6363,7 +6335,7 @@ dependencies = [
 [[package]]
 name = "sc-proposer-metrics"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "log",
  "substrate-prometheus-endpoint",
@@ -6372,7 +6344,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "futures 0.3.8",
  "hash-db",
@@ -6405,7 +6377,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-api"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "futures 0.3.8",
@@ -6429,7 +6401,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-server"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "futures 0.1.30",
  "jsonrpc-core",
@@ -6447,7 +6419,7 @@ dependencies = [
 [[package]]
 name = "sc-service"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "directories 2.0.2",
@@ -6511,7 +6483,7 @@ dependencies = [
 [[package]]
 name = "sc-state-db"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -6525,7 +6497,7 @@ dependencies = [
 [[package]]
 name = "sc-sync-state-rpc"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -6544,7 +6516,7 @@ dependencies = [
 [[package]]
 name = "sc-telemetry"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "futures 0.3.8",
  "futures-timer 3.0.2",
@@ -6565,7 +6537,7 @@ dependencies = [
 [[package]]
 name = "sc-tracing"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "erased-serde",
  "log",
@@ -6584,7 +6556,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-graph"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "futures 0.3.8",
@@ -6605,7 +6577,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "futures 0.3.8",
@@ -7013,7 +6985,7 @@ dependencies = [
 [[package]]
 name = "sp-allocator"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "log",
@@ -7025,7 +6997,7 @@ dependencies = [
 [[package]]
 name = "sp-api"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "hash-db",
  "parity-scale-codec",
@@ -7040,7 +7012,7 @@ dependencies = [
 [[package]]
 name = "sp-api-proc-macro"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "blake2-rfc",
  "proc-macro-crate",
@@ -7052,7 +7024,7 @@ dependencies = [
 [[package]]
 name = "sp-application-crypto"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "serde",
@@ -7064,7 +7036,7 @@ dependencies = [
 [[package]]
 name = "sp-arithmetic"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "integer-sqrt",
  "num-traits 0.2.14",
@@ -7077,7 +7049,7 @@ dependencies = [
 [[package]]
 name = "sp-authority-discovery"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -7089,7 +7061,7 @@ dependencies = [
 [[package]]
 name = "sp-authorship"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "sp-inherents",
@@ -7100,7 +7072,7 @@ dependencies = [
 [[package]]
 name = "sp-block-builder"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -7112,7 +7084,7 @@ dependencies = [
 [[package]]
 name = "sp-blockchain"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "log",
  "lru 0.4.3",
@@ -7129,7 +7101,7 @@ dependencies = [
 [[package]]
 name = "sp-chain-spec"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "serde",
  "serde_json",
@@ -7138,7 +7110,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "futures 0.3.8",
  "futures-timer 3.0.2",
@@ -7164,7 +7136,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-babe"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "merlin",
  "parity-scale-codec",
@@ -7184,7 +7156,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-slots"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
@@ -7193,7 +7165,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-vrf"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
@@ -7205,7 +7177,7 @@ dependencies = [
 [[package]]
 name = "sp-core"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "base58",
  "blake2-rfc",
@@ -7249,7 +7221,7 @@ dependencies = [
 [[package]]
 name = "sp-database"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "kvdb",
  "parking_lot 0.10.2",
@@ -7258,7 +7230,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
@@ -7268,7 +7240,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -7279,7 +7251,7 @@ dependencies = [
 [[package]]
 name = "sp-finality-grandpa"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "finality-grandpa",
  "log",
@@ -7296,7 +7268,7 @@ dependencies = [
 [[package]]
 name = "sp-inherents"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "parking_lot 0.10.2",
@@ -7308,7 +7280,7 @@ dependencies = [
 [[package]]
 name = "sp-io"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "futures 0.3.8",
  "hash-db",
@@ -7332,7 +7304,7 @@ dependencies = [
 [[package]]
 name = "sp-keyring"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "lazy_static",
  "sp-core",
@@ -7343,7 +7315,7 @@ dependencies = [
 [[package]]
 name = "sp-keystore"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -7359,7 +7331,7 @@ dependencies = [
 [[package]]
 name = "sp-npos-elections"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "serde",
@@ -7371,7 +7343,7 @@ dependencies = [
 [[package]]
 name = "sp-npos-elections-compact"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2 1.0.24",
@@ -7382,7 +7354,7 @@ dependencies = [
 [[package]]
 name = "sp-offchain"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "sp-api",
  "sp-core",
@@ -7392,7 +7364,7 @@ dependencies = [
 [[package]]
 name = "sp-panic-handler"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "backtrace",
  "log",
@@ -7401,7 +7373,7 @@ dependencies = [
 [[package]]
 name = "sp-rpc"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "serde",
  "sp-core",
@@ -7410,7 +7382,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "either",
  "hash256-std-hasher",
@@ -7432,7 +7404,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "primitive-types",
@@ -7448,7 +7420,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "Inflector",
  "proc-macro-crate",
@@ -7460,7 +7432,7 @@ dependencies = [
 [[package]]
 name = "sp-serializer"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "serde",
  "serde_json",
@@ -7469,7 +7441,7 @@ dependencies = [
 [[package]]
 name = "sp-session"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -7482,7 +7454,7 @@ dependencies = [
 [[package]]
 name = "sp-staking"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
@@ -7492,7 +7464,7 @@ dependencies = [
 [[package]]
 name = "sp-state-machine"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "hash-db",
  "log",
@@ -7514,12 +7486,12 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 
 [[package]]
 name = "sp-storage"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -7532,7 +7504,7 @@ dependencies = [
 [[package]]
 name = "sp-tasks"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "log",
  "sp-core",
@@ -7545,7 +7517,7 @@ dependencies = [
 [[package]]
 name = "sp-timestamp"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -7559,7 +7531,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -7572,7 +7544,7 @@ dependencies = [
 [[package]]
 name = "sp-transaction-pool"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "derive_more",
  "futures 0.3.8",
@@ -7587,7 +7559,7 @@ dependencies = [
 [[package]]
 name = "sp-trie"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "hash-db",
  "memory-db",
@@ -7601,7 +7573,7 @@ dependencies = [
 [[package]]
 name = "sp-utils"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "futures 0.3.8",
  "futures-core",
@@ -7613,7 +7585,7 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -7625,7 +7597,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -7970,7 +7942,7 @@ dependencies = [
 [[package]]
 name = "substrate-frame-rpc-system"
 version = "2.0.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "frame-system-rpc-runtime-api",
  "futures 0.3.8",
@@ -7993,7 +7965,7 @@ dependencies = [
 [[package]]
 name = "substrate-prometheus-endpoint"
 version = "0.8.0"
-source = "git+https://github.com/insipx/substrate?branch=insipx/testing#0e06aedd37b8d5bf36daac3ab555e405b5190dd1"
+source = "git+https://github.com/paritytech/substrate?branch=master#f74de63d23214b530ac24ac3ea4ead1180e22e83"
 dependencies = [
  "async-std",
  "derive_more",
@@ -8084,9 +8056,9 @@ dependencies = [
 
 [[package]]
 name = "termcolor"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb6bfa289a4d7c5766392812c0a1f4c1ba45afa1ad47803c11e1f407d846d75f"
+checksum = "bf11676eb135389f21fcda654382c4859bbfc1d2f36e4425a2f829bb41b1e20e"
 dependencies = [
  "winapi-util",
 ]
@@ -8214,11 +8186,11 @@ dependencies = [
  "num_cpus",
  "tokio-codec",
  "tokio-current-thread",
- "tokio-executor 0.1.10",
+ "tokio-executor",
  "tokio-fs",
  "tokio-io",
  "tokio-reactor",
- "tokio-sync 0.1.8",
+ "tokio-sync",
  "tokio-tcp",
  "tokio-threadpool",
  "tokio-timer",
@@ -8272,7 +8244,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1de0e32a83f131e002238d7ccde18211c0a5397f60cbfffcb112868c2e0e20e"
 dependencies = [
  "futures 0.1.30",
- "tokio-executor 0.1.10",
+ "tokio-executor",
 ]
 
 [[package]]
@@ -8283,17 +8255,6 @@ checksum = "fb2d1b8f4548dbf5e1f7818512e9c406860678f29c300cdf0ebac72d1a3a1671"
 dependencies = [
  "crossbeam-utils 0.7.2",
  "futures 0.1.30",
-]
-
-[[package]]
-name = "tokio-executor"
-version = "0.2.0-alpha.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ee9ceecf69145923834ea73f32ba40c790fd877b74a7817dd0b089f1eb9c7c8"
-dependencies = [
- "futures-util-preview",
- "lazy_static",
- "tokio-sync 0.2.0-alpha.6",
 ]
 
 [[package]]
@@ -8345,9 +8306,9 @@ dependencies = [
  "num_cpus",
  "parking_lot 0.9.0",
  "slab",
- "tokio-executor 0.1.10",
+ "tokio-executor",
  "tokio-io",
- "tokio-sync 0.1.8",
+ "tokio-sync",
 ]
 
 [[package]]
@@ -8382,17 +8343,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-sync"
-version = "0.2.0-alpha.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f1aaeb685540f7407ea0e27f1c9757d258c7c6bf4e3eb19da6fc59b747239d2"
-dependencies = [
- "fnv",
- "futures-core-preview",
- "futures-util-preview",
-]
-
-[[package]]
 name = "tokio-tcp"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8420,7 +8370,7 @@ dependencies = [
  "log",
  "num_cpus",
  "slab",
- "tokio-executor 0.1.10",
+ "tokio-executor",
 ]
 
 [[package]]
@@ -8432,7 +8382,7 @@ dependencies = [
  "crossbeam-utils 0.7.2",
  "futures 0.1.30",
  "slab",
- "tokio-executor 0.1.10",
+ "tokio-executor",
 ]
 
 [[package]]
@@ -8660,9 +8610,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-normalization"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1e9a0b71dba18b6fa17c7b3dcf1440bb3522552deb2f84bf47dabd9fb7e5570"
+checksum = "a13e63ab62dbe32aeee58d1c5408d35c36c392bba5d9d3142287219721afe606"
 dependencies = [
  "tinyvec",
 ]
@@ -8980,7 +8930,7 @@ dependencies = [
 [[package]]
 name = "westend-runtime"
 version = "0.8.26"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "bitvec 0.17.4",
  "frame-executive",
@@ -9132,7 +9082,7 @@ dependencies = [
 [[package]]
 name = "xcm"
 version = "0.8.22"
-source = "git+https://github.com/insipx/polkadot?branch=insipx/custom#bff618d1f734599322f1c6bdeb3467992339e892"
+source = "git+https://github.com/paritytech/polkadot?branch=master#93fb774e4f54e5223a45b1b6d7d3257492614db0"
 dependencies = [
  "parity-scale-codec",
 ]
