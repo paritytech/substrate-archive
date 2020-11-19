@@ -42,7 +42,7 @@ impl CliOpts {
 
 		let chain = matches.value_of("chain").unwrap_or("polkadot").to_string();
 
-		let wasm_overrides = matches.value_of("wasm_overrides_path").map(PathBuf::from);
+		let wasm_overrides = matches.value_of("wasm_runtime_overrides").map(PathBuf::from);
 
 		CliOpts { file, log_level, log_num, chain, wasm_overrides_path: wasm_overrides }
 	}
