@@ -10,8 +10,8 @@ edition = "2018"
 substrate-archive = { path = "../../substrate-archive", features = ["logging"] }
 substrate-archive-common = { path = "../../substrate-archive-common" }
 substrate-archive-backend = { path = "../../substrate-archive-backend" }
-node-template-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-node-template = { git = "https://github.com/paritytech/substrate", branch = "master" }
+node-template-runtime = { git = "https://github.com/insipx/substrate", default-features = false, branch = "insipx/testing" }
+node-template = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
 
 clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }
 toml = "0.5"

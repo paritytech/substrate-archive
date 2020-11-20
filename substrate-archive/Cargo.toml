@@ -47,28 +47,29 @@ hash-db = "0.15"
 
 # Substrate is pinned to the latest substrate version that polkadot release v0.8.25 is
 # using. This is necessary to make substrate-archive compatible with the polkadot runtime.
-sp-database = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-version = {  git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", features = ["with-tracing"] , branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", features = ["wasm-extern-trace"] , branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-database = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sp-storage = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sp-externalities = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sp-runtime = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sp-blockchain = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sp-core = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sp-api = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sp-block-builder = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sp-version = {  git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sp-trie = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sp-state-machine = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sp-io = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sc-executor = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sc-chain-spec = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sc-client-api = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+sc-tracing = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
 
 # Workspace
 substrate-archive-backend = { path = '../substrate-archive-backend' }
 substrate-archive-common = { path = '../substrate-archive-common' }
 
 [dev-dependencies]
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master" }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/insipx/polkadot", branch = "insipx/custom" }
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
 flate2 = "1.0"
