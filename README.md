@@ -20,7 +20,7 @@ Run alongside a substrate-backed chain to index all Blocks, State, and Extrinsic
 
 The schema for the PostgreSQL database is described in the PDF File at the root of this directory.
 
-Examples for how to use substrate-archive are in the [`examples/`](https://github.com/paritytech/substrate-archive/tree/master/archive/examples) directory
+Examples for how to use substrate-archive are in the [`examples/`](https://github.com/paritytech/substrate-archive/tree/master/examples) directory
 
 ## Prerequisites
 
