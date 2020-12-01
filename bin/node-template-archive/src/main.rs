@@ -27,7 +27,7 @@ pub fn main() -> Result<()> {
     let config = config::Config::new()?;
     substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug)?;
 
-    let archive = ArchiveBuilder::<
+    let mut archive = ArchiveBuilder::<
         Block,
         runtime::RuntimeApi,
         node_template::service::Executor,
@@ -42,6 +42,7 @@ pub fn main() -> Result<()> {
     .pg_url(config.psql_conf().url())
     .chain_spec(Box::new(config.cli().chain_spec.clone()))
     .build()?;
+    archive.drive()?;
 
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
