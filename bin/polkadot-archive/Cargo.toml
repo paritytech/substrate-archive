@@ -10,10 +10,10 @@ edition = "2018"
 substrate-archive = { path = "../../substrate-archive", features = ["logging"] }
 substrate-archive-common = { path = "../../substrate-archive-common" }
 substrate-archive-backend = { path = "../../substrate-archive-backend" }
-polkadot-service = { git = "https://github.com/insipx/polkadot", branch = "insipx/custom" }
-sc-chain-spec = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
-frame-benchmarking = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
-sp-io = { git = "https://github.com/insipx/substrate", branch = "insipx/testing" }
+polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }
 toml = "0.5"

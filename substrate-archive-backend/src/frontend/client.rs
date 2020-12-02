@@ -172,6 +172,6 @@ where
 	}
 
 	fn runtime_version_at(&self, at: &BlockId<Block>) -> sp_blockchain::Result<RuntimeVersion> {
-		self.runtime_version_at(at).map_err(|e| sp_blockchain::Error::Msg(e.to_string()))
+		self.runtime_version_at(at).map_err(|e| sp_blockchain::Error::VersionInvalid(e.to_string()))
 	}
 }

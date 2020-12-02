@@ -96,6 +96,13 @@ where
 			.spec_version,
 	);
 	let now = std::time::Instant::now();
+	let span = tracing::span!(
+		tracing::Level::TRACE,
+		"block_execute_task",
+		number = %block.header().number(),
+		hash = %hex::encode(block.header().hash())
+	);
+	let _enter = span.enter();
 	let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
 	log::debug!("Took {:?} to execute block", now.elapsed());
 	let storage = Storage::from(block);

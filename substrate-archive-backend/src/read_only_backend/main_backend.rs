@@ -99,7 +99,7 @@ impl<Block: BlockT, D: ReadOnlyDB + 'static> Backend<Block> for ReadOnlyBackend<
 
 		match self.state_at(hash) {
 			Some(v) => Ok(v),
-			None => Err(BlockchainError::Msg(format!("No state found for block {:?}", hash))),
+			None => Err(BlockchainError::StateDatabase(format!("No state found for block {:?}", hash))),
 		}
 	}
 
@@ -109,7 +109,7 @@ impl<Block: BlockT, D: ReadOnlyDB + 'static> Backend<Block> for ReadOnlyBackend<
 		_revert_finalized: bool,
 	) -> ChainResult<(NumberFor<Block>, std::collections::HashSet<Block::Hash>)> {
 		log::warn!("Reverting blocks not supported for a read only backend");
-		Err(BlockchainError::Msg("Reverting blocks not supported".into()))
+		Err(BlockchainError::Backend("Reverting blocks not supported".into()))
 	}
 
 	fn get_import_lock(&self) -> &parking_lot::RwLock<()> {

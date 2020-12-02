@@ -265,7 +265,21 @@ impl Insert for Metadata {
 		.map_err(Into::into)
 	}
 }
-
+/*
+#[async_trait]
+impl<B> Insert for Tracing<B> {
+	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
+		let mut batch = Batch::new(
+				"state_tracing",
+				r#"
+				INSERT INTO "state_tracing" (
+					block
+				)
+				"
+			)
+	}
+}
+*/
 #[cfg(test)]
 mod tests {
 	//! Must be connected to a local database

@@ -102,10 +102,13 @@ impl<Block: BlockT> Storage<Block> {
 		self.changes.as_slice()
 	}
 }
-
+/*
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct Tracing {
+pub struct Tracing<B: BlockT> {
 	block_num: u32,
+	hash: B::Hash,
 	target: String,
-	// ... TODO
+	name: String,
+	values: sc_tracing::Values,
 }
+*/

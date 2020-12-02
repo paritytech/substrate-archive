@@ -14,52 +14,56 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use sc_tracing::{SpanDatum, TraceEvent, TraceHandler};
+use sc_tracing::Values;
+use std::sync::atomic::{AtomicU64, Ordering};
 use substrate_archive_common::Result;
 use tracing::{
 	event::Event,
 	span::{Attributes, Id, Record},
 	Level, Metadata, Subscriber,
 };
+use tracing_subscriber::CurrentSpan;
+
 // use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
 use xtra::prelude::*;
 
-#[derive(Clone)]
 struct ArchiveTraceHandler {
 	addr: Address<TracingActor>,
+	targets: Vec<String>,
+	counter: AtomicU64,
+	current_span: CurrentSpan,
 }
 
 impl ArchiveTraceHandler {
-	fn new(addr: Address<TracingActor>) -> Self {
-		Self { addr }
+	fn new(addr: Address<TracingActor>, targets: String) -> Self {
+		let targets = targets.split(',').map(String::from).collect();
+		// must start indexing from 1 otherwise `tracing` panics
+		let counter = AtomicU64::new(1);
+		Self { addr, targets, counter, current_span: Default::default() }
 	}
 }
-/*
-impl TraceHandler for ArchiveTraceHandler {
-	fn handle_span(&self, sd: SpanDatum) {
-		self.addr.do_send(SpanMessage(sd)).unwrap();
-	}
 
-	fn handle_event(&self, ev: TraceEvent) {
-		self.addr.do_send(EventMessage(ev)).unwrap();
-	}
-}
-*/
 impl Subscriber for ArchiveTraceHandler {
 	fn enabled(&self, metadata: &Metadata<'_>) -> bool {
 		println!("{}", metadata.target());
-		true
+		self.targets.iter().any(|t| t == metadata.target()) || metadata.target() == "substrate_archive::tasks"
 	}
 
-	fn new_span(&self, span: &Attributes<'_>) -> Id {
-		let meta = span.metadata();
-		match meta.target() {
-			"sp_io::hashing" | "sp_io::allocator" | "sp_io::storage" => {}
-			_ => {
-				println!("[{}]:[{}]::{:?}: {:?}", meta.target(), meta.name(), meta.module_path(), span.values());
-			}
-		}
-		Id::from_u64(1)
+	fn new_span(&self, attrs: &Attributes<'_>) -> Id {
+		let meta = attrs.metadata();
+		let mut values = Values::default();
+		attrs.record(&mut values);
+		let id = Id::from_u64(self.counter.fetch_add(1, Ordering::Relaxed));
+		let span_message = SpanMessage {
+			id: id.clone(),
+			parent_id: attrs.parent().cloned().or_else(|| self.current_span.id()),
+			name: meta.name().to_string(),
+			target: meta.target().to_string(),
+			level: meta.level().clone(),
+			values,
+		};
+		smol::block_on(self.addr.send(span_message)).unwrap();
+		id
 	}
 
 	fn record(&self, span: &Id, values: &Record<'_>) {
@@ -74,12 +78,12 @@ impl Subscriber for ArchiveTraceHandler {
 		println!("EVENT {:?}", event);
 	}
 
-	fn enter(&self, span: &Id) {
-		// log::info!("Entered Span {:?}", span);
+	fn enter(&self, id: &Id) {
+		self.current_span.enter(id.clone());
 	}
 
 	fn exit(&self, span: &Id) {
-		// log::info!("Span Exiting: {:?}", span);
+		self.current_span.exit();
 	}
 }
 
@@ -98,16 +102,21 @@ impl Actor for TracingActor {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		println!("State Tracing Started");
 		let addr = ctx.address().expect("Actor just started");
-		let handler = ArchiveTraceHandler::new(addr.clone());
+		let handler = ArchiveTraceHandler::new(addr.clone(), self.targets.clone());
 		log::debug!("Trace Targets [{}]", self.targets.as_str());
-		// let layer = ProfilingLayer::new_with_handler(Box::new(handler), self.targets.as_str());
-		// let subscriber = tracing_subscriber::fmt().with_max_level(Level::TRACE).finish();
 		tracing::subscriber::set_global_default(handler).unwrap();
 	}
 }
 
 #[derive(Debug)]
-struct SpanMessage(SpanDatum);
+struct SpanMessage {
+	pub id: Id,
+	pub parent_id: Option<Id>,
+	pub name: String,
+	pub target: String,
+	pub level: Level,
+	pub values: Values,
+}
 
 impl Message for SpanMessage {
 	type Result = ();
@@ -116,16 +125,12 @@ impl Message for SpanMessage {
 #[async_trait::async_trait]
 impl Handler<SpanMessage> for TracingActor {
 	async fn handle(&mut self, msg: SpanMessage, _: &mut Context<Self>) {
-		let to_print = msg.0.target.as_str();
-		match to_print.as_ref() {
-			"sp_io::hashing" | "sp_io::allocator" | "sp_io::storage" => {}
-			_ => log::info!("Span: {:?}", to_print),
-		}
+		println!("{:?}", msg);
 	}
 }
 
 #[derive(Debug)]
-struct EventMessage(TraceEvent);
+struct EventMessage;
 
 impl Message for EventMessage {
 	type Result = ();
