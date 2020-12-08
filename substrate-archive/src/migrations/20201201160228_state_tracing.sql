@@ -4,5 +4,5 @@ CREATE TABLE IF NOT EXISTS state_tracing (
 	hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE,
 	target varchar,
 	name varchar,
-	values jsonb
+	traces jsonb
 );

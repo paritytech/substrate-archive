@@ -27,6 +27,8 @@ use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
+// Feature Flag
+use crate::actors::Traces;
 use substrate_archive_common::{models, types::*, Result};
 
 pub use self::listener::*;
@@ -265,23 +267,46 @@ impl Insert for Metadata {
 		.map_err(Into::into)
 	}
 }
-/*
+
 #[async_trait]
-impl<B> Insert for Tracing<B> {
+impl Insert for Traces {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
+		log::debug!("Inserting Trace Data");
 		let mut batch = Batch::new(
-				"state_tracing",
-				r#"
-				INSERT INTO "state_tracing" (
-					block
-				)
-				"
-			)
+			"state_tracing",
+			r#"
+			INSERT INTO "state_tracing" (
+				block_num, hash, target, name, traces
+			) VALUES
+			"#,
+			r#"
+			ON CONFLICT DO NOTHING
+			"#,
+		);
+		let block_num = self.block_num();
+		let hash = self.hash();
+		for span in self.spans.into_iter().filter(|s| s.name != "block_execute_task" && s.name != "block_end_execute") {
+			batch.reserve(5)?;
+			if batch.current_num_arguments() > 0 {
+				batch.append(",");
+			}
+			batch.append("(");
+			batch.bind(block_num)?;
+			batch.append(",");
+			batch.bind(hash.as_ref())?;
+			batch.append(",");
+			batch.bind(span.target)?;
+			batch.append(",");
+			batch.bind(span.name)?;
+			batch.append(",");
+			batch.bind(sqlx::types::Json(span.values))?;
+			batch.append(")");
+		}
+		Ok(batch.execute(conn).await?)
 	}
 }
-*/
+
 #[cfg(test)]
 mod tests {
 	//! Must be connected to a local database
-	use super::*;
 }

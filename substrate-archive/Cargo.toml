@@ -62,7 +62,6 @@ sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 # Workspace
 substrate-archive-backend = { path = '../substrate-archive-backend' }
 substrate-archive-common = { path = '../substrate-archive-common' }

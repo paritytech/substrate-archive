@@ -24,7 +24,7 @@ mod storage_aggregator;
 pub use self::database::{DatabaseActor, GetState};
 pub use self::metadata::Metadata;
 pub use blocks::BlocksIndexer;
-pub use state_tracing::TracingActor;
+pub use state_tracing::{Traces, TracingActor};
 pub use storage_aggregator::StorageAggregator;
 
 use super::actor_pool::ActorPool;

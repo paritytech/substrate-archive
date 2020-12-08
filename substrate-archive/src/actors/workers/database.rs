@@ -170,6 +170,13 @@ impl<B: BlockT> Handler<VecStorageWrap<B>> for DatabaseActor<B> {
 	}
 }
 
+#[async_trait::async_trait]
+impl<B: BlockT> Handler<super::Traces> for DatabaseActor<B> {
+	async fn handle(&mut self, traces: super::Traces, _: &mut Context<Self>) {
+		self.db.insert(traces).await.unwrap();
+	}
+}
+
 // this is an enum in case there is some more state
 // that might be needed in the future
 /// Get Some State from the Database Actor

@@ -21,7 +21,7 @@ mod workers;
 
 pub use self::actor_pool::ActorPool;
 use self::workers::GetState;
-pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
+pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator, Traces};
 use super::{
 	database::{queries, Channel, Listener},
 	sql_block_builder::BlockBuilder as SqlBlockBuilder,
@@ -113,7 +113,7 @@ where
 	blocks: Address<workers::BlocksIndexer<B, D>>,
 	metadata: Address<workers::Metadata<B>>,
 	db_pool: Address<ActorPool<DatabaseActor<B>>>,
-	tracing: Option<Address<workers::TracingActor>>,
+	tracing: Option<Address<workers::TracingActor<B>>>,
 }
 
 /// Control the execution of the indexing engine.
@@ -230,7 +230,7 @@ where
 		let storage = workers::StorageAggregator::new(db_pool.clone()).spawn();
 		let metadata = workers::Metadata::new(db_pool.clone(), conf.meta().clone()).await?.spawn();
 		let blocks = workers::BlocksIndexer::new(conf.clone(), db_pool.clone(), metadata.clone()).spawn();
-		let tracing = conf.tracing_targets.map(|t| workers::TracingActor::new(t).spawn());
+		let tracing = conf.tracing_targets.map(|t| workers::TracingActor::new(t, db_pool.clone()).spawn());
 		Ok(Actors { storage, blocks, metadata, db_pool, tracing })
 	}
 
