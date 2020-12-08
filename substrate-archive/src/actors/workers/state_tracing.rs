@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::iter::FromIterator;
 use std::sync::atomic::{AtomicU64, Ordering};
-use substrate_archive_common::Result;
+use substrate_archive_common::{Result, TracingError};
 use tracing::{
 	event::Event,
 	field::{Field, Visit},
@@ -30,6 +30,9 @@ use tracing::{
 };
 use tracing_subscriber::CurrentSpan;
 use xtra::prelude::*;
+
+pub const BLOCK_START_EXEC: &str = "block_execute_task";
+pub const BLOCK_END_EXEC: &str = "block_end_execute";
 
 struct ArchiveTraceHandler<B: BlockT> {
 	addr: Address<TracingActor<B>>,
@@ -54,6 +57,17 @@ enum DataType {
 	I64(i64),
 	U64(u64),
 	String(String),
+}
+
+impl From<DataType> for String {
+	fn from(data: DataType) -> String {
+		match data {
+			DataType::Bool(b) => format!("{}", b),
+			DataType::I64(i) => format!("{}", i),
+			DataType::U64(u) => format!("{}", u),
+			DataType::String(s) => s,
+		}
+	}
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -158,12 +172,106 @@ impl<B: BlockT> TracingActor<B> {
 		TracingActor { targets, database, span_tree: HashMap::new() }
 	}
 
+	//// Find the key in `span_tree` that contains a map which has `id`.
 	fn find_root<'a>(&'a self, id: &'a Id) -> Option<&'a Id> {
 		if self.span_tree.contains_key(id) {
 			Some(id)
 		} else {
 			self.span_tree.iter().find(|(_, map)| map.contains_key(id)).map(|m| m.0)
 		}
+	}
+
+	fn format_messages(&self, msgs: Vec<SpanMessage>) -> Vec<SpanMessage> {
+		// if we have a different name/target from WASM replace it and remove key from TraceData
+		let format = |mut span: SpanMessage| match (span.values.0.remove("name"), span.values.0.remove("target")) {
+			(Some(name), Some(target)) => SpanMessage {
+				id: span.id,
+				parent_id: span.parent_id,
+				level: span.level,
+				values: span.values,
+				name: name.into(),
+				target: target.into(),
+			},
+			(Some(name), None) => SpanMessage {
+				id: span.id,
+				parent_id: span.parent_id,
+				level: span.level,
+				values: span.values,
+				target: span.target,
+				name: name.into(),
+			},
+			(None, Some(target)) => SpanMessage {
+				id: span.id,
+				parent_id: span.parent_id,
+				level: span.level,
+				values: span.values,
+				name: span.name,
+				target: target.into(),
+			},
+			(None, None) => span,
+		};
+		msgs.into_iter().filter(|s| s.name != BLOCK_START_EXEC && s.name != BLOCK_END_EXEC).map(format).collect()
+	}
+
+	/// Tries to get the block number from a set of tracing data.
+	/// Returns `None` if the block number cannot be found.
+	pub fn block_num_from_spans(&self, spans: &[SpanMessage]) -> Option<u32> {
+		let span = spans.iter().find(|s| s.name == BLOCK_START_EXEC)?;
+		match span.values.0.get("number") {
+			Some(DataType::U64(num)) => Some((*num).try_into().ok()).flatten(),
+			Some(DataType::String(s)) => s.parse().ok(),
+			_ => None,
+		}
+	}
+
+	/// Tries to get the hash of the executed block from the tracing data.
+	/// Returns `None` if it cannot be found.
+	pub fn hash_from_spans(&self, spans: &[SpanMessage]) -> Option<Vec<u8>> {
+		let span = spans.iter().find(|s| s.name == BLOCK_START_EXEC)?;
+		match span.values.0.get("hash") {
+			Some(DataType::String(s)) => hex::decode(s).ok(),
+			_ => None,
+		}
+	}
+
+	async fn handle_span(&mut self, msg: SpanMessage, ctx: &mut Context<Self>) -> Result<()> {
+		if msg.name == BLOCK_END_EXEC {
+			let tracing_messages = self
+				.span_tree
+				.remove(&msg.parent_id.ok_or(TracingError::ParentNotFound)?)
+				.ok_or(TracingError::UnknownStartSpan)?;
+
+			// TODO: If/when `into_values()` stabilizes, prefer that here
+			// https://doc.rust-lang.org/std/collections/struct.HashMap.html#method.into_values
+			let mut spans: Vec<SpanMessage> = Vec::from_iter(tracing_messages.values().cloned());
+			spans.sort_by(|a, b| a.id.into_u64().cmp(&b.id.into_u64()));
+
+			let block_num = self.block_num_from_spans(&spans).ok_or(TracingError::NoBlockNumber)?;
+			let hash = self.hash_from_spans(&spans).ok_or(TracingError::NoHash)?;
+			let spans = self.format_messages(spans);
+
+			// lifetime for `ctx` in the context of awaiting a future
+			// means we need to separate the let binding from the `if let Some`
+			let addr = ctx.address();
+			if let Some(addr) = addr {
+				ctx.handle_while(self, addr.send(Traces::new(block_num, hash, spans))).await?;
+			}
+		} else {
+			match &msg.parent_id {
+				Some(id) => {
+					let tree_id = self.find_root(&id).ok_or(TracingError::ParentNotFound)?.clone();
+					let nested = self.span_tree.get_mut(&tree_id).ok_or(TracingError::MissingTree)?;
+					nested.insert(msg.id.clone(), msg);
+				}
+				None => {
+					let mut new_map = HashMap::new();
+					let root_id = msg.id.clone();
+					new_map.insert(root_id.clone(), msg);
+					self.span_tree.insert(root_id, new_map);
+				}
+			}
+		}
+		Ok(())
 	}
 }
 
@@ -174,7 +282,9 @@ impl<B: BlockT> Actor for TracingActor<B> {
 		let addr = ctx.address().expect("Actor just started");
 		let handler = ArchiveTraceHandler::new(addr.clone(), self.targets.clone());
 		log::debug!("Trace Targets [{}]", self.targets.as_str());
-		tracing::subscriber::set_global_default(handler).unwrap();
+		if let Err(_) = tracing::subscriber::set_global_default(handler) {
+			log::warn!("Global default subscriber already set elsewhere");
+		}
 	}
 }
 
@@ -195,59 +305,30 @@ impl Message for SpanMessage {
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<SpanMessage> for TracingActor<B> {
 	async fn handle(&mut self, msg: SpanMessage, ctx: &mut Context<Self>) {
-		if msg.name == "block_end_execute" {
-			let tracing_messages = self.span_tree.remove(&msg.parent_id.unwrap()).unwrap();
-			let mut msg_block: Vec<SpanMessage> = Vec::from_iter(tracing_messages.values().cloned());
-			msg_block.sort_by(|a, b| a.id.into_u64().cmp(&b.id.into_u64()));
-			let address = ctx.address().unwrap();
-			ctx.handle_while(self, address.send(Traces::from(msg_block))).await.unwrap();
-		} else {
-			match &msg.parent_id {
-				Some(id) => {
-					let nested_root = self.find_root(&id).unwrap().clone();
-					let nested = self.span_tree.get_mut(&nested_root).unwrap();
-					nested.insert(msg.id.clone(), msg);
-				}
-				None => {
-					let mut new_map = HashMap::new();
-					let root_id = msg.id.clone();
-					new_map.insert(root_id.clone(), msg);
-					self.span_tree.insert(root_id, new_map);
-				}
-			}
+		if let Err(e) = self.handle_span(msg, ctx).await {
+			log::error!("{}", e.to_string());
 		}
 	}
 }
 
 #[derive(Debug)]
 pub struct Traces {
+	block_num: u32,
+	hash: Vec<u8>,
 	pub spans: Vec<SpanMessage>,
 }
 
 impl Traces {
-	/// get the block number a set of tracing data is from
-	/// Returns `None` if the block number is missing
-	pub fn block_num(&self) -> Option<u32> {
-		let span = self.spans.iter().find(|s| s.name == "block_execute_task")?;
-		match span.values.0.get("number") {
-			Some(DataType::U64(num)) => Some((*num).try_into().ok()).flatten(),
-			Some(DataType::String(s)) => s.parse().ok(),
-			_ => None,
-		}
+	pub fn new(block_num: u32, hash: Vec<u8>, spans: Vec<SpanMessage>) -> Self {
+		Traces { block_num, hash, spans }
 	}
 
-	pub fn hash(&self) -> Option<Vec<u8>> {
-		let span = self.spans.iter().find(|s| s.name == "block_execute_task")?;
-		match span.values.0.get("hash") {
-			Some(DataType::String(s)) => hex::decode(s).ok(),
-			_ => None,
-		}
+	pub fn hash(&self) -> Vec<u8> {
+		self.hash.clone()
 	}
-}
 
-impl From<Vec<SpanMessage>> for Traces {
-	fn from(spans: Vec<SpanMessage>) -> Traces {
-		Traces { spans }
+	pub fn block_num(&self) -> u32 {
+		self.block_num
 	}
 }
 

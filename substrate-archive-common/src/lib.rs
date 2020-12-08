@@ -21,4 +21,4 @@ pub mod msg;
 pub mod types;
 pub mod util;
 pub use database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS};
-pub use error::{Error, Result};
+pub use error::{Error, Result, TracingError};

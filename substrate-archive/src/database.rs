@@ -283,9 +283,11 @@ impl Insert for Traces {
 			ON CONFLICT DO NOTHING
 			"#,
 		);
+
 		let block_num = self.block_num();
 		let hash = self.hash();
-		for span in self.spans.into_iter().filter(|s| s.name != "block_execute_task" && s.name != "block_end_execute") {
+
+		for span in self.spans.into_iter() {
 			batch.reserve(5)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
@@ -293,7 +295,7 @@ impl Insert for Traces {
 			batch.append("(");
 			batch.bind(block_num)?;
 			batch.append(",");
-			batch.bind(hash.as_ref())?;
+			batch.bind(hash.as_slice())?;
 			batch.append(",");
 			batch.bind(span.target)?;
 			batch.append(",");
@@ -302,6 +304,7 @@ impl Insert for Traces {
 			batch.bind(sqlx::types::Json(span.values))?;
 			batch.append(")");
 		}
+
 		Ok(batch.execute(conn).await?)
 	}
 }

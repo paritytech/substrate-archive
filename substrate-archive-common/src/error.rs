@@ -59,12 +59,30 @@ pub enum Error {
 	Channel,
 	#[error("Trying to send to disconnected actor")]
 	Disconnected,
+
 	#[error("Unexpected Error {0}")]
 	Msg(String),
+
+	#[error("Tracing: {0}")]
+	Trace(#[from] TracingError),
 
 	#[cfg(test)]
 	#[error("{0}")]
 	Bincode(#[from] Box<bincode::ErrorKind>),
+}
+
+#[derive(Error, Debug)]
+pub enum TracingError {
+	#[error("Parent ID for span does not exist in the tree")]
+	ParentNotFound,
+	#[error("Unable to establish start of block execution")]
+	UnknownStartSpan,
+	#[error("Block Number missing from tracing sequence")]
+	NoBlockNumber,
+	#[error("Hash missing from tracing sequence")]
+	NoHash,
+	#[error("No tree exists for ID")]
+	MissingTree,
 }
 
 impl From<&str> for Error {
