@@ -230,6 +230,7 @@ where
 		let storage = workers::StorageAggregator::new(db_pool.clone()).spawn();
 		let metadata = workers::Metadata::new(db_pool.clone(), conf.meta().clone()).await?.spawn();
 		let blocks = workers::BlocksIndexer::new(conf.clone(), db_pool.clone(), metadata.clone()).spawn();
+		// TODO: Add blacklist config option
 		let tracing = conf.tracing_targets.map(|t| workers::TracingActor::new(t, db_pool.clone()).spawn());
 		Ok(Actors { storage, blocks, metadata, db_pool, tracing })
 	}

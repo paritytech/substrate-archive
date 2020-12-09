@@ -104,8 +104,6 @@ where
 	);
 	let _enter = span.enter();
 	let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
-	// parent_id of this span will be the id of the "block_execute_task" span
-	tracing::span!(tracing::Level::TRACE, "block_end_execute");
 	log::debug!("Took {:?} to execute block", now.elapsed());
 	let storage = Storage::from(block);
 	smol::block_on(env.storage.send(storage))?;

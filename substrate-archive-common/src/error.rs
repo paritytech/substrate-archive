@@ -63,6 +63,9 @@ pub enum Error {
 	#[error("Unexpected Error {0}")]
 	Msg(String),
 
+	#[error("{0}")]
+	Conversion(#[from] std::num::TryFromIntError),
+
 	#[error("Tracing: {0}")]
 	Trace(#[from] TracingError),
 

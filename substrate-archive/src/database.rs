@@ -21,14 +21,14 @@ mod batch;
 pub mod listener;
 pub mod queries;
 
+use crate::actors::Traces;
 use async_trait::async_trait;
 use batch::Batch;
 use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
-// Feature Flag
-use crate::actors::Traces;
+use std::convert::TryFrom;
 use substrate_archive_common::{models, types::*, Result};
 
 pub use self::listener::*;
@@ -276,7 +276,7 @@ impl Insert for Traces {
 			"state_tracing",
 			r#"
 			INSERT INTO "state_traces" (
-				block_num, hash, target, name, traces
+				block_num, hash, trace_id, trace_parent_id, target, name, traces
 			) VALUES
 			"#,
 			r#"
@@ -288,7 +288,10 @@ impl Insert for Traces {
 		let hash = self.hash();
 
 		for span in self.spans.into_iter() {
-			batch.reserve(5)?;
+			let id: i32 = i32::try_from(span.id.into_u64())?;
+			let parent_id: Option<i32> =
+				if let Some(id) = span.parent_id { Some(i32::try_from(id.into_u64())?) } else { None };
+			batch.reserve(7)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
 			}
@@ -296,6 +299,10 @@ impl Insert for Traces {
 			batch.bind(block_num)?;
 			batch.append(",");
 			batch.bind(hash.as_slice())?;
+			batch.append(",");
+			batch.bind(id)?;
+			batch.append(",");
+			batch.bind(parent_id)?;
 			batch.append(",");
 			batch.bind(span.target)?;
 			batch.append(",");
