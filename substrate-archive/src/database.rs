@@ -275,7 +275,7 @@ impl Insert for Traces {
 		let mut batch = Batch::new(
 			"state_tracing",
 			r#"
-			INSERT INTO "state_tracing" (
+			INSERT INTO "state_traces" (
 				block_num, hash, target, name, traces
 			) VALUES
 			"#,
