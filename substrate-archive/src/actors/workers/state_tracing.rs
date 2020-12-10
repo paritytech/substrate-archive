@@ -60,20 +60,21 @@ impl SpanTree {
 		Self(HashMap::new())
 	}
 
-	fn insert(&mut self, span: SpanMessage) {
+	fn insert(&mut self, span: SpanMessage) -> Result<()> {
 		match &span.parent_id {
 			Some(id) => match self.find(&id) {
 				Some(top_id) => {
 					self.0.get_mut(&top_id).expect("Must be ID since it was found").insert(span);
 				}
 				None => {
-					panic!("ID NOT FOUND");
+					return Err(TracingError::MissingTree.into());
 				}
 			},
 			None => {
 				self.0.insert(span.id.clone(), SortedSpans::new(span));
 			}
 		}
+		Ok(())
 	}
 
 	fn get(&self, id: &Id) -> Option<&SpanMessage> {
@@ -220,7 +221,11 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 			level: meta.level().clone(),
 			values,
 		};
-		self.spans.lock().insert(span_message);
+
+		if let Err(e) = self.spans.lock().insert(span_message) {
+			log::error!("{}", e);
+		}
+
 		id
 	}
 
