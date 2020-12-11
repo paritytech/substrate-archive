@@ -133,6 +133,27 @@ impl SortedSpans {
 		self.0.iter().any(|other_id| &other_id.id == id)
 	}
 
+	/// Tries to get the block number from a set of tracing data.
+	/// Returns `None` if the block number cannot be found.
+	pub fn block_num(&self) -> Option<u32> {
+		let root_span = self.0.iter().find(|s| s.name == BLOCK_EXEC_SPAN)?;
+		match root_span.values.0.get("number") {
+			Some(DataType::U64(num)) => Some((*num).try_into().ok()).flatten(),
+			Some(DataType::String(s)) => s.parse().ok(),
+			_ => None,
+		}
+	}
+
+	/// Tries to get the hash of the executed block from the tracing data.
+	/// Returns `None` if it cannot be found.
+	pub fn hash(&self) -> Option<Vec<u8>> {
+		let root_span = self.0.iter().find(|s| s.name == BLOCK_EXEC_SPAN)?;
+		match root_span.values.0.get("hash") {
+			Some(DataType::String(s)) => hex::decode(s).ok(),
+			_ => None,
+		}
+	}
+
 	fn into_inner(self) -> Vec<SpanMessage> {
 		self.0
 	}
@@ -243,13 +264,35 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 		let meta = event.metadata();
 		let mut values = Default::default();
 		event.record(&mut values);
-		let event = EventMessage {
-			name: meta.name().to_string(),
-			target: meta.target().to_string(),
-			level: meta.level().clone(),
-			parent_id: event.parent().cloned().or_else(|| self.current_span.id()),
-			values,
+		let parent_id = event.parent().cloned().or_else(|| self.current_span.id());
+		let block_info = match &parent_id {
+			Some(id) => self.spans.lock().0.get(id).map(|spans| (spans.block_num(), spans.hash())),
+			None => {
+				// this happens when an event is declared outside of the context of a Span.
+				// WASM tracing should always be within the context of a span, at the very least BLOCK_EXEC_SPAN.
+				log::warn!(
+					"Discarding event {}:{}; Cannot be associated with a block number and/or hash!",
+					meta.target(),
+					meta.name()
+				);
+				return;
+			}
 		};
+
+		let event = if let Some((block_num, hash)) = block_info {
+			EventMessage {
+				name: meta.name().to_string(),
+				target: meta.target().to_string(),
+				level: meta.level().clone(),
+				parent_id,
+				values,
+				block_num,
+				hash,
+			}
+		} else {
+			return;
+		};
+
 		if let Err(_) = smol::block_on(self.addr.send(event)) {
 			log::error!("Event message failed to send")
 		}
@@ -282,7 +325,7 @@ impl<B: BlockT> TracingActor<B> {
 		TracingActor { targets, database }
 	}
 
-	fn format_messages(&self, msgs: Vec<SpanMessage>) -> Vec<SpanMessage> {
+	fn format_spans(&self, spans: Vec<SpanMessage>) -> Vec<SpanMessage> {
 		// if we have a different name/target from WASM replace it and remove key from TraceData
 		let format = |mut span: SpanMessage| match (span.values.0.remove("name"), span.values.0.remove("target")) {
 			(Some(name), Some(target)) => SpanMessage {
@@ -311,34 +354,15 @@ impl<B: BlockT> TracingActor<B> {
 			},
 			(None, None) => span,
 		};
-		msgs.into_iter().filter(|s| s.name != BLOCK_EXEC_SPAN).map(format).collect()
+		spans.into_iter().filter(|s| s.name != BLOCK_EXEC_SPAN).map(format).collect()
 	}
 
-	/// Tries to get the block number from a set of tracing data.
-	/// Returns `None` if the block number cannot be found.
-	pub fn block_num_from_spans(&self, spans: &[SpanMessage]) -> Option<u32> {
-		let span = spans.iter().find(|s| s.name == BLOCK_EXEC_SPAN)?;
-		match span.values.0.get("number") {
-			Some(DataType::U64(num)) => Some((*num).try_into().ok()).flatten(),
-			Some(DataType::String(s)) => s.parse().ok(),
-			_ => None,
-		}
-	}
+	async fn handle_event(&self, event: EventMessage) -> Result<()> {}
 
-	/// Tries to get the hash of the executed block from the tracing data.
-	/// Returns `None` if it cannot be found.
-	pub fn hash_from_spans(&self, spans: &[SpanMessage]) -> Option<Vec<u8>> {
-		let span = spans.iter().find(|s| s.name == BLOCK_EXEC_SPAN)?;
-		match span.values.0.get("hash") {
-			Some(DataType::String(s)) => hex::decode(s).ok(),
-			_ => None,
-		}
-	}
-
-	async fn handle_spans(&mut self, spans: Vec<SpanMessage>) -> Result<()> {
-		let block_num = self.block_num_from_spans(&spans).ok_or(TracingError::NoBlockNumber)?;
-		let hash = self.hash_from_spans(spans.as_slice()).ok_or(TracingError::NoHash)?;
-		let spans = self.format_messages(spans);
+	async fn handle_spans(&mut self, spans: SortedSpans) -> Result<()> {
+		let block_num = spans.block_num().ok_or(TracingError::NoBlockNumber)?;
+		let hash = spans.hash().ok_or(TracingError::NoHash)?;
+		let spans = self.format_spans(spans.into_inner());
 		self.database.send(Traces::new(block_num, hash, spans).into()).await?;
 		Ok(())
 	}
@@ -359,7 +383,7 @@ impl<B: BlockT> Actor for TracingActor<B> {
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<SortedSpans> for TracingActor<B> {
 	async fn handle(&mut self, msg: SortedSpans, ctx: &mut Context<Self>) {
-		match self.handle_spans(msg.into_inner()).await {
+		match self.handle_spans(msg).await {
 			Err(Disconnected) => ctx.stop(),
 			Err(e) => log::error!("{}", e.to_string()),
 			Ok(()) => (),
@@ -393,7 +417,9 @@ impl Traces {
 }
 
 #[derive(Debug)]
-struct EventMessage {
+pub struct EventMessage {
+	block_num: Option<u32>,
+	hash: Option<Vec<u8>>,
 	name: String,
 	target: String,
 	level: Level,
@@ -408,7 +434,7 @@ impl Message for EventMessage {
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<EventMessage> for TracingActor<B> {
 	async fn handle(&mut self, msg: EventMessage, _: &mut Context<Self>) {
-		log::info!("Event: {:?}", msg);
+		self.database.send(msg.into()).await.unwrap();
 	}
 }
 

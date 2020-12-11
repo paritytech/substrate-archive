@@ -181,6 +181,17 @@ impl<B: BlockT> Handler<super::Traces> for DatabaseActor<B> {
 	}
 }
 
+#[async_trait::async_trait]
+impl<B: BlockT> Handler<super::EventMessage> for DatabaseActor<B> {
+	async fn handle(&mut self, event: super::EventMessage, _: &mut Context<Self>) {
+		let now = std::time::Instant::now();
+		if let Err(e) = self.db.insert(event).await {
+			log::error!("{}", e.to_string())
+		}
+		log::debug!("took {:?} to insert trace events", now.elapsed());
+	}
+}
+
 // this is an enum in case there is some more state
 // that might be needed in the future
 /// Get Some State from the Database Actor

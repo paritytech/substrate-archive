@@ -21,7 +21,7 @@ mod workers;
 
 pub use self::actor_pool::ActorPool;
 use self::workers::GetState;
-pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator, Traces};
+pub use self::workers::{BlocksIndexer, DatabaseActor, EventMessage, StorageAggregator, Traces};
 use super::{
 	database::{queries, Channel, Listener},
 	sql_block_builder::BlockBuilder as SqlBlockBuilder,

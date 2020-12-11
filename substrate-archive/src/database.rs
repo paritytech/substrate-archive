@@ -21,13 +21,13 @@ mod batch;
 pub mod listener;
 pub mod queries;
 
-use crate::actors::Traces;
+use crate::actors::{EventMessage, Traces};
 use async_trait::async_trait;
 use batch::Batch;
 use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
-use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
+use sqlx::{postgres::PgPoolOptions, types::time, PgPool, Postgres};
 use std::convert::TryFrom;
 use substrate_archive_common::{models, types::*, Result};
 
@@ -276,7 +276,7 @@ impl Insert for Traces {
 			"state_tracing",
 			r#"
 			INSERT INTO "state_traces" (
-				block_num, hash, trace_id, trace_parent_id, target, name, traces
+				block_num, hash, is_event, timestamp, file, line, trace_id, trace_parent_id, target, name, traces
 			) VALUES
 			"#,
 			r#"
@@ -291,28 +291,58 @@ impl Insert for Traces {
 			let id: i32 = i32::try_from(span.id.into_u64())?;
 			let parent_id: Option<i32> =
 				if let Some(id) = span.parent_id { Some(i32::try_from(id.into_u64())?) } else { None };
-			batch.reserve(7)?;
+			batch.reserve(11)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
 			}
 			batch.append("(");
-			batch.bind(block_num)?;
+			batch.bind(block_num)?; // block_numk
 			batch.append(",");
-			batch.bind(hash.as_slice())?;
+			batch.bind(hash.as_slice())?; // hash
 			batch.append(",");
-			batch.bind(id)?;
+			batch.bind(false)?; // is_event
 			batch.append(",");
-			batch.bind(parent_id)?;
+			batch.bind(time::Time::now()); // timestamp
 			batch.append(",");
-			batch.bind(span.target)?;
+			batch.bind("..")?; // file
 			batch.append(",");
-			batch.bind(span.name)?;
+			batch.bind(0)?; // line
 			batch.append(",");
-			batch.bind(sqlx::types::Json(span.values))?;
+			batch.bind(id)?; // trace_id
+			batch.append(",");
+			batch.bind(parent_id)?; // trace_parent_id
+			batch.append(",");
+			batch.bind(span.target)?; // target
+			batch.append(",");
+			batch.bind(span.name)?; // name
+			batch.append(",");
+			batch.bind(sqlx::types::Json(span.values))?; // traces
 			batch.append(")");
 		}
 
 		Ok(batch.execute(conn).await?)
+	}
+}
+
+#[async_trait::async_trait]
+impl Insert for EventMessage {
+	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
+		Ok(0)
+		/*
+		sqlx::query(
+			r#"
+			INSERT INTO state_traces (block_num, hash, is_event, tim)
+			VALUES($1, $2)
+			ON CONFLICT DO NOTHING
+		"#,
+		)
+		.bind(self.version())
+		.bind(self.meta())
+		.execute(conn)
+		.await
+		.map(|d| d.rows_affected())
+		.map_err(Into::into)
+			*/
 	}
 }
 
