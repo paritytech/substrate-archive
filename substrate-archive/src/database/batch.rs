@@ -16,7 +16,7 @@
 
 //! A method of dynamic queries with SQLx
 //! Taken from this Gist by @mehcode (Github): https://gist.github.com/mehcode/c476922be0290a4f8502d18701cc8c74
-//! This is sortof temporary until SQLx develops their dynamic query builder: https://github.com/launchbadge/sqlx/issues/291
+//! This is sort of temporary until SQLx develops their dynamic query builder: https://github.com/launchbadge/sqlx/issues/291
 //! and `Quaint` switches to SQLx as a backend: https://github.com/prisma/quaint/issues/138
 use sqlx::prelude::*;
 use sqlx::{

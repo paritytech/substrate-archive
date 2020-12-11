@@ -152,7 +152,7 @@ fn parse_urls(chain_data_path: Option<String>, pg_url: Option<String>) -> (Strin
 }
 
 /// Create rocksdb secondary directory if it doesn't exist yet.
-/// If the ChainPpec is not specified, a temporary directory is used.
+/// If the ChainSpec is not specified, a temporary directory is used.
 /// Return path to that directory
 ///
 /// # Panics
@@ -220,7 +220,7 @@ where
 		let last_finalized_block = backend.last_finalized()?;
 		let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
 		log::info!(
-            "Running archive for chain `{}` 🔗, implemention `{}`. Latest known runtime version: {}. Latest finalized block {} 🛡️",
+            "Running archive for chain `{}` 🔗, implementation `{}`. Latest known runtime version: {}. Latest finalized block {} 🛡️",
             rt.spec_name,
             rt.impl_name,
             rt.spec_version,

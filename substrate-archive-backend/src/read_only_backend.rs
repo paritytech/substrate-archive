@@ -98,6 +98,7 @@ where
 		}
 	}
 
+	/// Get keyed storage value hash or None if there is nothing associated.
 	pub fn storage_hash(&self, hash: Block::Hash, key: &[u8]) -> Option<Block::Hash> {
 		match self.state_at(hash) {
 			Some(state) => state.storage_hash(key).unwrap_or_else(|_| panic!("No storage found for {:?}", hash)),

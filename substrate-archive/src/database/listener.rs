@@ -161,7 +161,7 @@ where
 		Ok(Listener { tx })
 	}
 
-	/// Handle a listen event from Postges
+	/// Handle a listen event from Postgres
 	async fn handle_listen_event(&self, notif: PgNotification, conn: &mut PgConnection) {
 		let payload: Notif = serde_json::from_str(notif.payload()).unwrap();
 		(self.task)(payload, conn).await.unwrap();

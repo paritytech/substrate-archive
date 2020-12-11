@@ -86,7 +86,7 @@ pub(crate) async fn missing_blocks_min_max(
 	.collect())
 }
 
-/// Get the maximium block number from the relational database
+/// Get the maximum block number from the relational database
 pub(crate) async fn max_block(conn: &mut PgConnection) -> Result<Option<u32>> {
 	let max = sqlx::query_as!(Max, "SELECT MAX(block_num) FROM blocks").fetch_one(conn).await?;
 	Ok(max.max.map(|v| v as u32))

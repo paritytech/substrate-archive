@@ -43,7 +43,7 @@ where
 	rt_cache: RuntimeVersionCache<B, D>,
 	/// the last maximum block number from which we are sure every block before then is indexed
 	last_max: u32,
-	/// the maximimum amount of blocks to index at once
+	/// the maximum amount of blocks to index at once
 	max_block_load: u32,
 }
 
