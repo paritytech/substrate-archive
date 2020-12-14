@@ -30,6 +30,7 @@ use super::ActorPool;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use sp_runtime::traits::Block as BlockT;
+use sp_tracing::{WASM_NAME_KEY, WASM_TARGET_KEY, WASM_TRACE_IDENTIFIER};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -51,6 +52,41 @@ struct ArchiveTraceHandler<B: BlockT> {
 	targets: Vec<String>,
 	counter: AtomicU64,
 	current_span: CurrentSpan,
+}
+
+impl<B: BlockT> ArchiveTraceHandler<B> {
+	fn gather_event(&self, event: &Event<'_>, time: time::OffsetDateTime) -> Result<()> {
+		let meta = event.metadata();
+		let mut values = TraceData::default();
+		event.record(&mut values);
+		let parent_id =
+			event.parent().cloned().or_else(|| self.current_span.id()).ok_or(TracingError::ParentNotFound)?;
+
+		let (block_num, hash) = self
+			.spans
+			.lock()
+			.0
+			.get(&parent_id)
+			.map(|spans| (spans.block_num(), spans.hash()))
+			.ok_or(TracingError::CannotAssociateInfo(meta.target().into(), meta.name().into()))?;
+
+		let (target, name) = if meta.name() == WASM_TRACE_IDENTIFIER {
+			match (values.0.remove(WASM_NAME_KEY), values.0.remove(WASM_TARGET_KEY)) {
+				(Some(name), Some(target)) => (name.to_string(), target.to_string()),
+				(Some(name), None) => (name.to_string(), meta.name().to_string()),
+				(None, Some(target)) => (meta.name().to_string(), target.to_string()),
+				(None, None) => (meta.name().to_string(), meta.target().to_string()),
+			}
+		} else {
+			(meta.name().to_string(), meta.target().to_string())
+		};
+
+		let event =
+			EventMessage { level: meta.level().clone(), target, name, parent_id, values, block_num, hash, time };
+
+		smol::block_on(self.addr.send(event))?;
+		Ok(())
+	}
 }
 
 struct SpanTree(HashMap<Id, SortedSpans>);
@@ -77,6 +113,7 @@ impl SpanTree {
 		Ok(())
 	}
 
+	/// Get a Span by ID
 	fn get(&self, id: &Id) -> Option<&SpanMessage> {
 		self.find(id).as_ref().map(|parent_id| self.0.get(parent_id).map(|list| list.get(id))).flatten().flatten()
 	}
@@ -167,6 +204,8 @@ pub struct SpanMessage {
 	pub target: String,
 	pub level: Level,
 	pub values: TraceData,
+	pub start_time: time::Instant,
+	pub overall_time: time::Duration,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -178,13 +217,13 @@ enum DataType {
 	String(String),
 }
 
-impl From<DataType> for String {
-	fn from(data: DataType) -> String {
-		match data {
-			DataType::Bool(b) => format!("{}", b),
-			DataType::I64(i) => format!("{}", i),
-			DataType::U64(u) => format!("{}", u),
-			DataType::String(s) => s,
+impl ToString for DataType {
+	fn to_string(&self) -> String {
+		match self {
+			DataType::Bool(b) => b.to_string(),
+			DataType::I64(i) => i.to_string(),
+			DataType::U64(u) => u.to_string(),
+			DataType::String(s) => s.to_string(),
 		}
 	}
 }
@@ -240,6 +279,8 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 			name: meta.name().to_string(),
 			target: meta.target().to_string(),
 			level: meta.level().clone(),
+			start_time: time::Instant::now(),
+			overall_time: time::Duration::default(),
 			values,
 		};
 
@@ -261,40 +302,9 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 	}
 
 	fn event(&self, event: &Event<'_>) {
-		let meta = event.metadata();
-		let mut values = Default::default();
-		event.record(&mut values);
-		let parent_id = event.parent().cloned().or_else(|| self.current_span.id());
-		let block_info = match &parent_id {
-			Some(id) => self.spans.lock().0.get(id).map(|spans| (spans.block_num(), spans.hash())),
-			None => {
-				// this happens when an event is declared outside of the context of a Span.
-				// WASM tracing should always be within the context of a span, at the very least BLOCK_EXEC_SPAN.
-				log::warn!(
-					"Discarding event {}:{}; Cannot be associated with a block number and/or hash!",
-					meta.target(),
-					meta.name()
-				);
-				return;
-			}
-		};
-
-		let event = if let Some((block_num, hash)) = block_info {
-			EventMessage {
-				name: meta.name().to_string(),
-				target: meta.target().to_string(),
-				level: meta.level().clone(),
-				parent_id,
-				values,
-				block_num,
-				hash,
-			}
-		} else {
-			return;
-		};
-
-		if let Err(_) = smol::block_on(self.addr.send(event)) {
-			log::error!("Event message failed to send")
+		let time = time::OffsetDateTime::now_utc();
+		if let Err(e) = self.gather_event(event, time) {
+			log::error!("{}", e.to_string());
 		}
 	}
 
@@ -303,7 +313,14 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 	}
 
 	fn exit(&self, id: &Id) {
+		self.current_span.exit();
+		let end_time = time::Instant::now();
 		let mut spans = self.spans.lock();
+
+		if let Some(span) = spans.get_mut(id) {
+			span.overall_time += end_time - span.start_time;
+		}
+
 		if spans.get(id).map(|s| s.name.as_str()) == Some(BLOCK_EXEC_SPAN) {
 			if let Some(spans) = spans.remove(id) {
 				if let Err(_) = smol::block_on(self.addr.send(spans)) {
@@ -311,7 +328,6 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 				}
 			}
 		}
-		self.current_span.exit();
 	}
 }
 
@@ -326,38 +342,31 @@ impl<B: BlockT> TracingActor<B> {
 	}
 
 	fn format_spans(&self, spans: Vec<SpanMessage>) -> Vec<SpanMessage> {
-		// if we have a different name/target from WASM replace it and remove key from TraceData
-		let format = |mut span: SpanMessage| match (span.values.0.remove("name"), span.values.0.remove("target")) {
-			(Some(name), Some(target)) => SpanMessage {
-				id: span.id,
-				parent_id: span.parent_id,
-				level: span.level,
-				values: span.values,
-				name: name.into(),
-				target: target.into(),
-			},
-			(Some(name), None) => SpanMessage {
-				id: span.id,
-				parent_id: span.parent_id,
-				level: span.level,
-				values: span.values,
-				target: span.target,
-				name: name.into(),
-			},
-			(None, Some(target)) => SpanMessage {
-				id: span.id,
-				parent_id: span.parent_id,
-				level: span.level,
-				values: span.values,
-				name: span.name,
-				target: target.into(),
-			},
-			(None, None) => span,
+		let format = |mut span: SpanMessage| {
+			if span.name == WASM_TRACE_IDENTIFIER {
+				if let Some(name) = span.values.0.remove(WASM_NAME_KEY) {
+					span.name = name.to_string();
+				}
+				if let Some(target) = span.values.0.remove(WASM_TARGET_KEY) {
+					span.target = target.to_string();
+				}
+			}
+			span
 		};
+		// TODO
+		/*
+				if self.check_target(&span_datum.target, &span_datum.level) {
+					self.trace_handler.handle_span(span_datum);
+				}
+		*/
+		// if we have a different name/target from WASM replace it and remove key from TraceData
 		spans.into_iter().filter(|s| s.name != BLOCK_EXEC_SPAN).map(format).collect()
 	}
 
-	async fn handle_event(&self, event: EventMessage) -> Result<()> {}
+	async fn handle_event(&self, event: EventMessage) -> Result<()> {
+		self.database.send(event.into()).await?;
+		Ok(())
+	}
 
 	async fn handle_spans(&mut self, spans: SortedSpans) -> Result<()> {
 		let block_num = spans.block_num().ok_or(TracingError::NoBlockNumber)?;
@@ -424,7 +433,8 @@ pub struct EventMessage {
 	target: String,
 	level: Level,
 	values: TraceData,
-	parent_id: Option<Id>,
+	parent_id: Id,
+	time: time::OffsetDateTime,
 }
 
 impl Message for EventMessage {
@@ -433,8 +443,12 @@ impl Message for EventMessage {
 
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<EventMessage> for TracingActor<B> {
-	async fn handle(&mut self, msg: EventMessage, _: &mut Context<Self>) {
-		self.database.send(msg.into()).await.unwrap();
+	async fn handle(&mut self, event: EventMessage, ctx: &mut Context<Self>) {
+		match self.handle_event(event).await {
+			Err(Disconnected) => ctx.stop(),
+			Err(e) => log::error!("{}", e.to_string()),
+			Ok(()) => (),
+		}
 	}
 }
 

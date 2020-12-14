@@ -27,7 +27,7 @@ use batch::Batch;
 use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
-use sqlx::{postgres::PgPoolOptions, types::time, PgPool, Postgres};
+use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 use std::convert::TryFrom;
 use substrate_archive_common::{models, types::*, Result};
 
@@ -286,7 +286,7 @@ impl Insert for Traces {
 
 		let block_num = self.block_num();
 		let hash = self.hash();
-
+		let now = time::Instant::now();
 		for span in self.spans.into_iter() {
 			let id: i32 = i32::try_from(span.id.into_u64())?;
 			let parent_id: Option<i32> =
@@ -302,7 +302,8 @@ impl Insert for Traces {
 			batch.append(",");
 			batch.bind(false)?; // is_event
 			batch.append(",");
-			batch.bind(time::Time::now()); // timestamp
+			// TODO
+			batch.bind(now.elapsed()); // timestamp
 			batch.append(",");
 			batch.bind("..")?; // file
 			batch.append(",");

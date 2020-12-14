@@ -68,10 +68,6 @@ pub enum Error {
 
 	#[error("Tracing: {0}")]
 	Trace(#[from] TracingError),
-
-	#[cfg(test)]
-	#[error("{0}")]
-	Bincode(#[from] Box<bincode::ErrorKind>),
 }
 
 #[derive(Error, Debug)]
@@ -86,6 +82,8 @@ pub enum TracingError {
 	NoHash,
 	#[error("No tree exists for ID")]
 	MissingTree,
+	#[error("Span cannot be found and Block Number/Hash cannot be associated for {0}:{1}")]
+	CannotAssociateInfo(String, String),
 }
 
 impl From<&str> for Error {

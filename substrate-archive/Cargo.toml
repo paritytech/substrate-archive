@@ -32,11 +32,11 @@ smol = { version = "0.3" }
 coil = { git = "https://github.com/insipx/coil", package = "coil"}
 rmp-serde = "0.14"
 itoa = "0.4.6"
-include_dir = "0.6.0"
 tempfile = "3.1.0"
 async-executor = "0.1.2"
 arc-swap = "0.4.7"
 tracing = "0.1.21"
+time = "=0.2.22"
 
 # Parity
 primitive-types = "0.7"
@@ -59,6 +59,7 @@ sp-version = {  git = "https://github.com/paritytech/substrate", branch = "maste
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
