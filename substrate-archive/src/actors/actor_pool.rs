@@ -75,7 +75,7 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
 	/// and is not taken out. WeakAddresses can be used to
 	/// communicate directly with a single actor.
 	///
-	/// This has the possiblity of interrupting the pooled actors
+	/// This has the possibility of interrupting the pooled actors
 	/// if many tasks are sent to the one actor.
 	///
 	/// # None

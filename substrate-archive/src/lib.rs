@@ -57,16 +57,16 @@ impl futures::task::Spawn for TaskExecutor {
 }
 
 impl sp_core::traits::SpawnNamed for TaskExecutor {
-	fn spawn(&self, _: &'static str, fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>) {
-		smol::Task::spawn(fut).detach()
-	}
-
 	fn spawn_blocking(
 		&self,
 		_: &'static str,
 		fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>,
 	) {
 		smol::Task::spawn(async move { smol::unblock!(fut).await }).detach();
+	}
+
+	fn spawn(&self, _: &'static str, fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>) {
+		smol::Task::spawn(fut).detach()
 	}
 }
 

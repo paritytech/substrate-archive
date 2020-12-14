@@ -132,7 +132,7 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 			.collect())
 	}
 
-	/// This can be thought of as similiar to a recursive Binary Search
+	/// This can be thought of as similar to a recursive Binary Search
 	fn find_pivot(&self, blocks: &[SignedBlock<B>], versions: &mut Vec<VersionRange<B>>) -> Result<()> {
 		if blocks.is_empty() {
 			return Ok(());
