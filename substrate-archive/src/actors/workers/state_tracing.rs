@@ -27,6 +27,7 @@
 //!
 
 use super::ActorPool;
+use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use sp_runtime::traits::Block as BlockT;
@@ -55,7 +56,7 @@ struct ArchiveTraceHandler<B: BlockT> {
 }
 
 impl<B: BlockT> ArchiveTraceHandler<B> {
-	fn gather_event(&self, event: &Event<'_>, time: time::OffsetDateTime) -> Result<()> {
+	fn gather_event(&self, event: &Event<'_>, time: DateTime<Utc>) -> Result<()> {
 		let meta = event.metadata();
 		let mut values = TraceData::default();
 		event.record(&mut values);
@@ -140,6 +141,8 @@ impl SpanTree {
 	}
 }
 
+// TODO Don't really need this since a user can just
+// sort themselves from Postgres
 /// List of Spans sorted by ID
 #[derive(Debug)]
 struct SortedSpans(Vec<SpanMessage>);
@@ -204,8 +207,10 @@ pub struct SpanMessage {
 	pub target: String,
 	pub level: Level,
 	pub values: TraceData,
-	pub start_time: time::Instant,
-	pub overall_time: time::Duration,
+	pub start_time: DateTime<Utc>,
+	pub overall_time: chrono::Duration,
+	pub file: Option<String>,
+	pub line: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,6 +230,12 @@ impl ToString for DataType {
 			DataType::U64(u) => u.to_string(),
 			DataType::String(s) => s.to_string(),
 		}
+	}
+}
+
+impl From<DataType> for String {
+	fn from(data: DataType) -> String {
+		data.to_string()
 	}
 }
 
@@ -279,8 +290,10 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 			name: meta.name().to_string(),
 			target: meta.target().to_string(),
 			level: meta.level().clone(),
-			start_time: time::Instant::now(),
-			overall_time: time::Duration::default(),
+			start_time: Utc::now(),
+			overall_time: chrono::Duration::zero(),
+			file: None,
+			line: None,
 			values,
 		};
 
@@ -302,7 +315,7 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 	}
 
 	fn event(&self, event: &Event<'_>) {
-		let time = time::OffsetDateTime::now_utc();
+		let time = Utc::now();
 		if let Err(e) = self.gather_event(event, time) {
 			log::error!("{}", e.to_string());
 		}
@@ -314,11 +327,11 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 
 	fn exit(&self, id: &Id) {
 		self.current_span.exit();
-		let end_time = time::Instant::now();
+		let end_time = Utc::now();
 		let mut spans = self.spans.lock();
 
 		if let Some(span) = spans.get_mut(id) {
-			span.overall_time += end_time - span.start_time;
+			span.overall_time = end_time - span.start_time;
 		}
 
 		if spans.get(id).map(|s| s.name.as_str()) == Some(BLOCK_EXEC_SPAN) {
@@ -341,8 +354,8 @@ impl<B: BlockT> TracingActor<B> {
 		TracingActor { targets, database }
 	}
 
-	fn format_spans(&self, spans: Vec<SpanMessage>) -> Vec<SpanMessage> {
-		let format = |mut span: SpanMessage| {
+	fn format_spans(&self, spans: Vec<SpanMessage>) -> Result<Vec<SpanMessage>> {
+		let format = |mut span: SpanMessage| -> Result<SpanMessage> {
 			if span.name == WASM_TRACE_IDENTIFIER {
 				if let Some(name) = span.values.0.remove(WASM_NAME_KEY) {
 					span.name = name.to_string();
@@ -350,8 +363,14 @@ impl<B: BlockT> TracingActor<B> {
 				if let Some(target) = span.values.0.remove(WASM_TARGET_KEY) {
 					span.target = target.to_string();
 				}
+				span.file = span.values.0.remove("file").map(Into::into);
+				span.line = match span.values.0.remove("line") {
+					Some(DataType::U64(t)) => Ok(Some(t.try_into()?)),
+					None => Ok(None),
+					_ => Err(TracingError::TypeError),
+				}?;
 			}
-			span
+			Ok(span)
 		};
 		// TODO
 		/*
@@ -371,7 +390,7 @@ impl<B: BlockT> TracingActor<B> {
 	async fn handle_spans(&mut self, spans: SortedSpans) -> Result<()> {
 		let block_num = spans.block_num().ok_or(TracingError::NoBlockNumber)?;
 		let hash = spans.hash().ok_or(TracingError::NoHash)?;
-		let spans = self.format_spans(spans.into_inner());
+		let spans = self.format_spans(spans.into_inner())?;
 		self.database.send(Traces::new(block_num, hash, spans).into()).await?;
 		Ok(())
 	}
@@ -434,7 +453,7 @@ pub struct EventMessage {
 	level: Level,
 	values: TraceData,
 	parent_id: Id,
-	time: time::OffsetDateTime,
+	time: DateTime<Utc>,
 }
 
 impl Message for EventMessage {

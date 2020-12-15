@@ -68,6 +68,9 @@ pub enum Error {
 
 	#[error("Tracing: {0}")]
 	Trace(#[from] TracingError),
+
+	#[error("Rust Standard Library does not support negative durations")]
+	TimestampOutOfRange,
 }
 
 #[derive(Error, Debug)]
@@ -84,6 +87,8 @@ pub enum TracingError {
 	MissingTree,
 	#[error("Span cannot be found and Block Number/Hash cannot be associated for {0}:{1}")]
 	CannotAssociateInfo(String, String),
+	#[error("Wrong Type")]
+	TypeError,
 }
 
 impl From<&str> for Error {

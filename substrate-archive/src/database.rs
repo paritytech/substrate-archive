@@ -28,8 +28,8 @@ use codec::Encode;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
-use std::convert::TryFrom;
-use substrate_archive_common::{models, types::*, Result};
+use std::convert::{TryFrom, TryInto};
+use substrate_archive_common::{models, types::*, Error, Result};
 
 pub use self::listener::*;
 pub use self::models::*;
@@ -276,7 +276,7 @@ impl Insert for Traces {
 			"state_tracing",
 			r#"
 			INSERT INTO "state_traces" (
-				block_num, hash, is_event, timestamp, file, line, trace_id, trace_parent_id, target, name, traces
+				block_num, hash, is_event, timestamp, duration, file, line, trace_id, trace_parent_id, target, name, traces
 			) VALUES
 			"#,
 			r#"
@@ -286,11 +286,12 @@ impl Insert for Traces {
 
 		let block_num = self.block_num();
 		let hash = self.hash();
-		let now = time::Instant::now();
+
 		for span in self.spans.into_iter() {
 			let id: i32 = i32::try_from(span.id.into_u64())?;
 			let parent_id: Option<i32> =
 				if let Some(id) = span.parent_id { Some(i32::try_from(id.into_u64())?) } else { None };
+			let overall_time = shave_nanos(time_to_std(span.overall_time)?)?;
 			batch.reserve(11)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
@@ -302,12 +303,13 @@ impl Insert for Traces {
 			batch.append(",");
 			batch.bind(false)?; // is_event
 			batch.append(",");
-			// TODO
-			batch.bind(now.elapsed()); // timestamp
+			batch.bind(span.start_time)?;
 			batch.append(",");
-			batch.bind("..")?; // file
+			batch.bind(overall_time)?; // timestamp
 			batch.append(",");
-			batch.bind(0)?; // line
+			batch.bind(span.file)?; // file
+			batch.append(",");
+			batch.bind(span.line)?; // line
 			batch.append(",");
 			batch.bind(id)?; // trace_id
 			batch.append(",");
@@ -323,6 +325,25 @@ impl Insert for Traces {
 
 		Ok(batch.execute(conn).await?)
 	}
+}
+
+// Chrono depends on an error type in `time` that is a full version behind the one that SQLX uses
+// This function avoids including two versions of the time library
+fn time_to_std(time: chrono::Duration) -> Result<std::time::Duration> {
+	if time < chrono::Duration::zero() {
+		Err(Error::TimestampOutOfRange)
+	} else {
+		Ok(time.to_std().expect("Checked for less than 0"))
+	}
+}
+
+// the alternative to this is creating a Composite postgres type
+// that stores seconds + extra nanoseconds.
+// Postgres does not support nanosecond precision.
+fn shave_nanos(time: std::time::Duration) -> Result<std::time::Duration> {
+	let time: std::time::Duration = time.into();
+	let extra = time.as_nanos() % 1000;
+	Ok(time - std::time::Duration::from_nanos(extra.try_into()?))
 }
 
 #[async_trait::async_trait]
