@@ -322,8 +322,7 @@ impl Visit for TraceData {
 }
 
 impl<B: BlockT> ArchiveTraceHandler<B> {
-	fn new(addr: Address<TracingActor<B>>, targets: String) -> Self {
-		let targets = targets.split(',').map(String::from).collect();
+	fn new(addr: Address<TracingActor<B>>, targets: Vec<String>) -> Self {
 		// must start indexing from 1 otherwise `tracing` panics
 		let counter = AtomicU64::new(1);
 		let spans = Mutex::new(SpanTree::new());
@@ -405,13 +404,22 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 /// Expects to receive traces by-block. That is, each vector of Span Messages this actor receives
 /// should be all the traces produces from the execution of a single block.
 pub struct TracingActor<B: BlockT> {
-	targets: String,
+	targets: Vec<String>,
 	database: Address<ActorPool<super::DatabaseActor<B>>>,
 }
 
 impl<B: BlockT> TracingActor<B> {
 	pub fn new(targets: String, database: Address<ActorPool<super::DatabaseActor<B>>>) -> Self {
+		let targets = targets.split(',').map(String::from).collect();
 		TracingActor { targets, database }
+	}
+
+	/// Returns true if a span is part of an enabled WASM Target.
+	fn is_enabled(&self, span: &SpanMessage) -> bool {
+		self.targets
+			.iter()
+			.filter(|t| t.as_str() != "wasm_tracing")
+			.any(|t| t == &span.target || Some(t) == span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string()).as_ref())
 	}
 
 	/// Formats spans based upon data types that would be more useful for querying in the context
@@ -434,14 +442,8 @@ impl<B: BlockT> TracingActor<B> {
 			}
 			Ok(span)
 		};
-		// TODO
-		/*
-				if self.check_target(&span_datum.target, &span_datum.level) {
-					self.trace_handler.handle_span(span_datum);
-				}
-		*/
 		// if we have a different name/target from WASM replace it and remove key from TraceData
-		spans.into_iter().filter(|s| s.name != BLOCK_EXEC_SPAN).map(format).collect()
+		spans.into_iter().filter(|s| s.name != BLOCK_EXEC_SPAN && self.is_enabled(&s)).map(format).collect()
 	}
 
 	/// Handles a single event message.
@@ -465,7 +467,7 @@ impl<B: BlockT> Actor for TracingActor<B> {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		let addr = ctx.address().expect("Actor just started");
 		let handler = ArchiveTraceHandler::new(addr.clone(), self.targets.clone());
-		log::debug!("Trace Targets [{}]", self.targets.as_str());
+		log::debug!("Trace Targets [{}]", self.targets.join(",").as_str());
 		if let Err(_) = tracing::subscriber::set_global_default(handler) {
 			log::warn!("Global default subscriber already set elsewhere");
 		}
