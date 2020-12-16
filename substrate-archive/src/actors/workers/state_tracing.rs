@@ -416,10 +416,13 @@ impl<B: BlockT> TracingActor<B> {
 
 	/// Returns true if a span is part of an enabled WASM Target.
 	fn is_enabled(&self, span: &SpanMessage) -> bool {
-		self.targets
-			.iter()
-			.filter(|t| t.as_str() != "wasm_tracing")
-			.any(|t| t == &span.target || Some(t) == span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string()).as_ref())
+		if self.targets.iter().any(|t| t == "enable_all_targets") {
+			true
+		} else {
+			self.targets.iter().filter(|t| t.as_str() != "wasm_tracing").any(|t| {
+				t == &span.target || Some(t) == span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string()).as_ref()
+			})
+		}
 	}
 
 	/// Formats spans based upon data types that would be more useful for querying in the context
