@@ -58,8 +58,8 @@ struct ArchiveTraceHandler<B: BlockT> {
 impl<B: BlockT> ArchiveTraceHandler<B> {
 	fn gather_event(&self, event: &Event<'_>, time: DateTime<Utc>) -> Result<()> {
 		let meta = event.metadata();
-		let mut values = TraceData::default();
-		event.record(&mut values);
+		let mut traces = TraceData::default();
+		event.record(&mut traces);
 		let parent_id =
 			event.parent().cloned().or_else(|| self.current_span.id()).ok_or(TracingError::ParentNotFound)?;
 
@@ -72,7 +72,7 @@ impl<B: BlockT> ArchiveTraceHandler<B> {
 			.ok_or(TracingError::CannotAssociateInfo(meta.target().into(), meta.name().into()))?;
 
 		let (target, name) = if meta.name() == WASM_TRACE_IDENTIFIER {
-			match (values.0.remove(WASM_NAME_KEY), values.0.remove(WASM_TARGET_KEY)) {
+			match (traces.0.remove(WASM_NAME_KEY), traces.0.remove(WASM_TARGET_KEY)) {
 				(Some(name), Some(target)) => (name.to_string(), target.to_string()),
 				(Some(name), None) => (name.to_string(), meta.name().to_string()),
 				(None, Some(target)) => (meta.name().to_string(), target.to_string()),
@@ -81,9 +81,25 @@ impl<B: BlockT> ArchiveTraceHandler<B> {
 		} else {
 			(meta.name().to_string(), meta.target().to_string())
 		};
+		let file = traces.0.remove("file").map(Into::into);
+		let line = match traces.0.remove("line").map(Into::into) {
+			Some(DataType::U64(t)) => Ok(Some(t.try_into()?)),
+			None => Ok(None),
+			_ => Err(TracingError::TypeError),
+		}?;
 
-		let event =
-			EventMessage { level: meta.level().clone(), target, name, parent_id, values, block_num, hash, time };
+		let event = EventMessage {
+			level: meta.level().clone(),
+			target,
+			name,
+			parent_id,
+			traces,
+			block_num,
+			hash,
+			time,
+			file,
+			line,
+		};
 
 		smol::block_on(self.addr.send(event))?;
 		Ok(())
@@ -446,14 +462,16 @@ impl Traces {
 
 #[derive(Debug)]
 pub struct EventMessage {
-	block_num: Option<u32>,
-	hash: Option<Vec<u8>>,
-	name: String,
-	target: String,
-	level: Level,
-	values: TraceData,
-	parent_id: Id,
-	time: DateTime<Utc>,
+	pub block_num: Option<u32>,
+	pub hash: Option<Vec<u8>>,
+	pub name: String,
+	pub target: String,
+	pub level: Level,
+	pub traces: TraceData,
+	pub parent_id: Id,
+	pub time: DateTime<Utc>,
+	pub file: Option<String>,
+	pub line: Option<u32>,
 }
 
 impl Message for EventMessage {

@@ -349,22 +349,29 @@ fn shave_nanos(time: std::time::Duration) -> Result<std::time::Duration> {
 #[async_trait::async_trait]
 impl Insert for EventMessage {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
-		Ok(0)
-		/*
+		let parent_id: Option<i32> = Some(i32::try_from(self.parent_id.into_u64())?);
+
 		sqlx::query(
 			r#"
-			INSERT INTO state_traces (block_num, hash, is_event, tim)
+			INSERT INTO state_traces (block_num, hash, is_event, timestamp, file, line, trace_parent_id, target, name, traces)
 			VALUES($1, $2)
 			ON CONFLICT DO NOTHING
 		"#,
 		)
-		.bind(self.version())
-		.bind(self.meta())
+		.bind(self.block_num)
+		.bind(self.hash)
+		.bind(false)
+		.bind(self.time)
+		.bind(self.file)
+		.bind(self.line)
+		.bind(parent_id)
+		.bind(self.target)
+		.bind(self.name)
+		.bind(sqlx::types::Json(self.traces))
 		.execute(conn)
 		.await
 		.map(|d| d.rows_affected())
 		.map_err(Into::into)
-			*/
 	}
 }
 
