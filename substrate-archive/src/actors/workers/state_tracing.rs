@@ -17,7 +17,7 @@
 //! The State Tracing Actor
 //!
 //! Running this Actor collects traces from running WASM that has been compiled with the `with-tracing` feature.
-//! These traces may be used to track the execution of extrinsics and the runtime from initialization to finalization.
+//! These traces may be used to chronologically track the execution of extrinsics inside runtime from initialization to finalization.
 
 use super::ActorPool;
 use chrono::{DateTime, Utc};
