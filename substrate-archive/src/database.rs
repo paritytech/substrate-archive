@@ -361,7 +361,7 @@ impl Insert for EventMessage {
 		)
 		.bind(self.block_num)
 		.bind(self.hash)
-		.bind(false)
+		.bind(true)
 		.bind(self.time)
 		.bind(self.file)
 		.bind(self.line)
