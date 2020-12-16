@@ -18,12 +18,6 @@
 //!
 //! Running this Actor collects traces from running WASM that has been compiled with the `with-tracing` feature.
 //! These traces may be used to track the execution of extrinsics and the runtime from initialization to finalization.
-//!
-//! # Warn
-//! The way the tracing actor exists today is fundamentally blocking. It uses Mutex primitives to coalesce traces before
-//! sending them to the appropriate actor.
-//! Therefore, one must be careful not to block the async executor when adding tracing spans (if ever required) elsewhere in substrate-archive.
-//!
 
 use super::ActorPool;
 use chrono::{DateTime, Utc};
@@ -46,6 +40,11 @@ use xtra::prelude::*;
 
 pub const BLOCK_EXEC_SPAN: &str = "block_execute_task";
 
+/// Collects traces and filters based on target.
+/// The Subscriber implementation is blocking. It uses Mutex primitives to coalesce traces before
+/// sending them to the appropriate actor.
+/// Therefore, one must be careful not to block the async executor when adding tracing spans
+/// using this subscriber implementation anywhere inside an async context in substrate-archive.
 struct ArchiveTraceHandler<B: BlockT> {
 	addr: Address<TracingActor<B>>,
 	spans: Mutex<SpanTree>,
@@ -55,6 +54,7 @@ struct ArchiveTraceHandler<B: BlockT> {
 }
 
 impl<B: BlockT> ArchiveTraceHandler<B> {
+	/// Formats an event as an `EventMessage` and sends it to the TracingActor.
 	fn gather_event(&self, event: &Event<'_>, time: DateTime<Utc>) -> Result<()> {
 		let meta = event.metadata();
 		let mut traces = TraceData::default();
@@ -105,6 +105,20 @@ impl<B: BlockT> ArchiveTraceHandler<B> {
 	}
 }
 
+/// Stores Spans by the root Parent Id.
+/// The root Parent ID is the first span that does not contain a parent id.
+/// Any span proceeding the root parent will be organized by the root parent's ID, even if that span has a different parent_id.
+///```
+/// 				`root_parent`
+/// 				 	\
+/// 				 	 \
+/// 				   `child0`
+/// 					   \
+/// 					    \
+/// 					  `child1`
+/// ```
+/// In this case, `child1` will be in the same `CollatedSpans` category as `child0`,
+/// despite `child1` having `child0` as it's `parent_id`.
 struct SpanTree(HashMap<Id, CollatedSpans>);
 
 impl SpanTree {
@@ -112,6 +126,11 @@ impl SpanTree {
 		Self(HashMap::new())
 	}
 
+	/// Insert a span into the tree.
+	///
+	/// # Errors
+	/// If an span has a parent_id, but the parent_id does not already have a HashMap associated with it,
+	/// this function will fail.
 	fn insert(&mut self, span: SpanMessage) -> Result<()> {
 		match &span.parent_id {
 			Some(id) => match self.find(&id) {
@@ -129,11 +148,18 @@ impl SpanTree {
 		Ok(())
 	}
 
-	/// Get a Span by ID
+	/// Get a Span by ID.
+	/// Tries to find the root_id
+	/// # Returns
+	/// Returns `None` if the ID does not exist in any of the span lists.
 	fn get(&self, id: &Id) -> Option<&SpanMessage> {
 		self.find(id).as_ref().map(|parent_id| self.0.get(parent_id).map(|list| list.get(id))).flatten().flatten()
 	}
 
+	/// Get a mutable reference to a span.
+	///
+	/// # Returns
+	/// Returns `None` if the span cannot be found by its ID
 	fn get_mut(&mut self, id: &Id) -> Option<&mut SpanMessage> {
 		self.find(id)
 			.as_ref()
@@ -142,11 +168,18 @@ impl SpanTree {
 			.flatten()
 	}
 
+	// Remove a span from the list.
+	//
+	// # Returns
+	// Returns the span if it exists in the list, `None` if it did not exist.
 	fn remove(&mut self, id: &Id) -> Option<CollatedSpans> {
 		self.0.remove(id)
 	}
 
 	/// Finds an ID already in the tree, and returns the top-level (parent_id) of the given ID.
+	///
+	/// # Returns
+	/// Returns `None` if the ID cannot be found in any of the stored span lists.
 	fn find(&self, id: &Id) -> Option<Id> {
 		if self.0.contains_key(id) {
 			Some(id.clone())
@@ -156,6 +189,7 @@ impl SpanTree {
 	}
 }
 
+/// List of spans within the same context.
 #[derive(Debug)]
 struct CollatedSpans(Vec<SpanMessage>);
 
@@ -168,18 +202,28 @@ impl CollatedSpans {
 		Self(vec![span])
 	}
 
+	/// Get a span by it's ID
+	///
+	/// # Returns
+	/// Returns `None` if the span does not exist in the list.
 	fn get(&self, id: &Id) -> Option<&SpanMessage> {
 		self.0.iter().find(|span| &span.id == id)
 	}
 
+	/// Get a mutable reference to a span by its ID.
+	///
+	/// # Returns
+	/// Returns `None` if a span does not exist in the list.
 	fn get_mut(&mut self, id: &Id) -> Option<&mut SpanMessage> {
 		self.0.iter_mut().find(|span| &span.id == id)
 	}
 
+	/// Insert a span into the list.
 	fn insert(&mut self, span: SpanMessage) {
 		self.0.push(span);
 	}
 
+	/// Check if a span exists in the list.
 	fn exists(&self, id: &Id) -> bool {
 		self.0.iter().any(|other_id| &other_id.id == id)
 	}
@@ -210,6 +254,7 @@ impl CollatedSpans {
 	}
 }
 
+/// The message a tracing subscriber collects before sending data to the TracingActor.
 #[derive(Debug, Clone)]
 pub struct SpanMessage {
 	pub id: Id,
@@ -224,6 +269,7 @@ pub struct SpanMessage {
 	pub line: Option<u32>,
 }
 
+/// Stateful DataType a Tracing Value may be.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 enum DataType {
@@ -355,6 +401,9 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 	}
 }
 
+/// Handles collecting traces from Runtime Execution.
+/// Expects to receive traces by-block. That is, each vector of Span Messages this actor receives
+/// should be all the traces produces from the execution of a single block.
 pub struct TracingActor<B: BlockT> {
 	targets: String,
 	database: Address<ActorPool<super::DatabaseActor<B>>>,
@@ -365,6 +414,8 @@ impl<B: BlockT> TracingActor<B> {
 		TracingActor { targets, database }
 	}
 
+	/// Formats spans based upon data types that would be more useful for querying in the context
+	/// of a relational database.
 	fn format_spans(&self, spans: Vec<SpanMessage>) -> Result<Vec<SpanMessage>> {
 		let format = |mut span: SpanMessage| -> Result<SpanMessage> {
 			if span.name == WASM_TRACE_IDENTIFIER {
@@ -393,11 +444,13 @@ impl<B: BlockT> TracingActor<B> {
 		spans.into_iter().filter(|s| s.name != BLOCK_EXEC_SPAN).map(format).collect()
 	}
 
+	/// Handles a single event message.
 	async fn handle_event(&self, event: EventMessage) -> Result<()> {
 		self.database.send(event.into()).await?;
 		Ok(())
 	}
 
+	/// Handles CollatedSpans. Collated spans are all spans that result from the execution of a block.
 	async fn handle_spans(&mut self, spans: CollatedSpans) -> Result<()> {
 		let block_num = spans.block_num().ok_or(TracingError::NoBlockNumber)?;
 		let hash = spans.hash().ok_or(TracingError::NoHash)?;
@@ -430,6 +483,7 @@ impl<B: BlockT> Handler<CollatedSpans> for TracingActor<B> {
 	}
 }
 
+/// Finished Trace Data Format. Ready for insertion into a relational database.
 #[derive(Debug)]
 pub struct Traces {
 	block_num: u32,
@@ -446,15 +500,18 @@ impl Traces {
 		Traces { block_num, hash, spans }
 	}
 
+	/// Get the hash these spans come from.
 	pub fn hash(&self) -> Vec<u8> {
 		self.hash.clone()
 	}
 
+	/// Get the block number of the block these spans come from.
 	pub fn block_num(&self) -> u32 {
 		self.block_num
 	}
 }
 
+/// The Event a tracing subscriber collects before sending data to the TracingActor.
 #[derive(Debug)]
 pub struct EventMessage {
 	pub block_num: Option<u32>,
