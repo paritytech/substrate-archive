@@ -81,6 +81,5 @@ dotenv = "0.15.0"
 
 [features]
 default = ["logging"]
-state-tracing = []
 logging = ["substrate-archive-common/logging"]
 test_rocksdb = []
