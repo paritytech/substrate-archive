@@ -24,7 +24,6 @@
 //! sending them to the appropriate actor.
 //! Therefore, one must be careful not to block the async executor when adding tracing spans (if ever required) elsewhere in substrate-archive.
 //!
-//!
 
 use super::ActorPool;
 use chrono::{DateTime, Utc};
@@ -106,7 +105,7 @@ impl<B: BlockT> ArchiveTraceHandler<B> {
 	}
 }
 
-struct SpanTree(HashMap<Id, SortedSpans>);
+struct SpanTree(HashMap<Id, CollatedSpans>);
 
 impl SpanTree {
 	fn new() -> Self {
@@ -124,7 +123,7 @@ impl SpanTree {
 				}
 			},
 			None => {
-				self.0.insert(span.id.clone(), SortedSpans::new(span));
+				self.0.insert(span.id.clone(), CollatedSpans::new(span));
 			}
 		}
 		Ok(())
@@ -143,7 +142,7 @@ impl SpanTree {
 			.flatten()
 	}
 
-	fn remove(&mut self, id: &Id) -> Option<SortedSpans> {
+	fn remove(&mut self, id: &Id) -> Option<CollatedSpans> {
 		self.0.remove(id)
 	}
 
@@ -157,17 +156,14 @@ impl SpanTree {
 	}
 }
 
-// TODO Don't really need this since a user can just
-// sort themselves from Postgres
-/// List of Spans sorted by ID
 #[derive(Debug)]
-struct SortedSpans(Vec<SpanMessage>);
+struct CollatedSpans(Vec<SpanMessage>);
 
-impl Message for SortedSpans {
+impl Message for CollatedSpans {
 	type Result = ();
 }
 
-impl SortedSpans {
+impl CollatedSpans {
 	fn new(span: SpanMessage) -> Self {
 		Self(vec![span])
 	}
@@ -181,8 +177,7 @@ impl SortedSpans {
 	}
 
 	fn insert(&mut self, span: SpanMessage) {
-		let position = self.0.binary_search_by_key(&span.id.into_u64(), |s| s.id.into_u64()).unwrap_or_else(|id| id);
-		self.0.insert(position, span);
+		self.0.push(span);
 	}
 
 	fn exists(&self, id: &Id) -> bool {
@@ -403,7 +398,7 @@ impl<B: BlockT> TracingActor<B> {
 		Ok(())
 	}
 
-	async fn handle_spans(&mut self, spans: SortedSpans) -> Result<()> {
+	async fn handle_spans(&mut self, spans: CollatedSpans) -> Result<()> {
 		let block_num = spans.block_num().ok_or(TracingError::NoBlockNumber)?;
 		let hash = spans.hash().ok_or(TracingError::NoHash)?;
 		let spans = self.format_spans(spans.into_inner())?;
@@ -425,8 +420,8 @@ impl<B: BlockT> Actor for TracingActor<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<SortedSpans> for TracingActor<B> {
-	async fn handle(&mut self, msg: SortedSpans, ctx: &mut Context<Self>) {
+impl<B: BlockT> Handler<CollatedSpans> for TracingActor<B> {
+	async fn handle(&mut self, msg: CollatedSpans, ctx: &mut Context<Self>) {
 		match self.handle_spans(msg).await {
 			Err(Disconnected) => ctx.stop(),
 			Err(e) => log::error!("{}", e.to_string()),

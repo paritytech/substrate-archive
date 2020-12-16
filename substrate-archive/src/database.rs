@@ -328,7 +328,8 @@ impl Insert for Traces {
 }
 
 // Chrono depends on an error type in `time` that is a full version behind the one that SQLX uses
-// This function avoids including two versions of the time library
+// This function avoids depending on two time lib.
+// Old time is disabled in chrono by not providing the feature flag in Cargo.toml.
 fn time_to_std(time: chrono::Duration) -> Result<std::time::Duration> {
 	if time < chrono::Duration::zero() {
 		Err(Error::TimestampOutOfRange)
