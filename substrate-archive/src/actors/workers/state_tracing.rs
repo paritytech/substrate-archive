@@ -38,7 +38,10 @@ use tracing::{
 use tracing_subscriber::CurrentSpan;
 use xtra::prelude::*;
 
+/// Span which surrounds a single blocks execution.
 pub const BLOCK_EXEC_SPAN: &str = "block_execute_task";
+/// Special Filter to enable all tracing targets.
+pub const ENABLE_ALL_TARGETS: &str = "enable_all_targets";
 
 /// Collects traces and filters based on target.
 /// The Subscriber implementation is blocking. It uses Mutex primitives to coalesce traces before
@@ -48,7 +51,7 @@ pub const BLOCK_EXEC_SPAN: &str = "block_execute_task";
 struct ArchiveTraceHandler<B: BlockT> {
 	addr: Address<TracingActor<B>>,
 	spans: Mutex<SpanTree>,
-	targets: Vec<String>,
+	targets: Vec<(String, Level)>,
 	counter: AtomicU64,
 	current_span: CurrentSpan,
 }
@@ -322,7 +325,7 @@ impl Visit for TraceData {
 }
 
 impl<B: BlockT> ArchiveTraceHandler<B> {
-	fn new(addr: Address<TracingActor<B>>, targets: Vec<String>) -> Self {
+	fn new(addr: Address<TracingActor<B>>, targets: Vec<(String, Level)>) -> Self {
 		// must start indexing from 1 otherwise `tracing` panics
 		let counter = AtomicU64::new(1);
 		let spans = Mutex::new(SpanTree::new());
@@ -332,7 +335,7 @@ impl<B: BlockT> ArchiveTraceHandler<B> {
 
 impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 	fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-		self.targets.iter().any(|t| t == metadata.target()) || metadata.target() == "substrate_archive::tasks"
+		self.targets.iter().any(|t| &t.0 == metadata.target()) || metadata.target() == "substrate_archive::tasks"
 	}
 
 	fn new_span(&self, attrs: &Attributes<'_>) -> Id {
@@ -400,27 +403,46 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 	}
 }
 
+// Default to TRACE if no level given or unable to parse Level
+// We do not support a global `Level` currently
+fn parse_target(s: &str) -> (String, Level) {
+	match s.find('=') {
+		Some(i) => {
+			let target = s[0..i].to_string();
+			if s.len() > i {
+				let level = s[i + 1..s.len()].parse::<Level>().unwrap_or(Level::TRACE);
+				(target, level)
+			} else {
+				(target, Level::TRACE)
+			}
+		}
+		None => (s.to_string(), Level::TRACE),
+	}
+}
+
 /// Handles collecting traces from Runtime Execution.
 /// Expects to receive traces by-block. That is, each vector of Span Messages this actor receives
 /// should be all the traces produces from the execution of a single block.
 pub struct TracingActor<B: BlockT> {
-	targets: Vec<String>,
+	targets: Vec<(String, Level)>,
 	database: Address<ActorPool<super::DatabaseActor<B>>>,
 }
 
 impl<B: BlockT> TracingActor<B> {
 	pub fn new(targets: String, database: Address<ActorPool<super::DatabaseActor<B>>>) -> Self {
-		let targets = targets.split(',').map(String::from).collect();
+		let targets = targets.split(',').map(|s| parse_target(s)).collect();
 		TracingActor { targets, database }
 	}
 
-	/// Returns true if a span is part of an enabled WASM Target.
+	/// Returns true if a span is part of an enabled Target. Checks WASM in addition to the spans target.
 	fn is_enabled(&self, span: &SpanMessage) -> bool {
-		if self.targets.iter().any(|t| t == "enable_all_targets") {
+		if self.targets.iter().any(|t| t.0 == ENABLE_ALL_TARGETS && span.level <= t.1) {
 			true
 		} else {
-			self.targets.iter().filter(|t| t.as_str() != "wasm_tracing").any(|t| {
-				t == &span.target || Some(t) == span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string()).as_ref()
+			self.targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
+				(span.target.starts_with(&t.0.as_str()) && span.level <= t.1)
+					|| (Some(&t.0) == span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string()).as_ref()
+						&& span.level <= t.1)
 			})
 		}
 	}
@@ -470,7 +492,6 @@ impl<B: BlockT> Actor for TracingActor<B> {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		let addr = ctx.address().expect("Actor just started");
 		let handler = ArchiveTraceHandler::new(addr.clone(), self.targets.clone());
-		log::debug!("Trace Targets [{}]", self.targets.join(",").as_str());
 		if let Err(_) = tracing::subscriber::set_global_default(handler) {
 			log::warn!("Global default subscriber already set elsewhere");
 		}

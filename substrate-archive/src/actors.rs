@@ -204,7 +204,6 @@ where
 		let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(conf.workers)
-			.max_tasks(500)
 			.build()?;
 
 		loop {

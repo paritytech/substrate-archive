@@ -24,13 +24,13 @@ cache_size = 128
 # This also increases substrate-archives memory usage.
 # Generally, you want 32 pages per block worker
 # memory usage
-block_workers = 2
+block_workers = 8
 # Number of 64KB Heap Pages to allocate for WASM execution
-wasm_pages = 512
+wasm_pages = 2048
 
 # Maximium number of blocks to load and insert into database at a time. Useful
 # for controlling memory usage. If not specified, defaults to 100,000.
-max_block_load = 300_000
+max_block_load = 100_000
 
 db_host = "localhost"
 db_port = "5432"
@@ -42,11 +42,10 @@ db_pass = "123"
 # Each chain will get it's own PostgreSQL database if run with that chain
 # A fully synced Kusama PostgreSQL database (~2.8Million blocks) takes up around 70GB
 # These variables can also be exposed with DB_NAME environment variable
-westend_db = "westend-archive2"
+westend_db = "westend-archive"
 kusama_db = "kusama-db"
 polkadot_db = "polkadot-db"
 
 wasm_tracing_targets = '''wasm_tracing,enable_all_targets'''
-# wasm_tracing_targets = '''frame_executive,pallet_scheduler,pallet_session,pallet_offences,pallet_staking,pallet_authorship,pallet_timestamp,pallet_babe,pallet_randomness_collective_flip,'''
-# wasm_tracing_targets = '''wasm_tracing,frame_executive'''
+
 
