@@ -196,8 +196,7 @@ where
 		let pool = actors.db_pool.send(GetState::Pool.into()).await?.await?.pool();
 		let listener = Self::init_listeners(conf.pg_url()).await?;
 		let mut conn = pool.acquire().await?;
-		// TODO: UNCOMMENT BEFORE MERGING INTO MASTER (for testing purposes)
-		// Self::restore_missing_storage(&mut *conn).await?;
+		Self::restore_missing_storage(&mut *conn).await?;
 		let env = Environment::<B, R, C, D>::new(conf.backend().clone(), client, actors.storage.clone());
 		let env = AssertUnwindSafe(env);
 

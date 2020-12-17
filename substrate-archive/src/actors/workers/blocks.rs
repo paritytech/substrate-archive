@@ -140,14 +140,10 @@ where
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		// using this instead of notify_immediately because
 		// ReIndexing is async process
-		/*
 		ctx.address()
 			.expect("Actor just started")
 			.do_send(ReIndex)
 			.expect("Actor cannot be disconnected; just started");
-		 */
-		// TODO UNCOMMENT ABOVE AND REMOVE BELOW BEFORE MERGING INTO MASTER
-		self.last_max = 3_000_000;
 		ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl);
 	}
 }
