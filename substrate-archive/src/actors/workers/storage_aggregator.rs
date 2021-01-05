@@ -17,11 +17,13 @@
 //! Module that accepts individual storage entries and wraps them up into batch requests for
 //! Postgres
 
-use super::{ActorPool, DatabaseActor};
-use crate::actors::msg::VecStorageWrap;
+use xtra::prelude::*;
+
 use sp_runtime::traits::Block as BlockT;
 use substrate_archive_common::{types::Storage, Result};
-use xtra::prelude::*;
+
+use super::{ActorPool, DatabaseActor};
+use crate::actors::msg::VecStorageWrap;
 
 pub struct StorageAggregator<B: BlockT + Unpin> {
 	db: Address<ActorPool<DatabaseActor<B>>>,
@@ -44,9 +46,9 @@ where
 {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		let addr = ctx.address().expect("Actor just started");
-		smol::Task::spawn(async move {
+		smol::spawn(async move {
 			loop {
-				smol::Timer::new(std::time::Duration::from_secs(1)).await;
+				smol::Timer::after(std::time::Duration::from_secs(1)).await;
 				if addr.send(SendStorage).await.is_err() {
 					break;
 				}
@@ -55,7 +57,7 @@ where
 		.detach();
 	}
 
-	async fn stopped(&mut self, _: &mut Context<Self>) {
+	async fn stopped(&mut self) {
 		let len = self.storage.len();
 		let storage = std::mem::take(&mut self.storage);
 		// insert any storage left in queue

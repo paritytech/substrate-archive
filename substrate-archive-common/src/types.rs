@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
 
-#[derive(Encode, Decode, Debug, Clone)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct Block<B: BlockT> {
 	pub inner: SignedBlock<B>,
 	pub spec: u32,
@@ -68,7 +68,7 @@ impl<B: BlockT> BatchBlock<B> {
 }
 
 /// NewType for Storage Data
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Storage<Block: BlockT> {
 	hash: Block::Hash,
 	block_num: u32,

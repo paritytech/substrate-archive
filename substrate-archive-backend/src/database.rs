@@ -17,10 +17,13 @@
 //! Custom Read-Only Database Instance using RocksDB Secondary features
 //! Will try catching up with primary database on every `get()`
 
+use std::path::PathBuf;
+
 use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
+
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
-use std::path::PathBuf;
+
 use substrate_archive_common::{KeyValuePair, ReadOnlyDB, Result, NUM_COLUMNS};
 
 pub struct Config {

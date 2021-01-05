@@ -14,11 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::cli_opts::CliOpts;
+use std::path::{Path, PathBuf};
+
 use anyhow::Result;
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
+
 use substrate_archive::MigrationConfig;
+
+use crate::cli_opts::CliOpts;
 
 #[derive(Debug, Clone, Deserialize)]
 struct TomlConfig {

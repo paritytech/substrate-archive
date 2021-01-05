@@ -16,13 +16,16 @@
 
 //! various utilities that make interfacing with substrate easier
 
+use std::convert::TryInto;
+
 use codec::Decode;
 use kvdb::DBValue;
+
 use sp_runtime::{
 	generic::BlockId,
 	traits::{Block as BlockT, Header as HeaderT, UniqueSaturatedFrom, UniqueSaturatedInto, Zero},
 };
-use std::convert::TryInto;
+
 use substrate_archive_common::{Error, ReadOnlyDB, Result};
 
 pub type NumberIndexKey = [u8; 4];

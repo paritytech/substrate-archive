@@ -15,12 +15,14 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Main messages and NewTypes that can be sent between actors
+
+use sp_runtime::traits::Block as BlockT;
+use xtra::prelude::*;
+
 use crate::{
 	types::{BatchBlock, Block, Metadata, Storage},
 	Result,
 };
-use sp_runtime::traits::Block as BlockT;
-use xtra::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Die;

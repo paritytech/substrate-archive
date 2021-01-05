@@ -14,9 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use sqlx::{postgres::PgConnection, Connection};
 use std::env;
 use std::string::ToString;
+
+use sqlx::{postgres::PgConnection, Connection};
+
 use substrate_archive_common::Result;
 
 // TODO Change to just accept a DB URL.

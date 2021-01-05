@@ -22,15 +22,17 @@ mod frontend;
 mod read_only_backend;
 mod runtime_version_cache;
 mod util;
+
+use std::sync::Arc;
+
+use sc_client_api::Backend as BackendT;
+use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
+
 use self::{
 	frontend::{GetMetadata, GetRuntimeVersion},
 	read_only_backend::TrieState,
 };
-use sc_client_api::Backend as BackendT;
-use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
-use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
-use std::sync::Arc;
-
 // re-exports
 pub use self::{
 	block_exec::BlockExecutor,

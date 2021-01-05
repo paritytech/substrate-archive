@@ -24,9 +24,10 @@ pub mod queries;
 use async_trait::async_trait;
 use batch::Batch;
 use codec::Encode;
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
+
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use substrate_archive_common::{models, types::*, Result};
 
 pub use self::listener::*;

@@ -13,9 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{database::GetState, ActorPool};
-use crate::{database::DbConn, queries};
 use itertools::Itertools;
+use xtra::prelude::*;
+
 use sp_runtime::{
 	generic::BlockId,
 	traits::{Block as BlockT, Header as _, NumberFor},
@@ -25,7 +25,9 @@ use substrate_archive_common::{
 	types::{BatchBlock, Block, Metadata as MetadataT},
 	Result,
 };
-use xtra::prelude::*;
+
+use super::{database::GetState, ActorPool};
+use crate::{database::DbConn, queries};
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
@@ -47,7 +49,7 @@ impl<B: BlockT + Unpin> Metadata<B> {
 		if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
 			let meta = self.meta.clone();
 			log::info!("Getting metadata for hash {}, version {}", hex::encode(hash.as_ref()), ver);
-			let meta = smol::unblock!(meta.metadata(&BlockId::hash(hash)))?;
+			let meta = smol::unblock(move || meta.metadata(&BlockId::hash(hash))).await?;
 			let meta: sp_core::Bytes = meta.into();
 			let meta = MetadataT::new(ver, meta.0);
 			self.addr.send(meta.into()).await?.await;

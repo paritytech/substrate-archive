@@ -16,10 +16,12 @@
 //! A cache of runtime versions
 //! Will only call the `runtime_version` function once per wasm blob
 
-use super::ReadOnlyBackend;
+use std::sync::Arc;
+
 use arc_swap::ArcSwap;
 use codec::Decode;
 use hashbrown::HashMap;
+
 use sc_executor::sp_wasm_interface::HostFunctions;
 use sc_executor::{WasmExecutionMethod, WasmExecutor};
 use sp_core::traits::CallInWasmExt;
@@ -30,8 +32,10 @@ use sp_runtime::{
 use sp_state_machine::BasicExternalities;
 use sp_storage::well_known_keys;
 use sp_version::RuntimeVersion;
-use std::sync::Arc;
+
 use substrate_archive_common::{types::Block, util, Error, ReadOnlyDB, Result};
+
+use crate::read_only_backend::ReadOnlyBackend;
 
 pub struct RuntimeVersionCache<B: BlockT, D: ReadOnlyDB> {
 	/// Hash of the WASM Blob -> RuntimeVersion

@@ -18,14 +18,17 @@
 //! Rather than fetching many blocks from RocksDB by number,
 //! this is a (much) faster alternative
 
-use crate::database::BlockModel;
+use std::marker::PhantomData;
+
 use codec::{Decode, Encode};
 use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, DigestFor, Header as HeaderT},
 };
-use std::marker::PhantomData;
+
 use substrate_archive_common::{types, Error};
+
+use crate::database::BlockModel;
 
 struct GenericParts<B: BlockT>(
 	<B::Header as HeaderT>::Hash,

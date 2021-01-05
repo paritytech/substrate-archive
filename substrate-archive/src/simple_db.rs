@@ -19,9 +19,6 @@
 //! and saves these entries to disk to be reloaded the next time a program starts
 //! avoids having to search for missing entries in PostgreSQL and re-fetching from running node
 
-use substrate_archive_common::error::Error;
-use flate2::{read::DeflateDecoder, write::DeflateEncoder, Compression};
-use serde::{de::DeserializeOwned, Serialize};
 use std::{
     default::Default,
     fs::{self, File, OpenOptions},
@@ -30,6 +27,11 @@ use std::{
     marker::PhantomData,
     path::PathBuf,
 };
+
+use flate2::{read::DeflateDecoder, write::DeflateEncoder, Compression};
+use serde::{de::DeserializeOwned, Serialize};
+
+use substrate_archive_common::error::Error;
 
 #[derive(Debug)]
 pub(crate) struct SimpleDb<D: DeserializeOwned + Serialize + Default> {

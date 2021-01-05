@@ -16,13 +16,17 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
-use super::BlockModel;
+use std::convert::TryFrom;
+
 use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
-use sp_runtime::traits::Block as BlockT;
 use sqlx::PgConnection;
-use std::convert::TryFrom;
+
+use sp_runtime::traits::Block as BlockT;
+
 use substrate_archive_common::Result;
+
+use super::BlockModel;
 
 /// Return type of queries that `SELECT version`
 struct Version {

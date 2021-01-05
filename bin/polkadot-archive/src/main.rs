@@ -17,12 +17,12 @@ mod archive;
 mod cli_opts;
 mod config;
 
-use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+
 use substrate_archive_backend::SecondaryRocksDB;
 
-pub fn main() -> Result<()> {
+pub fn main() -> anyhow::Result<()> {
 	let config = config::Config::new()?;
 	substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug)?;
 

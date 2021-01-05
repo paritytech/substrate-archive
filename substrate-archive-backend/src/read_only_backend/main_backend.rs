@@ -16,8 +16,8 @@
 
 //! Implements the main backend trait for ReadOnlyBackend struct
 
-use super::misc_backend::{OffchainStorageBackend, RealBlockImportOperation};
-use super::ReadOnlyBackend;
+use std::marker::PhantomData;
+
 use sc_client_api::{
 	backend::{Backend, PrunableStateChangesTrieStorage},
 	client::UsageInfo,
@@ -28,8 +28,11 @@ use sp_runtime::{
 	traits::{Block as BlockT, NumberFor},
 	Justification,
 };
-use std::marker::PhantomData;
+
 use substrate_archive_common::ReadOnlyDB;
+
+use super::misc_backend::{OffchainStorageBackend, RealBlockImportOperation};
+use crate::read_only_backend::ReadOnlyBackend;
 
 type ChainResult<T> = Result<T, BlockchainError>;
 

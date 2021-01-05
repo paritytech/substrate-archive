@@ -28,12 +28,12 @@ mod main_backend;
 mod misc_backend;
 mod state_backend;
 
-pub use self::state_backend::TrieState;
-use self::state_backend::{DbState, StateVault};
-use super::util::columns;
+use std::{convert::TryInto, sync::Arc};
+
 use codec::Decode;
 use hash_db::Prefix;
 use kvdb::DBValue;
+
 use sc_client_api::backend::StateBackend;
 use sp_blockchain::{Backend as _, HeaderBackend as _};
 use sp_runtime::{
@@ -41,8 +41,12 @@ use sp_runtime::{
 	traits::{Block as BlockT, HashFor, Header as HeaderT},
 	Justification,
 };
-use std::{convert::TryInto, sync::Arc};
+
 use substrate_archive_common::{ReadOnlyDB, Result};
+
+pub use self::state_backend::TrieState;
+use self::state_backend::{DbState, StateVault};
+use crate::util::columns;
 
 pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDB> {
 	db: Arc<D>,

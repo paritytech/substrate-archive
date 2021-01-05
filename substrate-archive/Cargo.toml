@@ -6,61 +6,45 @@ edition = "2018"
 
 [dependencies]
 # external
+async-trait = "0.1"
+coil = { git = "https://github.com/insipx/coil", package = "coil" }
 log = "0.4"
-futures = { version = "0.3" }
 fdlimit = "0.2"
+flume = "0.10.1"
+futures = "0.3"
+hashbrown = { version = "0.9", features = ["inline-more"] }
+hex = "0.4"
+itertools = "0.9"
+itoa = "0.4.6"
+# Just a simple wrapper around std::thread that `joins on drop`
+jod-thread = "0.1.2"
+num_cpus = "1"
+parking_lot = "0.10"
+rayon = "1.4"
+rmp-serde = "0.14"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde-aux = "0.6.1"
-dirs = { version = "3", package = "directories" }
+smol = "1.2"
 sqlx = { version = "0.4", default-features = false, features = ["postgres", "macros", "runtime-async-std-rustls", "migrate", "json", "offline"] }
-async-trait = "0.1"
-hex = "0.4"
-itertools = "0.9"
-# 0.7.2 introduces breaking changes with Send/Sync bounds
-flume = "=0.7.2"
-parking_lot = "0.10"
-parity-util-mem = "0.7"
-hashbrown = { version = "0.8", features = ["inline-more"] }
+tempfile = "3.1.0"
 thiserror = "1.0"
-rayon = "1.4"
-num_cpus = "1"
-xtra = { version = "0.5.0-beta.4", features = ["with-smol-0_3"] }
-# Just a simple wrapper around std::thread that `joins on drop`
-jod-thread = "0.1.2"
-smol = { version = "0.3" }
-coil = { git = "https://github.com/insipx/coil", package = "coil"}
-rmp-serde = "0.14"
+xtra = { version = "0.5.0-rc.1", features = ["with-smol-1"] }
 
 # Parity
-primitive-types = "0.7"
-kvdb = "0.7"
-kvdb-rocksdb = "0.9"
 codec = { package = "parity-scale-codec", version = "1.3", default-features = false, features = ["derive", "full"] }
-hash-db = "0.15"
+primitive-types = "0.7"
 
 # Substrate is pinned to the latest substrate version that polkadot release v0.8.25 is
 # using. This is necessary to make substrate-archive compatible with the polkadot runtime.
-sp-database = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-version = {  git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-itoa = "0.4.6"
-include_dir = "0.6.0"
-tempfile = "3.1.0"
-async-executor = "0.1.2"
-arc-swap = "0.4.7"
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Workspace
 substrate-archive-backend = { path = '../substrate-archive-backend' }

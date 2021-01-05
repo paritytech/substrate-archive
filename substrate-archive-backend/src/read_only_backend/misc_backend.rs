@@ -19,8 +19,8 @@
 //! Most will return None, Err, or panic in worst-case scenario
 //! They should never be called under normal circumstances
 
-use super::ReadOnlyBackend;
-use crate::util::columns;
+use std::marker::PhantomData;
+
 use sc_client_api::backend::{AuxStore, BlockImportOperation, NewBlockState, TransactionForSB};
 use sp_blockchain::{well_known_cache_keys::Id, Error as BlockchainError};
 use sp_core::offchain::OffchainStorage;
@@ -31,8 +31,11 @@ use sp_runtime::{
 };
 use sp_state_machine::{ChangesTrieTransaction, ChildStorageCollection, StorageCollection};
 use sp_storage::Storage;
-use std::marker::PhantomData;
+
 use substrate_archive_common::ReadOnlyDB;
+
+use crate::read_only_backend::ReadOnlyBackend;
+use crate::util::columns;
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
