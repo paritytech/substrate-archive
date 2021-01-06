@@ -93,7 +93,7 @@ impl<B: BlockT> DatabaseActor<B> {
 		let mut conn = self.db.conn().await?;
 		let mut block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
 		block_nums.sort_unstable();
-		if block_nums.len() > 0 {
+		if !block_nums.is_empty() {
 			log::debug!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
 		}
 		let len = block_nums.len();

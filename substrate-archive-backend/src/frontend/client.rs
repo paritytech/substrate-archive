@@ -142,13 +142,12 @@ where
 	type StateBackend = TrieState<Block, D>;
 
 	fn call_api_at<
-		'a,
 		R: Encode + Decode + PartialEq,
 		NC: FnOnce() -> std::result::Result<R, String> + UnwindSafe,
 		C: CoreApi<Block, Error = sp_blockchain::Error>,
 	>(
 		&self,
-		params: CallApiAtParams<'a, Block, C, NC, TrieState<Block, D>>,
+		params: CallApiAtParams<'_, Block, C, NC, TrieState<Block, D>>,
 	) -> sp_blockchain::Result<NativeOrEncoded<R>> {
 		let core_api = params.core_api;
 		let at = params.at;

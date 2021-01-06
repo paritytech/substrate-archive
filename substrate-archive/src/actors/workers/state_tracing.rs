@@ -71,7 +71,7 @@ impl<B: BlockT> ArchiveTraceHandler<B> {
 			.0
 			.get(&parent_id)
 			.map(|spans| (spans.block_num(), spans.hash()))
-			.ok_or(TracingError::CannotAssociateInfo(meta.target().into(), meta.name().into()))?;
+			.ok_or_else(|| TracingError::CannotAssociateInfo(meta.target().into(), meta.name().into()))?;
 
 		let (target, name) = if meta.name() == WASM_TRACE_IDENTIFIER {
 			match (traces.0.remove(WASM_NAME_KEY), traces.0.remove(WASM_TARGET_KEY)) {
@@ -90,18 +90,8 @@ impl<B: BlockT> ArchiveTraceHandler<B> {
 			_ => Err(TracingError::TypeError),
 		}?;
 
-		let event = EventMessage {
-			level: meta.level().clone(),
-			target,
-			name,
-			parent_id,
-			traces,
-			block_num,
-			hash,
-			time,
-			file,
-			line,
-		};
+		let event =
+			EventMessage { level: *meta.level(), target, name, parent_id, traces, block_num, hash, time, file, line };
 
 		smol::block_on(self.addr.send(event))?;
 		Ok(())
@@ -335,7 +325,7 @@ impl<B: BlockT> ArchiveTraceHandler<B> {
 
 impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 	fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-		self.targets.iter().any(|t| &t.0 == metadata.target()) || metadata.target() == "substrate_archive::tasks"
+		self.targets.iter().any(|t| t.0 == metadata.target()) || metadata.target() == "substrate_archive::tasks"
 	}
 
 	fn new_span(&self, attrs: &Attributes<'_>) -> Id {
@@ -348,7 +338,7 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 			parent_id: attrs.parent().cloned().or_else(|| self.current_span.id()),
 			name: meta.name().to_string(),
 			target: meta.target().to_string(),
-			level: meta.level().clone(),
+			level: *meta.level(),
 			start_time: Utc::now(),
 			overall_time: chrono::Duration::zero(),
 			file: None,
@@ -395,7 +385,7 @@ impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 
 		if spans.get(id).map(|s| s.name.as_str()) == Some(BLOCK_EXEC_SPAN) {
 			if let Some(spans) = spans.remove(id) {
-				if let Err(_) = smol::block_on(self.addr.send(spans)) {
+				if smol::block_on(self.addr.send(spans)).is_err() {
 					log::error!("Tracing span message failed to send");
 				}
 			}
@@ -491,8 +481,8 @@ impl<B: BlockT> TracingActor<B> {
 impl<B: BlockT> Actor for TracingActor<B> {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		let addr = ctx.address().expect("Actor just started");
-		let handler = ArchiveTraceHandler::new(addr.clone(), self.targets.clone());
-		if let Err(_) = tracing::subscriber::set_global_default(handler) {
+		let handler = ArchiveTraceHandler::new(addr, self.targets.clone());
+		if tracing::subscriber::set_global_default(handler).is_err() {
 			log::warn!("Global default subscriber already set elsewhere");
 		}
 	}

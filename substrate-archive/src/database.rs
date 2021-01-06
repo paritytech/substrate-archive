@@ -342,7 +342,6 @@ fn time_to_std(time: chrono::Duration) -> Result<std::time::Duration> {
 // that stores seconds + extra nanoseconds.
 // Postgres does not support nanosecond precision.
 fn shave_nanos(time: std::time::Duration) -> Result<std::time::Duration> {
-	let time: std::time::Duration = time.into();
 	let extra = time.as_nanos() % 1000;
 	Ok(time - std::time::Duration::from_nanos(extra.try_into()?))
 }

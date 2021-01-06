@@ -238,7 +238,7 @@ where
 			backend,
 			client.clone(),
 			block_workers,
-			pg_url.clone(),
+			pg_url,
 			max_block_load,
 			self.wasm_tracing.map(|t| t.targets),
 		);
