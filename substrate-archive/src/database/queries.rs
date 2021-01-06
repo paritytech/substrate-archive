@@ -24,9 +24,7 @@ use sqlx::PgConnection;
 
 use sp_runtime::traits::Block as BlockT;
 
-use substrate_archive_common::Result;
-
-use super::BlockModel;
+use substrate_archive_common::{models::BlockModel, Result};
 
 /// Return type of queries that `SELECT version`
 struct Version {

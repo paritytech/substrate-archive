@@ -19,29 +19,33 @@
 mod actor_pool;
 mod workers;
 
+use std::marker::PhantomData;
+use std::panic::AssertUnwindSafe;
+use std::sync::Arc;
+
+use coil::Job as _;
+use futures::{future::BoxFuture, FutureExt};
+use hashbrown::HashSet;
+use serde::de::DeserializeOwned;
+use xtra::{prelude::*, spawn::Smol, Disconnected};
+
+use sc_client_api::backend;
+use sp_api::{ApiExt, ConstructRuntimeApi};
+use sp_block_builder::BlockBuilder as BlockBuilderApi;
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+
+use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
+use substrate_archive_common::{msg, ReadOnlyDB, Result};
+
 pub use self::actor_pool::ActorPool;
 use self::workers::GetState;
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
-use super::{
+use crate::{
 	database::{queries, Channel, Listener},
 	sql_block_builder::BlockBuilder as SqlBlockBuilder,
 	tasks::Environment,
 	traits::Archive,
 };
-use coil::Job as _;
-use futures::{future::BoxFuture, FutureExt};
-use hashbrown::HashSet;
-use sc_client_api::backend;
-use serde::de::DeserializeOwned;
-use sp_api::{ApiExt, ConstructRuntimeApi};
-use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-use std::marker::PhantomData;
-use std::panic::AssertUnwindSafe;
-use std::sync::Arc;
-use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
-pub use substrate_archive_common::{msg, ReadOnlyDB, Result};
-use xtra::{prelude::*, spawn::Smol, Disconnected};
 
 // TODO: Split this up into two objects
 // System should be a factory that produces objects that should be spawned

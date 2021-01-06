@@ -15,6 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::env;
+use std::fmt;
 use std::string::ToString;
 
 use sqlx::{postgres::PgConnection, Connection};
@@ -26,6 +27,7 @@ use substrate_archive_common::Result;
 
 /// Run all the migrations.
 /// Returns the database url.
+///
 /// # Panics
 /// Panics if a required environment variable is not found
 /// or if the environment variable contains invalid unicode
@@ -45,8 +47,8 @@ pub struct MigrationConfig {
 	pub name: Option<String>,
 }
 
-impl std::fmt::Display for MigrationConfig {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for MigrationConfig {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "{}", self.url())
 	}
 }
@@ -61,17 +63,17 @@ impl MigrationConfig {
 /// Internal struct
 /// passed to build a Database URL
 struct MigrateConfigParsed {
-	host: String,
-	port: String,
 	user: Option<String>,
 	pass: Option<String>,
+	host: String,
+	port: String,
 	name: String,
 }
 
 impl MigrateConfigParsed {
 	/// build a database url
 	fn build_url(&self) -> String {
-		let mut url: String = "postgres".to_string() + "://";
+		let mut url = "postgres://".to_string();
 
 		if let Some(user) = &self.user {
 			url = url + &user;
@@ -92,17 +94,14 @@ impl MigrateConfigParsed {
 }
 
 fn parse(conf: MigrationConfig) -> MigrateConfigParsed {
-	let host: String = conf.host.unwrap_or_else(|| process_var("DB_HOST").unwrap_or_else(|| "localhost".to_string()));
-
-	let port: String = conf.port.unwrap_or_else(|| process_var("DB_PORT").unwrap_or_else(|| "5432".to_string()));
-
 	let user = if conf.user.is_some() { conf.user } else { process_var("DB_USER") };
-
 	let pass = if conf.pass.is_some() { conf.pass } else { process_var("DB_PASS") };
 
-	let name: String = conf.name.unwrap_or_else(|| process_var("DB_NAME").expect("database name must be defined"));
+	let host = conf.host.unwrap_or_else(|| process_var("DB_HOST").unwrap_or_else(|| "localhost".to_string()));
+	let port = conf.port.unwrap_or_else(|| process_var("DB_PORT").unwrap_or_else(|| "5432".to_string()));
+	let name = conf.name.unwrap_or_else(|| process_var("DB_NAME").expect("database name must be defined"));
 
-	MigrateConfigParsed { host, port, user, pass, name }
+	MigrateConfigParsed { user, pass, host, port, name }
 }
 
 /// process an environment variable
@@ -137,10 +136,10 @@ mod test {
 	#[test]
 	fn should_create_correct_db_url() {
 		let conf = MigrateConfigParsed {
-			host: "localhost".to_string(),
-			port: "5432".to_string(),
 			user: Some("archive".to_string()),
 			pass: Some("default".to_string()),
+			host: "localhost".to_string(),
+			port: "5432".to_string(),
 			name: "archive".to_string(),
 		};
 		let url = conf.build_url();

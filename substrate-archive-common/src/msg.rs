@@ -16,12 +16,13 @@
 
 //! Main messages and NewTypes that can be sent between actors
 
-use sp_runtime::traits::Block as BlockT;
 use xtra::prelude::*;
 
+use sp_runtime::traits::Block as BlockT;
+
 use crate::{
+	error::Result,
 	types::{BatchBlock, Block, Metadata, Storage},
-	Result,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

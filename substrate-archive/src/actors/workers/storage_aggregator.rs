@@ -20,10 +20,14 @@
 use xtra::prelude::*;
 
 use sp_runtime::traits::Block as BlockT;
-use substrate_archive_common::{types::Storage, Result};
 
-use super::{ActorPool, DatabaseActor};
-use crate::actors::msg::VecStorageWrap;
+use substrate_archive_common::{
+	msg::{self, VecStorageWrap},
+	types::Storage,
+	Result,
+};
+
+use crate::actors::{actor_pool::ActorPool, workers::database::DatabaseActor};
 
 pub struct StorageAggregator<B: BlockT + Unpin> {
 	db: Address<ActorPool<DatabaseActor<B>>>,
@@ -107,11 +111,11 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<super::Die> for StorageAggregator<B>
+impl<B: BlockT + Unpin> Handler<msg::Die> for StorageAggregator<B>
 where
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: msg::Die, ctx: &mut Context<Self>) -> Result<()> {
 		ctx.stop();
 		Ok(())
 	}

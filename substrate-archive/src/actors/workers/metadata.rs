@@ -22,23 +22,29 @@ use sp_runtime::{
 };
 use substrate_archive_backend::Meta;
 use substrate_archive_common::{
+	msg,
 	types::{BatchBlock, Block, Metadata as MetadataT},
 	Result,
 };
 
-use super::{database::GetState, ActorPool};
-use crate::{database::DbConn, queries};
+use crate::{
+	actors::{
+		actor_pool::ActorPool,
+		workers::database::{DatabaseActor, GetState},
+	},
+	database::{queries, DbConn},
+};
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
 pub struct Metadata<B: BlockT> {
 	conn: DbConn,
-	addr: Address<ActorPool<super::DatabaseActor<B>>>,
+	addr: Address<ActorPool<DatabaseActor<B>>>,
 	meta: Meta<B>,
 }
 
 impl<B: BlockT + Unpin> Metadata<B> {
-	pub async fn new(addr: Address<ActorPool<super::DatabaseActor<B>>>, meta: Meta<B>) -> Result<Self> {
+	pub async fn new(addr: Address<ActorPool<DatabaseActor<B>>>, meta: Meta<B>) -> Result<Self> {
 		let conn = addr.send(GetState::Conn.into()).await?.await?.conn();
 		Ok(Self { conn, addr, meta })
 	}
@@ -109,12 +115,12 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<super::Die> for Metadata<B>
+impl<B: BlockT + Unpin> Handler<msg::Die> for Metadata<B>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: msg::Die, ctx: &mut Context<Self>) -> Result<()> {
 		ctx.stop();
 		Ok(())
 	}

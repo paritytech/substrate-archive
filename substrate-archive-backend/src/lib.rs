@@ -29,9 +29,11 @@ use sc_client_api::Backend as BackendT;
 use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
+#[cfg(feature = "logging")]
+pub use substrate_archive_common::util::init_logger;
+
 use self::{
 	frontend::{GetMetadata, GetRuntimeVersion},
-	read_only_backend::TrieState,
 };
 // re-exports
 pub use self::{
@@ -41,9 +43,6 @@ pub use self::{
 	read_only_backend::ReadOnlyBackend,
 	runtime_version_cache::RuntimeVersionCache,
 };
-
-#[cfg(feature = "logging")]
-pub use substrate_archive_common::util::init_logger;
 
 pub type Meta<B> = Arc<dyn GetMetadata<B>>;
 

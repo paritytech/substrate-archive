@@ -19,9 +19,10 @@
 //! equivalents
 
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
+
 use sp_runtime::traits::Block as BlockT;
 use sp_storage::{StorageData, StorageKey};
-use sqlx::FromRow;
 
 use crate::{msg, types::*};
 

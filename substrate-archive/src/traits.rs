@@ -15,6 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_runtime::traits::Block as BlockT;
+
 use substrate_archive_common::{ReadOnlyDB, Result};
 
 #[async_trait::async_trait(?Send)]

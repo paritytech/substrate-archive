@@ -35,7 +35,7 @@ use sp_runtime::{
 use substrate_archive_backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend};
 use substrate_archive_common::{types::Storage, ReadOnlyDB};
 
-use super::actors::StorageAggregator;
+use crate::actors::StorageAggregator;
 
 /// The environment passed to each task
 pub struct Environment<B, R, C, D>

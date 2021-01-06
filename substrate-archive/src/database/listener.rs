@@ -19,12 +19,16 @@
 //! and executes each tasks in each queue on each
 //! listen wakeup.
 
+use std::pin::Pin;
+
 use futures::{Future, FutureExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
-use sqlx::postgres::{PgConnection, PgListener, PgNotification};
-use sqlx::prelude::*;
-use std::pin::Pin;
+use sqlx::{
+	postgres::{PgConnection, PgListener, PgNotification},
+	prelude::*,
+};
+
 use substrate_archive_common::Result;
 
 /// A notification from Postgres about a new row

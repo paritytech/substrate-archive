@@ -28,10 +28,10 @@ use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-use substrate_archive_common::{models, types::*, Result};
+
+use substrate_archive_common::{models::StorageModel, types::*, Result};
 
 pub use self::listener::*;
-pub use self::models::*;
 
 pub type DbReturn = Result<u64>;
 pub type DbConn = sqlx::pool::PoolConnection<Postgres>;

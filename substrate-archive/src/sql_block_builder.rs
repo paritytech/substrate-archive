@@ -26,9 +26,7 @@ use sp_runtime::{
 	traits::{Block as BlockT, DigestFor, Header as HeaderT},
 };
 
-use substrate_archive_common::{types, Error};
-
-use crate::database::BlockModel;
+use substrate_archive_common::{models::BlockModel, types, Error};
 
 struct GenericParts<B: BlockT>(
 	<B::Header as HeaderT>::Hash,

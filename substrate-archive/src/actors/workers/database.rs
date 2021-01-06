@@ -20,15 +20,15 @@ use std::time::Duration;
 use xtra::prelude::*;
 
 use sp_runtime::traits::{Block as BlockT, NumberFor};
-use substrate_archive_common::types::{BatchBlock, Metadata};
+
 use substrate_archive_common::{
-	types::{Block, Storage},
+	models::StorageModel,
+	msg::{self, VecStorageWrap},
+	types::{BatchBlock, Block, Metadata, Storage},
 	Result,
 };
 
-use crate::actors::msg::VecStorageWrap;
-use crate::database::{Database, DbConn, StorageModel};
-use crate::queries;
+use crate::database::{queries, Database, DbConn};
 
 #[derive(Clone)]
 pub struct DatabaseActor<B: BlockT> {
@@ -238,12 +238,12 @@ impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<super::Die> for DatabaseActor<B>
+impl<B: BlockT + Unpin> Handler<msg::Die> for DatabaseActor<B>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: msg::Die, ctx: &mut Context<Self>) -> Result<()> {
 		ctx.stop();
 		Ok(())
 	}

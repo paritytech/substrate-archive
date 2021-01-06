@@ -23,12 +23,22 @@ use sp_runtime::{
 };
 use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
 use substrate_archive_common::{
+	msg,
 	types::{BatchBlock, Block},
-	ReadOnlyDB, Result,
+	Error, ReadOnlyDB, Result,
 };
 
-use super::{ActorPool, DatabaseActor, GetState, Metadata};
-use crate::{actors::ActorContext, database::queries, Error::Disconnected};
+use crate::{
+	actors::{
+		actor_pool::ActorPool,
+		workers::{
+			database::{DatabaseActor, GetState},
+			metadata::Metadata,
+		},
+		ActorContext,
+	},
+	database::queries,
+};
 
 type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
 
@@ -190,7 +200,7 @@ where
 	async fn handle(&mut self, _: ReIndex, ctx: &mut Context<Self>) {
 		match self.re_index().await {
 			// stop if disconnected from the metadata actor
-			Err(Disconnected) => ctx.stop(),
+			Err(Error::Disconnected) => ctx.stop(),
 			Ok(()) => {}
 			Err(e) => log::error!("{}", e.to_string()),
 		}
@@ -198,12 +208,12 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<super::Die> for BlocksIndexer<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<msg::Die> for BlocksIndexer<B, D>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: msg::Die, ctx: &mut Context<Self>) -> Result<()> {
 		ctx.stop();
 		Ok(())
 	}
