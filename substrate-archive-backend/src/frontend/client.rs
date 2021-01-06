@@ -147,7 +147,7 @@ where
 		C: CoreApi<Block, Error = sp_blockchain::Error>,
 	>(
 		&self,
-		params: CallApiAtParams<'_, Block, C, NC, TrieState<Block, D>>,
+		params: CallApiAtParams<Block, C, NC, TrieState<Block, D>>,
 	) -> sp_blockchain::Result<NativeOrEncoded<R>> {
 		let core_api = params.core_api;
 		let at = params.at;

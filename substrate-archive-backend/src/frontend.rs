@@ -88,11 +88,11 @@ where
 }
 
 impl SpawnNamed for TaskExecutor {
-	fn spawn(&self, _: &'static str, fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
+	fn spawn_blocking(&self, _: &'static str, fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
 		let _ = self.pool.spawn(fut);
 	}
 
-	fn spawn_blocking(&self, _: &'static str, fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
+	fn spawn(&self, _: &'static str, fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
 		let _ = self.pool.spawn(fut);
 	}
 }

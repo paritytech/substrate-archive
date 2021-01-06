@@ -35,9 +35,9 @@ type ChainResult<T> = Result<T, BlockchainError>;
 
 impl<Block: BlockT, D: ReadOnlyDB + 'static> Backend<Block> for ReadOnlyBackend<Block, D> {
 	type BlockImportOperation = RealBlockImportOperation<D>;
-	type OffchainStorage = OffchainStorageBackend;
 	type Blockchain = Self;
 	type State = super::state_backend::TrieState<Block, D>;
+	type OffchainStorage = OffchainStorageBackend;
 
 	fn begin_operation(&self) -> ChainResult<Self::BlockImportOperation> {
 		log::warn!("Block import operations are not supported for Read Only Backend");
