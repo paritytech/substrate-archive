@@ -13,7 +13,7 @@ sqlx = { version = "0.4", default-features = false, features = ["postgres", "mac
 thiserror = "1.0"
 xtra = { version = "0.5.0-rc.1", features = ["with-smol-1"] }
 
-coil = { git = "https://github.com/insipx/coil", package = "coil"}
+coil = { git = "https://github.com/insipx/coil" }
 flume = { version = "0.10.1", default-features = false }
 rayon = "1.4"
 rmp-serde = "0.14"

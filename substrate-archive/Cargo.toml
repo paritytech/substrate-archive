@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 # external
 async-trait = "0.1"
-coil = { git = "https://github.com/insipx/coil", package = "coil" }
+coil = { git = "https://github.com/insipx/coil" }
 log = "0.4"
 fdlimit = "0.2"
 flume = "0.10.1"
