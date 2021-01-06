@@ -270,5 +270,4 @@ impl Insert for Metadata {
 #[cfg(test)]
 mod tests {
 	//! Must be connected to a local database
-	use super::*;
 }

@@ -220,6 +220,4 @@ pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
 #[cfg(test)]
 mod tests {
 	//! Must be connected to a postgres database
-	use super::*;
-	// use diesel::test_transaction;
 }
