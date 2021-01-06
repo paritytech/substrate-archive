@@ -112,13 +112,13 @@ impl<B: BlockT> ArchiveTraceHandler<B> {
 /// The root Parent ID is the first span that does not contain a parent id.
 /// Any span proceeding the root parent will be organized by the root parent's ID, even if that span has a different parent_id.
 ///```
-/// 				`root_parent`
-/// 				 	\
-/// 				 	 \
-/// 				   `child0`
-/// 					   \
-/// 					    \
-/// 					  `child1`
+///             `root_parent`
+///                     \
+///                      \
+///                   `child0`
+///                        \
+///                         \
+///                      `child1`
 /// ```
 /// In this case, `child1` will be in the same `CollatedSpans` category as `child0`,
 /// despite `child1` having `child0` as it's `parent_id`.
