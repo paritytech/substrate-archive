@@ -35,7 +35,7 @@ use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT, One},
 };
 
-use substrate_archive_common::{Error, ReadOnlyDB, Result};
+use substrate_archive_common::{ArchiveError, ReadOnlyDB, Result};
 
 use crate::read_only_backend::{ReadOnlyBackend, TrieState};
 
@@ -78,7 +78,7 @@ where
 	}
 
 	pub fn runtime_version_at(&self, id: &BlockId<Block>) -> Result<RuntimeVersion> {
-		self.executor.runtime_version(id).map_err(Error::from)
+		self.executor.runtime_version(id).map_err(ArchiveError::from)
 	}
 
 	/// get the backend for this client instance

@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "logging")]
 use fern::colors::{Color, ColoredLevelConfig};
 
-use crate::error::Error as ArchiveError;
+use crate::error::ArchiveError;
 
 #[cfg(feature = "logging")]
 pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) -> Result<(), ArchiveError> {

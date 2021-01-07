@@ -32,9 +32,7 @@ use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 #[cfg(feature = "logging")]
 pub use substrate_archive_common::util::init_logger;
 
-use self::{
-	frontend::{GetMetadata, GetRuntimeVersion},
-};
+use self::frontend::{GetMetadata, GetRuntimeVersion};
 // re-exports
 pub use self::{
 	block_exec::BlockExecutor,

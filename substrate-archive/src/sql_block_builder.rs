@@ -20,13 +20,13 @@
 
 use std::marker::PhantomData;
 
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, Error as DecodeError};
 use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, DigestFor, Header as HeaderT},
 };
 
-use substrate_archive_common::{models::BlockModel, types, Error};
+use substrate_archive_common::{models::BlockModel, types};
 
 struct GenericParts<B: BlockT>(
 	<B::Header as HeaderT>::Hash,
@@ -40,7 +40,7 @@ pub struct BlockBuilder<B: BlockT> {
 
 impl<'a, B: BlockT> BlockBuilder<B> {
 	/// With a vector of BlockModel
-	pub fn with_vec(blocks: Vec<BlockModel>) -> Result<Vec<types::Block<B>>, Error> {
+	pub fn with_vec(blocks: Vec<BlockModel>) -> Result<Vec<types::Block<B>>, DecodeError> {
 		blocks
 			.into_iter()
 			.map(|b| {
@@ -51,7 +51,7 @@ impl<'a, B: BlockT> BlockBuilder<B> {
 			.collect()
 	}
 
-	pub fn with_single(block: BlockModel) -> Result<(B, u32), Error> {
+	pub fn with_single(block: BlockModel) -> Result<(B, u32), DecodeError> {
 		let digest: DigestFor<B> = Decode::decode(&mut block.digest.as_slice())?;
 		let GenericParts(parent_hash, state_root, extrinsics_root) = Self::generic_parts_from(
 			block.parent_hash.as_slice(),
@@ -70,7 +70,7 @@ impl<'a, B: BlockT> BlockBuilder<B> {
 		mut parent_hash: &[u8],
 		mut state_root: &[u8],
 		mut extrinsics_root: &[u8],
-	) -> Result<GenericParts<B>, Error> {
+	) -> Result<GenericParts<B>, DecodeError> {
 		Ok(GenericParts(
 			Decode::decode(&mut parent_hash)?,
 			Decode::decode(&mut state_root)?,
