@@ -51,22 +51,18 @@ pub struct TaskExecutor;
 
 impl futures::task::Spawn for TaskExecutor {
 	fn spawn_obj(&self, future: futures::task::FutureObj<'static, ()>) -> Result<(), futures::task::SpawnError> {
-		smol::Task::spawn(future).detach();
+		smol::spawn(future).detach();
 		Ok(())
 	}
 }
 
 impl sp_core::traits::SpawnNamed for TaskExecutor {
-	fn spawn_blocking(
-		&self,
-		_: &'static str,
-		fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>,
-	) {
-		smol::Task::spawn(async move { smol::unblock!(fut).await }).detach();
+	fn spawn_blocking(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
+		smol::spawn(async move { smol::unblock(|| fut).await.await }).detach();
 	}
 
-	fn spawn(&self, _: &'static str, fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>) {
-		smol::Task::spawn(fut).detach()
+	fn spawn(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
+		smol::spawn(fut).detach()
 	}
 }
 

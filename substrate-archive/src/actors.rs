@@ -19,29 +19,33 @@
 mod actor_pool;
 mod workers;
 
+use std::marker::PhantomData;
+use std::panic::AssertUnwindSafe;
+use std::sync::Arc;
+
+use coil::Job as _;
+use futures::{future::BoxFuture, FutureExt};
+use hashbrown::HashSet;
+use serde::de::DeserializeOwned;
+use xtra::{prelude::*, spawn::Smol, Disconnected};
+
+use sc_client_api::backend;
+use sp_api::{ApiExt, ConstructRuntimeApi};
+use sp_block_builder::BlockBuilder as BlockBuilderApi;
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+
+use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
+use substrate_archive_common::{msg, ReadOnlyDB, Result};
+
 pub use self::actor_pool::ActorPool;
 use self::workers::GetState;
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
-use super::{
+use crate::{
 	database::{queries, Channel, Listener},
 	sql_block_builder::BlockBuilder as SqlBlockBuilder,
 	tasks::Environment,
 	traits::Archive,
 };
-use coil::Job as _;
-use futures::FutureExt;
-use hashbrown::HashSet;
-use sc_client_api::backend;
-use serde::de::DeserializeOwned;
-use sp_api::{ApiExt, ConstructRuntimeApi};
-use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-use std::marker::PhantomData;
-use std::panic::AssertUnwindSafe;
-use std::sync::Arc;
-use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
-pub use substrate_archive_common::{msg, ReadOnlyDB, Result};
-use xtra::prelude::*;
 
 // TODO: Split this up into two objects
 // System should be a factory that produces objects that should be spawned
@@ -182,14 +186,14 @@ where
 		let handle = jod_thread::spawn(move || {
 			// block until we receive the message to start
 			let _ = rx_start.recv();
-			smol::run(Self::main_loop(ctx, rx_kill, client))?;
+			smol::block_on(Self::main_loop(ctx, rx_kill, client))?;
 			Ok(())
 		});
 
 		(tx_start, tx_kill, handle)
 	}
 
-	async fn main_loop(ctx: ActorContext<B, D>, mut rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
+	async fn main_loop(ctx: ActorContext<B, D>, rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
 		let actors = Self::spawn_actors(ctx.clone()).await?;
 		let pool = actors.db_pool.send(GetState::Pool.into()).await?.await?.pool();
 		let listener = Self::init_listeners(ctx.pg_url()).await?;
@@ -210,7 +214,7 @@ where
 			futures::select! {
 				t = tasks => {
 					if t? == 0 {
-						smol::Timer::new(std::time::Duration::from_millis(3600)).await;
+						smol::Timer::after(std::time::Duration::from_millis(3600)).await;
 					}
 				},
 				_ = rx.recv_async() => break,
@@ -223,15 +227,21 @@ where
 
 	async fn spawn_actors(ctx: ActorContext<B, D>) -> Result<Actors<B, D>> {
 		let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
-		let db_pool = actor_pool::ActorPool::new(db, 8).spawn();
-		let storage = workers::StorageAggregator::new(db_pool.clone()).spawn();
-		let metadata = workers::Metadata::new(db_pool.clone(), ctx.meta().clone()).await?.spawn();
-		let blocks = workers::BlocksIndexer::new(ctx, db_pool.clone(), metadata.clone()).spawn();
+		let db_pool = actor_pool::ActorPool::new(db, 8).create(None).spawn(&mut Smol::Global);
+		let storage = workers::StorageAggregator::new(db_pool.clone()).create(None).spawn(&mut Smol::Global);
+		let metadata =
+			workers::Metadata::new(db_pool.clone(), ctx.meta().clone()).await?.create(None).spawn(&mut Smol::Global);
+		let blocks =
+			workers::BlocksIndexer::new(ctx, db_pool.clone(), metadata.clone()).create(None).spawn(&mut Smol::Global);
 		Ok(Actors { storage, blocks, metadata, db_pool })
 	}
 
 	async fn kill_actors(actors: Actors<B, D>) -> Result<()> {
-		let fut = vec![actors.storage.send(msg::Die), actors.blocks.send(msg::Die), actors.metadata.send(msg::Die)];
+		let fut: Vec<BoxFuture<'_, Result<Result<()>, Disconnected>>> = vec![
+			Box::pin(actors.storage.send(msg::Die)),
+			Box::pin(actors.blocks.send(msg::Die)),
+			Box::pin(actors.metadata.send(msg::Die)),
+		];
 		futures::future::join_all(fut).await;
 		let _ = actors.db_pool.send(msg::Die.into()).await?.await;
 		Ok(())
@@ -307,7 +317,7 @@ where
 
 	async fn block_until_stopped(&self) {
 		loop {
-			smol::Timer::new(std::time::Duration::from_secs(1)).await;
+			smol::Timer::after(std::time::Duration::from_secs(1)).await;
 		}
 	}
 

@@ -18,13 +18,16 @@
 //! Only some types implemented, for convenience most types are already in their database model
 //! equivalents
 
-use super::{msg, types::*};
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
+
 use sp_runtime::traits::Block as BlockT;
 use sp_storage::{StorageData, StorageKey};
 
+use crate::{msg, types::*};
+
 /// Struct modeling data returned from database when querying for a block
-#[derive(sqlx::FromRow, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
 pub struct BlockModel {
 	pub id: i32,
 	pub parent_hash: Vec<u8>,

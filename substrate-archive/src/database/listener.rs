@@ -19,12 +19,16 @@
 //! and executes each tasks in each queue on each
 //! listen wakeup.
 
+use std::pin::Pin;
+
 use futures::{Future, FutureExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
-use sqlx::postgres::{PgConnection, PgListener, PgNotification};
-use sqlx::prelude::*;
-use std::pin::Pin;
+use sqlx::{
+	postgres::{PgConnection, PgListener, PgNotification},
+	prelude::*,
+};
+
 use substrate_archive_common::Result;
 
 /// A notification from Postgres about a new row
@@ -104,7 +108,7 @@ where
 
 	/// Spawns this listener which will work on its assigned tasks in the background
 	pub async fn spawn(self) -> Result<Listener> {
-		let (tx, mut rx) = flume::bounded(1);
+		let (tx, rx) = flume::bounded(1);
 
 		let mut listener = PgListener::connect(&self.pg_url).await?;
 		let channels = self.channels.iter().map(String::from).collect::<Vec<String>>();
@@ -145,7 +149,7 @@ where
 			}
 			// collect the rest of the results, before exiting, as long as the collection completes
 			// in a reasonable amount of time
-			let timeout = smol::Timer::new(std::time::Duration::from_secs(1));
+			let timeout = smol::Timer::after(std::time::Duration::from_secs(1));
 			futures::select! {
 				_ = timeout.fuse() => {},
 				notifs = listener.collect::<Vec<_>>().fuse() => {
@@ -156,7 +160,7 @@ where
 			}
 		};
 
-		smol::Task::spawn(fut).detach();
+		smol::spawn(fut).detach();
 
 		Ok(Listener { tx })
 	}
@@ -236,12 +240,12 @@ mod tests {
 					.execute(&mut conn)
 					.await
 					.expect("Could not exec notify query");
-				smol::Timer::new(std::time::Duration::from_millis(50)).await;
+				smol::Timer::after(std::time::Duration::from_millis(50)).await;
 			}
 			let mut counter: usize = 0;
 
 			loop {
-				let mut timeout = smol::Timer::new(std::time::Duration::from_millis(75)).fuse();
+				let mut timeout = smol::Timer::after(std::time::Duration::from_millis(75)).fuse();
 				futures::select!(
 					_ = rx.next() => counter += 1,
 					_ = timeout => break,

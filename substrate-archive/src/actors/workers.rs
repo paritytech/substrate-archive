@@ -25,6 +25,3 @@ pub use self::metadata::*;
 pub use blocks::*;
 pub use database::*;
 pub use storage_aggregator::*;
-
-use super::actor_pool::ActorPool;
-use super::msg::Die;

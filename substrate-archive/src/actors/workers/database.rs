@@ -14,18 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::actors::msg::VecStorageWrap;
-use crate::database::{Database, DbConn, StorageModel};
-use crate::queries;
-use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::time::Duration;
-use substrate_archive_common::types::{BatchBlock, Metadata};
+
+use xtra::prelude::*;
+
+use sp_runtime::traits::{Block as BlockT, NumberFor};
+
 use substrate_archive_common::{
-	types::{Block, Storage},
+	models::StorageModel,
+	msg::{self, VecStorageWrap},
+	types::{BatchBlock, Block, Metadata, Storage},
 	Result,
 };
-use xtra::prelude::*;
+
+use crate::database::{queries, Database, DbConn};
 
 #[derive(Clone)]
 pub struct DatabaseActor<B: BlockT> {
@@ -49,7 +52,7 @@ impl<B: BlockT> DatabaseActor<B> {
 	{
 		let mut conn = self.db.conn().await?;
 		while !queries::check_if_meta_exists(blk.spec, &mut conn).await? {
-			smol::Timer::new(Duration::from_millis(20)).await;
+			smol::Timer::after(Duration::from_millis(20)).await;
 		}
 		std::mem::drop(conn);
 		self.db.insert(blk).await?;
@@ -71,7 +74,7 @@ impl<B: BlockT> DatabaseActor<B> {
 		let mut conn = self.db.conn().await?;
 		while !Self::db_contains_metadata(blks.inner(), &mut conn).await? {
 			log::info!("Doesn't contain metadata");
-			smol::Timer::new(Duration::from_millis(50)).await;
+			smol::Timer::after(Duration::from_millis(50)).await;
 		}
 		std::mem::drop(conn);
 		self.db.insert(blks).await?;
@@ -81,7 +84,7 @@ impl<B: BlockT> DatabaseActor<B> {
 	async fn storage_handler(&self, storage: Storage<B>) -> Result<()> {
 		let mut conn = self.db.conn().await?;
 		while !queries::has_block::<B>(*storage.hash(), &mut conn).await? {
-			smol::Timer::new(Duration::from_millis(10)).await;
+			smol::Timer::after(Duration::from_millis(10)).await;
 		}
 		let storage = Vec::<StorageModel<B>>::from(storage);
 		std::mem::drop(conn);
@@ -96,7 +99,7 @@ impl<B: BlockT> DatabaseActor<B> {
 		log::debug!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
 		let len = block_nums.len();
 		while queries::has_blocks::<B>(block_nums.as_slice(), &mut conn).await?.len() != len {
-			smol::Timer::new(std::time::Duration::from_millis(50)).await;
+			smol::Timer::after(std::time::Duration::from_millis(50)).await;
 		}
 		// we drop the connection early so that the insert() has the use of all db connections
 		std::mem::drop(conn);
@@ -235,12 +238,12 @@ impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<super::Die> for DatabaseActor<B>
+impl<B: BlockT + Unpin> Handler<msg::Die> for DatabaseActor<B>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: msg::Die, ctx: &mut Context<Self>) -> Result<()> {
 		ctx.stop();
 		Ok(())
 	}

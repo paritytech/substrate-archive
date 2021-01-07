@@ -16,14 +16,17 @@
 
 //! State Backend Interface
 
+use std::marker::PhantomData;
+use std::sync::Arc;
+
 use hash_db::Prefix;
 use kvdb::DBValue;
+
 use sc_client_api::backend::StateBackend;
 use sp_core::storage::ChildInfo;
 use sp_runtime::traits::{Block as BlockT, HashFor};
 use sp_state_machine::{StateMachineStats, TrieBackend, UsageInfo as StateUsageInfo};
-use std::marker::PhantomData;
-use std::sync::Arc;
+
 use substrate_archive_common::ReadOnlyDB;
 
 /// DB-backed patricia trie state, transaction type is an overlay of changes to commit.

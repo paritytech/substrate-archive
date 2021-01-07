@@ -16,13 +16,15 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
-use super::BlockModel;
+use std::convert::TryFrom;
+
 use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
-use sp_runtime::traits::Block as BlockT;
 use sqlx::PgConnection;
-use std::convert::TryFrom;
-use substrate_archive_common::Result;
+
+use sp_runtime::traits::Block as BlockT;
+
+use substrate_archive_common::{models::BlockModel, Result};
 
 /// Return type of queries that `SELECT version`
 struct Version {
@@ -218,6 +220,4 @@ pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
 #[cfg(test)]
 mod tests {
 	//! Must be connected to a postgres database
-	use super::*;
-	// use diesel::test_transaction;
 }

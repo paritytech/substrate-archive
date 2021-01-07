@@ -24,13 +24,14 @@ pub mod queries;
 use async_trait::async_trait;
 use batch::Batch;
 use codec::Encode;
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
-use substrate_archive_common::{models, types::*, Result};
+
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+
+use substrate_archive_common::{models::StorageModel, types::*, Result};
 
 pub use self::listener::*;
-pub use self::models::*;
 
 pub type DbReturn = Result<u64>;
 pub type DbConn = sqlx::pool::PoolConnection<Postgres>;
@@ -269,5 +270,4 @@ impl Insert for Metadata {
 #[cfg(test)]
 mod tests {
 	//! Must be connected to a local database
-	use super::*;
 }

@@ -13,19 +13,32 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{ActorPool, DatabaseActor, GetState, Metadata};
-use crate::{actors::ActorContext, database::queries, Error::Disconnected};
+use std::sync::Arc;
+
+use xtra::prelude::*;
+
 use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, Header as _, NumberFor},
 };
-use std::sync::Arc;
 use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
 use substrate_archive_common::{
+	msg,
 	types::{BatchBlock, Block},
-	ReadOnlyDB, Result,
+	Error, ReadOnlyDB, Result,
 };
-use xtra::prelude::*;
+
+use crate::{
+	actors::{
+		actor_pool::ActorPool,
+		workers::{
+			database::{DatabaseActor, GetState},
+			metadata::Metadata,
+		},
+		ActorContext,
+	},
+	database::queries,
+};
 
 type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
 
@@ -71,10 +84,10 @@ where
 		let gather_blocks = move || -> Result<Vec<SignedBlock<B>>> {
 			Ok(backend.iter_blocks(|n| fun(n))?.enumerate().map(|(_, b)| b).collect())
 		};
-		let blocks = smol::unblock!(gather_blocks())?;
+		let blocks = smol::unblock(gather_blocks).await?;
 		log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
 		let cache = self.rt_cache.clone();
-		let blocks = smol::unblock!(cache.find_versions_as_blocks(blocks))?;
+		let blocks = smol::unblock(move || cache.find_versions_as_blocks(blocks)).await?;
 		Ok(blocks)
 	}
 
@@ -145,7 +158,8 @@ where
 			.do_send(ReIndex)
 			.expect("Actor cannot be disconnected; just started");
 
-		ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl);
+		let fut = ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl).expect("Actor just started");
+		smol::spawn(fut).detach();
 	}
 }
 
@@ -186,7 +200,7 @@ where
 	async fn handle(&mut self, _: ReIndex, ctx: &mut Context<Self>) {
 		match self.re_index().await {
 			// stop if disconnected from the metadata actor
-			Err(Disconnected) => ctx.stop(),
+			Err(Error::Disconnected) => ctx.stop(),
 			Ok(()) => {}
 			Err(e) => log::error!("{}", e.to_string()),
 		}
@@ -194,12 +208,12 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<super::Die> for BlocksIndexer<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<msg::Die> for BlocksIndexer<B, D>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: msg::Die, ctx: &mut Context<Self>) -> Result<()> {
 		ctx.stop();
 		Ok(())
 	}
