@@ -30,7 +30,7 @@ use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
-use substrate_archive_common::{Error as ArchiveError, ReadOnlyDB};
+use substrate_archive_common::{ArchiveError, ReadOnlyDB};
 
 pub use self::client::{Client, GetMetadata, GetRuntimeVersion};
 use crate::{read_only_backend::ReadOnlyBackend, RuntimeApiCollection};

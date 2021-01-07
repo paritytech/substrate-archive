@@ -33,7 +33,7 @@ use sp_state_machine::BasicExternalities;
 use sp_storage::well_known_keys;
 use sp_version::RuntimeVersion;
 
-use substrate_archive_common::{types::Block, util, Error, ReadOnlyDB, Result};
+use substrate_archive_common::{types::Block, util, ArchiveError, ReadOnlyDB, Result};
 
 use crate::read_only_backend::ReadOnlyBackend;
 
@@ -84,8 +84,10 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 	pub fn get(&self, hash: B::Hash) -> Result<Option<RuntimeVersion>> {
 		// Getting code from the backend is the slowest part of this. Takes an average of
 		// 6ms
-		let code =
-			self.backend.storage(hash, well_known_keys::CODE).ok_or_else(|| Error::from("storage does not exist"))?;
+		let code = self
+			.backend
+			.storage(hash, well_known_keys::CODE)
+			.ok_or_else(|| ArchiveError::from("storage does not exist"))?;
 
 		let code_hash = util::make_hash(&code);
 		if self.versions.load().contains_key(&code_hash) {
@@ -95,7 +97,7 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 			let mut ext: BasicExternalities = BasicExternalities::default();
 			ext.register_extension(CallInWasmExt::new(self.exec.clone()));
 			let v: RuntimeVersion = ext.execute_with(|| {
-				let ver = sp_io::misc::runtime_version(&code).ok_or(Error::WasmExecutionError)?;
+				let ver = sp_io::misc::runtime_version(&code).ok_or(ArchiveError::WasmExecutionError)?;
 				decode_version(ver.as_slice())
 			})?;
 			log::debug!("Registered New Runtime Version: {:?}", v);
@@ -141,15 +143,18 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 		if blocks.is_empty() {
 			return Ok(());
 		} else if blocks.len() == 1 {
-			let version = self.get(blocks[0].block.header().hash())?.ok_or_else(|| Error::from("Version not found"))?;
+			let version =
+				self.get(blocks[0].block.header().hash())?.ok_or_else(|| ArchiveError::from("Version not found"))?;
 			versions.push(VersionRange::new(&blocks[0], &blocks[0], version));
 			return Ok(());
 		}
 
-		let first =
-			self.get(blocks.first().unwrap().block.header().hash())?.ok_or_else(|| Error::from("Version not found"))?;
-		let last =
-			self.get(blocks.last().unwrap().block.header().hash())?.ok_or_else(|| Error::from("Version not found"))?;
+		let first = self
+			.get(blocks.first().unwrap().block.header().hash())?
+			.ok_or_else(|| ArchiveError::from("Version not found"))?;
+		let last = self
+			.get(blocks.last().unwrap().block.header().hash())?
+			.ok_or_else(|| ArchiveError::from("Version not found"))?;
 
 		if first.spec_version != last.spec_version && blocks.len() > 2 {
 			let half = blocks.len() / 2;

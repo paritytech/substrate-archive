@@ -25,7 +25,7 @@ use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
 use substrate_archive_common::{
 	msg,
 	types::{BatchBlock, Block},
-	Error, ReadOnlyDB, Result,
+	ArchiveError, ReadOnlyDB, Result,
 };
 
 use crate::{
@@ -200,7 +200,7 @@ where
 	async fn handle(&mut self, _: ReIndex, ctx: &mut Context<Self>) {
 		match self.re_index().await {
 			// stop if disconnected from the metadata actor
-			Err(Error::Disconnected) => ctx.stop(),
+			Err(ArchiveError::Disconnected) => ctx.stop(),
 			Ok(()) => {}
 			Err(e) => log::error!("{}", e.to_string()),
 		}
