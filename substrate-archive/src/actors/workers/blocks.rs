@@ -23,8 +23,7 @@ use sp_runtime::{
 };
 use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
 use substrate_archive_common::{
-	msg,
-	types::{BatchBlock, Block},
+	types::{BatchBlock, Block, Die},
 	ArchiveError, ReadOnlyDB, Result,
 };
 
@@ -33,7 +32,7 @@ use crate::{
 		actor_pool::ActorPool,
 		workers::{
 			database::{DatabaseActor, GetState},
-			metadata::Metadata,
+			metadata::MetadataActor,
 		},
 		ActorContext,
 	},
@@ -41,6 +40,7 @@ use crate::{
 };
 
 type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
+type MetadataAct<B> = Address<MetadataActor<B>>;
 
 pub struct BlocksIndexer<B: BlockT, D>
 where
@@ -52,7 +52,7 @@ where
 	/// background task to crawl blocks
 	backend: Arc<ReadOnlyBackend<B, D>>,
 	db: DatabaseAct<B>,
-	meta: Address<Metadata<B>>,
+	meta: MetadataAct<B>,
 	rt_cache: RuntimeVersionCache<B, D>,
 	/// the last maximum block number from which we are sure every block before then is indexed
 	last_max: u32,
@@ -65,12 +65,12 @@ where
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
 {
-	pub fn new(ctx: ActorContext<B, D>, db_addr: DatabaseAct<B>, meta: Address<Metadata<B>>) -> Self {
+	pub fn new(ctx: ActorContext<B, D>, db: DatabaseAct<B>, meta: MetadataAct<B>) -> Self {
 		Self {
 			rt_cache: RuntimeVersionCache::new(ctx.backend.clone()),
 			last_max: 0,
 			backend: ctx.backend().clone(),
-			db: db_addr,
+			db,
 			meta,
 			max_block_load: ctx.max_block_load,
 		}
@@ -208,12 +208,12 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<msg::Die> for BlocksIndexer<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<Die> for BlocksIndexer<B, D>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: msg::Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
 		ctx.stop();
 		Ok(())
 	}

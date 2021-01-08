@@ -35,7 +35,7 @@ use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
-use substrate_archive_common::{msg, ReadOnlyDB, Result};
+use substrate_archive_common::{types::Die, ReadOnlyDB, Result};
 
 pub use self::actor_pool::ActorPool;
 use self::workers::GetState;
@@ -110,7 +110,7 @@ where
 {
 	storage: Address<workers::StorageAggregator<B>>,
 	blocks: Address<workers::BlocksIndexer<B, D>>,
-	metadata: Address<workers::Metadata<B>>,
+	metadata: Address<workers::MetadataActor<B>>,
 	db_pool: Address<ActorPool<DatabaseActor<B>>>,
 }
 
@@ -175,7 +175,7 @@ where
 		self.start_tx.send(()).expect("Could not start actors");
 	}
 
-	/// Start the actors and begin driving tself.pg_poolheir execution
+	/// Start the actors and begin driving their execution
 	pub fn start(
 		ctx: ActorContext<B, D>,
 		client: Arc<C>,
@@ -229,8 +229,10 @@ where
 		let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
 		let db_pool = actor_pool::ActorPool::new(db, 8).create(None).spawn(&mut Smol::Global);
 		let storage = workers::StorageAggregator::new(db_pool.clone()).create(None).spawn(&mut Smol::Global);
-		let metadata =
-			workers::Metadata::new(db_pool.clone(), ctx.meta().clone()).await?.create(None).spawn(&mut Smol::Global);
+		let metadata = workers::MetadataActor::new(db_pool.clone(), ctx.meta().clone())
+			.await?
+			.create(None)
+			.spawn(&mut Smol::Global);
 		let blocks =
 			workers::BlocksIndexer::new(ctx, db_pool.clone(), metadata.clone()).create(None).spawn(&mut Smol::Global);
 		Ok(Actors { storage, blocks, metadata, db_pool })
@@ -238,12 +240,12 @@ where
 
 	async fn kill_actors(actors: Actors<B, D>) -> Result<()> {
 		let fut: Vec<BoxFuture<'_, Result<Result<()>, Disconnected>>> = vec![
-			Box::pin(actors.storage.send(msg::Die)),
-			Box::pin(actors.blocks.send(msg::Die)),
-			Box::pin(actors.metadata.send(msg::Die)),
+			Box::pin(actors.storage.send(Die)),
+			Box::pin(actors.blocks.send(Die)),
+			Box::pin(actors.metadata.send(Die)),
 		];
 		futures::future::join_all(fut).await;
-		let _ = actors.db_pool.send(msg::Die.into()).await?.await;
+		let _ = actors.db_pool.send(Die.into()).await?.await;
 		Ok(())
 	}
 
