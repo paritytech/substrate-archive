@@ -42,7 +42,7 @@ use self::workers::GetState;
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use crate::{
 	database::{queries, Channel, Listener},
-	sql_block_builder::BlockBuilder as SqlBlockBuilder,
+	sql_block_builder::SqlBlockBuilder,
 	tasks::Environment,
 	traits::Archive,
 };

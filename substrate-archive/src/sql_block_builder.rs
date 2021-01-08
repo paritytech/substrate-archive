@@ -23,85 +23,55 @@ use std::marker::PhantomData;
 use codec::{Decode, Encode, Error as DecodeError};
 use sp_runtime::{
 	generic::SignedBlock,
-	traits::{Block as BlockT, DigestFor, Header as HeaderT},
+	traits::{Block as BlockT, Header as HeaderT},
 };
 
 use substrate_archive_common::{models::BlockModel, types};
 
-struct GenericParts<B: BlockT>(
-	<B::Header as HeaderT>::Hash,
-	<B::Header as HeaderT>::Hash,
-	<B::Header as HeaderT>::Hash,
-);
-
-pub struct BlockBuilder<B: BlockT> {
+pub struct SqlBlockBuilder<B: BlockT> {
 	_marker: PhantomData<B>,
 }
 
-impl<'a, B: BlockT> BlockBuilder<B> {
+impl<'a, B: BlockT> SqlBlockBuilder<B> {
 	/// With a vector of BlockModel
 	pub fn with_vec(blocks: Vec<BlockModel>) -> Result<Vec<types::Block<B>>, DecodeError> {
 		blocks
 			.into_iter()
 			.map(|b| {
-				let (b, s) = Self::with_single(b)?;
-				let b = SignedBlock { block: b, justification: None };
-				Ok(types::Block::new(b, s))
+				let (block, spec) = Self::with_single(b)?;
+				let block = SignedBlock { block, justification: None };
+				Ok(types::Block::new(block, spec))
 			})
 			.collect()
 	}
 
+	/// With a single BlockModel
 	pub fn with_single(block: BlockModel) -> Result<(B, u32), DecodeError> {
-		let digest: DigestFor<B> = Decode::decode(&mut block.digest.as_slice())?;
-		let GenericParts(parent_hash, state_root, extrinsics_root) = Self::generic_parts_from(
-			block.parent_hash.as_slice(),
-			block.state_root.as_slice(),
-			block.extrinsics_root.as_slice(),
-		)?;
-		let num: <B::Header as HeaderT>::Number = Decode::decode(&mut (block.block_num as u32).encode().as_slice())?;
-
-		let header = <B::Header as HeaderT>::new(num, extrinsics_root, state_root, parent_hash, digest);
-		let ext: Vec<B::Extrinsic> = Decode::decode(&mut block.ext.as_slice())?;
-		let spec = block.spec;
-		Ok((B::new(header, ext), spec as u32))
-	}
-
-	fn generic_parts_from(
-		mut parent_hash: &[u8],
-		mut state_root: &[u8],
-		mut extrinsics_root: &[u8],
-	) -> Result<GenericParts<B>, DecodeError> {
-		Ok(GenericParts(
-			Decode::decode(&mut parent_hash)?,
-			Decode::decode(&mut state_root)?,
-			Decode::decode(&mut extrinsics_root)?,
-		))
+		let BlockDecoder { header, ext, spec } = BlockDecoder::<B>::decode(block)?;
+		let block = B::new(header, ext);
+		Ok((block, spec))
 	}
 }
-/* TODO: This test need to be rewritten. We shouldn't depend on test_util
- * or rocksdb for tests.
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::backend::test_util;
-	use crate::queries;
-	use polkadot_service::Block;
-	use sp_runtime::generic::BlockId;
-	use sqlx::PgPool;
 
-	pub const DB_STR: &str = "/home/insipx/.local/share/polkadot/chains/ksmcc3/db";
+struct BlockDecoder<B: BlockT> {
+	header: B::Header,
+	ext: Vec<B::Extrinsic>,
+	spec: u32,
+}
 
-	#[test]
-	#[ignore]
-	fn block_should_be_identical() {
-		let url = std::env::var("DATABASE_URL").unwrap();
-		let pool = futures::executor::block_on(PgPool::builder().max_size(1).build(&url)).unwrap();
-		let backend = test_util::backend(DB_STR);
-		let block = backend.block(&BlockId::Number(500)).unwrap();
+impl<B: BlockT> BlockDecoder<B> {
+	fn decode(block: BlockModel) -> Result<Self, DecodeError> {
+		let block_num = Decode::decode(&mut (block.block_num as u32).encode().as_slice())?;
+		let extrinsics_root = Decode::decode(&mut block.extrinsics_root.as_slice())?;
+		let state_root = Decode::decode(&mut block.state_root.as_slice())?;
+		let parent_hash = Decode::decode(&mut block.parent_hash.as_slice())?;
+		let digest = Decode::decode(&mut block.digest.as_slice())?;
+		let header = <B::Header as HeaderT>::new(block_num, extrinsics_root, state_root, parent_hash, digest);
 
-		let sql_block = futures::executor::block_on(queries::get_full_block(&pool, 500)).unwrap();
-		let full_sql_block = BlockBuilder::<Block>::new().with_single(sql_block).unwrap();
-		assert_eq!(block.block, full_sql_block);
+		let ext = Decode::decode(&mut block.ext.as_slice())?;
+
+		let spec = block.spec as u32;
+
+		Ok(Self { header, ext, spec })
 	}
 }
-*/
