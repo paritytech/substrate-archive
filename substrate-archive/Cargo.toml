@@ -15,7 +15,7 @@ futures = "0.3"
 hashbrown = { version = "0.9", features = ["inline-more"] }
 hex = "0.4"
 itertools = "0.9"
-itoa = "0.4.6"
+itoa = "0.4.7"
 # Just a simple wrapper around std::thread that `joins on drop`
 jod-thread = "0.1.2"
 num_cpus = "1"
