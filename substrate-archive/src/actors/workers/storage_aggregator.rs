@@ -22,8 +22,7 @@ use xtra::prelude::*;
 use sp_runtime::traits::Block as BlockT;
 
 use substrate_archive_common::{
-	msg::{self, VecStorageWrap},
-	types::Storage,
+	types::{BatchStorage, Die, Storage},
 	Result,
 };
 
@@ -65,7 +64,7 @@ where
 		let len = self.storage.len();
 		let storage = std::mem::take(&mut self.storage);
 		// insert any storage left in queue
-		let task = self.db.send(VecStorageWrap(storage).into()).await;
+		let task = self.db.send(BatchStorage::new(storage).into()).await;
 		match task {
 			Err(e) => {
 				log::info!("{} storage entries will be missing, {:?}", len, e);
@@ -93,7 +92,7 @@ where
 		let storage = std::mem::take(&mut self.storage);
 		if !storage.is_empty() {
 			log::info!("Indexing storage {} bps", storage.len());
-			if let Err(e) = self.db.send(VecStorageWrap(storage).into()).await {
+			if let Err(e) = self.db.send(BatchStorage::new(storage).into()).await {
 				log::error!("{:?}", e);
 			}
 		}
@@ -111,11 +110,11 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<msg::Die> for StorageAggregator<B>
+impl<B: BlockT + Unpin> Handler<Die> for StorageAggregator<B>
 where
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: msg::Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
 		ctx.stop();
 		Ok(())
 	}

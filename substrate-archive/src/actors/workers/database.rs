@@ -23,8 +23,7 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 
 use substrate_archive_common::{
 	models::StorageModel,
-	msg::{self, VecStorageWrap},
-	types::{BatchBlock, Block, Metadata, Storage},
+	types::{BatchBlock, BatchStorage, Block, Die, Metadata, Storage},
 	Result,
 };
 
@@ -92,9 +91,9 @@ impl<B: BlockT> DatabaseActor<B> {
 		Ok(())
 	}
 
-	async fn batch_storage_handler(&self, storage: Vec<Storage<B>>) -> Result<()> {
+	async fn batch_storage_handler(&self, storages: BatchStorage<B>) -> Result<()> {
 		let mut conn = self.db.conn().await?;
-		let mut block_nums: Vec<u32> = storage.iter().map(|s| s.block_num()).collect();
+		let mut block_nums = storages.inner().iter().map(|s| s.block_num()).collect::<Vec<_>>();
 		block_nums.sort_unstable();
 		log::debug!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
 		let len = block_nums.len();
@@ -103,7 +102,7 @@ impl<B: BlockT> DatabaseActor<B> {
 		}
 		// we drop the connection early so that the insert() has the use of all db connections
 		std::mem::drop(conn);
-		let storage = Vec::<StorageModel<B>>::from(VecStorageWrap(storage));
+		let storage = Vec::<StorageModel<B>>::from(storages);
 		self.db.insert(storage).await?;
 		Ok(())
 	}
@@ -163,10 +162,10 @@ impl<B: BlockT> Handler<Storage<B>> for DatabaseActor<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<VecStorageWrap<B>> for DatabaseActor<B> {
-	async fn handle(&mut self, storage: VecStorageWrap<B>, _ctx: &mut Context<Self>) {
+impl<B: BlockT> Handler<BatchStorage<B>> for DatabaseActor<B> {
+	async fn handle(&mut self, storages: BatchStorage<B>, _ctx: &mut Context<Self>) {
 		let now = std::time::Instant::now();
-		if let Err(e) = self.batch_storage_handler(storage.0).await {
+		if let Err(e) = self.batch_storage_handler(storages).await {
 			log::error!("{}", e.to_string());
 		}
 		log::debug!("took {:?} to insert storage", now.elapsed());
@@ -238,12 +237,12 @@ impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<msg::Die> for DatabaseActor<B>
+impl<B: BlockT + Unpin> Handler<Die> for DatabaseActor<B>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: msg::Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
 		ctx.stop();
 		Ok(())
 	}

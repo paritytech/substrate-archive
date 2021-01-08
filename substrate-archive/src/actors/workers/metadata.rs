@@ -22,8 +22,7 @@ use sp_runtime::{
 };
 use substrate_archive_backend::Meta;
 use substrate_archive_common::{
-	msg,
-	types::{BatchBlock, Block, Metadata as MetadataT},
+	types::{BatchBlock, Block, Die, Metadata},
 	Result,
 };
 
@@ -37,13 +36,13 @@ use crate::{
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub struct Metadata<B: BlockT> {
+pub struct MetadataActor<B: BlockT> {
 	conn: DbConn,
 	addr: Address<ActorPool<DatabaseActor<B>>>,
 	meta: Meta<B>,
 }
 
-impl<B: BlockT + Unpin> Metadata<B> {
+impl<B: BlockT + Unpin> MetadataActor<B> {
 	pub async fn new(addr: Address<ActorPool<DatabaseActor<B>>>, meta: Meta<B>) -> Result<Self> {
 		let conn = addr.send(GetState::Conn.into()).await?.await?.conn();
 		Ok(Self { conn, addr, meta })
@@ -57,7 +56,7 @@ impl<B: BlockT + Unpin> Metadata<B> {
 			log::info!("Getting metadata for hash {}, version {}", hex::encode(hash.as_ref()), ver);
 			let meta = smol::unblock(move || meta.metadata(&BlockId::hash(hash))).await?;
 			let meta: sp_core::Bytes = meta.into();
-			let meta = MetadataT::new(ver, meta.0);
+			let meta = Metadata::new(ver, meta.0);
 			self.addr.send(meta.into()).await?.await;
 		}
 		Ok(())
@@ -86,10 +85,10 @@ impl<B: BlockT + Unpin> Metadata<B> {
 	}
 }
 
-impl<B: BlockT> Actor for Metadata<B> {}
+impl<B: BlockT> Actor for MetadataActor<B> {}
 
 #[async_trait::async_trait]
-impl<B> Handler<Block<B>> for Metadata<B>
+impl<B> Handler<Block<B>> for MetadataActor<B>
 where
 	B: BlockT + Unpin,
 	NumberFor<B>: Into<u32>,
@@ -102,7 +101,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B> Handler<BatchBlock<B>> for Metadata<B>
+impl<B> Handler<BatchBlock<B>> for MetadataActor<B>
 where
 	B: BlockT + Unpin,
 	NumberFor<B>: Into<u32>,
@@ -115,12 +114,12 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<msg::Die> for Metadata<B>
+impl<B: BlockT + Unpin> Handler<Die> for MetadataActor<B>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: msg::Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
 		ctx.stop();
 		Ok(())
 	}
