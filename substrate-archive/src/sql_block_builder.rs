@@ -20,13 +20,13 @@
 
 use std::marker::PhantomData;
 
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, Error as DecodeError};
 use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, Header as HeaderT},
 };
 
-use substrate_archive_common::{models::BlockModel, types, Error};
+use substrate_archive_common::{models::BlockModel, types};
 
 pub struct SqlBlockBuilder<B: BlockT> {
 	_marker: PhantomData<B>,
@@ -34,7 +34,7 @@ pub struct SqlBlockBuilder<B: BlockT> {
 
 impl<'a, B: BlockT> SqlBlockBuilder<B> {
 	/// With a vector of BlockModel
-	pub fn with_vec(blocks: Vec<BlockModel>) -> Result<Vec<types::Block<B>>, Error> {
+	pub fn with_vec(blocks: Vec<BlockModel>) -> Result<Vec<types::Block<B>>, DecodeError> {
 		blocks
 			.into_iter()
 			.map(|b| {
@@ -46,7 +46,7 @@ impl<'a, B: BlockT> SqlBlockBuilder<B> {
 	}
 
 	/// With a single BlockModel
-	pub fn with_single(block: BlockModel) -> Result<(B, u32), Error> {
+	pub fn with_single(block: BlockModel) -> Result<(B, u32), DecodeError> {
 		let BlockDecoder { header, ext, spec } = BlockDecoder::<B>::decode(block)?;
 		let block = B::new(header, ext);
 		Ok((block, spec))
@@ -60,7 +60,7 @@ struct BlockDecoder<B: BlockT> {
 }
 
 impl<B: BlockT> BlockDecoder<B> {
-	fn decode(block: BlockModel) -> Result<Self, Error> {
+	fn decode(block: BlockModel) -> Result<Self, DecodeError> {
 		let block_num = Decode::decode(&mut (block.block_num as u32).encode().as_slice())?;
 		let extrinsics_root = Decode::decode(&mut block.extrinsics_root.as_slice())?;
 		let state_root = Decode::decode(&mut block.state_root.as_slice())?;

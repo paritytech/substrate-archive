@@ -22,4 +22,4 @@ pub mod types;
 pub mod util;
 
 pub use self::database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS};
-pub use self::error::{Error, Result};
+pub use self::error::{ArchiveError, Result};
