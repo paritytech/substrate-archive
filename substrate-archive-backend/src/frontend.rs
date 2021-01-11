@@ -50,10 +50,10 @@ where
 	Block: BlockT,
 	Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch, D>> + Send + Sync + 'static,
 	Runtime::RuntimeApi:
-		RuntimeApiCollection<Block, StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block, D>, Block>>
-			+ Send
-			+ Sync
-			+ 'static,
+	RuntimeApiCollection<Block, StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block, D>, Block>>
+		+ Send
+		+ Sync
+		+ 'static,
 	Dispatch: NativeExecutionDispatch + 'static,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
