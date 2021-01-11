@@ -252,7 +252,7 @@ where
 		let last_finalized_block = backend.last_finalized()?;
 		let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
 		log::info!(
-            "Running archive for chain `{}` 🔗, implementation `{}`. Latest known runtime version: {}. Latest finalized block {} 🛡️",
+            "Running archive for 🔗 `{}`, implementation `{}`. Latest known runtime version: {}. Latest finalized block {} 🛡️",
             rt.spec_name,
             rt.impl_name,
             rt.spec_version,

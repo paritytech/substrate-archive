@@ -147,14 +147,21 @@ where
 	B: Unpin,
 	B::Hash: Unpin,
 {
-	async fn started(&mut self, conf: &mut Context<Self>) {
+	async fn started(&mut self, ctx: &mut Context<Self>) {
 		// using this instead of notify_immediately because
 		// ReIndexing is async process
-		conf.address()
-			.expect("Actor just started")
-			.do_send(ReIndex)
+		/*
+		  ctx.address()
+			  .expect("Actor just started")
+			  .do_send(ReIndex)
+			  .expect("Actor cannot be disconnected; just started");
+		*/
+		// self.last_max = 3_912_159; // wnd
+		self.last_max = 3_297_530; // polkadot
+		self.last_max = 5_672_761;
+		let fut = ctx
+			.notify_interval(std::time::Duration::from_secs(5), || Crawl)
 			.expect("Actor cannot be disconnected; just started");
-		let fut = conf.notify_interval(std::time::Duration::from_secs(5), || Crawl).expect("Actor just started");
 		smol::spawn(fut).detach();
 	}
 }

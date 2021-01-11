@@ -119,10 +119,10 @@ impl futures::task::Spawn for TaskExecutor {
 
 fn execution_strategies() -> ExecutionStrategies {
 	ExecutionStrategies {
-		syncing: ExecutionStrategy::AlwaysWasm,
-		importing: ExecutionStrategy::AlwaysWasm,
-		block_construction: ExecutionStrategy::AlwaysWasm,
-		offchain_worker: ExecutionStrategy::AlwaysWasm,
-		other: ExecutionStrategy::AlwaysWasm,
+		syncing: ExecutionStrategy::NativeElseWasm,
+		importing: ExecutionStrategy::NativeElseWasm,
+		block_construction: ExecutionStrategy::NativeElseWasm,
+		offchain_worker: ExecutionStrategy::NativeElseWasm,
+		other: ExecutionStrategy::NativeElseWasm,
 	}
 }

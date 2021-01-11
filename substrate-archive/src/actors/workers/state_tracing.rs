@@ -40,8 +40,6 @@ use xtra::prelude::*;
 
 /// Span which surrounds a single blocks execution.
 pub const BLOCK_EXEC_SPAN: &str = "block_execute_task";
-/// Special Filter to enable all tracing targets.
-pub const ENABLE_ALL_TARGETS: &str = "enable_all_targets";
 
 /// Collects traces and filters based on target.
 /// The Subscriber implementation is blocking. It uses Mutex primitives to coalesce traces before
@@ -325,13 +323,15 @@ impl<B: BlockT> ArchiveTraceHandler<B> {
 
 impl<B: BlockT> Subscriber for ArchiveTraceHandler<B> {
 	fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-		self.targets.iter().any(|t| t.0 == metadata.target()) || metadata.target() == "substrate_archive::tasks"
+		self.targets.iter().any(|t| metadata.target().starts_with(t.0.as_str()))
+			|| metadata.target() == "substrate_archive::tasks"
 	}
 
 	fn new_span(&self, attrs: &Attributes<'_>) -> Id {
 		let meta = attrs.metadata();
 		let mut values = TraceData::default();
 		attrs.record(&mut values);
+
 		let id = Id::from_u64(self.counter.fetch_add(1, Ordering::Relaxed));
 		let span_message = SpanMessage {
 			id: id.clone(),
@@ -426,15 +426,13 @@ impl<B: BlockT> TracingActor<B> {
 
 	/// Returns true if a span is part of an enabled Target. Checks WASM in addition to the spans target.
 	fn is_enabled(&self, span: &SpanMessage) -> bool {
-		if self.targets.iter().any(|t| t.0 == ENABLE_ALL_TARGETS && span.level <= t.1) {
-			true
-		} else {
-			self.targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
-				(span.target.starts_with(&t.0.as_str()) && span.level <= t.1)
-					|| (Some(&t.0) == span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string()).as_ref()
-						&& span.level <= t.1)
-			})
-		}
+		let wasm_target = span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string());
+
+		self.targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
+			(span.target.starts_with(&t.0.as_str()) && span.level <= t.1)
+				|| (wasm_target.as_ref().map(|wasm_target| wasm_target.as_str().starts_with(&t.0)).unwrap_or(false)
+					&& span.level <= t.1)
+		})
 	}
 
 	/// Formats spans based upon data types that would be more useful for querying in the context

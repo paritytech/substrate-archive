@@ -46,6 +46,5 @@ westend_db = "westend-archive"
 kusama_db = "kusama-db"
 polkadot_db = "polkadot-db"
 
-wasm_tracing_targets = '''wasm_tracing,enable_all_targets'''
-
+wasm_tracing_targets = '''wasm_tracing,pallet,frame,state'''
 

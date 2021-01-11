@@ -197,12 +197,13 @@ where
 		let pool = actors.db_pool.send(GetState::Pool.into()).await?.await?.pool();
 		let listener = Self::init_listeners(conf.pg_url()).await?;
 		let mut conn = pool.acquire().await?;
-		Self::restore_missing_storage(&mut *conn).await?;
+		// Self::restore_missing_storage(&mut *conn).await?;
 		let env = Environment::<B, R, C, D>::new(conf.backend().clone(), client, actors.storage.clone());
 		let env = AssertUnwindSafe(env);
 
 		let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
+			.timeout(std::time::Duration::from_secs(5))
 			.num_threads(conf.workers)
 			.build()?;
 
@@ -211,8 +212,13 @@ where
 			futures::pin_mut!(tasks);
 			futures::select! {
 				t = tasks => {
-					if t? == 0 {
-						smol::Timer::after(std::time::Duration::from_millis(3600)).await;
+					match t {
+						Ok(0) => {
+							smol::Timer::after(std::time::Duration::from_millis(256)).await;
+						},
+						Ok(n) => log::debug!("Executed {} tasks successfully", n),
+						Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
+						Err(e) => log::error!("{:?}", e),
 					}
 				},
 				_ = rx.recv_async() => break,
@@ -225,7 +231,7 @@ where
 
 	async fn spawn_actors(conf: SystemConfig<B, D>) -> Result<Actors<B, D>> {
 		let db = workers::DatabaseActor::<B>::new(conf.pg_url().into()).await?;
-		let db_pool = actor_pool::ActorPool::new(db, 8).create(None).spawn(&mut Smol::Global);
+		let db_pool = actor_pool::ActorPool::new(db, 4).create(None).spawn(&mut Smol::Global);
 		let storage = workers::StorageAggregator::new(db_pool.clone()).create(None).spawn(&mut Smol::Global);
 		let metadata = workers::MetadataActor::new(db_pool.clone(), conf.meta().clone())
 			.await?
