@@ -53,7 +53,7 @@ where
 	backend: Arc<ReadOnlyBackend<B, D>>,
 	db: DatabaseAct<B>,
 	meta: MetadataAct<B>,
-	rt_cache: RuntimeVersionCache<B, D>,
+	rt_cache: Arc<RuntimeVersionCache<B, D>>,
 	/// the last maximum block number from which we are sure every block before then is indexed
 	last_max: u32,
 	/// the maximum amount of blocks to index at once
@@ -67,7 +67,7 @@ where
 {
 	pub fn new(ctx: ActorContext<B, D>, db: DatabaseAct<B>, meta: MetadataAct<B>) -> Self {
 		Self {
-			rt_cache: RuntimeVersionCache::new(ctx.backend.clone()),
+			rt_cache: Arc::new(RuntimeVersionCache::new(ctx.backend.clone())),
 			last_max: 0,
 			backend: ctx.backend().clone(),
 			db,
