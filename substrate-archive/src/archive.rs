@@ -147,6 +147,15 @@ impl<B, R, D, DB> Builder<B, R, D, DB> {
 		self
 	}
 
+	/// Set the folder and targets for tracing.
+	/// This tells substrate-archive to also store all state-traces resulting from the execution of blocks.
+	///
+	/// # Note
+	/// Traces will only be collected if a coexisting WASM binary
+	/// for the runtime version of the block being currently executed is available.
+	///
+	/// # Default
+	/// Wasm Tracing is disabled by default.
 	pub fn wasm_tracing(mut self, config: TracingConfig) -> Self {
 		self.wasm_tracing = Some(config);
 		self
