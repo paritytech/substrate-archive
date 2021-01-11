@@ -20,12 +20,8 @@ mod metadata;
 mod state_tracing;
 mod storage_aggregator;
 
-/// Database message to get state internal database state
 pub use self::database::{DatabaseActor, GetState};
-pub use self::metadata::Metadata;
+pub use self::metadata::MetadataActor;
 pub use blocks::BlocksIndexer;
 pub use state_tracing::{EventMessage, Traces, TracingActor};
 pub use storage_aggregator::StorageAggregator;
-
-use super::actor_pool::ActorPool;
-use super::msg::Die;

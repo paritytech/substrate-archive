@@ -21,6 +21,7 @@ mod batch;
 pub mod listener;
 pub mod queries;
 
+pub use self::listener::*;
 use crate::actors::{EventMessage, Traces};
 use async_trait::async_trait;
 use batch::Batch;
@@ -29,10 +30,7 @@ use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 use std::convert::{TryFrom, TryInto};
-use substrate_archive_common::{models, types::*, Error, Result};
-
-pub use self::listener::*;
-pub use self::models::*;
+use substrate_archive_common::{models::StorageModel, types::*, ArchiveError, Result};
 
 pub type DbReturn = Result<u64>;
 pub type DbConn = sqlx::pool::PoolConnection<Postgres>;
@@ -332,7 +330,7 @@ impl Insert for Traces {
 // Old time is disabled in chrono by not providing the feature flag in Cargo.toml.
 fn time_to_std(time: chrono::Duration) -> Result<std::time::Duration> {
 	if time < chrono::Duration::zero() {
-		Err(Error::TimestampOutOfRange)
+		Err(ArchiveError::TimestampOutOfRange)
 	} else {
 		Ok(time.to_std().expect("Checked for less than 0"))
 	}

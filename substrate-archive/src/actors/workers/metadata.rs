@@ -13,30 +13,37 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{database::GetState, ActorPool};
-use crate::{database::DbConn, queries};
 use itertools::Itertools;
+use xtra::prelude::*;
+
 use sp_runtime::{
 	generic::BlockId,
 	traits::{Block as BlockT, Header as _, NumberFor},
 };
 use substrate_archive_backend::Meta;
 use substrate_archive_common::{
-	types::{BatchBlock, Block, Metadata as MetadataT},
+	types::{BatchBlock, Block, Die, Metadata},
 	Result,
 };
-use xtra::prelude::*;
+
+use crate::{
+	actors::{
+		actor_pool::ActorPool,
+		workers::database::{DatabaseActor, GetState},
+	},
+	database::{queries, DbConn},
+};
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub struct Metadata<B: BlockT> {
+pub struct MetadataActor<B: BlockT> {
 	conn: DbConn,
-	addr: Address<ActorPool<super::DatabaseActor<B>>>,
+	addr: Address<ActorPool<DatabaseActor<B>>>,
 	meta: Meta<B>,
 }
 
-impl<B: BlockT + Unpin> Metadata<B> {
-	pub async fn new(addr: Address<ActorPool<super::DatabaseActor<B>>>, meta: Meta<B>) -> Result<Self> {
+impl<B: BlockT + Unpin> MetadataActor<B> {
+	pub async fn new(addr: Address<ActorPool<DatabaseActor<B>>>, meta: Meta<B>) -> Result<Self> {
 		let conn = addr.send(GetState::Conn.into()).await?.await?.conn();
 		Ok(Self { conn, addr, meta })
 	}
@@ -47,9 +54,9 @@ impl<B: BlockT + Unpin> Metadata<B> {
 		if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
 			let meta = self.meta.clone();
 			log::info!("Getting metadata for hash {}, version {}", hex::encode(hash.as_ref()), ver);
-			let meta = smol::unblock!(meta.metadata(&BlockId::hash(hash)))?;
+			let meta = smol::unblock(move || meta.metadata(&BlockId::hash(hash))).await?;
 			let meta: sp_core::Bytes = meta.into();
-			let meta = MetadataT::new(ver, meta.0);
+			let meta = Metadata::new(ver, meta.0);
 			self.addr.send(meta.into()).await?.await;
 		}
 		Ok(())
@@ -78,10 +85,10 @@ impl<B: BlockT + Unpin> Metadata<B> {
 	}
 }
 
-impl<B: BlockT> Actor for Metadata<B> {}
+impl<B: BlockT> Actor for MetadataActor<B> {}
 
 #[async_trait::async_trait]
-impl<B> Handler<Block<B>> for Metadata<B>
+impl<B> Handler<Block<B>> for MetadataActor<B>
 where
 	B: BlockT + Unpin,
 	NumberFor<B>: Into<u32>,
@@ -94,7 +101,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B> Handler<BatchBlock<B>> for Metadata<B>
+impl<B> Handler<BatchBlock<B>> for MetadataActor<B>
 where
 	B: BlockT + Unpin,
 	NumberFor<B>: Into<u32>,
@@ -107,12 +114,12 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<super::Die> for Metadata<B>
+impl<B: BlockT + Unpin> Handler<Die> for MetadataActor<B>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
 		ctx.stop();
 		Ok(())
 	}

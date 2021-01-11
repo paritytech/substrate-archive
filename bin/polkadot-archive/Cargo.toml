@@ -4,21 +4,19 @@ version = "0.2.3"
 authors = ["Andrew Plaza <aplaza@liquidthink.net>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+anyhow = "1.0"
+clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }
+ctrlc = { version = "3.1.5", features = ["termination"] }
+log = "0.4"
+serde = "1.0"
+toml = "0.5"
+
 substrate-archive = { path = "../../substrate-archive", features = ["logging"] }
 substrate-archive-common = { path = "../../substrate-archive-common" }
 substrate-archive-backend = { path = "../../substrate-archive-backend" }
-polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
-clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }
-toml = "0.5"
-log = "0.4"
-anyhow = "1.0"
-serde = "1.0"
-smol = "0.3.3"
-ctrlc = { version = "3.1.5", features = ["termination"] }

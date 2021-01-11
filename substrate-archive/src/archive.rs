@@ -205,7 +205,7 @@ where
 	D: NativeExecutionDispatch + 'static,
 	<R::RuntimeApi as sp_api::ApiExt<B>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 	NumberFor<B>: Into<u32> + From<u32> + Unpin,
-	B::Hash: From<primitive_types::H256> + Unpin,
+	B::Hash: Unpin,
 	B::Header: serde::de::DeserializeOwned,
 {
 	/// Build this instance of the Archiver.

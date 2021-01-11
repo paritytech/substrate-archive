@@ -13,8 +13,17 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{ActorPool, DatabaseActor, GetState, Metadata};
-use crate::{actors::SystemConfig, database::queries, Error::Disconnected};
+use crate::{
+	actors::{
+		actor_pool::ActorPool,
+		workers::{
+			database::{DatabaseActor, GetState},
+			metadata::MetadataActor,
+		},
+		SystemConfig,
+	},
+	database::queries,
+};
 use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, Header as _, NumberFor},
@@ -22,12 +31,13 @@ use sp_runtime::{
 use std::sync::Arc;
 use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
 use substrate_archive_common::{
-	types::{BatchBlock, Block},
-	ReadOnlyDB, Result,
+	types::{BatchBlock, Block, Die},
+	ArchiveError, ReadOnlyDB, Result,
 };
 use xtra::prelude::*;
 
 type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
+type MetadataAct<B> = Address<MetadataActor<B>>;
 
 pub struct BlocksIndexer<B: BlockT, D>
 where
@@ -39,7 +49,7 @@ where
 	/// background task to crawl blocks
 	backend: Arc<ReadOnlyBackend<B, D>>,
 	db: DatabaseAct<B>,
-	meta: Address<Metadata<B>>,
+	meta: MetadataAct<B>,
 	rt_cache: Arc<RuntimeVersionCache<B, D>>,
 	/// the last maximum block number from which we are sure every block before then is indexed
 	last_max: u32,
@@ -52,14 +62,14 @@ where
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
 {
-	pub fn new(ctx: SystemConfig<B, D>, db_addr: DatabaseAct<B>, meta: Address<Metadata<B>>) -> Self {
+	pub fn new(conf: &SystemConfig<B, D>, db: DatabaseAct<B>, meta: MetadataAct<B>) -> Self {
 		Self {
-			rt_cache: Arc::new(RuntimeVersionCache::new(ctx.backend.clone())),
+			rt_cache: Arc::new(RuntimeVersionCache::new(conf.backend.clone())),
 			last_max: 0,
-			backend: ctx.backend().clone(),
-			db: db_addr,
+			backend: conf.backend().clone(),
+			db,
 			meta,
-			max_block_load: ctx.max_block_load,
+			max_block_load: conf.max_block_load,
 		}
 	}
 
@@ -71,10 +81,10 @@ where
 		let gather_blocks = move || -> Result<Vec<SignedBlock<B>>> {
 			Ok(backend.iter_blocks(|n| fun(n))?.enumerate().map(|(_, b)| b).collect())
 		};
-		let blocks = smol::unblock!(gather_blocks())?;
+		let blocks = smol::unblock(gather_blocks).await?;
 		log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
 		let cache = self.rt_cache.clone();
-		let blocks = smol::unblock!(cache.find_versions_as_blocks(blocks))?;
+		let blocks = smol::unblock(move || cache.find_versions_as_blocks(blocks)).await?;
 		Ok(blocks)
 	}
 
@@ -137,14 +147,15 @@ where
 	B: Unpin,
 	B::Hash: Unpin,
 {
-	async fn started(&mut self, ctx: &mut Context<Self>) {
+	async fn started(&mut self, conf: &mut Context<Self>) {
 		// using this instead of notify_immediately because
 		// ReIndexing is async process
-		ctx.address()
+		conf.address()
 			.expect("Actor just started")
 			.do_send(ReIndex)
 			.expect("Actor cannot be disconnected; just started");
-		ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl);
+		let fut = conf.notify_interval(std::time::Duration::from_secs(5), || Crawl).expect("Actor just started");
+		smol::spawn(fut).detach();
 	}
 }
 
@@ -159,12 +170,12 @@ where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: Crawl, ctx: &mut Context<Self>) {
+	async fn handle(&mut self, _: Crawl, conf: &mut Context<Self>) {
 		match self.crawl().await {
 			Err(e) => log::error!("{}", e.to_string()),
 			Ok(b) => {
 				if !b.is_empty() && self.meta.send(BatchBlock::new(b)).await.is_err() {
-					ctx.stop();
+					conf.stop();
 				}
 			}
 		}
@@ -182,10 +193,10 @@ where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: ReIndex, ctx: &mut Context<Self>) {
+	async fn handle(&mut self, _: ReIndex, conf: &mut Context<Self>) {
 		match self.re_index().await {
 			// stop if disconnected from the metadata actor
-			Err(Disconnected) => ctx.stop(),
+			Err(ArchiveError::Disconnected) => conf.stop(),
 			Ok(()) => {}
 			Err(e) => log::error!("{}", e.to_string()),
 		}
@@ -193,13 +204,13 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<super::Die> for BlocksIndexer<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<Die> for BlocksIndexer<B, D>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
-		ctx.stop();
+	async fn handle(&mut self, _: Die, conf: &mut Context<Self>) -> Result<()> {
+		conf.stop();
 		Ok(())
 	}
 }

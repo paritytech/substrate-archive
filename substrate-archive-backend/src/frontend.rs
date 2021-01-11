@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod client;
-pub use self::client::{Client, GetMetadata, GetRuntimeVersion};
+
 use futures::{task::SpawnExt, Future};
 use sc_client_api::{
 	execution_extensions::{ExecutionExtensions, ExecutionStrategies},
@@ -27,9 +27,10 @@ use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use std::{path::PathBuf, sync::Arc};
-use substrate_archive_common::{Error as ArchiveError, ReadOnlyDB};
+use substrate_archive_common::{ArchiveError, ReadOnlyDB};
 
-use super::{ReadOnlyBackend, RuntimeApiCollection};
+pub use self::client::{Client, GetMetadata, GetRuntimeVersion};
+use crate::{read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
 pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;
@@ -67,10 +68,11 @@ pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDB + 'static>(
 where
 	Block: BlockT,
 	Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch, D>> + Send + Sync + 'static,
-	Runtime::RuntimeApi: RuntimeApiCollection<Block, StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block, D>, Block>>
-		+ Send
-		+ Sync
-		+ 'static,
+	Runtime::RuntimeApi:
+		RuntimeApiCollection<Block, StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block, D>, Block>>
+			+ Send
+			+ Sync
+			+ 'static,
 	Dispatch: NativeExecutionDispatch + 'static,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {

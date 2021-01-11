@@ -17,8 +17,8 @@
 mod database;
 mod error;
 pub mod models;
-pub mod msg;
 pub mod types;
 pub mod util;
-pub use database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS};
-pub use error::{Error, Result, TracingError};
+
+pub use self::database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS};
+pub use self::error::{ArchiveError, Result, TracingError};

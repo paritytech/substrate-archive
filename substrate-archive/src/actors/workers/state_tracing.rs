@@ -19,7 +19,7 @@
 //! Running this Actor collects traces from running WASM that has been compiled with the `with-tracing` feature.
 //! These traces may be used to chronologically track the execution of extrinsics inside runtime from initialization to finalization.
 
-use super::ActorPool;
+use crate::actors::actor_pool::ActorPool;
 use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,7 @@ use sp_tracing::{WASM_NAME_KEY, WASM_TARGET_KEY, WASM_TRACE_IDENTIFIER};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::sync::atomic::{AtomicU64, Ordering};
-use substrate_archive_common::{Error::Disconnected, Result, TracingError};
+use substrate_archive_common::{types::Die, ArchiveError::Disconnected, Result, TracingError};
 use tracing::{
 	event::Event,
 	field::{Field, Visit},
@@ -558,8 +558,8 @@ impl<B: BlockT> Handler<EventMessage> for TracingActor<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<super::Die> for TracingActor<B> {
-	async fn handle(&mut self, _: super::Die, ctx: &mut Context<Self>) -> Result<()> {
+impl<B: BlockT> Handler<Die> for TracingActor<B> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
 		log::info!("Traces Stopping");
 		ctx.stop();
 		Ok(())

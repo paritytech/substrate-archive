@@ -38,7 +38,7 @@ pub use substrate_archive_common::util::init_logger;
 pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
 pub use sp_runtime::MultiSignature;
-pub use substrate_archive_common::Error;
+pub use substrate_archive_common::ArchiveError;
 pub mod chain_traits {
 	//! Traits defining functions on the client needed for indexing
 	pub use sc_client_api::client::BlockBackend;
@@ -51,22 +51,18 @@ pub struct TaskExecutor;
 
 impl futures::task::Spawn for TaskExecutor {
 	fn spawn_obj(&self, future: futures::task::FutureObj<'static, ()>) -> Result<(), futures::task::SpawnError> {
-		smol::Task::spawn(future).detach();
+		smol::spawn(future).detach();
 		Ok(())
 	}
 }
 
 impl sp_core::traits::SpawnNamed for TaskExecutor {
-	fn spawn_blocking(
-		&self,
-		_: &'static str,
-		fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>,
-	) {
-		smol::Task::spawn(async move { smol::unblock!(fut).await }).detach();
+	fn spawn_blocking(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
+		smol::spawn(async move { smol::unblock(|| fut).await.await }).detach();
 	}
 
-	fn spawn(&self, _: &'static str, fut: std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>) {
-		smol::Task::spawn(fut).detach()
+	fn spawn(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
+		smol::spawn(fut).detach()
 	}
 }
 

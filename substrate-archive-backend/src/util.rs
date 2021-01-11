@@ -16,14 +16,17 @@
 
 //! various utilities that make interfacing with substrate easier
 
+use std::convert::TryInto;
+
 use codec::Decode;
 use kvdb::DBValue;
+
 use sp_runtime::{
 	generic::BlockId,
 	traits::{Block as BlockT, Header as HeaderT, UniqueSaturatedFrom, UniqueSaturatedInto, Zero},
 };
-use std::convert::TryInto;
-use substrate_archive_common::{Error, ReadOnlyDB, Result};
+
+use substrate_archive_common::{ArchiveError, ReadOnlyDB, Result};
 
 pub type NumberIndexKey = [u8; 4];
 
@@ -79,7 +82,7 @@ pub fn read_header<Block: BlockT, D: ReadOnlyDB>(
 	match read_db(db, col_index, col, id)? {
 		Some(header) => match Block::Header::decode(&mut &header[..]) {
 			Ok(header) => Ok(Some(header)),
-			Err(_) => Err(Error::from("Error decoding header")),
+			Err(_) => Err(ArchiveError::from("Error decoding header")),
 		},
 		None => Ok(None),
 	}
@@ -112,7 +115,7 @@ where
 /// In the current database schema, this kind of key is only used for
 /// lookups into an index, NOT for storing header data or others
 pub fn number_index_key<N: TryInto<u32>>(n: N) -> Result<NumberIndexKey> {
-	let n = n.try_into().map_err(|_| Error::from("Block num cannot be converted to u32"))?;
+	let n = n.try_into().map_err(|_| ArchiveError::from("Block num cannot be converted to u32"))?;
 
 	Ok([(n >> 24) as u8, ((n >> 16) & 0xff) as u8, ((n >> 8) & 0xff) as u8, (n & 0xff) as u8])
 }

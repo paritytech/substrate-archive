@@ -18,15 +18,15 @@
 //! Messages that return nothing but an error may be sent to an asyncronous pool of actors
 //! if state is an actor may be pulled out of the pool
 
+use std::collections::VecDeque;
+use std::pin::Pin;
+
 use futures::{
 	future::{Future, FutureExt},
 	sink::SinkExt,
 	stream::StreamExt,
 };
-use std::collections::VecDeque;
-use std::pin::Pin;
-use xtra::prelude::*;
-use xtra::{Disconnected, WeakAddress};
+use xtra::{prelude::*, spawn::Smol, Disconnected, WeakAddress};
 
 // TODO: Could restart actors which have panicked
 // TODO: If an actor disconnects remove it from the queue
@@ -43,7 +43,7 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
 		let mut queue = VecDeque::with_capacity(size);
 		for _ in 0..size {
 			let a = actor.clone();
-			queue.push_back(a.spawn())
+			queue.push_back(a.create(None).spawn(&mut Smol::Global))
 		}
 
 		Self { queue, pure_actor: actor }
@@ -55,7 +55,7 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
 		self.queue.reserve(n);
 		for _ in 0..n {
 			let a = self.pure_actor.clone();
-			self.queue.push_back(a.spawn())
+			self.queue.push_back(a.create(None).spawn(&mut Smol::Global))
 		}
 	}
 
@@ -109,7 +109,7 @@ where
 	// `Sync` Cell<bool>
 	let (mut tx, mut rx) = futures::channel::mpsc::channel(0);
 
-	let handle = smol::Task::spawn(async move { rx.next().await.expect("One Shot") });
+	let handle = smol::spawn(async move { rx.next().await.expect("One Shot") });
 	let fut = async move {
 		match fut.await {
 			Ok(v) => {
@@ -120,7 +120,7 @@ where
 			}
 		};
 	};
-	smol::Task::spawn(fut).detach();
+	smol::spawn(fut).detach();
 	handle.boxed()
 }
 

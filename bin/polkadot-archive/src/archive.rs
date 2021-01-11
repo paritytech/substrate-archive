@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::config::Config;
-
 use anyhow::{anyhow, Context, Result};
 use polkadot_service::kusama_runtime as ksm_rt;
 use polkadot_service::polkadot_runtime as dot_rt;
@@ -45,6 +43,7 @@ native_executor_instance!(
 	wnd_rt::native_version,
 	sp_io::SubstrateHostFunctions,
 );
+use crate::config::Config;
 
 pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Archive<Block, D>>> {
 	let mut db_path = if let Some(p) = config.polkadot_path() {

@@ -14,8 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use clap::{load_yaml, App};
 use std::path::PathBuf;
+
+use clap::{load_yaml, App};
 
 #[derive(Clone)]
 pub struct CliOpts {
@@ -38,18 +39,22 @@ impl CliOpts {
 		let file = matches.value_of("config").expect("Config is a required value");
 		let chain_spec;
 		let spec = matches.value_of("spec");
-
-		match spec {
-			Some("dev") => {
-				chain_spec = node_template::chain_spec::development_config();
+		if spec.is_some() {
+			match spec {
+				Some("dev") => {
+					chain_spec = node_template::chain_spec::development_config();
+				}
+				Some("") | Some("local") => {
+					chain_spec = node_template::chain_spec::local_testnet_config();
+				}
+				path => {
+					chain_spec = node_template::chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(
+						path.expect("checked for existence; qed"),
+					))
+				}
 			}
-			Some("") | Some("local") => {
-				chain_spec = node_template::chain_spec::local_testnet_config();
-			}
-			Some(path) => {
-				chain_spec = node_template::chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(path))
-			}
-			None => panic!("Chain spec could not be loaded; is the path correct?"),
+		} else {
+			panic!("Chain spec could not be loaded; is the path correct?")
 		}
 
 		CliOpts {

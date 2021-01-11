@@ -16,9 +16,10 @@
 
 //! Implements Blockchain Backend (and required associated traits) for ReadOnlyBackend type
 
-use super::ReadOnlyBackend;
-use crate::util::{self, columns};
+use std::sync::Arc;
+
 use codec::Decode;
+
 use sp_blockchain::{
 	Backend as BlockchainBackend, BlockStatus, Cache, CachedHeaderMetadata, Error as BlockchainError, HeaderBackend,
 	HeaderMetadata, Info,
@@ -28,8 +29,11 @@ use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT, NumberFor},
 	Justification,
 };
-use std::sync::Arc;
+
 use substrate_archive_common::ReadOnlyDB;
+
+use crate::read_only_backend::ReadOnlyBackend;
+use crate::util::{self, columns};
 
 type ChainResult<T> = Result<T, BlockchainError>;
 

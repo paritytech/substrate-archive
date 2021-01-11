@@ -14,8 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use clap::{load_yaml, App};
 use std::path::PathBuf;
+
+use clap::{load_yaml, App};
 
 #[derive(Debug, Clone)]
 pub struct CliOpts {

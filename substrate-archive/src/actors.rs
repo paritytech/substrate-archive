@@ -22,14 +22,14 @@ mod workers;
 pub use self::actor_pool::ActorPool;
 use self::workers::GetState;
 pub use self::workers::{BlocksIndexer, DatabaseActor, EventMessage, StorageAggregator, Traces};
-use super::{
+use crate::{
 	database::{queries, Channel, Listener},
-	sql_block_builder::BlockBuilder as SqlBlockBuilder,
+	sql_block_builder::SqlBlockBuilder,
 	tasks::Environment,
 	traits::Archive,
 };
 use coil::Job as _;
-use futures::FutureExt;
+use futures::{future::BoxFuture, FutureExt};
 use hashbrown::HashSet;
 use sc_client_api::backend;
 use serde::de::DeserializeOwned;
@@ -40,8 +40,8 @@ use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
-pub use substrate_archive_common::{msg, ReadOnlyDB, Result};
-use xtra::prelude::*;
+use substrate_archive_common::{types::Die, ReadOnlyDB, Result};
+use xtra::{prelude::*, spawn::Smol, Disconnected};
 
 // TODO: Split this up into two objects
 // System should be a factory that produces objects that should be spawned
@@ -111,7 +111,7 @@ where
 {
 	storage: Address<workers::StorageAggregator<B>>,
 	blocks: Address<workers::BlocksIndexer<B, D>>,
-	metadata: Address<workers::Metadata<B>>,
+	metadata: Address<workers::MetadataActor<B>>,
 	db_pool: Address<ActorPool<DatabaseActor<B>>>,
 	tracing: Option<Address<workers::TracingActor<B>>>,
 }
@@ -146,7 +146,7 @@ where
 		+ 'static,
 	C: ApiAccess<B, ReadOnlyBackend<B, D>, R> + 'static,
 	NumberFor<B>: Into<u32> + From<u32> + Unpin,
-	B::Hash: From<primitive_types::H256> + Unpin,
+	B::Hash: Unpin,
 	B::Header: serde::de::DeserializeOwned,
 {
 	// TODO: Return a reference to the Db pool.
@@ -184,14 +184,15 @@ where
 		let handle = jod_thread::spawn(move || {
 			// block until we receive the message to start
 			let _ = rx_start.recv();
-			smol::run(Self::main_loop(conf, rx_kill, client))?;
+
+			smol::block_on(Self::main_loop(conf, rx_kill, client))?;
 			Ok(())
 		});
 
 		(tx_start, tx_kill, handle)
 	}
 
-	async fn main_loop(conf: SystemConfig<B, D>, mut rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
+	async fn main_loop(conf: SystemConfig<B, D>, rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
 		let actors = Self::spawn_actors(conf.clone()).await?;
 		let pool = actors.db_pool.send(GetState::Pool.into()).await?.await?.pool();
 		let listener = Self::init_listeners(conf.pg_url()).await?;
@@ -211,7 +212,7 @@ where
 			futures::select! {
 				t = tasks => {
 					if t? == 0 {
-						smol::Timer::new(std::time::Duration::from_millis(3600)).await;
+						smol::Timer::after(std::time::Duration::from_millis(3600)).await;
 					}
 				},
 				_ = rx.recv_async() => break,
@@ -224,22 +225,32 @@ where
 
 	async fn spawn_actors(conf: SystemConfig<B, D>) -> Result<Actors<B, D>> {
 		let db = workers::DatabaseActor::<B>::new(conf.pg_url().into()).await?;
-		let db_pool = actor_pool::ActorPool::new(db, 8).spawn();
-		let storage = workers::StorageAggregator::new(db_pool.clone()).spawn();
-		let metadata = workers::Metadata::new(db_pool.clone(), conf.meta().clone()).await?.spawn();
-		let blocks = workers::BlocksIndexer::new(conf.clone(), db_pool.clone(), metadata.clone()).spawn();
-		// TODO: Add blacklist config option
-		let tracing = conf.tracing_targets.map(|t| workers::TracingActor::new(t, db_pool.clone()).spawn());
+		let db_pool = actor_pool::ActorPool::new(db, 8).create(None).spawn(&mut Smol::Global);
+		let storage = workers::StorageAggregator::new(db_pool.clone()).create(None).spawn(&mut Smol::Global);
+		let metadata = workers::MetadataActor::new(db_pool.clone(), conf.meta().clone())
+			.await?
+			.create(None)
+			.spawn(&mut Smol::Global);
+		let blocks =
+			workers::BlocksIndexer::new(&conf, db_pool.clone(), metadata.clone()).create(None).spawn(&mut Smol::Global);
+		let tracing = conf
+			.tracing_targets
+			.map(|t| workers::TracingActor::new(t, db_pool.clone()).create(None).spawn(&mut Smol::Global));
+
 		Ok(Actors { storage, blocks, metadata, db_pool, tracing })
 	}
 
 	async fn kill_actors(actors: Actors<B, D>) -> Result<()> {
-		let fut = vec![actors.storage.send(msg::Die), actors.blocks.send(msg::Die), actors.metadata.send(msg::Die)];
+		let fut: Vec<BoxFuture<'_, Result<Result<()>, Disconnected>>> = vec![
+			Box::pin(actors.storage.send(Die)),
+			Box::pin(actors.blocks.send(Die)),
+			Box::pin(actors.metadata.send(Die)),
+		];
 		futures::future::join_all(fut).await;
 		if let Some(tracing) = actors.tracing {
-			tracing.send(msg::Die).await??;
+			tracing.send(Die).await??;
 		}
-		let _ = actors.db_pool.send(msg::Die.into()).await?.await;
+		let _ = actors.db_pool.send(Die.into()).await?.await;
 		Ok(())
 	}
 
@@ -303,7 +314,7 @@ where
 		+ 'static,
 	C: ApiAccess<B, ReadOnlyBackend<B, D>, R> + 'static,
 	NumberFor<B>: Into<u32> + From<u32> + Unpin,
-	B::Hash: From<primitive_types::H256> + Unpin,
+	B::Hash: Unpin,
 	B::Header: serde::de::DeserializeOwned,
 {
 	fn drive(&mut self) -> Result<()> {
@@ -313,7 +324,7 @@ where
 
 	async fn block_until_stopped(&self) {
 		loop {
-			smol::Timer::new(std::time::Duration::from_secs(1)).await;
+			smol::Timer::after(std::time::Duration::from_secs(1)).await;
 		}
 	}
 

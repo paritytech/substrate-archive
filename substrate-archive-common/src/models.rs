@@ -18,13 +18,16 @@
 //! Only some types implemented, for convenience most types are already in their database model
 //! equivalents
 
-use super::{msg, types::*};
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
+
 use sp_runtime::traits::Block as BlockT;
 use sp_storage::{StorageData, StorageKey};
 
+use crate::types::*;
+
 /// Struct modeling data returned from database when querying for a block
-#[derive(sqlx::FromRow, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
 pub struct BlockModel {
 	pub id: i32,
 	pub parent_hash: Vec<u8>,
@@ -91,8 +94,8 @@ impl<Block: BlockT> From<Storage<Block>> for Vec<StorageModel<Block>> {
 	}
 }
 
-impl<Block: BlockT> From<msg::VecStorageWrap<Block>> for Vec<StorageModel<Block>> {
-	fn from(original: msg::VecStorageWrap<Block>) -> Vec<StorageModel<Block>> {
-		original.0.into_iter().flat_map(Vec::<StorageModel<Block>>::from).collect()
+impl<Block: BlockT> From<BatchStorage<Block>> for Vec<StorageModel<Block>> {
+	fn from(original: BatchStorage<Block>) -> Vec<StorageModel<Block>> {
+		original.inner.into_iter().flat_map(Vec::<StorageModel<Block>>::from).collect()
 	}
 }
