@@ -102,7 +102,7 @@ impl<Block: BlockT, D: ReadOnlyDB + 'static> Backend<Block> for ReadOnlyBackend<
 
 		match self.state_at(hash) {
 			Some(v) => Ok(v),
-			None => Err(BlockchainError::StateDatabase(format!("No state found for block {:?}", hash).into())),
+			None => Err(BlockchainError::StateDatabase(format!("No state found for block {:?}", hash))),
 		}
 	}
 

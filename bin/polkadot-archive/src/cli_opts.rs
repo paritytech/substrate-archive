@@ -42,6 +42,6 @@ impl CliOpts {
 
 		let chain = matches.value_of("chain").unwrap_or("polkadot");
 
-		CliOpts { file: file.map(|f| PathBuf::from(f)), log_level, log_num, chain: chain.to_string() }
+		CliOpts { file: file.map(PathBuf::from), log_level, log_num, chain: chain.to_string() }
 	}
 }
