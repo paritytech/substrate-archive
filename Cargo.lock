@@ -872,7 +872,7 @@ dependencies = [
  "itoa",
  "log 0.4.11",
  "rayon",
- "rmp-serde",
+ "rmp-serde 0.14.4",
  "serde",
  "sqlx",
  "thiserror",
@@ -5676,6 +5676,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rmp-serde"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f74489002493a9984ee753ebd049552a1c82f0740e347ee9fc57c907fb19f83"
+dependencies = [
+ "byteorder",
+ "rmp",
+ "serde",
+]
+
+[[package]]
 name = "rocksdb"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8040,7 +8051,7 @@ dependencies = [
  "pretty_env_logger",
  "primitive-types",
  "rayon",
- "rmp-serde",
+ "rmp-serde 0.15.1",
  "sc-chain-spec",
  "sc-client-api",
  "sc-executor",
@@ -8106,7 +8117,7 @@ dependencies = [
  "log 0.4.11",
  "parity-scale-codec",
  "rayon",
- "rmp-serde",
+ "rmp-serde 0.15.1",
  "serde",
  "serde_json",
  "sp-blockchain",
