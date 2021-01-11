@@ -21,7 +21,7 @@ jod-thread = "0.1.2"
 num_cpus = "1"
 parking_lot = "0.10"
 rayon = "1.4"
-rmp-serde = "0.14"
+rmp-serde = "0.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde-aux = "0.6.1"

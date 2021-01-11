@@ -7,29 +7,59 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
+      - name: Checkout Sources
         uses: actions/checkout@v2
 
-      - name: Install stable toolchain
+      - name: Install Rust Stable toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
 
-      - name: Run cargo check
+      - name: Install Rust Nightly Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: Cache Dependencies & Build Outputs
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            bin/node-template-archive/target
+            bin/polkadot-archive/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check Code
         uses: actions-rs/cargo@v1
         with:
           command: check
+
+      - name: Check Code For `node-template-archive`
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --manifest-path bin/node-template-archive/Cargo.toml
+
+      - name: Check Code For `polkadot-archive`
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --manifest-path bin/polkadot-archive/Cargo.toml
 
   lints:
     name: Lints
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
+      - name: Checkout Sources
         uses: actions/checkout@v2
 
-      - name: Install stable toolchain
+      - name: Install Rust Stable Toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -37,25 +67,36 @@ jobs:
           override: true
           components: rustfmt, clippy
 
-      - name: Run cargo fmt
+      - name: Cache Dependencies & Build Outputs
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            bin/node-template-archive/target
+            bin/polkadot-archive/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check Code Format
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
 
-      - name: Check `node-template-archive` format
+      - name: Check Code Format For `node-template-archive`
         uses: actions-rs/cargo@v1
         with:
           command: fmt
-          args: ---manifest-path bin/node-template-archive/Cargo.toml -- --check
+          args: --manifest-path bin/node-template-archive/Cargo.toml -- --check
 
-      - name: Check `polkadot-archive` format
+      - name: Check Code Format For `polkadot-archive`
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --manifest-path bin/polkadot-archive/Cargo.toml -- --check
 
-      - name: Run cargo clippy
+      - name: Code Lint
         uses: actions-rs/cargo@v1
         with:
           command: clippy

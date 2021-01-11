@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 # External
-arc-swap = "0.4.7"
+arc-swap = "1.2.0"
 futures = "0.3"
 hashbrown = { version = "0.9", features = ["inline-more"] }
 log = "0.4"
