@@ -21,7 +21,7 @@ jod-thread = "0.1.2"
 num_cpus = "1"
 parking_lot = "0.10"
 rayon = "1.4"
-rmp-serde = "0.14"
+rmp-serde = "0.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde-aux = "0.6.1"
@@ -33,7 +33,7 @@ xtra = { version = "0.5.0-rc.1", features = ["with-smol-1"] }
 
 # Parity
 codec = { package = "parity-scale-codec", version = "1.3", default-features = false, features = ["derive", "full"] }
-primitive-types = "0.7"
+primitive-types = "0.8"
 
 # Substrate is pinned to the latest substrate version that polkadot release v0.8.25 is
 # using. This is necessary to make substrate-archive compatible with the polkadot runtime.
