@@ -44,12 +44,6 @@ pub struct RuntimeVersionCache<B: BlockT, D: ReadOnlyDB> {
 	exec: WasmExecutor,
 }
 
-impl<B: BlockT, D: ReadOnlyDB + 'static> Clone for RuntimeVersionCache<B, D> {
-	fn clone(&self) -> RuntimeVersionCache<B, D> {
-		RuntimeVersionCache { versions: self.versions.clone(), backend: self.backend.clone(), exec: self.exec.clone() }
-	}
-}
-
 impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 	pub fn new(backend: Arc<ReadOnlyBackend<B, D>>) -> Self {
 		// all _available_ functions
