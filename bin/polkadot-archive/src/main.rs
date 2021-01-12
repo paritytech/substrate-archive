@@ -27,7 +27,7 @@ pub fn main() -> anyhow::Result<()> {
 	substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug)?;
 	log::debug!("CONFIG {:?}", config);
 
-	let mut archive = archive::run_archive::<SecondaryRocksDB>(config.clone())?;
+	let mut archive = archive::run_archive::<SecondaryRocksDB>(config)?;
 	archive.drive()?;
 	let running = Arc::new(AtomicBool::new(true));
 	let r = running.clone();

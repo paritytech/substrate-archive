@@ -150,10 +150,11 @@ where
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		// using this instead of notify_immediately because
 		// ReIndexing is async process
-		ctx.address()
-			.expect("Actor just started")
-			.do_send(ReIndex)
-			.expect("Actor cannot be disconnected; just started");
+		//	ctx.address()
+		//.expect("Actor just started")
+		//.do_send(ReIndex)
+		//.expect("Actor cannot be disconnected; just started");
+		self.last_max = 5_700_000;
 		let fut = ctx
 			.notify_interval(std::time::Duration::from_secs(5), || Crawl)
 			.expect("Actor cannot be disconnected; just started");

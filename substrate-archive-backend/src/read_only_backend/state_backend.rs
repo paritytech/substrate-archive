@@ -121,12 +121,12 @@ impl<B: BlockT, D: ReadOnlyDB> StateBackend<HashFor<B>> for TrieState<B, D> {
 		self.state.next_child_storage_key(child_info, key)
 	}
 
-	fn for_keys_with_prefix<F: FnMut(&[u8])>(&self, prefix: &[u8], f: F) {
-		self.state.for_keys_with_prefix(prefix, f)
-	}
-
 	fn apply_to_child_keys_while<F: FnMut(&[u8]) -> bool>(&self, child_info: &ChildInfo, f: F) {
 		self.state.apply_to_child_keys_while(child_info, f)
+	}
+
+	fn for_keys_with_prefix<F: FnMut(&[u8])>(&self, prefix: &[u8], f: F) {
+		self.state.for_keys_with_prefix(prefix, f)
 	}
 
 	fn for_key_values_with_prefix<F: FnMut(&[u8], &[u8])>(&self, prefix: &[u8], f: F) {

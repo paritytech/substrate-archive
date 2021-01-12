@@ -45,7 +45,7 @@ impl<Block: BlockT, D: ReadOnlyDB> BlockchainBackend<Block> for ReadOnlyBackend<
 		match res {
 			Some(body) => match Decode::decode(&mut &body[..]) {
 				Ok(body) => Ok(Some(body)),
-				Err(_) => Err(BlockchainError::Backend("Could not decode body".into())),
+				Err(_) => Err(BlockchainError::Backend("Could not decode extrinsics".into())),
 			},
 			None => Ok(None),
 		}

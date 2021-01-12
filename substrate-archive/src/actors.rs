@@ -214,7 +214,7 @@ where
 				t = tasks => {
 					match t {
 						Ok(0) => {
-							smol::Timer::after(std::time::Duration::from_millis(256)).await;
+							smol::Timer::after(std::time::Duration::from_millis(500)).await;
 						},
 						Ok(n) => log::debug!("Executed {} tasks successfully", n),
 						Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),

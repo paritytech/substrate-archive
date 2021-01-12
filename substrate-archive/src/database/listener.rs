@@ -20,6 +20,7 @@
 //! listen wakeup.
 
 use std::pin::Pin;
+use std::time::Duration;
 
 use futures::{Future, FutureExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -149,9 +150,9 @@ where
 			}
 			// collect the rest of the results, before exiting, as long as the collection completes
 			// in a reasonable amount of time
-			let mut timeout = futures::FutureExt::fuse(smol::Timer::after(std::time::Duration::from_secs(1)));
+			let timeout = smol::Timer::after(Duration::from_secs(1));
 			futures::select! {
-				_ = timeout => {},
+				_ = FutureExt::fuse(timeout) => {},
 				notifs = listener.collect::<Vec<_>>().fuse() => {
 					for msg in notifs {
 						self.handle_listen_event(msg.unwrap(), &mut conn).await;
@@ -240,12 +241,13 @@ mod tests {
 					.execute(&mut conn)
 					.await
 					.expect("Could not exec notify query");
-				smol::Timer::after(std::time::Duration::from_millis(50)).await;
+				smol::Timer::after(Duration::from_millis(50)).await;
 			}
 			let mut counter: usize = 0;
 
 			loop {
-				let mut timeout = smol::Timer::after(std::time::Duration::from_millis(75)).fuse();
+				let timeout = smol::Timer::after(Duration::from_millis(75));
+				let mut timeout = FutureExt::fuse(timeout);
 				futures::select!(
 					_ = rx.next() => counter += 1,
 					_ = timeout => break,
