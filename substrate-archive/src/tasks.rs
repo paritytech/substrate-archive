@@ -110,6 +110,8 @@ where
 	let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
 	log::debug!("Took {:?} to execute block", now.elapsed());
 	let storage = Storage::from(block);
+	let now = std::time::Instant::now();
 	smol::block_on(env.storage.send(storage))?;
+	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())
 }

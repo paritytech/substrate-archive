@@ -203,7 +203,7 @@ where
 
 		let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
-			.timeout(std::time::Duration::from_secs(5))
+			.timeout(std::time::Duration::from_secs(30))
 			.num_threads(conf.workers)
 			.build()?;
 
