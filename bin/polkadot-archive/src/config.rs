@@ -53,7 +53,7 @@ impl TomlConfig {
 			port: self.db_port.clone(),
 			user: self.db_user.clone(),
 			pass: self.db_pass.clone(),
-			name: name,
+			name,
 		}
 	}
 }

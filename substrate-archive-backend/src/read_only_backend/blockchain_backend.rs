@@ -40,12 +40,12 @@ type ChainResult<T> = Result<T, BlockchainError>;
 impl<Block: BlockT, D: ReadOnlyDB> BlockchainBackend<Block> for ReadOnlyBackend<Block, D> {
 	fn body(&self, id: BlockId<Block>) -> ChainResult<Option<Vec<<Block as BlockT>::Extrinsic>>> {
 		let res = util::read_db::<Block, D>(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
-			.map_err(|e| BlockchainError::Msg(e.to_string()))?;
+			.map_err(|e| BlockchainError::Backend(e.to_string()))?;
 
 		match res {
 			Some(body) => match Decode::decode(&mut &body[..]) {
 				Ok(body) => Ok(Some(body)),
-				Err(_) => Err(BlockchainError::Msg("Could not decode extrinsics".into())),
+				Err(_) => Err(BlockchainError::Backend("Could not decode extrinsics".into())),
 			},
 			None => Ok(None),
 		}
@@ -53,12 +53,12 @@ impl<Block: BlockT, D: ReadOnlyDB> BlockchainBackend<Block> for ReadOnlyBackend<
 
 	fn justification(&self, id: BlockId<Block>) -> ChainResult<Option<Justification>> {
 		let res = util::read_db::<Block, D>(&*self.db, columns::KEY_LOOKUP, columns::JUSTIFICATION, id)
-			.map_err(|e| BlockchainError::Msg(e.to_string()))?;
+			.map_err(|e| BlockchainError::Backend(e.to_string()))?;
 
 		match res {
 			Some(justification) => match Decode::decode(&mut &justification[..]) {
 				Ok(justification) => Ok(Some(justification)),
-				Err(_) => Err(BlockchainError::Msg("Could not decode block justification".into())),
+				Err(_) => Err(BlockchainError::JustificationDecode),
 			},
 			None => Ok(None),
 		}
@@ -98,7 +98,7 @@ impl<Block: BlockT, D: ReadOnlyDB> BlockchainBackend<Block> for ReadOnlyBackend<
 impl<Block: BlockT, D: ReadOnlyDB> HeaderBackend<Block> for ReadOnlyBackend<Block, D> {
 	fn header(&self, id: BlockId<Block>) -> ChainResult<Option<Block::Header>> {
 		util::read_header::<Block, D>(&*self.db, columns::KEY_LOOKUP, columns::HEADER, id)
-			.map_err(|e| BlockchainError::Msg(e.to_string()))
+			.map_err(|e| BlockchainError::Backend(e.to_string()))
 	}
 
 	fn info(&self) -> Info<Block> {
