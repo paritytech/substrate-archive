@@ -429,9 +429,10 @@ impl<B: BlockT> TracingActor<B> {
 		let wasm_target = span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string());
 
 		self.targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
-			(span.target.starts_with(&t.0.as_str()) && span.level <= t.1)
-				|| (wasm_target.as_ref().map(|wasm_target| wasm_target.as_str().starts_with(&t.0)).unwrap_or(false)
-					&& span.level <= t.1)
+			let check_target = |target: &str, lvl: Level| -> bool { target.starts_with(&t.0.as_str()) && lvl <= t.1 };
+
+			check_target(&span.target, span.level)
+				|| wasm_target.as_ref().map(|wasm_t| check_target(wasm_t, span.level)).unwrap_or(false)
 		})
 	}
 
