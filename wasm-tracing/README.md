@@ -19,7 +19,7 @@ For instance, if I wanted to run tracing against Westend:
 
 
 ## Currently Supported Versions across Polkadot/Kusama/Westend
-
+- [x] 0.8.27
 - [x] 0.8.26-1
 - [x] 0.8.25
 
