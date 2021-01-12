@@ -19,12 +19,11 @@
 //! and executes each tasks in each queue on each
 //! listen wakeup.
 
-use std::pin::Pin;
 use std::time::Duration;
+use std::{fmt::Display, str::FromStr};
 
-use futures::{Future, FutureExt, StreamExt};
-use serde::{Deserialize, Serialize};
-use serde_aux::prelude::*;
+use futures::{future::BoxFuture, FutureExt, StreamExt};
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{
 	postgres::{PgConnection, PgListener, PgNotification},
 	prelude::*,
@@ -41,21 +40,37 @@ pub struct Notif {
 	pub id: i32,
 }
 
+fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+	D: Deserializer<'de>,
+	T: FromStr + Deserialize<'de>,
+	<T as FromStr>::Err: Display,
+{
+	#[derive(Deserialize)]
+	#[serde(untagged)]
+	enum StringOrInt<T> {
+		String(String),
+		Number(T),
+	}
+
+	match StringOrInt::<T>::deserialize(deserializer)? {
+		StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+		StringOrInt::Number(i) => Ok(i),
+	}
+}
+
 #[derive(PartialEq, Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Table {
-	#[serde(rename = "blocks")]
 	Blocks,
-	#[serde(rename = "storage")]
 	Storage,
 }
 
 #[derive(PartialEq, Debug, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Action {
-	#[serde(rename = "INSERT")]
 	Insert,
-	#[serde(rename = "UPDATE")]
 	Update,
-	#[serde(rename = "DELETE")]
 	Delete,
 }
 
@@ -81,10 +96,7 @@ struct ListenEvent {
 
 pub struct Builder<F>
 where
-	F: 'static
-		+ Send
-		+ Sync
-		+ for<'a> Fn(Notif, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
+	F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection) -> BoxFuture<'a, Result<()>>,
 {
 	task: F,
 	channels: Vec<Channel>,
@@ -93,10 +105,7 @@ where
 
 impl<F> Builder<F>
 where
-	F: 'static
-		+ Send
-		+ Sync
-		+ for<'a> Fn(Notif, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
+	F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection) -> BoxFuture<'a, Result<()>>,
 {
 	pub fn new(url: &str, f: F) -> Self {
 		Self { task: f, channels: Vec::new(), pg_url: url.to_string() }
@@ -184,10 +193,7 @@ pub struct Listener {
 impl Listener {
 	pub fn builder<F>(pg_url: &str, f: F) -> Builder<F>
 	where
-		F: 'static
-			+ Send
-			+ Sync
-			+ for<'a> Fn(Notif, &'a mut PgConnection) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>,
+		F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection) -> BoxFuture<'a, Result<()>>,
 	{
 		Builder::new(pg_url, f)
 	}
