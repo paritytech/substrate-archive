@@ -19,8 +19,7 @@
 //! and executes each tasks in each queue on each
 //! listen wakeup.
 
-use std::time::Duration;
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, str::FromStr, time::Duration};
 
 use futures::{future::BoxFuture, FutureExt, StreamExt};
 use serde::{Deserialize, Deserializer, Serialize};
