@@ -25,11 +25,11 @@ mod sql_block_builder;
 mod tasks;
 mod traits;
 
-pub use actors::System;
-pub use archive::Builder as ArchiveBuilder;
-pub use database::queries;
-pub use migrations::MigrationConfig;
-pub use traits::Archive;
+pub use self::actors::System;
+pub use self::archive::Builder as ArchiveBuilder;
+pub use self::database::queries;
+pub use self::migrations::MigrationConfig;
+pub use self::traits::Archive;
 
 #[cfg(feature = "logging")]
 pub use substrate_archive_common::util::init_logger;

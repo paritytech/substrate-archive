@@ -31,27 +31,27 @@ struct Version {
 	version: i32,
 }
 
-/// Return type of querys that `SELECT missing_num ... FROM ... GENERATE_SERIES(a, z)`
+/// Return type of queries that `SELECT missing_num ... FROM ... GENERATE_SERIES(a, z)`
 pub struct Series {
 	missing_num: Option<i32>,
 }
 
-/// Return type of querys that `SELECT MAX(int)`
+/// Return type of queries that `SELECT MAX(int)`
 struct Max {
 	max: Option<i32>,
 }
 
-/// Return type querys that `SELECT EXISTS`
+/// Return type of queries that `SELECT EXISTS`
 struct DoesExist {
 	exists: Option<bool>,
 }
 
-// Return type of querys that `SELECT block_num`
+// Return type of queries that `SELECT block_num`
 struct BlockNum {
 	block_num: i32,
 }
 
-// Return type of querys that `SELECT data`
+// Return type of queries that `SELECT data`
 struct Bytes {
 	data: Vec<u8>,
 }
