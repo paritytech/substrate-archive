@@ -87,26 +87,26 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 		if self.versions.load().contains_key(&code_hash) {
 			Ok(self.versions.load().get(&code_hash).cloned())
 		} else {
-			log::debug!("new code hash: {:#X?}", code_hash);
-			let mut ext: BasicExternalities = BasicExternalities::default();
+			log::debug!("Adding new runtime code hash to cache: {:#X?}", code_hash);
+			let mut ext = BasicExternalities::default();
 			ext.register_extension(CallInWasmExt::new(self.exec.clone()));
-			let v: RuntimeVersion = ext.execute_with(|| {
+			let version: RuntimeVersion = ext.execute_with(|| {
 				let ver = sp_io::misc::runtime_version(&code).ok_or(ArchiveError::WasmExecutionError)?;
 				decode_version(ver.as_slice())
 			})?;
-			log::debug!("Registered New Runtime Version: {:?}", v);
+			log::debug!("Registered a new runtime version: {:?}", version);
 			self.versions.rcu(|cache| {
 				let mut cache = HashMap::clone(&cache);
-				cache.insert(code_hash, v.clone());
+				cache.insert(code_hash, version.clone());
 				cache
 			});
-			Ok(Some(v))
+			Ok(Some(version))
 		}
 	}
 
 	/// Recursively finds the versions of all the blocks while minimizing reads/calls to the backend.
 	pub fn find_versions(&self, blocks: &[SignedBlock<B>]) -> Result<Vec<VersionRange<B>>> {
-		let mut versions = Vec::new();
+		let mut versions = Vec::with_capacity(256);
 		self.find_pivot(blocks, &mut versions)?;
 		Ok(versions)
 	}
@@ -120,12 +120,12 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 	where
 		NumberFor<B>: Into<u32>,
 	{
-		let versions = self.find_versions(blocks.as_slice())?;
+		let versions = self.find_versions(&blocks)?;
 		Ok(blocks
 			.into_iter()
 			.map(|b| {
-				let v = versions.iter().find(|v| v.contains_block(*b.block.header().number())).unwrap_or_else(|| {
-					panic!("No range for {}", b.block.header().number());
+				let v = versions.iter().find(|v| v.contains_block(b.block.header().number())).unwrap_or_else(|| {
+					panic!("Could not find a runtime version for block #{}", b.block.header().number());
 				});
 				Block::new(b, v.version.spec_version)
 			})
@@ -177,8 +177,8 @@ impl<B: BlockT> VersionRange<B> {
 		Self { start: *first.block.header().number(), end: *last.block.header().number(), version }
 	}
 
-	fn contains_block(&self, b: NumberFor<B>) -> bool {
-		(b > self.start && b < self.end) || b == self.start || b == self.end
+	fn contains_block(&self, b: &NumberFor<B>) -> bool {
+		(self.start..=self.end).contains(b)
 	}
 }
 
