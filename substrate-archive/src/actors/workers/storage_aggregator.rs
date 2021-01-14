@@ -65,6 +65,7 @@ where
 		let storage = std::mem::take(&mut self.storage);
 		// insert any storage left in queue
 		let task = self.db.send(BatchStorage::new(storage).into()).await;
+
 		match task {
 			Err(e) => {
 				log::info!("{} storage entries will be missing, {:?}", len, e);
@@ -88,12 +89,12 @@ impl<B: BlockT + Unpin> Handler<SendStorage> for StorageAggregator<B>
 where
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: SendStorage, _: &mut Context<Self>) {
+	async fn handle(&mut self, _: SendStorage, ctx: &mut Context<Self>) {
 		let storage = std::mem::take(&mut self.storage);
 		if !storage.is_empty() {
 			log::info!("Indexing storage {} bps", storage.len());
-			if let Err(e) = self.db.send(BatchStorage::new(storage).into()).await {
-				log::error!("{:?}", e);
+			if let Err(e) = ctx.handle_while(self, self.db.send(BatchStorage::new(storage).into())).await {
+				log::error!("{:?}", e)
 			}
 		}
 	}

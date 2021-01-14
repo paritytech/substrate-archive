@@ -205,7 +205,8 @@ where
 		let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(ctx.workers)
-			.max_tasks(500)
+			.timeout(std::time::Duration::from_secs(20))
+			.max_tasks(64)
 			.build()?;
 
 		loop {
@@ -214,7 +215,7 @@ where
 			futures::select! {
 				t = tasks => {
 					if t? == 0 {
-						smol::Timer::after(std::time::Duration::from_millis(3600)).await;
+						smol::Timer::after(std::time::Duration::from_millis(256)).await;
 					}
 				},
 				_ = rx.recv_async() => break,
@@ -227,7 +228,7 @@ where
 
 	async fn spawn_actors(ctx: ActorContext<B, D>) -> Result<Actors<B, D>> {
 		let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
-		let db_pool = actor_pool::ActorPool::new(db, 8).create(None).spawn(&mut Smol::Global);
+		let db_pool = actor_pool::ActorPool::new(db, 4).create(None).spawn(&mut Smol::Global);
 		let storage = workers::StorageAggregator::new(db_pool.clone()).create(None).spawn(&mut Smol::Global);
 		let metadata = workers::MetadataActor::new(db_pool.clone(), ctx.meta().clone())
 			.await?
