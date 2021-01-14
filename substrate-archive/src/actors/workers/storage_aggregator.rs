@@ -44,7 +44,7 @@ where
 	async fn handle_storage(&mut self, ctx: &mut Context<Self>) -> Result<()> {
 		let storage = std::mem::take(&mut self.storage);
 		if !storage.is_empty() {
-			log::info!("Indexing storage {} bps", storage.len());
+			log::info!("Indexing {} storage entries", storage.len());
 			let send_result = self.db.send(BatchStorage::new(storage).into()).await?;
 			// handle_while the actual insert is happening, not the send
 			ctx.handle_while(self, send_result).await;
