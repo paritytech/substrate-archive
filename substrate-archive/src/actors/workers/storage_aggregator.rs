@@ -40,6 +40,17 @@ where
 	pub fn new(db: Address<ActorPool<DatabaseActor<B>>>) -> Self {
 		Self { db, storage: Vec::with_capacity(500) }
 	}
+
+	async fn handle_storage(&mut self, ctx: &mut Context<Self>) -> Result<()> {
+		let storage = std::mem::take(&mut self.storage);
+		if !storage.is_empty() {
+			log::info!("Indexing storage {} bps", storage.len());
+			let send_result = self.db.send(BatchStorage::new(storage).into()).await?;
+			// handle_while the actual insert is happening, not the send
+			ctx.handle_while(self, send_result).await;
+		}
+		Ok(())
+	}
 }
 
 #[async_trait::async_trait]
@@ -90,12 +101,8 @@ where
 	B::Hash: Unpin,
 {
 	async fn handle(&mut self, _: SendStorage, ctx: &mut Context<Self>) {
-		let storage = std::mem::take(&mut self.storage);
-		if !storage.is_empty() {
-			log::info!("Indexing storage {} bps", storage.len());
-			if let Err(e) = ctx.handle_while(self, self.db.send(BatchStorage::new(storage).into())).await {
-				log::error!("{:?}", e)
-			}
+		if let Err(e) = self.handle_storage(ctx).await {
+			log::error!("{:?}", e)
 		}
 	}
 }

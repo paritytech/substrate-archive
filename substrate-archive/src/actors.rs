@@ -269,7 +269,6 @@ where
 	/// from the task queue.
 	/// If any are found, they are re-queued.
 	async fn restore_missing_storage(conn: &mut sqlx::PgConnection) -> Result<()> {
-		log::info!("Restoring missing storage entries...");
 		let blocks: HashSet<u32> = queries::get_all_blocks::<B>(conn)
 			.await?
 			.map(|b| Ok((*b?.header().number()).into()))
@@ -288,7 +287,7 @@ where
 				.into_iter()
 				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 				.collect();
-		log::info!("Restoring {} missing storage entries", jobs.len());
+		log::info!("Restoring {} missing storage entries. This could take a few minutes...", jobs.len());
 		coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
 		log::info!("Storage restored");
 		Ok(())
