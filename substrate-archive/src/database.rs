@@ -56,7 +56,7 @@ impl Database {
 		let pool = PgPoolOptions::new()
 			.min_connections(4)
 			.max_connections(28)
-			.idle_timeout(std::time::Duration::from_millis(3600)) // kill connections after 5 minutes of idle
+			.idle_timeout(std::time::Duration::from_millis(3600)) // kill connections after 3.6 seconds of idle
 			.connect(url.as_str())
 			.await?;
 		Ok(Self { pool, url })
