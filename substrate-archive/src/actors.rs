@@ -22,6 +22,7 @@ mod workers;
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use std::time::Duration;
 
 use coil::Job as _;
 use futures::{future::BoxFuture, FutureExt};
@@ -205,7 +206,7 @@ where
 		let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(ctx.workers)
-			.timeout(std::time::Duration::from_secs(20))
+			.timeout(Duration::from_secs(20))
 			.max_tasks(64)
 			.build()?;
 

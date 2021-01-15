@@ -21,6 +21,8 @@ mod batch;
 pub mod listener;
 pub mod queries;
 
+use std::time::Duration;
+
 use async_trait::async_trait;
 use codec::Encode;
 use sqlx::prelude::*;
@@ -56,7 +58,7 @@ impl Database {
 		let pool = PgPoolOptions::new()
 			.min_connections(4)
 			.max_connections(28)
-			.idle_timeout(std::time::Duration::from_millis(3600)) // kill connections after 3.6 seconds of idle
+			.idle_timeout(Duration::from_millis(3600)) // kill connections after 3.6 seconds of idle
 			.connect(url.as_str())
 			.await?;
 		Ok(Self { pool, url })
