@@ -40,6 +40,17 @@ where
 	pub fn new(db: Address<ActorPool<DatabaseActor<B>>>) -> Self {
 		Self { db, storage: Vec::with_capacity(500) }
 	}
+
+	async fn handle_storage(&mut self, ctx: &mut Context<Self>) -> Result<()> {
+		let storage = std::mem::take(&mut self.storage);
+		if !storage.is_empty() {
+			log::info!("Indexing {} blocks of storage entries", storage.len());
+			let send_result = self.db.send(BatchStorage::new(storage).into()).await?;
+			// handle_while the actual insert is happening, not the send
+			ctx.handle_while(self, send_result).await;
+		}
+		Ok(())
+	}
 }
 
 #[async_trait::async_trait]
@@ -65,6 +76,7 @@ where
 		let storage = std::mem::take(&mut self.storage);
 		// insert any storage left in queue
 		let task = self.db.send(BatchStorage::new(storage).into()).await;
+
 		match task {
 			Err(e) => {
 				log::info!("{} storage entries will be missing, {:?}", len, e);
@@ -88,13 +100,9 @@ impl<B: BlockT + Unpin> Handler<SendStorage> for StorageAggregator<B>
 where
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: SendStorage, _: &mut Context<Self>) {
-		let storage = std::mem::take(&mut self.storage);
-		if !storage.is_empty() {
-			log::info!("Indexing storage {} bps", storage.len());
-			if let Err(e) = self.db.send(BatchStorage::new(storage).into()).await {
-				log::error!("{:?}", e);
-			}
+	async fn handle(&mut self, _: SendStorage, ctx: &mut Context<Self>) {
+		if let Err(e) = self.handle_storage(ctx).await {
+			log::error!("{:?}", e)
 		}
 	}
 }

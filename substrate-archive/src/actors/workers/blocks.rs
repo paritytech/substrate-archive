@@ -153,13 +153,19 @@ where
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		// using this instead of notify_immediately because
 		// ReIndexing is async process
-		ctx.address()
-			.expect("Actor just started")
-			.do_send(ReIndex)
-			.expect("Actor cannot be disconnected; just started");
+		let addr = ctx.address().expect("Actor just started");
 
-		let fut = ctx.notify_interval(std::time::Duration::from_secs(5), || Crawl).expect("Actor just started");
-		smol::spawn(fut).detach();
+		addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
+
+		smol::spawn(async move {
+			loop {
+				smol::Timer::after(std::time::Duration::from_secs(5));
+				if addr.send(Crawl).await.is_err() {
+					break;
+				}
+			}
+		})
+		.detach();
 	}
 }
 

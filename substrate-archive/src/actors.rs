@@ -22,6 +22,7 @@ mod workers;
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use std::time::Duration;
 
 use coil::Job as _;
 use futures::{future::BoxFuture, FutureExt};
@@ -205,7 +206,8 @@ where
 		let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(ctx.workers)
-			.max_tasks(500)
+			.timeout(Duration::from_secs(20))
+			.max_tasks(64)
 			.build()?;
 
 		loop {
@@ -214,7 +216,7 @@ where
 			futures::select! {
 				t = tasks => {
 					if t? == 0 {
-						smol::Timer::after(std::time::Duration::from_millis(3600)).await;
+						smol::Timer::after(std::time::Duration::from_millis(256)).await;
 					}
 				},
 				_ = rx.recv_async() => break,
@@ -227,7 +229,7 @@ where
 
 	async fn spawn_actors(ctx: ActorContext<B, D>) -> Result<Actors<B, D>> {
 		let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
-		let db_pool = actor_pool::ActorPool::new(db, 8).create(None).spawn(&mut Smol::Global);
+		let db_pool = actor_pool::ActorPool::new(db, 4).create(None).spawn(&mut Smol::Global);
 		let storage = workers::StorageAggregator::new(db_pool.clone()).create(None).spawn(&mut Smol::Global);
 		let metadata = workers::MetadataActor::new(db_pool.clone(), ctx.meta().clone())
 			.await?
@@ -268,7 +270,6 @@ where
 	/// from the task queue.
 	/// If any are found, they are re-queued.
 	async fn restore_missing_storage(conn: &mut sqlx::PgConnection) -> Result<()> {
-		log::info!("Restoring missing storage entries...");
 		let blocks: HashSet<u32> = queries::get_all_blocks::<B>(conn)
 			.await?
 			.map(|b| Ok((*b?.header().number()).into()))
@@ -287,7 +288,7 @@ where
 				.into_iter()
 				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 				.collect();
-		log::info!("Restoring {} missing storage entries", jobs.len());
+		log::info!("Restoring {} missing storage entries. This could take a few minutes...", jobs.len());
 		coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
 		log::info!("Storage restored");
 		Ok(())

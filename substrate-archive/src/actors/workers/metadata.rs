@@ -80,7 +80,7 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 		for b in versions.iter() {
 			self.meta_checker(b.spec, b.inner.block.hash()).await?;
 		}
-		self.addr.send(blks.into()).await?;
+		self.addr.send(blks.into()).await?.await;
 		Ok(())
 	}
 }
