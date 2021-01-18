@@ -2012,12 +2012,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2140e9c963869f01789fa4fef4805211081ec794af5fc77c0d5b377906118853"
+dependencies = [
+ "ahash 0.6.2",
+]
+
+[[package]]
 name = "hashlink"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d99cf782f0dc4372d26846bec3de7804ceb5df083c2d4462c0b8d2330e894fa8"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.9.1",
 ]
 
 [[package]]
@@ -2343,7 +2352,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55e2e4c765aa53a0424761bf9f41aa7a6ac1efa87238f59560640e27fca028f2"
 dependencies = [
  "autocfg",
- "hashbrown",
+ "hashbrown 0.9.1",
 ]
 
 [[package]]
@@ -3186,7 +3195,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be716eb6878ca2263eb5d00a781aa13264a794f519fe6af4fbb2668b2d5441c0"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.9.1",
 ]
 
 [[package]]
@@ -3268,7 +3277,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6cbd2a22f201c03cc1706a727842490abfea17b7b53260358239828208daba3c"
 dependencies = [
  "hash-db",
- "hashbrown",
+ "hashbrown 0.9.1",
  "parity-util-mem",
 ]
 
@@ -4296,7 +4305,7 @@ checksum = "8f17f15cb05897127bf36a240085a1f0bbef7bce3024849eccf7f93f6171bc27"
 dependencies = [
  "cfg-if 1.0.0",
  "ethereum-types",
- "hashbrown",
+ "hashbrown 0.9.1",
  "impl-trait-for-tuples 0.2.0",
  "lru",
  "parity-util-mem-derive",
@@ -8041,7 +8050,7 @@ dependencies = [
  "flate2",
  "flume",
  "futures 0.3.11",
- "hashbrown",
+ "hashbrown 0.10.0",
  "hex",
  "itertools 0.10.0",
  "itoa",
@@ -8082,7 +8091,7 @@ dependencies = [
  "arc-swap",
  "futures 0.3.11",
  "hash-db",
- "hashbrown",
+ "hashbrown 0.10.0",
  "kvdb",
  "kvdb-rocksdb",
  "log",
@@ -8768,7 +8777,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5cc176c377eb24d652c9c69c832c832019011b6106182bf84276c66b66d5c9a6"
 dependencies = [
  "hash-db",
- "hashbrown",
+ "hashbrown 0.9.1",
  "log",
  "rustc-hex",
  "smallvec 1.6.1",
