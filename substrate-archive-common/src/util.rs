@@ -119,7 +119,7 @@ pub fn create_dir(path: &Path) -> Result<(), ArchiveError> {
 	Ok(())
 }
 
-/// Make a hash out of a byte string using the default hasher
+/// Make a hash out of a byte string using the default hasher.
 pub fn make_hash<K: std::hash::Hash + ?Sized>(val: &K) -> u64 {
 	let mut state = DefaultHasher::new();
 	val.hash(&mut state);

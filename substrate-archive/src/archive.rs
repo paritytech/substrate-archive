@@ -59,7 +59,7 @@ pub struct Builder<B, R, D, DB> {
 	/// Chain spec describing the chain
 	pub chain_spec: Option<Box<dyn ChainSpec>>,
 	pub _marker: PhantomData<(B, R, D, DB)>,
-	/// maximimum amount of blocks to index at once
+	/// maximum amount of blocks to index at once
 	pub max_block_load: Option<u32>,
 	/// Enable state tracing while also specifying the targets
 	/// and directory where the WASM runtimes are stored.

@@ -38,6 +38,36 @@ pub struct Chunk {
 	pub args_len: usize,
 }
 
+impl Chunk {
+	fn new(sql: &str) -> Self {
+		let mut query = String::with_capacity(1024 * 8);
+		query.push_str(sql);
+
+		Self { query, arguments: PgArguments::default(), args_len: 0 }
+	}
+
+	pub fn append(&mut self, sql: &str) {
+		self.query.push_str(sql);
+	}
+
+	pub fn bind<'a, T: 'a>(&mut self, value: T) -> Result<()>
+	where
+		T: Encode<'a, Postgres> + Type<Postgres> + Send,
+	{
+		self.arguments.add(value);
+		self.query.push('$');
+		itoa::fmt(&mut self.query, self.args_len + 1)?;
+		self.args_len += 1;
+
+		Ok(())
+	}
+
+	async fn execute(self, conn: &mut PgConnection) -> Result<u64> {
+		let done = sqlx::query_with(&*self.query, self.arguments.into_arguments()).execute(conn).await?;
+		Ok(done.rows_affected())
+	}
+}
+
 pub struct Batch {
 	#[allow(unused)]
 	name: &'static str,
@@ -128,35 +158,5 @@ impl Batch {
 	// TODO: Better name?
 	pub fn current_num_arguments(&self) -> usize {
 		self.chunks[self.index].args_len
-	}
-}
-
-impl Chunk {
-	fn new(sql: &str) -> Self {
-		let mut query = String::with_capacity(1024 * 8);
-		query.push_str(sql);
-
-		Self { query, arguments: PgArguments::default(), args_len: 0 }
-	}
-
-	pub fn append(&mut self, sql: &str) {
-		self.query.push_str(sql);
-	}
-
-	pub fn bind<'a, T: 'a>(&mut self, value: T) -> Result<()>
-	where
-		T: Encode<'a, Postgres> + Type<Postgres> + Send,
-	{
-		self.arguments.add(value);
-		self.query.push('$');
-		itoa::fmt(&mut self.query, self.args_len + 1)?;
-		self.args_len += 1;
-
-		Ok(())
-	}
-
-	async fn execute(self, conn: &mut PgConnection) -> Result<u64> {
-		let done = sqlx::query_with(&*self.query, self.arguments.into_arguments()).execute(conn).await?;
-		Ok(done.rows_affected())
 	}
 }

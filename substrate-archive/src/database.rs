@@ -21,16 +21,20 @@ mod batch;
 pub mod listener;
 pub mod queries;
 
-pub use self::listener::*;
 use crate::actors::{EventMessage, Traces};
+use std::time::Duration;
+
 use async_trait::async_trait;
-use batch::Batch;
 use codec::Encode;
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 use std::convert::{TryFrom, TryInto};
 use substrate_archive_common::{models::StorageModel, types::*, ArchiveError, Result};
+
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+
+use self::batch::Batch;
+pub use self::listener::*;
 
 pub type DbReturn = Result<u64>;
 pub type DbConn = sqlx::pool::PoolConnection<Postgres>;
@@ -55,7 +59,7 @@ impl Database {
 		let pool = PgPoolOptions::new()
 			.min_connections(4)
 			.max_connections(28)
-			.idle_timeout(std::time::Duration::from_millis(3600)) // kill connections after 5 minutes of idle
+			.idle_timeout(Duration::from_millis(3600)) // kill connections after 3.6 seconds of idle
 			.connect(url.as_str())
 			.await?;
 		Ok(Self { pool, url })

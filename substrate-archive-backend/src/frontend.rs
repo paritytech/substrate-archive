@@ -16,7 +16,8 @@
 
 mod client;
 
-use futures::{task::SpawnExt, Future};
+use futures::{future::BoxFuture, task::SpawnExt};
+
 use sc_client_api::{
 	execution_extensions::{ExecutionExtensions, ExecutionStrategies},
 	ExecutionStrategy,
@@ -89,11 +90,11 @@ where
 }
 
 impl SpawnNamed for TaskExecutor {
-	fn spawn_blocking(&self, _: &'static str, fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
+	fn spawn_blocking(&self, _: &'static str, fut: BoxFuture<'static, ()>) {
 		let _ = self.pool.spawn(fut);
 	}
 
-	fn spawn(&self, _: &'static str, fut: std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
+	fn spawn(&self, _: &'static str, fut: BoxFuture<'static, ()>) {
 		let _ = self.pool.spawn(fut);
 	}
 }

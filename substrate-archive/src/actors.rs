@@ -39,6 +39,7 @@ use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use std::time::Duration;
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
 use substrate_archive_common::{types::Die, ReadOnlyDB, Result};
 use xtra::{prelude::*, spawn::Smol, Disconnected};
@@ -203,8 +204,9 @@ where
 
 		let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
-			.timeout(std::time::Duration::from_secs(30))
 			.num_threads(conf.workers)
+			.timeout(Duration::from_secs(20))
+			.max_tasks(64)
 			.build()?;
 
 		loop {
@@ -279,7 +281,6 @@ where
 	/// from the task queue.
 	/// If any are found, they are re-queued.
 	async fn restore_missing_storage(conn: &mut sqlx::PgConnection) -> Result<()> {
-		log::info!("Restoring missing storage entries...");
 		let blocks: HashSet<u32> = queries::get_all_blocks::<B>(conn)
 			.await?
 			.map(|b| Ok((*b?.header().number()).into()))
@@ -298,7 +299,7 @@ where
 				.into_iter()
 				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 				.collect();
-		log::info!("Restoring {} missing storage entries", jobs.len());
+		log::info!("Restoring {} missing storage entries. This could take a few minutes...", jobs.len());
 		coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
 		log::info!("Storage restored");
 		Ok(())

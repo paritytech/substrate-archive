@@ -19,10 +19,9 @@
 //! if state is an actor may be pulled out of the pool
 
 use std::collections::VecDeque;
-use std::pin::Pin;
 
 use futures::{
-	future::{Future, FutureExt},
+	future::{BoxFuture, Future, FutureExt},
 	sink::SinkExt,
 	stream::StreamExt,
 };
@@ -87,7 +86,7 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
 
 	/// Forward a message to one of the spawned actors
 	/// and advance the state of the futures in queue.
-	pub fn forward<M>(&mut self, msg: M) -> Pin<Box<dyn Future<Output = M::Result> + Send + 'static>>
+	pub fn forward<M>(&mut self, msg: M) -> BoxFuture<'static, M::Result>
 	where
 		M: Message + std::fmt::Debug + Send,
 		M::Result: std::fmt::Debug + Unpin + Send,
@@ -98,9 +97,7 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
 	}
 }
 
-fn spawn<R>(
-	fut: impl Future<Output = Result<R, Disconnected>> + Send + 'static,
-) -> Pin<Box<dyn Future<Output = R> + Send + 'static>>
+fn spawn<R>(fut: impl Future<Output = Result<R, Disconnected>> + Send + 'static) -> BoxFuture<'static, R>
 where
 	R: Send + 'static + Unpin + std::fmt::Debug,
 {
@@ -134,7 +131,7 @@ impl<M> Message for PoolMessage<M>
 where
 	M: Message + Send + Unpin + std::fmt::Debug,
 {
-	type Result = Pin<Box<dyn Future<Output = M::Result> + Send + 'static>>;
+	type Result = BoxFuture<'static, M::Result>;
 }
 
 #[async_trait::async_trait]
@@ -144,11 +141,7 @@ where
 	M: Message + Send + std::fmt::Debug + Unpin,
 	M::Result: Unpin + std::fmt::Debug,
 {
-	async fn handle(
-		&mut self,
-		msg: PoolMessage<M>,
-		_: &mut Context<Self>,
-	) -> Pin<Box<dyn Future<Output = M::Result> + Send + 'static>> {
+	async fn handle(&mut self, msg: PoolMessage<M>, _: &mut Context<Self>) -> BoxFuture<'static, M::Result> {
 		self.forward(msg.0)
 	}
 }
