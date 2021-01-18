@@ -26,7 +26,7 @@ mod tasks;
 mod traits;
 
 pub use self::actors::System;
-pub use self::archive::Builder as ArchiveBuilder;
+pub use self::archive::{Builder as ArchiveBuilder, TracingConfig};
 pub use self::database::queries;
 pub use self::migrations::MigrationConfig;
 pub use self::traits::Archive;
