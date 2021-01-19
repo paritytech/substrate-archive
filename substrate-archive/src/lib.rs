@@ -17,9 +17,17 @@
 #![forbid(unsafe_code)]
 #![deny(dead_code)]
 
+// Re-Exports
+pub use sc_executor::native_executor_instance;
+pub use sp_blockchain::Error as BlockchainError;
+pub use sp_runtime::MultiSignature;
+#[cfg(feature = "logging")]
+pub use substrate_archive_common::util::init_logger;
+
 mod actors;
 pub mod archive;
 mod database;
+mod error;
 mod migrations;
 mod sql_block_builder;
 mod tasks;
@@ -27,16 +35,9 @@ mod tasks;
 pub use self::actors::System;
 pub use self::archive::{Archive, ArchiveBuilder};
 pub use self::database::queries;
+pub use self::error::ArchiveError;
 pub use self::migrations::MigrationConfig;
 
-#[cfg(feature = "logging")]
-pub use substrate_archive_common::util::init_logger;
-
-// Re-Exports
-pub use sc_executor::native_executor_instance;
-pub use sp_blockchain::Error as BlockchainError;
-pub use sp_runtime::MultiSignature;
-pub use substrate_archive_common::ArchiveError;
 pub mod chain_traits {
 	//! Traits defining functions on the client needed for indexing
 	pub use sc_client_api::client::BlockBackend;

@@ -26,7 +26,7 @@ use sqlx::{
 	Arguments,
 };
 
-use substrate_archive_common::Result;
+use crate::error::Result;
 
 const CHUNK_MAX: usize = 30_000;
 

@@ -24,10 +24,12 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use substrate_archive_common::{
 	models::StorageModel,
 	types::{BatchBlock, BatchStorage, Block, Die, Metadata, Storage},
-	Result,
 };
 
-use crate::database::{queries, Database, DbConn};
+use crate::{
+	database::{queries, Database, DbConn},
+	error::Result,
+};
 
 #[derive(Clone)]
 pub struct DatabaseActor<B: BlockT> {
@@ -243,8 +245,7 @@ where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
 		ctx.stop();
-		Ok(())
 	}
 }

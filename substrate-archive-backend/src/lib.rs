@@ -21,6 +21,7 @@
 
 mod block_exec;
 mod database;
+mod error;
 mod frontend;
 mod read_only_backend;
 mod runtime_version_cache;
@@ -40,6 +41,7 @@ use self::frontend::{GetMetadata, GetRuntimeVersion};
 pub use self::{
 	block_exec::BlockExecutor,
 	database::SecondaryRocksDB,
+	error::BackendError,
 	frontend::{runtime_api, TArchiveClient},
 	read_only_backend::ReadOnlyBackend,
 	runtime_version_cache::RuntimeVersionCache,

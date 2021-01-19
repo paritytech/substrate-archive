@@ -25,7 +25,9 @@ use sp_runtime::{
 };
 use sp_storage::{StorageData, StorageKey as StorageKeyWrapper};
 
-use substrate_archive_common::{types::Storage, Result};
+use substrate_archive_common::types::Storage;
+
+use crate::error::Result;
 
 pub type StorageKey = Vec<u8>;
 pub type StorageValue = Vec<u8>;

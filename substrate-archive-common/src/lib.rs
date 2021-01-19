@@ -18,10 +18,8 @@
 #![deny(dead_code)]
 
 mod database;
-mod error;
 pub mod models;
 pub mod types;
 pub mod util;
 
 pub use self::database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS};
-pub use self::error::{ArchiveError, Result};

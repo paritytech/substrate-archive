@@ -30,10 +30,11 @@ use sp_runtime::{
 };
 
 use substrate_archive_backend::{runtime_api, ReadOnlyBackend, TArchiveClient};
-use substrate_archive_common::{util, ReadOnlyDB, Result};
+use substrate_archive_common::{util, ReadOnlyDB};
 
 use crate::{
 	actors::{ActorContext, System},
+	error::Result,
 	migrations,
 };
 

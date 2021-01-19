@@ -24,7 +24,7 @@ use sp_runtime::{
 use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
 use substrate_archive_common::{
 	types::{BatchBlock, Block, Die},
-	ArchiveError, ReadOnlyDB, Result,
+	ReadOnlyDB,
 };
 
 use crate::{
@@ -37,6 +37,7 @@ use crate::{
 		ActorContext,
 	},
 	database::queries,
+	error::{ArchiveError, Result},
 };
 
 type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
@@ -228,8 +229,7 @@ where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
 		ctx.stop();
-		Ok(())
 	}
 }

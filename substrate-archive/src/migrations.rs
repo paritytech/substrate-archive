@@ -20,7 +20,7 @@ use std::string::ToString;
 
 use sqlx::{postgres::PgConnection, Connection};
 
-use substrate_archive_common::Result;
+use crate::error::Result;
 
 // TODO Change to just accept a DB URL.
 // but maybe keep conf. It allows for more modular configuration?
