@@ -21,7 +21,7 @@ mod workers;
 
 pub use self::actor_pool::ActorPool;
 use self::workers::GetState;
-pub use self::workers::{BlocksIndexer, DatabaseActor, EventMessage, StorageAggregator, Traces};
+pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use crate::{
 	database::{queries, Channel, Listener},
 	sql_block_builder::SqlBlockBuilder,
@@ -114,7 +114,7 @@ where
 	blocks: Address<workers::BlocksIndexer<B, D>>,
 	metadata: Address<workers::MetadataActor<B>>,
 	db_pool: Address<ActorPool<DatabaseActor<B>>>,
-	tracing: Option<Address<workers::TracingActor<B>>>,
+	// tracing: Option<Address<workers::TracingActor<B>>>,
 }
 
 /// Control the execution of the indexing engine.
@@ -199,7 +199,12 @@ where
 		let listener = Self::init_listeners(conf.pg_url()).await?;
 		let mut conn = pool.acquire().await?;
 		Self::restore_missing_storage(&mut *conn).await?;
-		let env = Environment::<B, R, C, D>::new(conf.backend().clone(), client, actors.storage.clone());
+		let env = Environment::<B, R, C, D>::new(
+			conf.backend().clone(),
+			client,
+			actors.storage.clone(),
+			conf.tracing_targets.clone(),
+		);
 		let env = AssertUnwindSafe(env);
 
 		let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
@@ -241,11 +246,8 @@ where
 			.spawn(&mut Smol::Global);
 		let blocks =
 			workers::BlocksIndexer::new(&conf, db_pool.clone(), metadata.clone()).create(None).spawn(&mut Smol::Global);
-		let tracing = conf
-			.tracing_targets
-			.map(|t| workers::TracingActor::new(t, db_pool.clone()).create(None).spawn(&mut Smol::Global));
 
-		Ok(Actors { storage, blocks, metadata, db_pool, tracing })
+		Ok(Actors { storage, blocks, metadata, db_pool })
 	}
 
 	async fn kill_actors(actors: Actors<B, D>) -> Result<()> {
@@ -255,9 +257,11 @@ where
 			Box::pin(actors.metadata.send(Die)),
 		];
 		futures::future::join_all(fut).await;
+		/*
 		if let Some(tracing) = actors.tracing {
 			tracing.send(Die).await??;
 		}
+		*/
 		let _ = actors.db_pool.send(Die.into()).await?.await;
 		Ok(())
 	}

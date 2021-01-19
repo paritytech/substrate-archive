@@ -21,7 +21,7 @@ mod batch;
 pub mod listener;
 pub mod queries;
 
-use crate::actors::{EventMessage, Traces};
+use crate::wasm_tracing::Traces;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -325,6 +325,39 @@ impl Insert for Traces {
 			batch.append(")");
 		}
 
+		for event in self.events.into_iter() {
+			let parent_id: Option<i32> = Some(i32::try_from(event.parent_id.into_u64())?);
+			batch.reserve(11)?;
+			if batch.current_num_arguments() > 0 {
+				batch.append(",");
+			}
+			batch.append("(");
+			batch.bind(block_num)?;
+			batch.append(",");
+			batch.bind(hash.as_slice())?;
+			batch.append(",");
+			batch.bind(true)?;
+			batch.append(",");
+			batch.bind(event.time)?;
+			batch.append(",");
+			batch.bind(Option::<chrono::Duration>::None)?; // an event won't have a duration
+			batch.append(",");
+			batch.bind(event.file)?;
+			batch.append(",");
+			batch.bind(event.line)?;
+			batch.append(",");
+			batch.bind(Option::<i32>::None)?; // Event has no ID
+			batch.append(",");
+			batch.bind(parent_id)?;
+			batch.append(",");
+			batch.bind(event.target)?;
+			batch.append(",");
+			batch.bind(event.name)?;
+			batch.append(",");
+			batch.bind(sqlx::types::Json(event.values))?;
+			batch.append(")");
+		}
+
 		Ok(batch.execute(conn).await?)
 	}
 }
@@ -346,35 +379,6 @@ fn time_to_std(time: chrono::Duration) -> Result<std::time::Duration> {
 fn shave_nanos(time: std::time::Duration) -> Result<std::time::Duration> {
 	let extra = time.as_nanos() % 1000;
 	Ok(time - std::time::Duration::from_nanos(extra.try_into()?))
-}
-
-#[async_trait::async_trait]
-impl Insert for EventMessage {
-	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
-		let parent_id: Option<i32> = Some(i32::try_from(self.parent_id.into_u64())?);
-
-		sqlx::query(
-			r#"
-			INSERT INTO state_traces (block_num, hash, is_event, timestamp, file, line, trace_parent_id, target, name, traces)
-			VALUES($1, $2)
-			ON CONFLICT DO NOTHING
-		"#,
-		)
-		.bind(self.block_num)
-		.bind(self.hash)
-		.bind(true)
-		.bind(self.time)
-		.bind(self.file)
-		.bind(self.line)
-		.bind(parent_id)
-		.bind(self.target)
-		.bind(self.name)
-		.bind(sqlx::types::Json(self.traces))
-		.execute(conn)
-		.await
-		.map(|d| d.rows_affected())
-		.map_err(Into::into)
-	}
 }
 
 #[cfg(test)]

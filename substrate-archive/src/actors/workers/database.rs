@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::database::{queries, Database, DbConn};
+use crate::{
+	database::{queries, Database, DbConn},
+	wasm_tracing::Traces,
+};
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -170,25 +173,18 @@ impl<B: BlockT> Handler<BatchStorage<B>> for DatabaseActor<B> {
 	}
 }
 
+impl Message for Traces {
+	type Result = ();
+}
+
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<super::Traces> for DatabaseActor<B> {
-	async fn handle(&mut self, traces: super::Traces, _: &mut Context<Self>) {
+impl<B: BlockT> Handler<Traces> for DatabaseActor<B> {
+	async fn handle(&mut self, traces: Traces, _: &mut Context<Self>) {
 		let now = std::time::Instant::now();
 		if let Err(e) = self.db.insert(traces).await {
 			log::error!("{}", e.to_string());
 		}
 		log::debug!("took {:?} to insert traces", now.elapsed());
-	}
-}
-
-#[async_trait::async_trait]
-impl<B: BlockT> Handler<super::EventMessage> for DatabaseActor<B> {
-	async fn handle(&mut self, event: super::EventMessage, _: &mut Context<Self>) {
-		let now = std::time::Instant::now();
-		if let Err(e) = self.db.insert(event).await {
-			log::error!("{}", e.to_string())
-		}
-		log::debug!("took {:?} to insert trace events", now.elapsed());
 	}
 }
 

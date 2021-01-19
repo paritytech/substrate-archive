@@ -17,11 +17,9 @@
 mod blocks;
 mod database;
 mod metadata;
-mod state_tracing;
 mod storage_aggregator;
 
 pub use self::database::{DatabaseActor, GetState};
 pub use self::metadata::MetadataActor;
 pub use blocks::BlocksIndexer;
-pub use state_tracing::{EventMessage, Traces, TracingActor};
 pub use storage_aggregator::StorageAggregator;

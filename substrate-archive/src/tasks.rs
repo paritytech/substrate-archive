@@ -44,6 +44,10 @@ where
 	B: BlockT + Unpin,
 	B::Hash: Unpin,
 {
+	// Tracing targets
+	// if `Some` will trace the execution of the block
+	// and the targets will be sent to the TracingActor.
+	tracing_targets: Option<String>,
 	backend: Arc<Backend<B, D>>,
 	client: Arc<C>,
 	storage: Address<StorageAggregator<B>>,
@@ -57,8 +61,13 @@ where
 	B: BlockT + Unpin,
 	B::Hash: Unpin,
 {
-	pub fn new(backend: Arc<Backend<B, D>>, client: Arc<C>, storage: Address<StorageAggregator<B>>) -> Self {
-		Self { backend, client, storage, _marker: PhantomData }
+	pub fn new(
+		backend: Arc<Backend<B, D>>,
+		client: Arc<C>,
+		storage: Address<StorageAggregator<B>>,
+		tracing_targets: Option<String>,
+	) -> Self {
+		Self { backend, client, storage, tracing_targets, _marker: PhantomData }
 	}
 }
 

@@ -24,6 +24,7 @@ mod migrations;
 mod sql_block_builder;
 mod tasks;
 mod traits;
+mod wasm_tracing;
 
 pub use self::actors::System;
 pub use self::archive::{Builder as ArchiveBuilder, TracingConfig};
