@@ -147,7 +147,7 @@ where
             ON CONFLICT DO NOTHING
             "#,
 		);
-		for b in self.inner.into_iter() {
+		for b in self.inner {
 			batch.reserve(8)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
@@ -228,7 +228,7 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
             "#,
 		);
 
-		for s in self.into_iter() {
+		for s in self {
 			batch.reserve(5)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");

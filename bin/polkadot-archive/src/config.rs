@@ -77,7 +77,7 @@ impl Config {
 
 		Ok(Self {
 			polkadot_path: toml_conf.as_ref().and_then(|c| c.polkadot_path.clone()),
-			psql_conf: toml_conf.as_ref().and_then(|c| Some(c.migration_conf(cli.chain.as_str()))),
+			psql_conf: toml_conf.as_ref().map(|c| c.migration_conf(cli.chain.as_str())),
 			cli,
 			cache_size: toml_conf.as_ref().and_then(|c| c.cache_size),
 			block_workers: toml_conf.as_ref().and_then(|c| c.block_workers),

@@ -136,9 +136,9 @@ where
 			log::error!("{}", e.to_string());
 		}
 		if len > 1000 {
-			log::info!("took {:?} to insert {} blocks", now.elapsed(), len);
+			log::info!("Took {:?} to insert {} blocks", now.elapsed(), len);
 		} else {
-			log::debug!("took {:?} to insert {} blocks", now.elapsed(), len);
+			log::debug!("Took {:?} to insert {} blocks", now.elapsed(), len);
 		}
 	}
 }
@@ -164,11 +164,12 @@ impl<B: BlockT> Handler<Storage<B>> for DatabaseActor<B> {
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<BatchStorage<B>> for DatabaseActor<B> {
 	async fn handle(&mut self, storages: BatchStorage<B>, _ctx: &mut Context<Self>) {
+		let len = storages.inner.iter().map(|storage| storage.changes.len()).sum::<usize>();
 		let now = std::time::Instant::now();
 		if let Err(e) = self.batch_storage_handler(storages).await {
 			log::error!("{}", e.to_string());
 		}
-		log::debug!("took {:?} to insert storage", now.elapsed());
+		log::debug!("Took {:?} to insert {} storages", now.elapsed(), len);
 	}
 }
 
