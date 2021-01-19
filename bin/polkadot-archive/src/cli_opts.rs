@@ -30,18 +30,18 @@ impl CliOpts {
 	pub fn parse() -> Self {
 		let yaml = load_yaml!("cli_opts.yaml");
 		let matches = App::from(yaml).get_matches();
-		let log_level = match matches.occurrences_of("verbose") {
+		let file = matches.value_of("config");
+		let log_num = matches.occurrences_of("verbose");
+		let log_level = match log_num {
 			0 => log::LevelFilter::Info,
 			1 => log::LevelFilter::Info,
 			2 => log::LevelFilter::Info,
 			3 => log::LevelFilter::Debug,
 			4 | _ => log::LevelFilter::Trace,
 		};
-		let log_num = matches.occurrences_of("verbose");
-		let file = matches.value_of("config");
 
-		let chain = matches.value_of("chain").unwrap_or("polkadot");
+		let chain = matches.value_of("chain").unwrap_or("polkadot").to_string();
 
-		CliOpts { file: file.map(PathBuf::from), log_level, log_num, chain: chain.to_string() }
+		CliOpts { file: file.map(PathBuf::from), log_level, log_num, chain }
 	}
 }

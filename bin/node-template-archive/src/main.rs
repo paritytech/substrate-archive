@@ -19,7 +19,8 @@ mod config;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use node_template_runtime::{self as runtime, opaque::Block};
+use node_template::service::Executor;
+use node_template_runtime::{opaque::Block, RuntimeApi};
 
 use substrate_archive::{Archive, ArchiveBuilder};
 use substrate_archive_backend::SecondaryRocksDB;
@@ -28,16 +29,13 @@ pub fn main() -> anyhow::Result<()> {
 	let config = config::Config::new()?;
 	substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug)?;
 
-	let mut archive =
-		ArchiveBuilder::<Block, runtime::RuntimeApi, node_template::service::Executor, SecondaryRocksDB> {
-			block_workers: config.block_workers(),
-			wasm_pages: config.wasm_pages(),
-			cache_size: config.cache_size(),
-			..ArchiveBuilder::default()
-		}
-		.chain_data_db(config.db_path().to_str().unwrap().to_string())
-		.pg_url(config.psql_conf().url())
+	let mut archive = ArchiveBuilder::<Block, RuntimeApi, Executor, SecondaryRocksDB>::default()
 		.chain_spec(Box::new(config.cli().chain_spec.clone()))
+		.chain_data_path(config.db_path().map(|path| path))
+		.pg_url(config.psql_conf().map(|conf| conf.url()))
+		.cache_size(config.cache_size())
+		.block_workers(config.block_workers())
+		.wasm_pages(config.wasm_pages())
 		.build()?;
 	archive.drive()?;
 

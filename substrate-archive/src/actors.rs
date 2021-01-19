@@ -33,19 +33,22 @@ use xtra::{prelude::*, spawn::Smol, Disconnected};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
+use sp_blockchain::Error as BlockchainError;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
 use substrate_archive_common::{types::Die, ReadOnlyDB, Result};
 
-pub use self::actor_pool::ActorPool;
 use self::workers::GetState;
-pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
+pub use self::{
+	actor_pool::ActorPool,
+	workers::{BlocksIndexer, DatabaseActor, StorageAggregator},
+};
 use crate::{
+	archive::Archive,
 	database::{queries, Channel, Listener},
 	sql_block_builder::SqlBlockBuilder,
 	tasks::Environment,
-	traits::Archive,
 };
 
 // TODO: Split this up into two objects
@@ -137,15 +140,15 @@ where
 	D: ReadOnlyDB + 'static,
 	B: BlockT + Unpin + DeserializeOwned,
 	R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
-	R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
-		+ sp_api::Metadata<B, Error = sp_blockchain::Error>
+	R::RuntimeApi: BlockBuilderApi<B, Error = BlockchainError>
+		+ sp_api::Metadata<B, Error = BlockchainError>
 		+ ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B, D>, B>>
 		+ Send
 		+ Sync
 		+ 'static,
 	C: ApiAccess<B, ReadOnlyBackend<B, D>, R> + 'static,
 	NumberFor<B>: Into<u32> + From<u32> + Unpin,
-	B::Hash: From<primitive_types::H256> + Unpin,
+	B::Hash: Unpin,
 	B::Header: serde::de::DeserializeOwned,
 {
 	// TODO: Return a reference to the Db pool.
@@ -310,7 +313,7 @@ where
 		+ 'static,
 	C: ApiAccess<B, ReadOnlyBackend<B, D>, R> + 'static,
 	NumberFor<B>: Into<u32> + From<u32> + Unpin,
-	B::Hash: From<primitive_types::H256> + Unpin,
+	B::Hash: Unpin,
 	B::Header: serde::de::DeserializeOwned,
 {
 	fn drive(&mut self) -> Result<()> {
