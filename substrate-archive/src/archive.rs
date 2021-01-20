@@ -43,6 +43,7 @@ const POSTGRES_VAR: &str = "DATABASE_URL";
 /// The recommended open file descriptor limit to be configured for the process.
 const RECOMMENDED_OPEN_FILE_DESCRIPTOR_LIMIT: u64 = 10_000;
 
+/// The control interface of an archive system.
 #[async_trait::async_trait(?Send)]
 pub trait Archive<B: BlockT + Unpin, D: ReadOnlyDB>
 where
@@ -92,7 +93,7 @@ impl<B, R, D, DB> Default for ArchiveBuilder<B, R, D, DB> {
 			pg_url: None,
 			cache_size: 128,                  // 128 MB
 			block_workers: num_cpus,          // the number of logical cpus in the system
-			wasm_pages: 64 * num_cpus as u64, //  64 * (number of logic cpu's)
+			wasm_pages: 64 * num_cpus as u64, // 64 * (number of logic cpu's)
 			max_block_load: 100_000,          // 100_000 blocks to index at once
 		}
 	}
