@@ -169,7 +169,7 @@ impl<B: BlockT> Handler<BatchStorage<B>> for DatabaseActor<B> {
 		if let Err(e) = self.batch_storage_handler(storages).await {
 			log::error!("{}", e.to_string());
 		}
-		log::debug!("Took {:?} to insert {} storages", now.elapsed(), len);
+		log::debug!("Took {:?} to insert {} storage entries", now.elapsed(), len);
 	}
 }
 
