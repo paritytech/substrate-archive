@@ -177,12 +177,12 @@ where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: Crawl, conf: &mut Context<Self>) {
+	async fn handle(&mut self, _: Crawl, ctx: &mut Context<Self>) {
 		match self.crawl().await {
 			Err(e) => log::error!("{}", e.to_string()),
 			Ok(b) => {
 				if !b.is_empty() && self.meta.send(BatchBlock::new(b)).await.is_err() {
-					conf.stop();
+					ctx.stop();
 				}
 			}
 		}
@@ -200,10 +200,10 @@ where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: ReIndex, conf: &mut Context<Self>) {
+	async fn handle(&mut self, _: ReIndex, ctx: &mut Context<Self>) {
 		match self.re_index().await {
 			// stop if disconnected from the metadata actor
-			Err(ArchiveError::Disconnected) => conf.stop(),
+			Err(ArchiveError::Disconnected) => ctx.stop(),
 			Ok(()) => {}
 			Err(e) => log::error!("{}", e.to_string()),
 		}
@@ -216,8 +216,8 @@ where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: Die, conf: &mut Context<Self>) -> Result<()> {
-		conf.stop();
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
+		ctx.stop();
 		Ok(())
 	}
 }
