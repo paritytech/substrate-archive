@@ -153,7 +153,7 @@ where
 		let addr = ctx.address().expect("Actor just started");
 
 		// addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
-		self.last_max = 5_500_000;
+		self.last_max = 5_869_552;
 		smol::spawn(async move {
 			loop {
 				smol::Timer::after(std::time::Duration::from_secs(5));

@@ -332,29 +332,29 @@ impl Insert for Traces {
 				batch.append(",");
 			}
 			batch.append("(");
-			batch.bind(block_num)?;
+			batch.bind(block_num)?; // block number
 			batch.append(",");
-			batch.bind(hash.as_slice())?;
+			batch.bind(hash.as_slice())?; // hash
 			batch.append(",");
-			batch.bind(true)?;
+			batch.bind(true)?; // is_event
 			batch.append(",");
-			batch.bind(event.time)?;
+			batch.bind(event.time)?; //time
 			batch.append(",");
 			batch.bind(Option::<chrono::Duration>::None)?; // an event won't have a duration
 			batch.append(",");
-			batch.bind(event.file)?;
+			batch.bind(event.file)?; // file
 			batch.append(",");
-			batch.bind(event.line)?;
+			batch.bind(event.line)?; // line
 			batch.append(",");
 			batch.bind(Option::<i32>::None)?; // Event has no ID
 			batch.append(",");
-			batch.bind(parent_id)?;
+			batch.bind(parent_id)?; // parent ikd
 			batch.append(",");
-			batch.bind(event.target)?;
+			batch.bind(event.target)?; // target
 			batch.append(",");
-			batch.bind(event.name)?;
+			batch.bind(event.name)?; // name
 			batch.append(",");
-			batch.bind(sqlx::types::Json(event.values))?;
+			batch.bind(sqlx::types::Json(event.values))?; // values
 			batch.append(")");
 		}
 

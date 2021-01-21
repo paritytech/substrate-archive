@@ -252,7 +252,6 @@ impl Visit for TraceData {
 impl Subscriber for TraceHandler {
 	fn enabled(&self, metadata: &Metadata<'_>) -> bool {
 		self.targets.iter().any(|t| metadata.target().starts_with(t.0.as_str()))
-			|| metadata.target() == "substrate_archive::tasks"
 	}
 
 	fn new_span(&self, attrs: &Attributes<'_>) -> Id {

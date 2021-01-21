@@ -123,13 +123,6 @@ where
 	let storage = {
 		let _guard = handler.map(|h| tracing::subscriber::set_default(h));
 		let now = std::time::Instant::now();
-		let span = tracing::span!(
-			tracing::Level::TRACE,
-			"block_execute_task",
-			number = %block.header().number(),
-			hash = %hex::encode(block.header().hash())
-		);
-		let _enter = span.enter();
 		let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
 		log::debug!("Took {:?} to execute block", now.elapsed());
 		Storage::from(block)
