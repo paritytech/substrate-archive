@@ -75,6 +75,8 @@ pub enum ArchiveError {
 
 #[derive(Error, Debug)]
 pub enum TracingError {
+	#[error("Traces for block {0} not found")]
+	NoTraceForBlock(u32),
 	#[error("Parent ID for span does not exist in the tree")]
 	ParentNotFound,
 	#[error("Unable to establish start of block execution")]

@@ -21,6 +21,7 @@ use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
+use parking_lot::Mutex;
 use xtra::prelude::*;
 
 use sc_client_api::backend;
@@ -35,7 +36,10 @@ use sp_runtime::{
 use substrate_archive_backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend};
 use substrate_archive_common::{types::Storage, ReadOnlyDB};
 
-use crate::actors::StorageAggregator;
+use crate::{
+	actors::StorageAggregator,
+	wasm_tracing::{SpanEvents, TraceHandler, Traces},
+};
 
 /// The environment passed to each task
 pub struct Environment<B, R, C, D>
@@ -99,6 +103,9 @@ where
 		return Ok(());
 	}
 
+	let hash = block.header().hash();
+	let number = *block.header().number();
+
 	log::debug!(
 		"Executing Block: {}:{}, version {}",
 		block.header().hash(),
@@ -108,19 +115,30 @@ where
 			.map_err(|e| format!("{:?}", e))?
 			.spec_version,
 	);
-	let now = std::time::Instant::now();
-	let span = tracing::span!(
-		tracing::Level::TRACE,
-		"block_execute_task",
-		number = %block.header().number(),
-		hash = %hex::encode(block.header().hash())
-	);
-	let _enter = span.enter();
-	let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
-	log::debug!("Took {:?} to execute block", now.elapsed());
-	let storage = Storage::from(block);
+	let span_events = Arc::new(Mutex::new(SpanEvents { spans: Vec::new(), events: Vec::new() }));
+	let handler = env
+		.tracing_targets
+		.as_ref()
+		.map(|t| TraceHandler::new(&t, number.into(), hash.as_ref().to_vec(), span_events.clone()));
+	let storage = {
+		let _guard = handler.map(|h| tracing::subscriber::set_default(h));
+		let now = std::time::Instant::now();
+		let span = tracing::span!(
+			tracing::Level::TRACE,
+			"block_execute_task",
+			number = %block.header().number(),
+			hash = %hex::encode(block.header().hash())
+		);
+		let _enter = span.enter();
+		let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
+		log::debug!("Took {:?} to execute block", now.elapsed());
+		Storage::from(block)
+	};
+	let traces = Arc::try_unwrap(span_events).unwrap().into_inner();
+	let traces = Traces::new(number.into(), hash.as_ref().to_vec(), traces.events, traces.spans);
 	let now = std::time::Instant::now();
 	smol::block_on(env.storage.send(storage))?;
+	smol::block_on(env.storage.send(traces))?;
 	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())
 }

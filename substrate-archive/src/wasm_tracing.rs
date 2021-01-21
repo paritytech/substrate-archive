@@ -20,7 +20,10 @@ use serde::{Deserialize, Serialize};
 use sp_tracing::{WASM_NAME_KEY, WASM_TARGET_KEY, WASM_TRACE_IDENTIFIER};
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+	atomic::{AtomicU64, Ordering},
+	Arc,
+};
 use substrate_archive_common::{Result, TracingError};
 use tracing::{
 	event::Event,
@@ -29,6 +32,8 @@ use tracing::{
 	Level, Metadata, Subscriber,
 };
 use tracing_subscriber::CurrentSpan;
+
+type BlockHash = Vec<u8>;
 
 /// The Event a tracing subscriber collects before sending data to the TracingActor.
 #[derive(Debug)]
@@ -85,6 +90,12 @@ impl Traces {
 	}
 }
 
+#[derive(Debug)]
+pub struct SpanEvents {
+	pub spans: Vec<SpanMessage>,
+	pub events: Vec<EventMessage>,
+}
+
 /// Collects traces and filters based on target.
 /// The Subscriber implementation is blocking. It uses Mutex primitives to coalesce traces before
 /// sending them to the appropriate actor.
@@ -94,67 +105,19 @@ pub struct TraceHandler {
 	/// the Block Number this trace set is from
 	block_num: u32,
 	/// Hash of the block for this trace set
-	hash: Vec<u8>,
-	spans: Mutex<Vec<SpanMessage>>,
-	events: Mutex<Vec<EventMessage>>,
+	hash: BlockHash,
+	span_events: Arc<Mutex<SpanEvents>>,
 	targets: Vec<(String, Level)>,
 	counter: AtomicU64,
 	current_span: CurrentSpan,
 }
 
 impl TraceHandler {
-	fn new(targets: String, block_num: u32, hash: Vec<u8>) -> Self {
+	pub fn new(targets: &String, block_num: u32, hash: BlockHash, span_events: Arc<Mutex<SpanEvents>>) -> Self {
 		let targets = targets.split(',').map(|s| parse_target(s)).collect();
-
 		// must start indexing from 1 otherwise `tracing` panics
 		let counter = AtomicU64::new(1);
-		let spans = Mutex::new(Vec::new());
-		let events = Mutex::new(Vec::new());
-		Self { block_num, hash, targets, counter, spans, events, current_span: Default::default() }
-	}
-
-	fn finish(self) -> Result<Traces> {
-		let TraceHandler { spans, events, block_num, hash, targets, .. } = self;
-		let spans = spans.into_inner();
-		let events = events.into_inner();
-		let spans = Self::format_spans(spans, &targets)?;
-		Ok(Traces { block_num, hash, spans, events })
-	}
-
-	/// Formats spans based upon data types that would be more useful for querying in the context
-	/// of a relational database.
-	fn format_spans(spans: Vec<SpanMessage>, targets: &[(String, Level)]) -> Result<Vec<SpanMessage>> {
-		let format = |mut span: SpanMessage| -> Result<SpanMessage> {
-			if span.name == WASM_TRACE_IDENTIFIER {
-				if let Some(name) = span.values.0.remove(WASM_NAME_KEY) {
-					span.name = name.to_string();
-				}
-				if let Some(target) = span.values.0.remove(WASM_TARGET_KEY) {
-					span.target = target.to_string();
-				}
-				span.file = span.values.0.remove("file").map(Into::into);
-				span.line = match span.values.0.remove("line") {
-					Some(DataType::U64(t)) => Ok(Some(t.try_into()?)),
-					None => Ok(None),
-					_ => Err(TracingError::TypeError),
-				}?;
-			}
-			Ok(span)
-		};
-		// if we have a different name/target from WASM replace it and remove key from TraceData
-		spans.into_iter().filter(|s| Self::is_enabled(&s, targets)).map(format).collect()
-	}
-
-	/// Returns true if a span is part of an enabled Target. Checks WASM in addition to the spans target.
-	fn is_enabled(span: &SpanMessage, targets: &[(String, Level)]) -> bool {
-		let wasm_target = span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string());
-
-		targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
-			let check_target = |target: &str, lvl: Level| -> bool { target.starts_with(&t.0.as_str()) && lvl <= t.1 };
-
-			check_target(&span.target, span.level)
-				|| wasm_target.as_ref().map(|wasm_t| check_target(wasm_t, span.level)).unwrap_or(false)
-		})
+		Self { targets, counter, span_events, block_num, hash, current_span: Default::default() }
 	}
 
 	/// Formats an event as an `EventMessage` and sends it to the TracingActor.
@@ -194,7 +157,42 @@ impl TraceHandler {
 			file,
 			line,
 		};
-		self.events.lock().push(event);
+		self.span_events.lock().events.push(event);
+		Ok(())
+	}
+
+	// we need this because we don't know the values until after tracing has been executed
+	/// Returns true if a span is part of an enabled Target. Checks WASM in addition to the spans target.
+	fn is_enabled(&self, span: &SpanMessage) -> bool {
+		let wasm_target = span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string());
+
+		self.targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
+			let check_target = |target: &str, lvl: Level| -> bool { target.starts_with(&t.0.as_str()) && lvl <= t.1 };
+
+			check_target(&span.target, span.level)
+				|| wasm_target.as_ref().map(|wasm_t| check_target(wasm_t, span.level)).unwrap_or(false)
+		})
+	}
+
+	/// Formats spans based upon data types that would be more useful for querying in the context
+	/// of a relational database.
+	fn gather_span(&self, mut span: SpanMessage) -> Result<()> {
+		if span.name == WASM_TRACE_IDENTIFIER {
+			if let Some(name) = span.values.0.remove(WASM_NAME_KEY) {
+				span.name = name.to_string();
+			}
+			if let Some(target) = span.values.0.remove(WASM_TARGET_KEY) {
+				span.target = target.to_string();
+			}
+			span.file = span.values.0.remove("file").map(Into::into);
+			span.line = match span.values.0.remove("line") {
+				Some(DataType::U64(t)) => Ok(Some(t.try_into()?)),
+				None => Ok(None),
+				_ => Err(TracingError::TypeError),
+			}?;
+		}
+
+		self.span_events.lock().spans.push(span);
 		Ok(())
 	}
 }
@@ -275,13 +273,16 @@ impl Subscriber for TraceHandler {
 			line: None,
 			values,
 		};
-		self.spans.lock().push(span_message);
+
+		if self.is_enabled(&span_message) {
+			self.gather_span(span_message).unwrap_or_else(|e| log::error!("{}", e.to_string()));
+		}
 
 		id
 	}
 
 	fn record(&self, id: &Id, values: &Record<'_>) {
-		if let Some(span) = self.spans.lock().iter_mut().find(|span| &span.id == id) {
+		if let Some(span) = self.span_events.lock().spans.iter_mut().find(|span| &span.id == id) {
 			values.record(&mut span.values);
 		}
 	}
@@ -304,9 +305,9 @@ impl Subscriber for TraceHandler {
 	fn exit(&self, id: &Id) {
 		self.current_span.exit();
 		let end_time = Utc::now();
-		let mut spans = self.spans.lock();
+		// let mut spans = &self.span_events.lock().spans;
 
-		if let Some(span) = spans.iter_mut().find(|span| &span.id == id) {
+		if let Some(span) = self.span_events.lock().spans.iter_mut().find(|span| &span.id == id) {
 			span.overall_time = end_time - span.start_time;
 		}
 	}
