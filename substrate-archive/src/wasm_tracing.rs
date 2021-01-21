@@ -113,7 +113,7 @@ pub struct TraceHandler {
 }
 
 impl TraceHandler {
-	pub fn new(targets: &String, block_num: u32, hash: BlockHash, span_events: Arc<Mutex<SpanEvents>>) -> Self {
+	pub fn new(targets: &str, block_num: u32, hash: BlockHash, span_events: Arc<Mutex<SpanEvents>>) -> Self {
 		let targets = targets.split(',').map(|s| parse_target(s)).collect();
 		// must start indexing from 1 otherwise `tracing` panics
 		let counter = AtomicU64::new(1);

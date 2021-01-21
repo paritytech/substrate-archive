@@ -34,7 +34,7 @@ use sp_runtime::{
 };
 
 use substrate_archive_backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend};
-use substrate_archive_common::{types::Storage, ReadOnlyDB};
+use substrate_archive_common::{types::Storage, ReadOnlyDB, TracingError};
 
 use crate::{
 	actors::StorageAggregator,
@@ -116,19 +116,24 @@ where
 			.spec_version,
 	);
 	let span_events = Arc::new(Mutex::new(SpanEvents { spans: Vec::new(), events: Vec::new() }));
-	let handler = env
-		.tracing_targets
-		.as_ref()
-		.map(|t| TraceHandler::new(&t, number.into(), hash.as_ref().to_vec(), span_events.clone()));
+
 	let storage = {
-		let _guard = handler.map(|h| tracing::subscriber::set_default(h));
+		let handler = env
+			.tracing_targets
+			.as_ref()
+			.map(|t| TraceHandler::new(&t, number.into(), hash.as_ref().to_vec(), span_events.clone()));
+
+		let _guard = handler.map(tracing::subscriber::set_default);
+
 		let now = std::time::Instant::now();
 		let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
 		log::debug!("Took {:?} to execute block", now.elapsed());
+
 		Storage::from(block)
 	};
-	let traces = Arc::try_unwrap(span_events).unwrap().into_inner();
+	let traces = Arc::try_unwrap(span_events).map_err(|_| TracingError::NoTraceAccess)?.into_inner();
 	let traces = Traces::new(number.into(), hash.as_ref().to_vec(), traces.events, traces.spans);
+
 	let now = std::time::Instant::now();
 	smol::block_on(env.storage.send(storage))?;
 	smol::block_on(env.storage.send(traces))?;

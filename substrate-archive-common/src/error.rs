@@ -77,18 +77,10 @@ pub enum ArchiveError {
 pub enum TracingError {
 	#[error("Traces for block {0} not found")]
 	NoTraceForBlock(u32),
+	#[error("Traces could not be accessed from within Arc")]
+	NoTraceAccess,
 	#[error("Parent ID for span does not exist in the tree")]
 	ParentNotFound,
-	#[error("Unable to establish start of block execution")]
-	UnknownStartSpan,
-	#[error("Block Number missing from tracing sequence")]
-	NoBlockNumber,
-	#[error("Hash missing from tracing sequence")]
-	NoHash,
-	#[error("No tree exists for ID")]
-	MissingTree,
-	#[error("Span cannot be found and Block Number/Hash cannot be associated for {0}:{1}")]
-	CannotAssociateInfo(String, String),
 	#[error("Wrong Type")]
 	TypeError,
 }
