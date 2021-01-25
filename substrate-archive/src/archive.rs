@@ -14,14 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{
-	actors::{System, SystemConfig},
-	traits,
-};
+use std::{marker::PhantomData, path::PathBuf, sync::Arc};
+
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_blockchain::Backend as BlockchainBackend;
@@ -29,9 +28,13 @@ use sp_runtime::{
 	generic::BlockId,
 	traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
-use std::{marker::PhantomData, path::PathBuf, sync::Arc};
 use substrate_archive_backend::{runtime_api, ReadOnlyBackend, RuntimeConfig, TArchiveClient};
 use substrate_archive_common::{util, ReadOnlyDB, Result};
+
+use crate::{
+	actors::{System, SystemConfig},
+	traits,
+};
 
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
 const POSTGRES_VAR: &str = "DATABASE_URL";

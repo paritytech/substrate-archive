@@ -19,30 +19,37 @@
 mod actor_pool;
 mod workers;
 
-pub use self::actor_pool::ActorPool;
-use self::workers::GetState;
-pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
+pub use workers::StorageAggregator;
+
+use std::marker::PhantomData;
+use std::panic::AssertUnwindSafe;
+use std::sync::Arc;
+use std::time::Duration;
+
+use coil::Job as _;
+use futures::{future::BoxFuture, FutureExt};
+use hashbrown::HashSet;
+use serde::de::DeserializeOwned;
+use xtra::{prelude::*, spawn::Smol, Disconnected};
+
 use crate::{
+	actors::{
+		actor_pool::ActorPool,
+		workers::{DatabaseActor, GetState},
+	},
 	database::{queries, Channel, Listener},
 	sql_block_builder::SqlBlockBuilder,
 	tasks::Environment,
 	traits::Archive,
 };
-use coil::Job as _;
-use futures::{future::BoxFuture, FutureExt};
-use hashbrown::HashSet;
+
 use sc_client_api::backend;
-use serde::de::DeserializeOwned;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-use std::marker::PhantomData;
-use std::panic::AssertUnwindSafe;
-use std::sync::Arc;
-use std::time::Duration;
+
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
 use substrate_archive_common::{types::Die, ReadOnlyDB, Result};
-use xtra::{prelude::*, spawn::Smol, Disconnected};
 
 // TODO: Split this up into two objects
 // System should be a factory that produces objects that should be spawned

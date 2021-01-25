@@ -21,17 +21,18 @@ mod batch;
 pub mod listener;
 pub mod queries;
 
-use crate::wasm_tracing::Traces;
+use std::convert::{TryFrom, TryInto};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use codec::Encode;
 use sqlx::prelude::*;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
-use std::convert::{TryFrom, TryInto};
-use substrate_archive_common::{models::StorageModel, types::*, ArchiveError, Result};
 
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use substrate_archive_common::{models::StorageModel, types::*, ArchiveError, Result};
+
+use crate::wasm_tracing::Traces;
 
 use self::batch::Batch;
 pub use self::listener::*;

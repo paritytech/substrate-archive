@@ -14,18 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-/// The Subscriber implementation for Tracing
-use chrono::{DateTime, Utc};
-use parking_lot::Mutex;
-use serde::{Deserialize, Serialize};
-use sp_tracing::{WASM_NAME_KEY, WASM_TARGET_KEY, WASM_TRACE_IDENTIFIER};
+//! The Subscriber implementation for Tracing
+
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::sync::{
 	atomic::{AtomicU64, Ordering},
 	Arc,
 };
-use substrate_archive_common::{Result, TracingError};
+
+use chrono::{DateTime, Utc};
+use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 use tracing::{
 	event::Event,
 	field::{Field, Visit},
@@ -33,6 +33,9 @@ use tracing::{
 	Level, Metadata, Subscriber,
 };
 use tracing_subscriber::CurrentSpan;
+
+use sp_tracing::{WASM_NAME_KEY, WASM_TARGET_KEY, WASM_TRACE_IDENTIFIER};
+use substrate_archive_common::{Result, TracingError};
 
 /// Generic BlockHash type that can be any length.
 type BlockHash = Vec<u8>;
