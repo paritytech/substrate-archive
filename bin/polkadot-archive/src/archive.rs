@@ -59,7 +59,7 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 				.build()?;
 			Ok(Box::new(archive))
 		}
-		"westend" => {
+		"westend" | "wnd" => {
 			let archive = ArchiveBuilder::<Block, westend_rt::RuntimeApi, WestendExecutor, D>::default()
 				.chain_spec(spec)
 				.chain_data_path(Some(db_path))
@@ -93,7 +93,7 @@ fn get_spec(chain: &str) -> Result<Box<dyn ChainSpec>> {
 			let spec = polkadot_service::chain_spec::kusama_config().unwrap();
 			Ok(Box::new(spec) as Box<dyn ChainSpec>)
 		}
-		"westend" => {
+		"westend" | "wnd" => {
 			let spec = polkadot_service::chain_spec::westend_config().unwrap();
 			Ok(Box::new(spec) as Box<dyn ChainSpec>)
 		}
