@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-// #![allow(warnings)]
-// #![forbid(unsafe_code)]
+#![forbid(unsafe_code)]
+#![deny(dead_code)]
 
 mod actors;
 pub mod archive;
