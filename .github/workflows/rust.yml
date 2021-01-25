@@ -39,6 +39,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
+          args: --tests
 
       - name: Check Code For `node-template-archive`
         uses: actions-rs/cargo@v1
