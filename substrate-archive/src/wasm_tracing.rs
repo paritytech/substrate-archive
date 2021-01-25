@@ -304,7 +304,6 @@ impl Subscriber for TraceHandler {
 	fn exit(&self, id: &Id) {
 		self.current_span.exit();
 		let end_time = Utc::now();
-		// let mut spans = &self.span_events.lock().spans;
 
 		if let Some(span) = self.span_events.lock().spans.iter_mut().find(|span| &span.id == id) {
 			span.overall_time = end_time - span.start_time;

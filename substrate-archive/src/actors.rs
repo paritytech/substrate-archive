@@ -257,11 +257,6 @@ where
 			Box::pin(actors.metadata.send(Die)),
 		];
 		futures::future::join_all(fut).await;
-		/*
-		if let Some(tracing) = actors.tracing {
-			tracing.send(Die).await??;
-		}
-		*/
 		let _ = actors.db_pool.send(Die.into()).await?.await;
 		Ok(())
 	}
