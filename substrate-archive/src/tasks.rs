@@ -50,7 +50,7 @@ where
 {
 	// Tracing targets
 	// if `Some` will trace the execution of the block
-	// and the targets will be sent to the TracingActor.
+	// and traces will be sent to the [`StorageAggregator`].
 	tracing_targets: Option<String>,
 	backend: Arc<Backend<B, D>>,
 	client: Arc<C>,
