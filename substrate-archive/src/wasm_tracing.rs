@@ -131,8 +131,9 @@ impl TraceHandler {
 			event.parent().cloned().or_else(|| self.current_span.id()).ok_or(TracingError::ParentNotFound)?;
 
 		// check if WASM traces specify a different name/target.
-		let name = values.0.remove(WASM_NAME_KEY).map(|t| t.to_string()).unwrap_or(meta.name().to_string());
-		let target = values.0.remove(WASM_TARGET_KEY).map(|t| t.to_string()).unwrap_or(meta.target().to_string());
+		let name = values.0.remove(WASM_NAME_KEY).map(|t| t.to_string()).unwrap_or_else(|| meta.name().to_string());
+		let target =
+			values.0.remove(WASM_TARGET_KEY).map(|t| t.to_string()).unwrap_or_else(|| meta.target().to_string());
 
 		let file = values.0.remove("file").map(Into::into);
 		let line = match values.0.remove("line").map(Into::into) {
