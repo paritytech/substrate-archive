@@ -34,6 +34,7 @@ use tracing::{
 };
 use tracing_subscriber::CurrentSpan;
 
+/// Generic BlockHash type that can be any length.
 type BlockHash = Vec<u8>;
 
 /// The Event a tracing subscriber collects before sending data to the TracingActor.
