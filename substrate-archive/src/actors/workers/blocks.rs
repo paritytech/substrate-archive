@@ -165,7 +165,6 @@ where
 
 		smol::spawn(async move {
 			loop {
-				smol::Timer::after(std::time::Duration::from_secs(5)).await;
 				if addr.send(Crawl).await.is_err() {
 					break;
 				}
