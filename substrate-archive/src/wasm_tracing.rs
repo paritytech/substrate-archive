@@ -120,7 +120,7 @@ impl TraceHandler {
 		Self { targets, counter, span_events, block_num, hash, current_span: Default::default() }
 	}
 
-	/// Formats an event as an `EventMessage` and sends it to the TracingActor.
+	/// Formats an event as an [`EventMessage`] and stores it in the [`SpanEvents`] (which is sent to the [`TracingActor`] after the block is executed).
 	fn gather_event(&self, event: &Event<'_>, time: DateTime<Utc>) -> Result<()> {
 		let meta = event.metadata();
 		let mut values = TraceData::default();
