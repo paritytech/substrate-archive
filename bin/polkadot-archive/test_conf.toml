@@ -1,10 +1,10 @@
-# Must be an absolute path to the folder where polkadot/kusama/and westend chain data is stored 
+# Must be an absolute path to the folder where polkadot/kusama/and westend chain data is stored
 # Linux:
 # /home/$USER/.local/share/polkadot
-# MacOSX 
+# MacOSX
 # /Users/$USER/Library/Application Support/polkadot/
 #
-# if chain data for kusama/polkadot/westend is stored in 
+# if chain data for kusama/polkadot/westend is stored in
 # a different directory, then the absolute path to that directory
 # is necessary.
 # IE:
@@ -13,7 +13,7 @@
 # then the path only needs to be /home/$user/.local/share/polkadot/
 polkadot_path = "/home/insipx/.local/share/polkadot/"
 
-# How much should the read-only database keep in cache (MB) (required)
+# How much should the read-only database keep in cache (MB)
 cache_size = 128
 
 # Number of threads to dedicate for executing blocks

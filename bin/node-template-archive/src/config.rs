@@ -23,19 +23,9 @@ use substrate_archive::MigrationConfig;
 
 use crate::cli_opts::CliOpts;
 
-#[derive(Clone)]
-pub struct Config {
-	db_path: PathBuf,
-	psql_conf: MigrationConfig,
-	cli: CliOpts,
-	cache_size: Option<usize>,
-	block_workers: Option<usize>,
-	wasm_pages: Option<u64>,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct TomlConfig {
-	db_path: PathBuf,
+	db_path: Option<PathBuf>,
 	cache_size: Option<usize>,
 	block_workers: Option<usize>,
 	wasm_pages: Option<u64>,
@@ -46,27 +36,41 @@ struct TomlConfig {
 	db_name: Option<String>,
 }
 
+impl TomlConfig {
+	fn migration_conf(&self) -> MigrationConfig {
+		MigrationConfig {
+			host: self.db_host.clone(),
+			port: self.db_port.clone(),
+			user: self.db_user.clone(),
+			pass: self.db_pass.clone(),
+			name: self.db_name.clone(),
+		}
+	}
+}
+
+#[derive(Clone)]
+pub struct Config {
+	cli: CliOpts,
+	db_path: Option<PathBuf>,
+	psql_conf: Option<MigrationConfig>,
+	cache_size: Option<usize>,
+	block_workers: Option<usize>,
+	wasm_pages: Option<u64>,
+}
+
 impl Config {
 	pub fn new() -> Result<Self> {
-		let cli_opts = CliOpts::parse();
-		let toml_conf = Self::parse_file(cli_opts.file.as_path())?;
+		let cli = CliOpts::parse();
+		let toml_conf = cli.file.clone().map(|f| Self::parse_file(f.as_path())).transpose()?;
 		log::debug!("{:?}", toml_conf);
 
-		let psql_conf = MigrationConfig {
-			host: toml_conf.db_host.clone(),
-			port: toml_conf.db_port.clone(),
-			user: toml_conf.db_user.clone(),
-			pass: toml_conf.db_pass.clone(),
-			name: toml_conf.db_name.clone(),
-		};
-
 		Ok(Self {
-			db_path: toml_conf.db_path,
-			psql_conf,
-			cli: cli_opts,
-			cache_size: toml_conf.cache_size,
-			block_workers: toml_conf.block_workers,
-			wasm_pages: toml_conf.wasm_pages,
+			cli,
+			db_path: toml_conf.as_ref().and_then(|c| c.db_path.clone()),
+			psql_conf: toml_conf.as_ref().map(|c| c.migration_conf()),
+			cache_size: toml_conf.as_ref().and_then(|c| c.cache_size),
+			block_workers: toml_conf.as_ref().and_then(|c| c.block_workers),
+			wasm_pages: toml_conf.as_ref().and_then(|c| c.wasm_pages),
 		})
 	}
 
@@ -79,20 +83,20 @@ impl Config {
 		&self.cli
 	}
 
+	pub fn db_path(&self) -> Option<PathBuf> {
+		self.db_path.clone()
+	}
+
+	pub fn psql_conf(&self) -> Option<MigrationConfig> {
+		self.psql_conf.clone()
+	}
+
 	pub fn cache_size(&self) -> Option<usize> {
 		self.cache_size
 	}
 
-	pub fn psql_conf(&self) -> MigrationConfig {
-		self.psql_conf.clone()
-	}
-
 	pub fn block_workers(&self) -> Option<usize> {
 		self.block_workers
-	}
-
-	pub fn db_path(&self) -> &Path {
-		self.db_path.as_path()
 	}
 
 	pub fn wasm_pages(&self) -> Option<u64> {

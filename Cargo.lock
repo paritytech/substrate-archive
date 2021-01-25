@@ -8053,7 +8053,6 @@ dependencies = [
  "parking_lot 0.11.1",
  "polkadot-service",
  "pretty_env_logger",
- "primitive-types",
  "rayon",
  "rmp-serde 0.15.3",
  "sc-chain-spec",

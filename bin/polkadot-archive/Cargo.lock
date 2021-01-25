@@ -8041,7 +8041,6 @@ dependencies = [
  "num_cpus",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "primitive-types",
  "rayon",
  "rmp-serde 0.15.1",
  "sc-chain-spec",

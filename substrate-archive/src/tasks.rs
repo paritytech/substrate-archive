@@ -94,10 +94,7 @@ where
 		"Executing Block: {}:{}, version {}",
 		block.header().hash(),
 		block.header().number(),
-		env.client
-			.runtime_version_at(&BlockId::Hash(block.header().hash()))
-			.map_err(|e| format!("{:?}", e))?
-			.spec_version,
+		env.client.runtime_version_at(&BlockId::Hash(block.hash())).map_err(|e| format!("{:?}", e))?.spec_version,
 	);
 	let now = std::time::Instant::now();
 	let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;

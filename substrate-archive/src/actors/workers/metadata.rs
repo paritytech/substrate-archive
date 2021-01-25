@@ -18,7 +18,7 @@ use xtra::prelude::*;
 
 use sp_runtime::{
 	generic::BlockId,
-	traits::{Block as BlockT, Header as _, NumberFor},
+	traits::{Block as BlockT, NumberFor},
 };
 use substrate_archive_backend::Meta;
 use substrate_archive_common::{
@@ -66,7 +66,7 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 	where
 		NumberFor<B>: Into<u32>,
 	{
-		let hash = blk.inner.block.header().hash();
+		let hash = blk.inner.block.hash();
 		self.meta_checker(blk.spec, hash).await?;
 		self.addr.send(blk.into()).await?.await;
 		Ok(())
@@ -76,9 +76,8 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 	where
 		NumberFor<B>: Into<u32>,
 	{
-		let versions = blks.inner().iter().unique_by(|b| b.spec).collect::<Vec<&Block<B>>>();
-		for b in versions.iter() {
-			self.meta_checker(b.spec, b.inner.block.hash()).await?;
+		for blk in blks.inner().iter().unique_by(|&blk| blk.spec) {
+			self.meta_checker(blk.spec, blk.inner.block.hash()).await?;
 		}
 		self.addr.send(blks.into()).await?.await;
 		Ok(())
