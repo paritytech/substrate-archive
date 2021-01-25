@@ -217,7 +217,7 @@ where
 		let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(conf.workers)
-			// times out if tasks don't start execution on the threadpool within 20 seconds
+			// times out if tasks don't start execution on the threadpool within 20 seconds.
 			.timeout(Duration::from_secs(20))
 			.max_tasks(64)
 			.build()?;
