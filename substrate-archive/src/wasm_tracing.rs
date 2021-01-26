@@ -49,7 +49,7 @@ pub struct EventMessage {
 	pub target: String,
 	pub level: Level,
 	pub values: TraceData,
-	pub parent_id: Id,
+	pub parent_id: Option<Id>,
 	pub time: DateTime<Utc>,
 	pub file: Option<String>,
 	pub line: Option<u32>,
@@ -130,8 +130,7 @@ impl TraceHandler {
 		let meta = event.metadata();
 		let mut values = TraceData::default();
 		event.record(&mut values);
-		let parent_id =
-			event.parent().cloned().or_else(|| self.current_span.id()).ok_or(TracingError::ParentNotFound)?;
+		let parent_id = event.parent().cloned().or_else(|| self.current_span.id());
 
 		// check if WASM traces specify a different name/target.
 		let name = values.0.remove(WASM_NAME_KEY).map(|t| t.to_string()).unwrap_or_else(|| meta.name().to_string());

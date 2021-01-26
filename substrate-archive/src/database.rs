@@ -327,7 +327,7 @@ impl Insert for Traces {
 		}
 
 		for event in self.events.into_iter() {
-			let parent_id = Some(i32::try_from(event.parent_id.into_u64())?);
+			let parent_id = event.parent_id.map(|id| i32::try_from(id.into_u64())).transpose()?;
 			batch.reserve(11)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
