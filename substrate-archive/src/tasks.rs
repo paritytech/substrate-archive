@@ -38,7 +38,7 @@ use substrate_archive_common::{types::Storage, ReadOnlyDB, TracingError};
 
 use crate::{
 	actors::StorageAggregator,
-	wasm_tracing::{SpanEvents, TraceHandler, Traces},
+	wasm_tracing::{SpansAndEvents, TraceHandler, Traces},
 };
 
 /// The environment passed to each task
@@ -115,7 +115,7 @@ where
 			.map_err(|e| format!("{:?}", e))?
 			.spec_version,
 	);
-	let span_events = Arc::new(Mutex::new(SpanEvents { spans: Vec::new(), events: Vec::new() }));
+	let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
 
 	let storage = {
 		let handler = env

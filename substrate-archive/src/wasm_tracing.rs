@@ -96,7 +96,7 @@ impl Traces {
 }
 
 #[derive(Debug)]
-pub struct SpanEvents {
+pub struct SpansAndEvents {
 	pub spans: Vec<SpanMessage>,
 	pub events: Vec<EventMessage>,
 }
@@ -111,21 +111,21 @@ pub struct TraceHandler {
 	block_num: u32,
 	/// Hash of the block for this trace set
 	hash: BlockHash,
-	span_events: Arc<Mutex<SpanEvents>>,
+	span_events: Arc<Mutex<SpansAndEvents>>,
 	targets: Vec<(String, Level)>,
 	counter: AtomicU64,
 	current_span: CurrentSpan,
 }
 
 impl TraceHandler {
-	pub fn new(targets: &str, block_num: u32, hash: BlockHash, span_events: Arc<Mutex<SpanEvents>>) -> Self {
+	pub fn new(targets: &str, block_num: u32, hash: BlockHash, span_events: Arc<Mutex<SpansAndEvents>>) -> Self {
 		let targets = targets.split(',').map(|s| parse_target(s)).collect();
 		// must start indexing from 1 otherwise `tracing` panics
 		let counter = AtomicU64::new(1);
 		Self { targets, counter, span_events, block_num, hash, current_span: Default::default() }
 	}
 
-	/// Formats an event as an [`EventMessage`] and stores it in the [`SpanEvents`] (which is sent to the [`TracingActor`] after the block is executed).
+	/// Formats an event as an [`EventMessage`] and stores it in the [`SpansAndEvents`] (which is sent to the [`StorageAggregator`] after the block is executed).
 	fn gather_event(&self, event: &Event<'_>, time: DateTime<Utc>) -> Result<()> {
 		let meta = event.metadata();
 		let mut values = TraceData::default();
