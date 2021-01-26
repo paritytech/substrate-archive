@@ -300,13 +300,16 @@ impl Subscriber for TraceHandler {
 		self.current_span.enter(id.clone());
 	}
 
-	fn exit(&self, id: &Id) {
+	fn exit(&self, _id: &Id) {
 		self.current_span.exit();
-		let end_time = Utc::now();
+	}
 
-		if let Some(span) = self.span_events.lock().spans.iter_mut().find(|span| &span.id == id) {
+	fn try_close(&self, id: Id) -> bool {
+		let end_time = Utc::now();
+		if let Some(span) = self.span_events.lock().spans.iter_mut().find(|span| &span.id == &id) {
 			span.overall_time = end_time - span.start_time;
 		}
+		Subscriber::try_close(self, id)
 	}
 }
 
