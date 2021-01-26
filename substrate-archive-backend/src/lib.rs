@@ -16,6 +16,9 @@
 
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
+#![forbid(unsafe_code)]
+#![deny(dead_code)]
+
 mod block_exec;
 mod database;
 mod frontend;

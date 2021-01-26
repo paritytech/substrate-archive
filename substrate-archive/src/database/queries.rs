@@ -131,25 +131,6 @@ pub(crate) async fn get_full_block_by_id(conn: &mut sqlx::PgConnection, id: i32)
 	.map_err(Into::into)
 }
 
-/// Get a block by block number from the relational database
-#[cfg(test)]
-pub(crate) async fn get_full_block_by_num(conn: &mut sqlx::PgConnection, block_num: u32) -> Result<BlockModel> {
-	let safe_block_num = i32::try_from(block_num).unwrap_or(i32::MAX);
-	#[allow(clippy::toplevel_ref_arg)]
-	sqlx::query_as!(
-		BlockModel,
-		"
-        SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
-        FROM blocks
-        WHERE block_num = $1
-        ",
-		safe_block_num
-	)
-	.fetch_one(conn)
-	.await
-	.map_err(Into::into)
-}
-
 /// Check if the runtime version identified by `spec` exists in the relational database
 pub(crate) async fn check_if_meta_exists(spec: u32, conn: &mut PgConnection) -> Result<bool> {
 	let spec = match i32::try_from(spec) {
