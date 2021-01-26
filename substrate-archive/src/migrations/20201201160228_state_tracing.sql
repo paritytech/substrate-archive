@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS state_traces (
 	hash bytea NOT NULL REFERENCES blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE,
 	is_event boolean NOT NULL,
 	timestamp timestamp,
-	duration interval,
+	duration bigint,
 	file varchar,
 	line int,
 	trace_id int,

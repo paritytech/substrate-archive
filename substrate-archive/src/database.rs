@@ -294,7 +294,7 @@ impl Insert for Traces {
 			let id = i32::try_from(span.id.into_u64())?;
 			let parent_id: Option<i32> =
 				if let Some(id) = span.parent_id { Some(i32::try_from(id.into_u64())?) } else { None };
-			let overall_time = shave_nanos(time_to_std(span.overall_time)?)?;
+			let overall_time: i64 = time_to_std(span.overall_time)?.as_nanos().try_into()?;
 			batch.reserve(11)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
@@ -306,9 +306,9 @@ impl Insert for Traces {
 			batch.append(",");
 			batch.bind(false)?; // is_event
 			batch.append(",");
-			batch.bind(span.start_time)?;
+			batch.bind(span.start_time)?; // timestamp
 			batch.append(",");
-			batch.bind(overall_time)?; // timestamp
+			batch.bind(overall_time)?; // duration
 			batch.append(",");
 			batch.bind(span.file)?; // file
 			batch.append(",");
@@ -372,14 +372,6 @@ fn time_to_std(time: chrono::Duration) -> Result<std::time::Duration> {
 	} else {
 		Ok(time.to_std().expect("Checked for less than 0"))
 	}
-}
-
-// the alternative to this is creating a Composite postgres type
-// that stores seconds + extra nanoseconds.
-// Postgres does not support nanosecond precision.
-fn shave_nanos(time: std::time::Duration) -> Result<std::time::Duration> {
-	let extra = time.as_nanos() % 1000;
-	Ok(time - std::time::Duration::from_nanos(extra.try_into()?))
 }
 
 #[cfg(test)]
