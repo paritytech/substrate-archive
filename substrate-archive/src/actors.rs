@@ -19,10 +19,7 @@
 mod actor_pool;
 mod workers;
 
-use std::marker::PhantomData;
-use std::panic::AssertUnwindSafe;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
 use coil::Job as _;
 use futures::{future::BoxFuture, FutureExt};
@@ -37,7 +34,7 @@ use sp_blockchain::Error as BlockchainError;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
-use substrate_archive_common::{types::Die, ReadOnlyDB, Result};
+use substrate_archive_common::{types::Die, ReadOnlyDB};
 
 use self::workers::GetState;
 pub use self::{
@@ -47,6 +44,7 @@ pub use self::{
 use crate::{
 	archive::Archive,
 	database::{queries, Channel, Listener},
+	error::Result,
 	sql_block_builder::SqlBlockBuilder,
 	tasks::Environment,
 };
@@ -244,7 +242,7 @@ where
 	}
 
 	async fn kill_actors(actors: Actors<B, D>) -> Result<()> {
-		let fut: Vec<BoxFuture<'_, Result<Result<()>, Disconnected>>> = vec![
+		let fut: Vec<BoxFuture<'_, Result<(), Disconnected>>> = vec![
 			Box::pin(actors.storage.send(Die)),
 			Box::pin(actors.blocks.send(Die)),
 			Box::pin(actors.metadata.send(Die)),

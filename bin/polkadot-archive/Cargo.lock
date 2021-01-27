@@ -8096,7 +8096,6 @@ dependencies = [
  "num_cpus",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "rayon",
  "rmp-serde 0.15.1",
  "sc-chain-spec",
  "sc-client-api",
@@ -8145,8 +8144,9 @@ dependencies = [
  "sp-storage",
  "sp-trie",
  "sp-version",
+ "sp-wasm-interface",
  "substrate-archive-common",
- "xtra",
+ "thiserror",
 ]
 
 [[package]]
@@ -8154,21 +8154,14 @@ name = "substrate-archive-common"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "coil",
  "directories",
  "fern",
- "flume",
  "log",
  "parity-scale-codec",
- "rayon",
- "rmp-serde 0.15.1",
  "serde",
- "serde_json",
- "sp-blockchain",
  "sp-runtime",
  "sp-storage",
  "sqlx",
- "thiserror",
  "xtra",
 ]
 

@@ -21,10 +21,7 @@ use sp_runtime::{
 	traits::{Block as BlockT, NumberFor},
 };
 use substrate_archive_backend::Meta;
-use substrate_archive_common::{
-	types::{BatchBlock, Block, Die, Metadata},
-	Result,
-};
+use substrate_archive_common::types::{BatchBlock, Block, Die, Metadata};
 
 use crate::{
 	actors::{
@@ -32,6 +29,7 @@ use crate::{
 		workers::database::{DatabaseActor, GetState},
 	},
 	database::{queries, DbConn},
+	error::Result,
 };
 
 /// Actor to fetch metadata about a block/blocks from RPC
@@ -118,8 +116,7 @@ where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
 		ctx.stop();
-		Ok(())
 	}
 }

@@ -21,12 +21,12 @@ use xtra::prelude::*;
 
 use sp_runtime::traits::Block as BlockT;
 
-use substrate_archive_common::{
-	types::{BatchStorage, Die, Storage},
-	Result,
-};
+use substrate_archive_common::types::{BatchStorage, Die, Storage};
 
-use crate::actors::{actor_pool::ActorPool, workers::database::DatabaseActor};
+use crate::{
+	actors::{actor_pool::ActorPool, workers::database::DatabaseActor},
+	error::Result,
+};
 
 pub struct StorageAggregator<B: BlockT + Unpin> {
 	db: Address<ActorPool<DatabaseActor<B>>>,
@@ -122,8 +122,7 @@ impl<B: BlockT + Unpin> Handler<Die> for StorageAggregator<B>
 where
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
 		ctx.stop();
-		Ok(())
 	}
 }

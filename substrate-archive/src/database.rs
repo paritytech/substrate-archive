@@ -25,18 +25,22 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use codec::Encode;
-use sqlx::prelude::*;
-use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
+use sqlx::{
+	pool::PoolConnection,
+	postgres::{PgPool, PgPoolOptions, Postgres},
+	prelude::*,
+};
 
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
-use substrate_archive_common::{models::StorageModel, types::*, Result};
+use substrate_archive_common::{models::StorageModel, types::*};
 
 use self::batch::Batch;
 pub use self::listener::*;
+use crate::error::Result;
 
 pub type DbReturn = Result<u64>;
-pub type DbConn = sqlx::pool::PoolConnection<Postgres>;
+pub type DbConn = PoolConnection<Postgres>;
 
 #[async_trait]
 pub trait Insert: Send {
@@ -267,9 +271,4 @@ impl Insert for Metadata {
 		.map(|d| d.rows_affected())
 		.map_err(Into::into)
 	}
-}
-
-#[cfg(test)]
-mod tests {
-	//! Must be connected to a local database
 }

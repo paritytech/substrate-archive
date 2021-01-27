@@ -21,24 +21,6 @@ use xtra::Message;
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
 
-use crate::error::Result;
-
-#[derive(Clone, Debug, Encode, Decode)]
-pub struct Block<B: BlockT> {
-	pub inner: SignedBlock<B>,
-	pub spec: u32,
-}
-
-impl<B: BlockT> Block<B> {
-	pub fn new(block: SignedBlock<B>, spec: u32) -> Self {
-		Self { inner: block, spec }
-	}
-}
-
-impl<B: BlockT> Message for Block<B> {
-	type Result = ();
-}
-
 #[derive(Debug)]
 pub struct Metadata {
 	version: u32,
@@ -60,6 +42,22 @@ impl Metadata {
 }
 
 impl Message for Metadata {
+	type Result = ();
+}
+
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct Block<B: BlockT> {
+	pub inner: SignedBlock<B>,
+	pub spec: u32,
+}
+
+impl<B: BlockT> Block<B> {
+	pub fn new(block: SignedBlock<B>, spec: u32) -> Self {
+		Self { inner: block, spec }
+	}
+}
+
+impl<B: BlockT> Message for Block<B> {
 	type Result = ();
 }
 
@@ -145,5 +143,5 @@ impl<B: BlockT> Message for BatchStorage<B> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Die;
 impl Message for Die {
-	type Result = Result<()>;
+	type Result = ();
 }

@@ -28,7 +28,7 @@ use sqlx::{
 	prelude::*,
 };
 
-use substrate_archive_common::Result;
+use crate::error::Result;
 
 /// A notification from Postgres about a new row
 #[derive(PartialEq, Debug, Deserialize)]

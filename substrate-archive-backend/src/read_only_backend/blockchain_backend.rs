@@ -32,8 +32,10 @@ use sp_runtime::{
 
 use substrate_archive_common::ReadOnlyDB;
 
-use crate::read_only_backend::ReadOnlyBackend;
-use crate::util::{self, columns};
+use crate::{
+	read_only_backend::ReadOnlyBackend,
+	util::{self, columns},
+};
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
