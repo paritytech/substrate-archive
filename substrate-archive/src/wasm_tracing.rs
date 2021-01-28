@@ -173,7 +173,7 @@ impl TraceHandler {
 		})
 	}
 
-	/// Formats spans based upon data types that would be more useful for querying in the context
+	/// Formats spans based upon data types that are more useful for querying in the context
 	/// of a relational database.
 	fn gather_span(&self, mut span: SpanMessage) -> Result<()> {
 		if span.name == WASM_TRACE_IDENTIFIER {
