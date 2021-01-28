@@ -300,7 +300,7 @@ impl Insert for Traces {
 			let parent_id: Option<i32> =
 				if let Some(id) = span.parent_id { Some(i32::try_from(id.into_u64())?) } else { None };
 			let overall_time: i64 = time_to_std(span.overall_time)?.as_nanos().try_into()?;
-			batch.reserve(11)?;
+			batch.reserve(12)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
 			}
@@ -333,7 +333,7 @@ impl Insert for Traces {
 
 		for event in self.events.into_iter() {
 			let parent_id = event.parent_id.map(|id| i32::try_from(id.into_u64())).transpose()?;
-			batch.reserve(11)?;
+			batch.reserve(12)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
 			}
