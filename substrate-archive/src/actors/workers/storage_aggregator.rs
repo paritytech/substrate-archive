@@ -44,7 +44,7 @@ where
 	}
 
 	async fn handle_storage(&mut self, ctx: &mut Context<Self>) -> Result<()> {
-		let storage = std::mem::take(&mut self.storage);
+		let storage = std::mem::replace(&mut self.storage, Vec::with_capacity(500));
 		if !storage.is_empty() {
 			log::info!("Indexing {} blocks of storage entries", storage.len());
 			let send_result = self.db.send(BatchStorage::new(storage).into()).await?;
