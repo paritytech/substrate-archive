@@ -130,11 +130,13 @@ where
 		Storage::from(block)
 	};
 	let traces = Arc::try_unwrap(span_events).map_err(|_| TracingError::NoTraceAccess)?.into_inner();
-	let traces = Traces::new(number.into(), hash.as_ref().to_vec(), traces.events, traces.spans);
 
 	let now = std::time::Instant::now();
 	smol::block_on(env.storage.send(storage))?;
-	smol::block_on(env.storage.send(traces))?;
+	if !traces.events.is_empty() && !traces.spans.is_empty() {
+		let traces = Traces::new(number.into(), hash.as_ref().to_vec(), traces.events, traces.spans);
+		smol::block_on(env.storage.send(traces))?;
+	}
 	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())
 }

@@ -306,7 +306,7 @@ impl Subscriber for TraceHandler {
 
 	fn try_close(&self, id: Id) -> bool {
 		let end_time = Utc::now();
-		if let Some(span) = self.span_events.lock().spans.iter_mut().find(|span| &span.id == &id) {
+		if let Some(span) = self.span_events.lock().spans.iter_mut().find(|span| span.id == id) {
 			span.overall_time = end_time - span.start_time;
 		}
 		// try_close returns false by default -- we want to keep this behavior.

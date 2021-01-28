@@ -38,7 +38,7 @@ impl CliOpts {
 			1 => log::LevelFilter::Info,
 			2 => log::LevelFilter::Info,
 			3 => log::LevelFilter::Debug,
-			4 | _ => log::LevelFilter::Trace,
+			_ => log::LevelFilter::Trace,
 		};
 
 		let chain = matches.value_of("chain").unwrap_or("polkadot").to_string();
