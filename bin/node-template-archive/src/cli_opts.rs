@@ -37,36 +37,12 @@ impl CliOpts {
 			3 => log::LevelFilter::Debug,
 			4 | _ => log::LevelFilter::Trace,
 		};
-<<<<<<< HEAD
-		let file = matches.value_of("config").expect("Config is a required value");
-		let chain_spec;
-		let spec = matches.value_of("spec");
-		if spec.is_some() {
-			match spec {
-				Some("dev") => {
-					chain_spec = node_template::chain_spec::development_config();
-				}
-				Some("") | Some("local") => {
-					chain_spec = node_template::chain_spec::local_testnet_config();
-				}
-				path => {
-					chain_spec = node_template::chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(
-						path.expect("checked for existence; qed"),
-					))
-				}
-			}
-		} else {
-			panic!("Chain spec could not be loaded; is the path correct?")
-		}
-
-=======
 		let chain_spec = match matches.value_of("spec") {
 			Some("dev") => node_template::chain_spec::development_config(),
 			Some("") | Some("local") => node_template::chain_spec::local_testnet_config(),
 			Some(path) => node_template::chain_spec::ChainSpec::from_json_file(PathBuf::from(path)),
 			_ => panic!("Chain spec could not be loaded; is the path correct?"),
 		};
->>>>>>> 634ec5d7c62e2b09dca83a0851e517f9e2ed5642
 		CliOpts {
 			file: file.map(PathBuf::from),
 			log_level,

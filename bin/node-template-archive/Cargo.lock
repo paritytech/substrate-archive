@@ -7262,6 +7262,7 @@ dependencies = [
  "bitflags",
  "byteorder",
  "bytes 0.5.6",
+ "chrono",
  "crc",
  "crossbeam-channel 0.4.4",
  "crossbeam-queue",
@@ -7485,6 +7486,7 @@ name = "substrate-archive"
 version = "0.5.0-pre"
 dependencies = [
  "async-trait",
+ "chrono",
  "coil",
  "fdlimit",
  "flume",
@@ -7510,11 +7512,14 @@ dependencies = [
  "sp-blockchain",
  "sp-core",
  "sp-runtime",
+ "sp-tracing",
  "sqlx",
  "substrate-archive-backend",
  "substrate-archive-common",
  "tempfile",
  "thiserror",
+ "tracing",
+ "tracing-subscriber",
  "xtra",
 ]
 
