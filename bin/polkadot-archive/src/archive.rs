@@ -67,54 +67,42 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 	let db_path = db_path.as_path().to_str().context("could not convert rocksdb path to str")?.to_string();
 	match config.cli().chain.to_ascii_lowercase().as_str() {
 		"kusama" | "ksm" => {
-			let mut archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, KusamaExecutor, D> {
-				pg_url: config.psql_conf().map(|u| u.url()),
-				cache_size: config.cache_size(),
-				block_workers: config.block_workers(),
-				wasm_pages: config.wasm_pages(),
-				max_block_load: config.max_block_load(),
-				..ArchiveBuilder::default()
-			}
-			.chain_data_db(db_path)
-			.chain_spec(spec);
-			if let Some(t) = config.wasm_tracing() {
-				archive = archive.wasm_tracing(t);
-			}
-			let archive = archive.build()?;
+			let archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, KusamaExecutor, D>::default()
+				.chain_spec(spec)
+				.chain_data_path(Some(db_path))
+				.pg_url(config.psql_conf().map(|u| u.url()))
+				.cache_size(config.cache_size())
+				.block_workers(config.block_workers())
+				.wasm_pages(config.wasm_pages())
+				.max_block_load(config.max_block_load())
+				.wasm_tracing(config.wasm_tracing())
+				.build()?;
 			Ok(Box::new(archive))
 		}
-		"westend" => {
-			let mut archive = ArchiveBuilder::<Block, wnd_rt::RuntimeApi, WestendExecutor, D> {
-				pg_url: config.psql_conf().map(|u| u.url()),
-				cache_size: config.cache_size(),
-				block_workers: config.block_workers(),
-				wasm_pages: config.wasm_pages(),
-				max_block_load: config.max_block_load(),
-				..ArchiveBuilder::default()
-			}
-			.chain_data_db(db_path)
-			.chain_spec(spec);
-			if let Some(t) = config.wasm_tracing() {
-				archive = archive.wasm_tracing(t);
-			}
-			let archive = archive.build()?;
+		"westend" | "wnd" => {
+			let archive = ArchiveBuilder::<Block, wnd_rt::RuntimeApi, WestendExecutor, D>::default()
+				.chain_spec(spec)
+				.chain_data_path(Some(db_path))
+				.pg_url(config.psql_conf().map(|u| u.url()))
+				.cache_size(config.cache_size())
+				.block_workers(config.block_workers())
+				.wasm_pages(config.wasm_pages())
+				.max_block_load(config.max_block_load())
+				.wasm_tracing(config.wasm_tracing())
+				.build()?;
 			Ok(Box::new(archive))
 		}
 		"polkadot" | "dot" => {
-			let mut archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, PolkadotExecutor, D> {
-				pg_url: config.psql_conf().map(|u| u.url()),
-				cache_size: config.cache_size(),
-				block_workers: config.block_workers(),
-				wasm_pages: config.wasm_pages(),
-				max_block_load: config.max_block_load(),
-				..ArchiveBuilder::default()
-			}
-			.chain_data_db(db_path)
-			.chain_spec(spec);
-			if let Some(t) = config.wasm_tracing() {
-				archive = archive.wasm_tracing(t);
-			}
-			let archive = archive.build()?;
+			let archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, PolkadotExecutor, D>::default()
+				.chain_spec(spec)
+				.chain_data_path(Some(db_path))
+				.pg_url(config.psql_conf().map(|u| u.url()))
+				.cache_size(config.cache_size())
+				.block_workers(config.block_workers())
+				.wasm_pages(config.wasm_pages())
+				.max_block_load(config.max_block_load())
+				.wasm_tracing(config.wasm_tracing())
+				.build()?;
 			Ok(Box::new(archive))
 		}
 		c => Err(anyhow!("unknown chain {}", c)),
@@ -127,7 +115,7 @@ fn get_spec(chain: &str) -> Result<Box<dyn ChainSpec>> {
 			let spec = polkadot_service::chain_spec::kusama_config().unwrap();
 			Ok(Box::new(spec) as Box<dyn ChainSpec>)
 		}
-		"westend" => {
+		"westend" | "wnd" => {
 			let spec = polkadot_service::chain_spec::westend_config().unwrap();
 			Ok(Box::new(spec) as Box<dyn ChainSpec>)
 		}

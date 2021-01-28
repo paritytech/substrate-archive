@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -16,17 +16,16 @@
 
 //! logging and general utilities
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::Hasher as _;
-use std::path::{Path, PathBuf};
+use std::{
+	fs, io,
+	path::{Path, PathBuf},
+};
 
 #[cfg(feature = "logging")]
 use fern::colors::{Color, ColoredLevelConfig};
 
-use crate::error::ArchiveError;
-
 #[cfg(feature = "logging")]
-pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) -> Result<(), ArchiveError> {
+pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) -> io::Result<()> {
 	let colors = ColoredLevelConfig::new()
 		.info(Color::Green)
 		.warn(Color::Yellow)
@@ -98,30 +97,25 @@ fn format_opt(file: Option<String>) -> String {
 /// Linux | $XDG_DATA_HOME or $HOME/.local/share/substrate_archive | /home/alice/.local/share/substrate_archive/
 /// macOS | $HOME/Library/Application Support/substrate_archive | /Users/Alice/Library/Application Support/substrate_archive/
 /// Windows | {FOLDERID_LocalAppData}\substrate_archive | C:\Users\Alice\AppData\Local\substrate_archive
-pub fn substrate_dir() -> Result<PathBuf, ArchiveError> {
-	if let Some(base_dirs) = dirs::BaseDirs::new() {
-		let mut path = base_dirs.data_local_dir().to_path_buf();
-		path.push("substrate_archive");
-		Ok(path)
-	} else {
-		Err(ArchiveError::from("No valid home directory path could be retrieved from the operating system"))
-	}
+pub fn substrate_dir() -> io::Result<PathBuf> {
+	let base_dirs = dirs::BaseDirs::new().ok_or_else(|| {
+		io::Error::new(
+			io::ErrorKind::Other,
+			"No valid home directory path could be retrieved from the operating system",
+		)
+	})?;
+	let mut path = base_dirs.data_local_dir().to_path_buf();
+	path.push("substrate_archive");
+	Ok(path)
 }
 
 /// Create an arbitrary directory on disk.
-pub fn create_dir(path: &Path) -> Result<(), ArchiveError> {
-	if let Err(e) = std::fs::create_dir_all(path) {
-		match e.kind() {
-			std::io::ErrorKind::AlreadyExists => (),
-			_ => return Err(ArchiveError::from(format!("A directory in the path '{:?}' could not be created", path))),
+pub fn create_dir(path: &Path) -> io::Result<()> {
+	if let Err(err) = fs::create_dir_all(path) {
+		match err.kind() {
+			io::ErrorKind::AlreadyExists => (),
+			_ => return Err(err),
 		}
 	}
 	Ok(())
-}
-
-/// Make a hash out of a byte string using the default hasher.
-pub fn make_hash<K: std::hash::Hash + ?Sized>(val: &K) -> u64 {
-	let mut state = DefaultHasher::new();
-	val.hash(&mut state);
-	state.finish()
 }

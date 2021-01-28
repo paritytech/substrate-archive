@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -19,12 +19,7 @@
 mod actor_pool;
 mod workers;
 
-pub use workers::StorageAggregator;
-
-use std::marker::PhantomData;
-use std::panic::AssertUnwindSafe;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
 use coil::Job as _;
 use futures::{future::BoxFuture, FutureExt};
@@ -32,24 +27,27 @@ use hashbrown::HashSet;
 use serde::de::DeserializeOwned;
 use xtra::{prelude::*, spawn::Smol, Disconnected};
 
-use crate::{
-	actors::{
-		actor_pool::ActorPool,
-		workers::{DatabaseActor, GetState},
-	},
-	database::{queries, Channel, Listener},
-	sql_block_builder::SqlBlockBuilder,
-	tasks::Environment,
-	traits::Archive,
-};
-
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
+use sp_blockchain::Error as BlockchainError;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
-use substrate_archive_common::{types::Die, ReadOnlyDB, Result};
+use substrate_archive_common::{types::Die, ReadOnlyDB};
+
+use self::workers::GetState;
+pub use self::{
+	actor_pool::ActorPool,
+	workers::{BlocksIndexer, DatabaseActor, StorageAggregator},
+};
+use crate::{
+	archive::Archive,
+	database::{queries, Channel, Listener},
+	error::Result,
+	sql_block_builder::SqlBlockBuilder,
+	tasks::Environment,
+};
 
 // TODO: Split this up into two objects
 // System should be a factory that produces objects that should be spawned
@@ -121,7 +119,6 @@ where
 	blocks: Address<workers::BlocksIndexer<B, D>>,
 	metadata: Address<workers::MetadataActor<B>>,
 	db_pool: Address<ActorPool<DatabaseActor<B>>>,
-	// tracing: Option<Address<workers::TracingActor<B>>>,
 }
 
 /// Control the execution of the indexing engine.
@@ -133,9 +130,9 @@ where
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
 {
+	config: SystemConfig<B, D>,
 	start_tx: flume::Sender<()>,
 	kill_tx: flume::Sender<()>,
-	config: SystemConfig<B, D>,
 	/// handle to the futures runtime indexing the running chain
 	handle: jod_thread::JoinHandle<Result<()>>,
 	_marker: PhantomData<(B, R, C, D)>,
@@ -146,8 +143,8 @@ where
 	D: ReadOnlyDB + 'static,
 	B: BlockT + Unpin + DeserializeOwned,
 	R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
-	R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
-		+ sp_api::Metadata<B, Error = sp_blockchain::Error>
+	R::RuntimeApi: BlockBuilderApi<B, Error = BlockchainError>
+		+ sp_api::Metadata<B, Error = BlockchainError>
 		+ ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B, D>, B>>
 		+ Send
 		+ Sync
@@ -157,11 +154,6 @@ where
 	B::Hash: Unpin,
 	B::Header: serde::de::DeserializeOwned,
 {
-	// TODO: Return a reference to the Db pool.
-	// just expose a 'shutdown' fn that must be called in order to avoid missing data.
-	// or just return an archive object for general telemetry/ops.
-	// TODO: Accept one `Config` Struct for which a builder is implemented on
-	// to make configuring this easier.
 	/// Initialize substrate archive.
 	/// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
 	/// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the
@@ -205,7 +197,7 @@ where
 		let pool = actors.db_pool.send(GetState::Pool.into()).await?.await?.pool();
 		let listener = Self::init_listeners(conf.pg_url()).await?;
 		let mut conn = pool.acquire().await?;
-		Self::restore_missing_storage(&mut *conn).await?;
+		// Self::restore_missing_storage(&mut *conn).await?;
 		let env = Environment::<B, R, C, D>::new(
 			conf.backend().clone(),
 			client,
@@ -259,7 +251,7 @@ where
 	}
 
 	async fn kill_actors(actors: Actors<B, D>) -> Result<()> {
-		let fut: Vec<BoxFuture<'_, Result<Result<()>, Disconnected>>> = vec![
+		let fut: Vec<BoxFuture<'_, Result<(), Disconnected>>> = vec![
 			Box::pin(actors.storage.send(Die)),
 			Box::pin(actors.blocks.send(Die)),
 			Box::pin(actors.metadata.send(Die)),

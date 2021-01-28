@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@ use std::string::ToString;
 
 use sqlx::{postgres::PgConnection, Connection};
 
-use substrate_archive_common::Result;
+use crate::error::Result;
 
 // TODO Change to just accept a DB URL.
 // but maybe keep conf. It allows for more modular configuration?

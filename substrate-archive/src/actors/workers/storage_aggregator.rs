@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -21,13 +21,11 @@ use xtra::prelude::*;
 
 use sp_runtime::traits::Block as BlockT;
 
-use substrate_archive_common::{
-	types::{BatchStorage, Die, Storage},
-	Result,
-};
+use substrate_archive_common::types::{BatchStorage, Die, Storage};
 
 use crate::{
 	actors::{actor_pool::ActorPool, workers::database::DatabaseActor},
+	error::Result,
 	wasm_tracing::Traces,
 };
 
@@ -168,8 +166,7 @@ impl<B: BlockT + Unpin> Handler<Die> for StorageAggregator<B>
 where
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
 		ctx.stop();
-		Ok(())
 	}
 }

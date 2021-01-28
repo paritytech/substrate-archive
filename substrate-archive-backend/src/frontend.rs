@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify it
@@ -30,9 +30,10 @@ use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
+use substrate_archive_common::ReadOnlyDB;
+
 pub use self::client::{Client, GetMetadata, GetRuntimeVersion};
-use crate::{read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
-use substrate_archive_common::{ArchiveError, ReadOnlyDB};
+use crate::{error::BackendError, read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
 pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;
@@ -66,7 +67,7 @@ impl Default for RuntimeConfig {
 pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDB + 'static>(
 	db: Arc<D>,
 	config: RuntimeConfig,
-) -> Result<TArchiveClient<Block, Runtime, Dispatch, D>, ArchiveError>
+) -> Result<TArchiveClient<Block, Runtime, Dispatch, D>, BackendError>
 where
 	Block: BlockT,
 	Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch, D>> + Send + Sync + 'static,

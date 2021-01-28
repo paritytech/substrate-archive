@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -16,13 +16,16 @@
 //! A cache of runtime versions
 //! Will only call the `runtime_version` function once per wasm blob
 
-use std::sync::Arc;
+use std::{
+	collections::hash_map::DefaultHasher,
+	hash::{Hash, Hasher as _},
+	sync::Arc,
+};
 
 use arc_swap::ArcSwap;
 use codec::Decode;
 use hashbrown::HashMap;
 
-use sc_executor::sp_wasm_interface::HostFunctions;
 use sc_executor::{WasmExecutionMethod, WasmExecutor};
 use sp_core::traits::CallInWasmExt;
 use sp_runtime::{
@@ -32,10 +35,14 @@ use sp_runtime::{
 use sp_state_machine::BasicExternalities;
 use sp_storage::well_known_keys;
 use sp_version::RuntimeVersion;
+use sp_wasm_interface::HostFunctions;
 
-use substrate_archive_common::{types::Block, util, ArchiveError, ReadOnlyDB, Result};
+use substrate_archive_common::{types::Block, ReadOnlyDB};
 
-use crate::read_only_backend::ReadOnlyBackend;
+use crate::{
+	error::{BackendError, Result},
+	read_only_backend::ReadOnlyBackend,
+};
 
 pub struct RuntimeVersionCache<B: BlockT, D: ReadOnlyDB> {
 	/// Hash of the WASM Blob -> RuntimeVersion
@@ -76,14 +83,10 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 	/// Prefer `find_versions` when trying to get the runtime versions for
 	/// many consecutive blocks
 	pub fn get(&self, hash: B::Hash) -> Result<Option<RuntimeVersion>> {
-		// Getting code from the backend is the slowest part of this. Takes an average of
-		// 6ms
-		let code = self
-			.backend
-			.storage(hash, well_known_keys::CODE)
-			.ok_or_else(|| ArchiveError::from("storage does not exist"))?;
+		// Getting code from the backend is the slowest part of this. Takes an average of 6ms
+		let code = self.backend.storage(hash, well_known_keys::CODE).ok_or(BackendError::StorageNotExist)?;
 
-		let code_hash = util::make_hash(&code);
+		let code_hash = make_hash(&code);
 		if self.versions.load().contains_key(&code_hash) {
 			Ok(self.versions.load().get(&code_hash).cloned())
 		} else {
@@ -91,7 +94,7 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 			let mut ext = BasicExternalities::default();
 			ext.register_extension(CallInWasmExt::new(self.exec.clone()));
 			let version: RuntimeVersion = ext.execute_with(|| {
-				let ver = sp_io::misc::runtime_version(&code).ok_or(ArchiveError::WasmExecutionError)?;
+				let ver = sp_io::misc::runtime_version(&code).ok_or(BackendError::WasmExecutionError)?;
 				decode_version(ver.as_slice())
 			})?;
 			log::debug!("Registered a new runtime version: {:?}", version);
@@ -137,18 +140,13 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 		if blocks.is_empty() {
 			return Ok(());
 		} else if blocks.len() == 1 {
-			let version =
-				self.get(blocks[0].block.header().hash())?.ok_or_else(|| ArchiveError::from("Version not found"))?;
+			let version = self.get(blocks[0].block.hash())?.ok_or(BackendError::VersionNotFound)?;
 			versions.push(VersionRange::new(&blocks[0], &blocks[0], version));
 			return Ok(());
 		}
 
-		let first = self
-			.get(blocks.first().unwrap().block.header().hash())?
-			.ok_or_else(|| ArchiveError::from("Version not found"))?;
-		let last = self
-			.get(blocks.last().unwrap().block.header().hash())?
-			.ok_or_else(|| ArchiveError::from("Version not found"))?;
+		let first = self.get(blocks.first().unwrap().block.hash())?.ok_or(BackendError::VersionNotFound)?;
+		let last = self.get(blocks.last().unwrap().block.hash())?.ok_or(BackendError::VersionNotFound)?;
 
 		if first.spec_version != last.spec_version && blocks.len() > 2 {
 			let half = blocks.len() / 2;
@@ -190,4 +188,11 @@ fn decode_version(version: &[u8]) -> Result<sp_version::RuntimeVersion> {
 	} else {
 		Ok(v)
 	}
+}
+
+// Make a hash out of a byte string using the default hasher.
+fn make_hash<K: Hash + ?Sized>(val: &K) -> u64 {
+	let mut state = DefaultHasher::new();
+	val.hash(&mut state);
+	state.finish()
 }

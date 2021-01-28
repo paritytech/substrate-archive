@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -24,7 +24,9 @@ use sqlx::PgConnection;
 
 use sp_runtime::traits::Block as BlockT;
 
-use substrate_archive_common::{models::BlockModel, Result};
+use substrate_archive_common::models::BlockModel;
+
+use crate::error::Result;
 
 /// Return type of queries that `SELECT version`
 struct Version {
@@ -125,25 +127,6 @@ pub(crate) async fn get_full_block_by_id(conn: &mut sqlx::PgConnection, id: i32)
         WHERE id = $1
         ",
 		id
-	)
-	.fetch_one(conn)
-	.await
-	.map_err(Into::into)
-}
-
-/// Get a block by block number from the relational database
-#[cfg(test)]
-pub(crate) async fn get_full_block_by_num(conn: &mut sqlx::PgConnection, block_num: u32) -> Result<BlockModel> {
-	let safe_block_num = i32::try_from(block_num).unwrap_or(i32::MAX);
-	#[allow(clippy::toplevel_ref_arg)]
-	sqlx::query_as!(
-		BlockModel,
-		"
-        SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
-        FROM blocks
-        WHERE block_num = $1
-        ",
-		safe_block_num
 	)
 	.fetch_one(conn)
 	.await

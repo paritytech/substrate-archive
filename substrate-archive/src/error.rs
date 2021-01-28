@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -13,62 +13,55 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{env, io};
+use std::{env, fmt, io};
 use thiserror::Error;
 
 pub type Result<T, E = ArchiveError> = std::result::Result<T, E>;
 
 /// Substrate Archive Error Enum
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub enum ArchiveError {
-	#[error("Io Error")]
+	#[error(transparent)]
 	Io(#[from] io::Error),
-	#[error("environment variable for `DATABASE_URL` not found")]
+	#[error(transparent)]
 	Env(#[from] env::VarError),
-	#[error("decode {0}")]
+
+	// encoding error
+	#[error(transparent)]
 	Codec(#[from] codec::Error),
-	#[error("Formatting {0}")]
-	Fmt(#[from] std::fmt::Error),
-	#[error("serialization error")]
+	#[error(transparent)]
 	Serialization(#[from] serde_json::Error),
+
+	// database error
+	#[error(transparent)]
+	Fmt(#[from] fmt::Error),
 	#[error("sqlx error: {0}")]
 	Sql(#[from] sqlx::Error),
 	#[error("migration error: {0}")]
 	Migration(#[from] sqlx::migrate::MigrateError),
-	#[error("blockchain error: {0}")]
-	Blockchain(String),
-	/// an error occurred while enqueuing a background job
+
+	/// background job error
 	#[error("Background job err {0}")]
 	BgJob(#[from] coil::EnqueueError),
 	#[error("Background Job {0}")]
 	BgJobGen(#[from] coil::Error),
 	#[error("Failed getting background task {0}")]
 	BgJobGet(#[from] coil::FetchError),
-	#[error("could not build threadpool")]
-	ThreadPool(#[from] rayon::ThreadPoolBuildError),
-	/// Error occurred while serializing/deserializing data
 	#[error("Error while decoding job data {0}")]
 	De(#[from] rmp_serde::decode::Error),
-	#[error(
-		"the chain given to substrate-archive is different then the running chain. Trying to run {0}, running {1}"
-	)]
-	MismatchedChains(String, String),
-	#[error("wasm exists but could not extract runtime version")]
-	WasmExecutionError,
-	#[error("sending on disconnected channel")]
-	Channel,
+
+	// actor and channel error
 	#[error("Trying to send to disconnected actor")]
 	Disconnected,
-
-	#[error("Unexpected Error {0}")]
-	Msg(String),
-
-	#[error("{0}")]
+	#[error("Sending on a disconnected channel")]
+	Channel,
+	// archive backend error
+	#[error("Backend error: {0}")]
+	Backend(#[from] substrate_archive_backend::BackendError),
+	#[error(transparent)]
 	Conversion(#[from] std::num::TryFromIntError),
-
 	#[error("Tracing: {0}")]
 	Trace(#[from] TracingError),
-
 	#[error("Rust Standard Library does not support negative durations")]
 	TimestampOutOfRange,
 }
@@ -85,34 +78,20 @@ pub enum TracingError {
 	TypeError,
 }
 
-impl From<&str> for ArchiveError {
-	fn from(e: &str) -> ArchiveError {
-		ArchiveError::Msg(e.to_string())
-	}
-}
-
-impl From<String> for ArchiveError {
-	fn from(e: String) -> ArchiveError {
-		ArchiveError::Msg(e)
-	}
-}
-
-// this conversion is required for our Error type to be
-// Send + Sync
 impl From<sp_blockchain::Error> for ArchiveError {
-	fn from(e: sp_blockchain::Error) -> ArchiveError {
-		ArchiveError::Blockchain(e.to_string())
+	fn from(e: sp_blockchain::Error) -> Self {
+		Self::Backend(substrate_archive_backend::BackendError::Blockchain(e.to_string()))
 	}
 }
 
 impl From<xtra::Disconnected> for ArchiveError {
-	fn from(_: xtra::Disconnected) -> ArchiveError {
-		ArchiveError::Disconnected
+	fn from(_: xtra::Disconnected) -> Self {
+		Self::Disconnected
 	}
 }
 
 impl<T> From<flume::SendError<T>> for ArchiveError {
-	fn from(_: flume::SendError<T>) -> ArchiveError {
-		ArchiveError::Channel
+	fn from(_: flume::SendError<T>) -> Self {
+		Self::Channel
 	}
 }

@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -14,11 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+#![forbid(unsafe_code)]
+#![deny(dead_code)]
+
 mod database;
-mod error;
 pub mod models;
 pub mod types;
 pub mod util;
 
 pub use self::database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS};
-pub use self::error::{ArchiveError, Result, TracingError};

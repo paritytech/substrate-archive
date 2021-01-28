@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -42,11 +42,11 @@ use sp_runtime::{
 	Justification,
 };
 
-use substrate_archive_common::{ReadOnlyDB, Result};
+use substrate_archive_common::ReadOnlyDB;
 
 pub use self::state_backend::TrieState;
 use self::state_backend::{DbState, StateVault};
-use crate::util::columns;
+use crate::{error::Result, util::columns};
 
 pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDB> {
 	db: Arc<D>,
@@ -179,87 +179,5 @@ fn construct_block<Block: BlockT>(
 			Some(SignedBlock { block: Block::new(header, extrinsics), justification })
 		}
 		_ => None,
-	}
-}
-
-#[cfg(feature = "test_rocksdb")]
-mod tests {
-	#[allow(unused)]
-	use super::*;
-	use crate::backend::test_util::harness;
-	use crate::{twox_128, StorageKey};
-	use codec::Decode;
-	use polkadot_service::Block;
-	use primitive_types::H256;
-	use std::time::Instant;
-	// change this to run tests
-	const DB: &'static str = "/home/insipx/.local/share/polkadot/chains/ksmcc3/db";
-
-	fn balances_freebalance_key() -> StorageKey {
-		let balances_key = twox_128(b"Balances").to_vec();
-		let freebalance_key = twox_128(b"FreeBalance").to_vec();
-		let mut balances_freebalance = balances_key.clone();
-		balances_freebalance.extend(freebalance_key);
-		StorageKey(balances_freebalance)
-	}
-
-	#[test]
-	fn should_create_new() {
-		harness(DB, |db| {
-			ReadOnlyBackend::<Block>::new(db, false);
-		});
-	}
-
-	/// Gets the FreeBalance of an account from block 10,000 on Kusama CC3
-	/// Must have a RocksDB database with a node that has been synced up to block 10,000
-	/// 0xae327b35880aa9d028370f063e4c4d666f6bad89800dd979ca8b9dbf064393d0 is the hash of the block in use
-	#[test]
-	fn should_get() {
-		let key1 = "c2261276cc9d1f8598ea4b6a74b15c2f6482b9ade7bc6657aaca787ba1add3b4004def926cde2699f236c59fa11909a2aee554f0fe56fb88b9a9604669a200a9";
-		let key1 = hex::decode(key1).unwrap();
-
-		let key2 = "c2261276cc9d1f8598ea4b6a74b15c2f6482b9ade7bc6657aaca787ba1add3b4fe8ec31f36f7c3c4a4372f738bb7809d3aa5f533f46b3637458a630746b304a8";
-		let key2 = hex::decode(key2).unwrap();
-
-		let hash = hex::decode("ae327b35880aa9d028370f063e4c4d666f6bad89800dd979ca8b9dbf064393d0").unwrap();
-		let hash = H256::from_slice(hash.as_slice());
-
-		harness(DB, |db| {
-			let db = ReadOnlyBackend::<Block>::new(db, true);
-			let time = Instant::now(); // FIXME: bootleg benchmark.
-			let val = db.storage(hash, key1.as_slice()).unwrap();
-			let elapsed = time.elapsed();
-			println!(
-				"Took {} seconds, {} milli-seconds, {} nano-seconds",
-				elapsed.as_secs(),
-				elapsed.as_millis(),
-				elapsed.as_nanos()
-			);
-			let val: u128 = Decode::decode(&mut val.as_slice()).unwrap();
-			assert_eq!(10379170000000000, val);
-			let val = db.storage(hash, key2.as_slice()).unwrap();
-			let val: u128 = Decode::decode(&mut val.as_slice()).unwrap();
-			assert_eq!(226880000000000, val);
-		});
-	}
-
-	#[test]
-	fn should_get_keys() {
-		let hash = hex::decode("ae327b35880aa9d028370f063e4c4d666f6bad89800dd979ca8b9dbf064393d0").unwrap();
-		let hash = H256::from_slice(hash.as_slice());
-		let key = balances_freebalance_key();
-
-		harness(DB, |db| {
-			let db = ReadOnlyBackend::<Block>::new(db, true);
-			let time = Instant::now();
-			let keys = db.storage_keys(hash, key.0.as_slice());
-			let elapsed = time.elapsed();
-			println!(
-				"Took {} seconds, {} milli-seconds, {} nano-seconds",
-				elapsed.as_secs(),
-				elapsed.as_millis(),
-				elapsed.as_nanos()
-			);
-		});
 	}
 }

@@ -15,12 +15,12 @@ pub fn main() {
     let chain_backend_url = std::env::var("CHAIN_DATA_DB").unwrap();
 
     let mut archive = ArchiveBuilder::<Block, RuntimeApi, KusamaExecutor>::default()
+        .chain_spec(Box::new(spec))
+        .chain_data_path(chain_backend_url)
+        .pg_url(db_url)
+        .cache_size(128)
         .block_workers(2)
         .wasm_pages(512)
-        .cache_size(128)
-        .pg_url(db_url)
-        .chain_data_db(chain_backend_url)
-        .chain_spec(Box::new(spec))
         .build()
         .unwrap();
 

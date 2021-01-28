@@ -14,32 +14,31 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-// #![allow(warnings)]
-// #![forbid(unsafe_code)]
-
-mod actors;
-pub mod archive;
-mod database;
-mod migrations;
-mod sql_block_builder;
-mod tasks;
-mod traits;
-mod wasm_tracing;
-
-pub use self::actors::System;
-pub use self::archive::{Builder as ArchiveBuilder, TracingConfig};
-pub use self::database::queries;
-pub use self::migrations::MigrationConfig;
-pub use self::traits::Archive;
-
-#[cfg(feature = "logging")]
-pub use substrate_archive_common::util::init_logger;
+#![forbid(unsafe_code)]
+// #![deny(dead_code)]
 
 // Re-Exports
 pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
 pub use sp_runtime::MultiSignature;
-pub use substrate_archive_common::ArchiveError;
+#[cfg(feature = "logging")]
+pub use substrate_archive_common::util::init_logger;
+
+mod actors;
+pub mod archive;
+mod database;
+mod error;
+mod migrations;
+mod sql_block_builder;
+mod tasks;
+mod wasm_tracing;
+
+pub use self::actors::System;
+pub use self::archive::{Archive, ArchiveBuilder, TracingConfig};
+pub use self::database::queries;
+pub use self::error::ArchiveError;
+pub use self::migrations::MigrationConfig;
+
 pub mod chain_traits {
 	//! Traits defining functions on the client needed for indexing
 	pub use sc_client_api::client::BlockBackend;

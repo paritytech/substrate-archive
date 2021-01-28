@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -13,6 +13,20 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::sync::Arc;
+
+use xtra::prelude::*;
+
+use sp_runtime::{
+	generic::SignedBlock,
+	traits::{Block as BlockT, Header as _, NumberFor},
+};
+use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
+use substrate_archive_common::{
+	types::{BatchBlock, Block, Die},
+	ReadOnlyDB,
+};
+
 use crate::{
 	actors::{
 		actor_pool::ActorPool,
@@ -23,18 +37,8 @@ use crate::{
 		SystemConfig,
 	},
 	database::queries,
+	error::{ArchiveError, Result},
 };
-use sp_runtime::{
-	generic::SignedBlock,
-	traits::{Block as BlockT, Header as _, NumberFor},
-};
-use std::sync::Arc;
-use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
-use substrate_archive_common::{
-	types::{BatchBlock, Block, Die},
-	ArchiveError, ReadOnlyDB, Result,
-};
-use xtra::prelude::*;
 
 type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
 type MetadataAct<B> = Address<MetadataActor<B>>;
@@ -161,8 +165,8 @@ where
 		// ReIndexing is async process
 		let addr = ctx.address().expect("Actor just started");
 
-		addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
-
+		// addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
+		self.last_max = 5_900_000;
 		smol::spawn(async move {
 			loop {
 				if addr.send(Crawl).await.is_err() {
@@ -224,8 +228,7 @@ where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
 		ctx.stop();
-		Ok(())
 	}
 }

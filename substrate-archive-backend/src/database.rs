@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -17,14 +17,13 @@
 //! Custom Read-Only Database Instance using RocksDB Secondary features
 //! Will try catching up with primary database on every `get()`
 
-use std::path::PathBuf;
+use std::{collections::HashMap, fmt, io, path::PathBuf};
 
 use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
-
-use substrate_archive_common::{KeyValuePair, ReadOnlyDB, Result, NUM_COLUMNS};
+use substrate_archive_common::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS};
 
 pub struct Config {
 	pub config: DatabaseConfig,
@@ -35,15 +34,15 @@ pub struct SecondaryRocksDB {
 	inner: Database,
 }
 
-impl std::fmt::Debug for SecondaryRocksDB {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for SecondaryRocksDB {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let stats = self.inner.io_stats(kvdb::IoStatsKind::Overall);
 		f.write_fmt(format_args!("Read Only Database Stats: {:?}", stats))
 	}
 }
 
 impl SecondaryRocksDB {
-	pub fn open(config: Config, path: &str) -> Result<Self> {
+	pub fn open(config: Config, path: &str) -> io::Result<Self> {
 		let inner = Database::open(&config.config, path)?;
 		inner.try_catch_up_with_primary()?;
 		Ok(Self { inner })
@@ -76,12 +75,11 @@ impl ReadOnlyDB for SecondaryRocksDB {
 		Box::new(self.inner.iter(col))
 	}
 
-	fn catch_up_with_primary(&self) -> Result<()> {
-		self.inner.try_catch_up_with_primary()?;
-		Ok(())
+	fn catch_up_with_primary(&self) -> io::Result<()> {
+		self.inner.try_catch_up_with_primary()
 	}
 
-	fn open_database(path: &str, cache_size: usize, db_path: PathBuf) -> sp_blockchain::Result<SecondaryRocksDB> {
+	fn open_database(path: &str, cache_size: usize, db_path: PathBuf) -> io::Result<SecondaryRocksDB> {
 		// need to make sure this is `Some` to open secondary instance
 		let db_path = db_path.as_path().to_str().expect("Creating db path failed");
 		let mut db_config = Config {
@@ -92,7 +90,7 @@ impl ReadOnlyDB for SecondaryRocksDB {
 		};
 		let state_col_budget = (cache_size as f64 * 0.9) as usize;
 		let other_col_budget = (cache_size - state_col_budget) / (NUM_COLUMNS as usize - 1);
-		let mut memory_budget = std::collections::HashMap::new();
+		let mut memory_budget = HashMap::new();
 
 		for i in 0..NUM_COLUMNS {
 			if i == 1 {
@@ -110,7 +108,7 @@ impl ReadOnlyDB for SecondaryRocksDB {
 			NUM_COLUMNS,
 			other_col_budget,
 		);
-		Self::open(db_config, &path).map_err(|err| sp_blockchain::Error::Backend(format!("{:?}", err)))
+		Self::open(db_config, &path)
 	}
 }
 

@@ -20,7 +20,7 @@ use clap::{load_yaml, App};
 
 #[derive(Clone)]
 pub struct CliOpts {
-	pub file: PathBuf,
+	pub file: Option<PathBuf>,
 	pub log_level: log::LevelFilter,
 	pub chain_spec: node_template::chain_spec::ChainSpec,
 }
@@ -29,6 +29,7 @@ impl CliOpts {
 	pub fn parse() -> Self {
 		let yaml = load_yaml!("cli_opts.yaml");
 		let matches = App::from(yaml).get_matches();
+		let file = matches.value_of("config");
 		let log_level = match matches.occurrences_of("verbose") {
 			0 => log::LevelFilter::Info,
 			1 => log::LevelFilter::Info,
@@ -36,6 +37,7 @@ impl CliOpts {
 			3 => log::LevelFilter::Debug,
 			4 | _ => log::LevelFilter::Trace,
 		};
+<<<<<<< HEAD
 		let file = matches.value_of("config").expect("Config is a required value");
 		let chain_spec;
 		let spec = matches.value_of("spec");
@@ -57,8 +59,16 @@ impl CliOpts {
 			panic!("Chain spec could not be loaded; is the path correct?")
 		}
 
+=======
+		let chain_spec = match matches.value_of("spec") {
+			Some("dev") => node_template::chain_spec::development_config(),
+			Some("") | Some("local") => node_template::chain_spec::local_testnet_config(),
+			Some(path) => node_template::chain_spec::ChainSpec::from_json_file(PathBuf::from(path)),
+			_ => panic!("Chain spec could not be loaded; is the path correct?"),
+		};
+>>>>>>> 634ec5d7c62e2b09dca83a0851e517f9e2ed5642
 		CliOpts {
-			file: PathBuf::from(file),
+			file: file.map(PathBuf::from),
 			log_level,
 			chain_spec: chain_spec.expect("Chain spec could not be loaded"),
 		}

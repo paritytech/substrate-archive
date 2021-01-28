@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -20,14 +20,15 @@ use std::time::Duration;
 
 use xtra::prelude::*;
 
-use crate::{
-	database::{queries, Database, DbConn},
-	wasm_tracing::Traces,
-};
 use substrate_archive_common::{
 	models::StorageModel,
 	types::{BatchBlock, BatchStorage, Block, Die, Metadata, Storage},
-	Result,
+};
+
+use crate::{
+	database::{queries, Database, DbConn},
+	error::Result,
+	wasm_tracing::Traces,
 };
 
 #[derive(Clone)]
@@ -139,9 +140,9 @@ where
 			log::error!("{}", e.to_string());
 		}
 		if len > 1000 {
-			log::info!("took {:?} to insert {} blocks", now.elapsed(), len);
+			log::info!("Took {:?} to insert {} blocks", now.elapsed(), len);
 		} else {
-			log::debug!("took {:?} to insert {} blocks", now.elapsed(), len);
+			log::debug!("Took {:?} to insert {} blocks", now.elapsed(), len);
 		}
 	}
 }
@@ -167,11 +168,12 @@ impl<B: BlockT> Handler<Storage<B>> for DatabaseActor<B> {
 #[async_trait::async_trait]
 impl<B: BlockT> Handler<BatchStorage<B>> for DatabaseActor<B> {
 	async fn handle(&mut self, storages: BatchStorage<B>, _ctx: &mut Context<Self>) {
+		let len = storages.inner.iter().map(|storage| storage.changes.len()).sum::<usize>();
 		let now = std::time::Instant::now();
 		if let Err(e) = self.batch_storage_handler(storages).await {
 			log::error!("{}", e.to_string());
 		}
-		log::debug!("took {:?} to insert storage", now.elapsed());
+		log::debug!("Took {:?} to insert {} storage entries", now.elapsed(), len);
 	}
 }
 
@@ -260,8 +262,7 @@ where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
 		ctx.stop();
-		Ok(())
 	}
 }

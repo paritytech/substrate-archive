@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -14,9 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{marker::Sized, path::PathBuf};
-
-use crate::error::Result;
+use std::{io, marker::Sized, path::PathBuf};
 
 pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
 
@@ -29,9 +27,9 @@ pub trait ReadOnlyDB: Send + Sync {
 	/// Iterate over all blocks in the database
 	fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = KeyValuePair> + 'a>;
 	/// Catch up with the latest information added to the database
-	fn catch_up_with_primary(&self) -> Result<()>;
+	fn catch_up_with_primary(&self) -> io::Result<()>;
 	// Open database as read-only
-	fn open_database(path: &str, cache_size: usize, db_path: PathBuf) -> sp_blockchain::Result<Self>
+	fn open_database(path: &str, cache_size: usize, db_path: PathBuf) -> io::Result<Self>
 	where
 		Self: Sized;
 }

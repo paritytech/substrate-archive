@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{marker::PhantomData, path::PathBuf, sync::Arc};
+use std::{env, fs, marker::PhantomData, path::PathBuf, sync::Arc};
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -23,17 +23,19 @@ use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_blockchain::Backend as BlockchainBackend;
+use sp_blockchain::{Backend as BlockchainBackend, Error as BlockchainError};
 use sp_runtime::{
 	generic::BlockId,
 	traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
+
 use substrate_archive_backend::{runtime_api, ReadOnlyBackend, RuntimeConfig, TArchiveClient};
-use substrate_archive_common::{util, ReadOnlyDB, Result};
+use substrate_archive_common::{util, ReadOnlyDB};
 
 use crate::{
 	actors::{System, SystemConfig},
-	traits,
+	error::Result,
+	migrations,
 };
 
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
@@ -48,89 +50,67 @@ pub struct TracingConfig {
 	pub folder: PathBuf,
 }
 
-pub struct Builder<B, R, D, DB> {
-	/// Path to the rocksdb database
-	pub chain_data_path: Option<String>,
-	/// url to the Postgres Database
-	pub pg_url: Option<String>,
-	/// how much Cache should Rocksdb Keep
-	pub cache_size: Option<usize>,
-	/// number of threads to spawn for block execution
-	pub block_workers: Option<usize>,
-	/// Number of 64KB Heap pages to allocate for wasm execution
-	pub wasm_pages: Option<u64>,
+/// The control interface of an archive system.
+#[async_trait::async_trait(?Send)]
+pub trait Archive<B: BlockT + Unpin, D: ReadOnlyDB>
+where
+	B::Hash: Unpin,
+{
+	/// start driving the execution of the archive
+	fn drive(&mut self) -> Result<()>;
+
+	/// this method will block indefinitely
+	async fn block_until_stopped(&self) -> ();
+
+	/// shutdown the system
+	fn shutdown(self) -> Result<()>;
+
+	/// Shutdown the system when self is boxed (useful when erasing the types of the runtime)
+	fn boxed_shutdown(self: Box<Self>) -> Result<()>;
+
+	/// Get a reference to the context the actors are using
+	fn context(&self) -> Result<SystemConfig<B, D>>;
+}
+
+pub struct ArchiveBuilder<B, R, D, DB> {
+	_marker: PhantomData<(B, R, D, DB)>,
 	/// Chain spec describing the chain
-	pub chain_spec: Option<Box<dyn ChainSpec>>,
-	pub _marker: PhantomData<(B, R, D, DB)>,
+	chain_spec: Option<Box<dyn ChainSpec>>,
+	/// Path to the rocksdb database
+	chain_data_path: Option<PathBuf>,
+	/// url to the Postgres Database
+	pg_url: Option<String>,
+	/// how much Cache should Rocksdb Keep
+	cache_size: usize,
+	/// number of threads to spawn for block execution
+	block_workers: usize,
+	/// Number of 64KB Heap pages to allocate for wasm execution
+	wasm_pages: u64,
 	/// maximum amount of blocks to index at once
-	pub max_block_load: Option<u32>,
+	pub max_block_load: u32,
 	/// Enable state tracing while also specifying the targets
 	/// and directory where the WASM runtimes are stored.
 	pub wasm_tracing: Option<TracingConfig>,
 }
 
-impl<B, R, D, DB> Default for Builder<B, R, D, DB> {
+impl<B, R, D, DB> Default for ArchiveBuilder<B, R, D, DB> {
 	fn default() -> Self {
+		let num_cpus = num_cpus::get();
 		Self {
-			chain_data_path: None,
-			cache_size: None,
-			pg_url: None,
-			block_workers: None,
-			wasm_pages: None,
-			chain_spec: None,
 			_marker: PhantomData,
-			max_block_load: None,
+			chain_spec: None,
+			chain_data_path: None,
+			pg_url: None,
+			cache_size: 128,                  // 128 MB
+			block_workers: num_cpus,          // the number of logical cpus in the system
+			wasm_pages: 64 * num_cpus as u64, // 64 * (number of logic cpu's)
+			max_block_load: 100_000,          // 100_000 blocks to index at once
 			wasm_tracing: None,
 		}
 	}
 }
 
-impl<B, R, D, DB> Builder<B, R, D, DB> {
-	/// Set the chain data backend path to use for this instance.
-	///
-	/// # Default
-	/// defaults to the environment variable CHAIN_DATA_DB
-	pub fn chain_data_db<S: Into<String>>(mut self, path: S) -> Self {
-		self.chain_data_path = Some(path.into());
-		self
-	}
-
-	/// Set the url to the Postgres Database
-	///
-	/// # Default
-	/// defaults to value of the environment variable DATABASE_URL
-	pub fn pg_url<S: Into<String>>(mut self, url: S) -> Self {
-		self.pg_url = Some(url.into());
-		self
-	}
-
-	/// Set the amount of cache Rocksdb should keep.
-	///
-	/// # Default
-	/// defaults to 128MB
-	pub fn cache_size(mut self, cache_size: usize) -> Self {
-		self.cache_size = Some(cache_size);
-		self
-	}
-
-	/// Set the number of threads spawn for block execution.
-	///
-	/// # Default
-	/// defaults to the number of logical cpus in the system
-	pub fn block_workers(mut self, workers: usize) -> Self {
-		self.block_workers = Some(workers);
-		self
-	}
-
-	/// Number of 64KB Heap Pages to allocate for WASM execution
-	///
-	/// # Default
-	/// defaults to 64 * (number of logic cpu's)
-	pub fn wasm_pages(mut self, pages: u64) -> Self {
-		self.wasm_pages = Some(pages);
-		self
-	}
-
+impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// Specify a chain spec for storing metadata about the running archiver
 	/// in a persistant directory.
 	///
@@ -141,12 +121,65 @@ impl<B, R, D, DB> Builder<B, R, D, DB> {
 		self
 	}
 
+	/// Set the chain data backend path to use for this instance.
+	///
+	/// # Default
+	/// defaults to the environment variable CHAIN_DATA_DB
+	pub fn chain_data_path<S: Into<PathBuf>>(mut self, path: Option<S>) -> Self {
+		self.chain_data_path = path.map(Into::into);
+		self
+	}
+
+	/// Set the url to the Postgres Database
+	///
+	/// # Default
+	/// defaults to value of the environment variable DATABASE_URL
+	pub fn pg_url<S: Into<String>>(mut self, url: Option<S>) -> Self {
+		self.pg_url = url.map(Into::into);
+		self
+	}
+
+	/// Set the amount of cache Rocksdb should keep.
+	///
+	/// # Default
+	/// defaults to 128MB
+	pub fn cache_size(mut self, cache_size: Option<usize>) -> Self {
+		if let Some(cache_size) = cache_size {
+			self.cache_size = cache_size;
+		}
+		self
+	}
+
+	/// Set the number of threads spawn for block execution.
+	///
+	/// # Default
+	/// defaults to the number of logical cpus in the system
+	pub fn block_workers(mut self, workers: Option<usize>) -> Self {
+		if let Some(block_workers) = workers {
+			self.block_workers = block_workers;
+		}
+		self
+	}
+
+	/// Number of 64KB Heap Pages to allocate for WASM execution
+	///
+	/// # Default
+	/// defaults to 64 * (number of logic cpu's)
+	pub fn wasm_pages(mut self, pages: Option<u64>) -> Self {
+		if let Some(wasm_pages) = pages {
+			self.wasm_pages = wasm_pages;
+		}
+		self
+	}
+
 	/// Set the number of blocks to index at once
 	///
 	/// # Default
 	/// Defaults to 100_000
-	pub fn max_block_load(mut self, max_block_load: u32) -> Self {
-		self.max_block_load = Some(max_block_load);
+	pub fn max_block_load(mut self, max_block_load: Option<u32>) -> Self {
+		if let Some(max_block_load) = max_block_load {
+			self.max_block_load = max_block_load;
+		}
 		self
 	}
 
@@ -159,26 +192,10 @@ impl<B, R, D, DB> Builder<B, R, D, DB> {
 	///
 	/// # Default
 	/// Wasm Tracing is disabled by default.
-	pub fn wasm_tracing(mut self, config: TracingConfig) -> Self {
-		self.wasm_tracing = Some(config);
+	pub fn wasm_tracing(mut self, wasm_tracing: Option<TracingConfig>) -> Self {
+		self.wasm_tracing = wasm_tracing;
 		self
 	}
-}
-
-fn parse_urls(chain_data_path: Option<String>, pg_url: Option<String>) -> (String, String) {
-	let chain_path = if let Some(path) = chain_data_path {
-		path
-	} else {
-		std::env::var(CHAIN_DATA_VAR).expect("CHAIN_DATA_DB must be set if not passed initially.")
-	};
-
-	let pg_url = if let Some(url) = pg_url {
-		url
-	} else {
-		std::env::var(POSTGRES_VAR).expect("DATABASE_URL must be set if not passed initially.")
-	};
-
-	(chain_path, pg_url)
 }
 
 /// Create rocksdb secondary directory if it doesn't exist yet.
@@ -193,7 +210,7 @@ fn create_database_path(spec: Option<Box<dyn ChainSpec>>) -> Result<PathBuf> {
 		let (chain, id) = (spec.name(), spec.id());
 		let mut path = util::substrate_dir()?;
 		path.extend(&["rocksdb_secondary", chain, id]);
-		std::fs::create_dir_all(path.as_path())?;
+		fs::create_dir_all(path.as_path())?;
 		path
 	} else {
 		// TODO: make sure this is cleaned up on kill
@@ -203,13 +220,13 @@ fn create_database_path(spec: Option<Box<dyn ChainSpec>>) -> Result<PathBuf> {
 	Ok(path)
 }
 
-impl<B, R, D, DB> Builder<B, R, D, DB>
+impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB>
 where
 	DB: ReadOnlyDB + 'static,
 	B: BlockT + Unpin + DeserializeOwned,
 	R: ConstructRuntimeApi<B, TArchiveClient<B, R, D, DB>> + Send + Sync + 'static,
-	R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
-		+ sp_api::Metadata<B, Error = sp_blockchain::Error>
+	R::RuntimeApi: BlockBuilderApi<B, Error = BlockchainError>
+		+ sp_api::Metadata<B, Error = BlockchainError>
 		+ ApiExt<B, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<B, DB>, B>>
 		+ Send
 		+ Sync
@@ -226,37 +243,37 @@ where
 	/// # Panics
 	/// Panics if one of chain_data_db or pg_url is not passed to the builder
 	/// and their respective environment variables are not set.
-	pub fn build(self) -> Result<impl traits::Archive<B, DB>> {
-		let num_cpus = num_cpus::get();
-		let (chain_path, pg_url) = parse_urls(self.chain_data_path, self.pg_url);
-		let cache_size = self.cache_size.unwrap_or(128);
-		let block_workers = self.block_workers.unwrap_or(num_cpus);
-		let wasm_pages = self.wasm_pages.unwrap_or(64 * num_cpus as u64);
-		let max_block_load = self.max_block_load.unwrap_or(100_000);
+	pub fn build(self) -> Result<impl Archive<B, DB>> {
+		let chain_path = self.chain_data_path.unwrap_or_else(|| {
+			env::var(CHAIN_DATA_VAR).expect("CHAIN_DATA_DB must be set if not passed initially.").into()
+		});
+		let chain_path = chain_path.to_str().expect("chain data path is invalid");
 		let db_path = create_database_path(self.chain_spec)?;
-		smol::block_on(crate::migrations::migrate(&pg_url))?;
-		let db = Arc::new(DB::open_database(chain_path.as_str(), cache_size, db_path)?);
+		let db = Arc::new(DB::open_database(chain_path, self.cache_size, db_path)?);
 		let config = RuntimeConfig {
-			block_workers,
-			wasm_pages,
+			block_workers: self.block_workers,
+			wasm_pages: self.wasm_pages,
 			wasm_runtime_overrides: self.wasm_tracing.as_ref().map(|c| c.folder.clone()),
 		};
-		let client = runtime_api::<B, R, D, DB>(db.clone(), config)?;
-		let client = Arc::new(client);
+		let pg_url = self
+			.pg_url
+			.unwrap_or_else(|| env::var(POSTGRES_VAR).expect("DATABASE_URL must be set if not passed initially."));
+		smol::block_on(migrations::migrate(&pg_url))?;
+
+		let client = Arc::new(runtime_api::<B, R, D, DB>(db.clone(), config)?);
 		let backend = Arc::new(ReadOnlyBackend::new(db, true));
 		Self::startup_info(&*client, &*backend)?;
 
 		let config = SystemConfig::new(
 			backend,
 			client.clone(),
-			block_workers,
+			self.block_workers,
 			pg_url,
-			max_block_load,
+			self.max_block_load,
 			self.wasm_tracing.map(|t| t.targets),
 		);
-
-		let ctx = System::<_, R, _, _>::new(client, config)?;
-		Ok(ctx)
+		let sys = System::<_, R, _, _>::new(client, config)?;
+		Ok(sys)
 	}
 
 	/// Log some general startup info

@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -16,8 +16,12 @@
 
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
 
+#![forbid(unsafe_code)]
+#![deny(dead_code)]
+
 mod block_exec;
 mod database;
+mod error;
 mod frontend;
 mod read_only_backend;
 mod runtime_version_cache;
@@ -37,6 +41,7 @@ use self::frontend::{GetMetadata, GetRuntimeVersion};
 pub use self::{
 	block_exec::BlockExecutor,
 	database::SecondaryRocksDB,
+	error::BackendError,
 	frontend::{runtime_api, RuntimeConfig, TArchiveClient},
 	read_only_backend::ReadOnlyBackend,
 	runtime_version_cache::RuntimeVersionCache,

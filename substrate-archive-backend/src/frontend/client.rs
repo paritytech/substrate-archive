@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -35,9 +35,12 @@ use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT, One},
 };
 
-use substrate_archive_common::{ArchiveError, ReadOnlyDB, Result};
+use substrate_archive_common::ReadOnlyDB;
 
-use crate::read_only_backend::{ReadOnlyBackend, TrieState};
+use crate::{
+	error::{BackendError, Result},
+	read_only_backend::{ReadOnlyBackend, TrieState},
+};
 
 // FIXME: should use the trait sp_version::GetRuntimeVersion
 // but that returns a String for an error
@@ -78,7 +81,7 @@ where
 	}
 
 	pub fn runtime_version_at(&self, id: &BlockId<Block>) -> Result<RuntimeVersion> {
-		self.executor.runtime_version(id).map_err(ArchiveError::from)
+		self.executor.runtime_version(id).map_err(BackendError::from)
 	}
 
 	/// get the backend for this client instance
@@ -164,7 +167,6 @@ where
 			params.function,
 			&params.arguments,
 			params.overlayed_changes,
-			params.offchain_changes,
 			Some(params.storage_transaction_cache),
 			params.initialize_block,
 			manager,

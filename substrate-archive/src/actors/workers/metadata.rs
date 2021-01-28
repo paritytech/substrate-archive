@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -18,13 +18,10 @@ use xtra::prelude::*;
 
 use sp_runtime::{
 	generic::BlockId,
-	traits::{Block as BlockT, Header as _, NumberFor},
+	traits::{Block as BlockT, NumberFor},
 };
 use substrate_archive_backend::Meta;
-use substrate_archive_common::{
-	types::{BatchBlock, Block, Die, Metadata},
-	Result,
-};
+use substrate_archive_common::types::{BatchBlock, Block, Die, Metadata};
 
 use crate::{
 	actors::{
@@ -32,6 +29,7 @@ use crate::{
 		workers::database::{DatabaseActor, GetState},
 	},
 	database::{queries, DbConn},
+	error::Result,
 };
 
 /// Actor to fetch metadata about a block/blocks from RPC
@@ -66,7 +64,7 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 	where
 		NumberFor<B>: Into<u32>,
 	{
-		let hash = blk.inner.block.header().hash();
+		let hash = blk.inner.block.hash();
 		self.meta_checker(blk.spec, hash).await?;
 		self.addr.send(blk.into()).await?.await;
 		Ok(())
@@ -76,9 +74,8 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 	where
 		NumberFor<B>: Into<u32>,
 	{
-		let versions = blks.inner().iter().unique_by(|b| b.spec).collect::<Vec<&Block<B>>>();
-		for b in versions.iter() {
-			self.meta_checker(b.spec, b.inner.block.hash()).await?;
+		for blk in blks.inner().iter().unique_by(|&blk| blk.spec) {
+			self.meta_checker(blk.spec, blk.inner.block.hash()).await?;
 		}
 		self.addr.send(blks.into()).await?.await;
 		Ok(())
@@ -119,8 +116,7 @@ where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 {
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
 		ctx.stop();
-		Ok(())
 	}
 }

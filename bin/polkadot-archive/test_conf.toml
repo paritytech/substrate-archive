@@ -13,7 +13,7 @@
 # then the path only needs to be /home/$user/.local/share/polkadot/
 polkadot_path = "/home/insipx/.local/share/polkadot/"
 
-# How much should the read-only database keep in cache (MB) (required)
+# How much should the read-only database keep in cache (MB)
 cache_size = 128
 
 # Number of threads to dedicate for executing blocks

@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -26,19 +26,24 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use codec::Encode;
-use sqlx::prelude::*;
-use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
+use sqlx::{
+	pool::PoolConnection,
+	postgres::{PgPool, PgPoolOptions, Postgres},
+	prelude::*,
+};
 
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-use substrate_archive_common::{models::StorageModel, types::*, ArchiveError, Result};
-
-use crate::wasm_tracing::Traces;
+use substrate_archive_common::{models::StorageModel, types::*};
 
 use self::batch::Batch;
 pub use self::listener::*;
+use crate::{
+	error::{ArchiveError, Result},
+	wasm_tracing::Traces,
+};
 
 pub type DbReturn = Result<u64>;
-pub type DbConn = sqlx::pool::PoolConnection<Postgres>;
+pub type DbConn = PoolConnection<Postgres>;
 
 #[async_trait]
 pub trait Insert: Send {
@@ -149,7 +154,7 @@ where
             ON CONFLICT DO NOTHING
             "#,
 		);
-		for b in self.inner.into_iter() {
+		for b in self.inner {
 			batch.reserve(8)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
@@ -230,7 +235,7 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
             "#,
 		);
 
-		for s in self.into_iter() {
+		for s in self {
 			batch.reserve(5)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");

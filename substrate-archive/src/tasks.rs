@@ -34,10 +34,11 @@ use sp_runtime::{
 };
 
 use substrate_archive_backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend};
-use substrate_archive_common::{types::Storage, ReadOnlyDB, TracingError};
+use substrate_archive_common::{types::Storage, ReadOnlyDB};
 
 use crate::{
 	actors::StorageAggregator,
+	error::TracingError,
 	wasm_tracing::{SpansAndEvents, TraceHandler, Traces},
 };
 
@@ -110,10 +111,7 @@ where
 		"Executing Block: {}:{}, version {}",
 		block.header().hash(),
 		block.header().number(),
-		env.client
-			.runtime_version_at(&BlockId::Hash(block.header().hash()))
-			.map_err(|e| format!("{:?}", e))?
-			.spec_version,
+		env.client.runtime_version_at(&BlockId::Hash(block.hash())).map_err(|e| format!("{:?}", e))?.spec_version,
 	);
 	let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
 

@@ -1,4 +1,4 @@
-// Copyright 2017-2019 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -31,8 +31,10 @@ use sp_runtime::{
 
 use substrate_archive_common::ReadOnlyDB;
 
-use super::misc_backend::{OffchainStorageBackend, RealBlockImportOperation};
-use crate::read_only_backend::ReadOnlyBackend;
+use crate::read_only_backend::{
+	misc_backend::{OffchainStorageBackend, RealBlockImportOperation},
+	ReadOnlyBackend,
+};
 
 type ChainResult<T> = Result<T, BlockchainError>;
 

@@ -26,6 +26,7 @@ use std::sync::{
 use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use sp_tracing::{WASM_NAME_KEY, WASM_TARGET_KEY, WASM_TRACE_IDENTIFIER};
 use tracing::{
 	event::Event,
 	field::{Field, Visit},
@@ -34,8 +35,7 @@ use tracing::{
 };
 use tracing_subscriber::CurrentSpan;
 
-use sp_tracing::{WASM_NAME_KEY, WASM_TARGET_KEY, WASM_TRACE_IDENTIFIER};
-use substrate_archive_common::{Result, TracingError};
+use crate::error::{Result, TracingError};
 
 /// Generic BlockHash type that can be any length.
 type BlockHash = Vec<u8>;
