@@ -85,8 +85,8 @@ impl Traces {
 	}
 
 	/// Get the hash these spans come from.
-	pub fn hash(&self) -> Vec<u8> {
-		self.hash.clone()
+	pub fn hash(&self) -> &[u8] {
+		&self.hash
 	}
 
 	/// Get the block number of the block these spans come from.

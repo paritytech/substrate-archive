@@ -293,7 +293,7 @@ impl Insert for Traces {
 		);
 
 		let block_num = self.block_num();
-		let hash = self.hash();
+		let hash = self.hash().to_vec();
 
 		for span in self.spans.into_iter() {
 			let id = i32::try_from(span.id.into_u64())?;
