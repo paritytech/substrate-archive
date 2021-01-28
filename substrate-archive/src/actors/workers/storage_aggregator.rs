@@ -58,7 +58,6 @@ where
 		let traces = std::mem::take(&mut self.traces);
 		if !traces.is_empty() {
 			log::info!("Inserting {} traces", traces.len());
-			log::debug!("TRACES {:?}", traces);
 			for trace in traces {
 				let send_result = self.db.send(trace.into()).await?;
 				ctx.handle_while(self, send_result).await;
