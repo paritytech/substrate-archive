@@ -133,7 +133,7 @@ where
 
 	let now = std::time::Instant::now();
 	smol::block_on(env.storage.send(storage))?;
-	if !traces.events.is_empty() && !traces.spans.is_empty() {
+	if !traces.events.is_empty() || !traces.spans.is_empty() {
 		let traces = Traces::new(number.into(), hash.as_ref().to_vec(), traces.events, traces.spans);
 		smol::block_on(env.storage.send(traces))?;
 	}

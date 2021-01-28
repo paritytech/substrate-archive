@@ -166,10 +166,10 @@ impl TraceHandler {
 		let wasm_target = span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string());
 
 		self.targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
-			let check_target = |target: &str, lvl: Level| -> bool { target.starts_with(&t.0.as_str()) && lvl <= t.1 };
-
-			check_target(&span.target, span.level)
-				|| wasm_target.as_ref().map(|wasm_t| check_target(wasm_t, span.level)).unwrap_or(false)
+			let wanted_target = &t.0.as_str();
+			let valid_native_target = span.target.starts_with(wanted_target);
+			let valid_wasm_target = wasm_target.as_ref().map(|wt| wt.starts_with(wanted_target)).unwrap_or(false);
+			(valid_native_target || valid_wasm_target) && span.level <= t.1
 		})
 	}
 
@@ -271,7 +271,6 @@ impl Subscriber for TraceHandler {
 			line: None,
 			values,
 		};
-
 		if self.is_enabled(&span_message) {
 			self.gather_span(span_message).unwrap_or_else(|e| log::error!("{}", e.to_string()));
 		}
