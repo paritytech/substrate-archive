@@ -55,14 +55,15 @@ where
 	}
 
 	async fn handle_traces(&mut self, ctx: &mut Context<Self>) -> Result<()> {
-		let traces = std::mem::take(&mut self.traces);
+		let mut traces = std::mem::take(&mut self.traces);
 		if !traces.is_empty() {
 			log::info!("Inserting {} traces", traces.len());
-			for trace in traces {
+			for trace in traces.drain(..) {
 				let send_result = self.db.send(trace.into()).await?;
 				ctx.handle_while(self, send_result).await;
 			}
 		}
+		std::mem::swap(&mut self.traces, &mut traces);
 		Ok(())
 	}
 }
