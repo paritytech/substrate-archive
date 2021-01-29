@@ -369,9 +369,5 @@ impl Insert for Traces {
 // This function avoids depending on two time lib.
 // Old time is disabled in chrono by not providing the feature flag in Cargo.toml.
 fn time_to_std(time: chrono::Duration) -> Result<std::time::Duration> {
-	if time < chrono::Duration::zero() {
-		Err(ArchiveError::TimestampOutOfRange)
-	} else {
-		Ok(time.to_std().expect("Checked for less than 0"))
-	}
+	time.to_std().map_err(|_| ArchiveError::TimestampOutOfRange)
 }
