@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies]
 polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
