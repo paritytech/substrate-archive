@@ -15,7 +15,9 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The Subscriber implementation for Tracing
-
+/// Tracing allows for collecting more detailed information
+/// about the execution of blocks, associated values for extrinsics being executed,
+/// as well as more information about how storage was collected.
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::sync::{

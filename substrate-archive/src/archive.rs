@@ -44,9 +44,14 @@ const POSTGRES_VAR: &str = "DATABASE_URL";
 /// The recommended open file descriptor limit to be configured for the process.
 const RECOMMENDED_OPEN_FILE_DESCRIPTOR_LIMIT: u64 = 10_000;
 
+/// Configure WASM Tracing.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TracingConfig {
+	/// Targets for tracing.
 	pub targets: String,
+	/// Folder where Tracing-Enabled WASM Binaries are kept.
+	/// Folder should contain all runtime-versions for their chain
+	/// that a user should want to collect traces from.
 	pub folder: PathBuf,
 }
 
