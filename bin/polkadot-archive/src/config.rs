@@ -18,8 +18,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use serde::Deserialize;
-
-use substrate_archive::MigrationConfig;
+use substrate_archive::{MigrationConfig, TracingConfig};
 
 use crate::cli_opts::CliOpts;
 
@@ -37,6 +36,7 @@ struct TomlConfig {
 	westend_db: Option<String>,
 	kusama_db: Option<String>,
 	polkadot_db: Option<String>,
+	wasm_tracing_targets: Option<String>,
 }
 
 impl TomlConfig {
@@ -67,6 +67,7 @@ pub struct Config {
 	block_workers: Option<usize>,
 	wasm_pages: Option<u64>,
 	max_block_load: Option<u32>,
+	wasm_tracing: Option<TracingConfig>,
 }
 
 impl Config {
@@ -74,7 +75,13 @@ impl Config {
 		let cli = CliOpts::parse();
 		let toml_conf = cli.file.clone().map(|f| Self::parse_file(f.as_path())).transpose()?;
 		log::debug!("{:?}", toml_conf);
-
+		let wasm_tracing = match (
+			toml_conf.as_ref().map(|c| c.wasm_tracing_targets.as_ref()).flatten(),
+			cli.wasm_overrides_path.as_ref(),
+		) {
+			(Some(targets), Some(path)) => Some(TracingConfig { targets: targets.clone(), folder: path.clone() }),
+			_ => None,
+		};
 		Ok(Self {
 			polkadot_path: toml_conf.as_ref().and_then(|c| c.polkadot_path.clone()),
 			psql_conf: toml_conf.as_ref().map(|c| c.migration_conf(cli.chain.as_str())),
@@ -83,6 +90,7 @@ impl Config {
 			block_workers: toml_conf.as_ref().and_then(|c| c.block_workers),
 			wasm_pages: toml_conf.as_ref().and_then(|c| c.wasm_pages),
 			max_block_load: toml_conf.as_ref().and_then(|c| c.max_block_load),
+			wasm_tracing,
 		})
 	}
 
@@ -117,5 +125,9 @@ impl Config {
 
 	pub fn max_block_load(&self) -> Option<u32> {
 		self.max_block_load
+	}
+
+	pub fn wasm_tracing(&self) -> Option<TracingConfig> {
+		self.wasm_tracing.clone()
 	}
 }

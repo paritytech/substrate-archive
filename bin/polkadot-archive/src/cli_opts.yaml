@@ -1,5 +1,5 @@
 name: polkadot-archive
-version: "0.2.2"
+version: "0.2.3"
 author: Andrew P. <andrew.plaza@parity.io>
 about: Indexes the Polkadot, Kusama and Westend Networks
 args:
@@ -7,15 +7,21 @@ args:
         short: c
         long: config
         value_name: FILE
-        help: Sets a custom config file
+        help: "Sets a custom config file"
         takes_value: true
         required: false
     - chain:
         long: chain
-        help: The chain to run substrate-archive for. One of kusama, westend, polkadot. Defaults to polkadot
+        help: "The chain to run substrate-archive for. One of kusama, westend, polkadot. Defaults to polkadot"
+        takes_value: true
+        required: false
+    - wasm_runtime_overrides:
+        long: wasm_runtime_overrides
+        help: "Folder where tracing-enabled WASM binaries are kept."
+        value_name: PATH
         takes_value: true
         required: false
     - verbose:
         short: v
         multiple: true
-        help: Sets the level of verbosity
+        help: "Sets the level of verbosity"

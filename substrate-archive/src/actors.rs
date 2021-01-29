@@ -52,34 +52,37 @@ use crate::{
 // TODO: Split this up into two objects
 // System should be a factory that produces objects that should be spawned
 
-/// Context that every actor may use
-pub struct ActorContext<B: BlockT + Unpin, D: ReadOnlyDB + 'static>
+/// Provides parameters that are passed in from the user.
+/// Provides context that every actor may use
+pub struct SystemConfig<B: BlockT + Unpin, D: ReadOnlyDB + 'static>
 where
 	B::Hash: Unpin,
 {
-	backend: Arc<ReadOnlyBackend<B, D>>,
-	pg_url: String,
-	meta: Meta<B>,
-	workers: usize,
-	max_block_load: u32,
+	pub backend: Arc<ReadOnlyBackend<B, D>>,
+	pub pg_url: String,
+	pub meta: Meta<B>,
+	pub workers: usize,
+	pub max_block_load: u32,
+	pub tracing_targets: Option<String>,
 }
 
-impl<B: BlockT + Unpin, D: ReadOnlyDB> Clone for ActorContext<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDB> Clone for SystemConfig<B, D>
 where
 	B::Hash: Unpin,
 {
-	fn clone(&self) -> ActorContext<B, D> {
-		ActorContext {
+	fn clone(&self) -> SystemConfig<B, D> {
+		SystemConfig {
 			backend: Arc::clone(&self.backend),
 			pg_url: self.pg_url.clone(),
 			meta: self.meta.clone(),
 			workers: self.workers,
 			max_block_load: self.max_block_load,
+			tracing_targets: self.tracing_targets.clone(),
 		}
 	}
 }
 
-impl<B: BlockT + Unpin, D: ReadOnlyDB> ActorContext<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDB> SystemConfig<B, D>
 where
 	B::Hash: Unpin,
 {
@@ -89,8 +92,9 @@ where
 		workers: usize,
 		pg_url: String,
 		max_block_load: u32,
+		tracing_targets: Option<String>,
 	) -> Self {
-		Self { backend, meta, workers, pg_url, max_block_load }
+		Self { backend, meta, workers, pg_url, max_block_load, tracing_targets }
 	}
 
 	pub fn backend(&self) -> &Arc<ReadOnlyBackend<B, D>> {
@@ -100,6 +104,7 @@ where
 	pub fn pg_url(&self) -> &str {
 		self.pg_url.as_str()
 	}
+
 	pub fn meta(&self) -> &Meta<B> {
 		&self.meta
 	}
@@ -125,9 +130,9 @@ where
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
 {
+	config: SystemConfig<B, D>,
 	start_tx: flume::Sender<()>,
 	kill_tx: flume::Sender<()>,
-	context: ActorContext<B, D>,
 	/// handle to the futures runtime indexing the running chain
 	handle: jod_thread::JoinHandle<Result<()>>,
 	_marker: PhantomData<(B, R, C, D)>,
@@ -149,11 +154,6 @@ where
 	B::Hash: Unpin,
 	B::Header: serde::de::DeserializeOwned,
 {
-	// TODO: Return a reference to the Db pool.
-	// just expose a 'shutdown' fn that must be called in order to avoid missing data.
-	// or just return an archive object for general telemetry/ops.
-	// TODO: Accept one `Config` Struct for which a builder is implemented on
-	// to make configuring this easier.
 	/// Initialize substrate archive.
 	/// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
 	/// Optionally accepts a URL to the postgreSQL database. However, this can be defined as the
@@ -162,15 +162,11 @@ where
 		// one client per-threadpool. This way we don't have conflicting cache resources
 		// for WASM runtime-instances
 		client_api: Arc<C>,
-		backend: Arc<ReadOnlyBackend<B, D>>,
-		workers: usize,
-		pg_url: &str,
-		max_block_load: u32,
+		config: SystemConfig<B, D>,
 	) -> Result<Self> {
-		let context = ActorContext::new(backend, client_api.clone(), workers, pg_url.to_string(), max_block_load);
-		let (start_tx, kill_tx, handle) = Self::start(context.clone(), client_api);
+		let (start_tx, kill_tx, handle) = Self::start(config.clone(), client_api);
 
-		Ok(Self { context, start_tx, kill_tx, handle, _marker: PhantomData })
+		Ok(Self { config, start_tx, kill_tx, handle, _marker: PhantomData })
 	}
 
 	fn drive(&self) {
@@ -179,7 +175,7 @@ where
 
 	/// Start the actors and begin driving their execution
 	pub fn start(
-		ctx: ActorContext<B, D>,
+		conf: SystemConfig<B, D>,
 		client: Arc<C>,
 	) -> (flume::Sender<()>, flume::Sender<()>, jod_thread::JoinHandle<Result<()>>) {
 		let (tx_start, rx_start) = flume::bounded(1);
@@ -188,25 +184,32 @@ where
 		let handle = jod_thread::spawn(move || {
 			// block until we receive the message to start
 			let _ = rx_start.recv();
-			smol::block_on(Self::main_loop(ctx, rx_kill, client))?;
+
+			smol::block_on(Self::main_loop(conf, rx_kill, client))?;
 			Ok(())
 		});
 
 		(tx_start, tx_kill, handle)
 	}
 
-	async fn main_loop(ctx: ActorContext<B, D>, rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
-		let actors = Self::spawn_actors(ctx.clone()).await?;
+	async fn main_loop(conf: SystemConfig<B, D>, rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
+		let actors = Self::spawn_actors(conf.clone()).await?;
 		let pool = actors.db_pool.send(GetState::Pool.into()).await?.await?.pool();
-		let listener = Self::init_listeners(ctx.pg_url()).await?;
+		let listener = Self::init_listeners(conf.pg_url()).await?;
 		let mut conn = pool.acquire().await?;
 		Self::restore_missing_storage(&mut *conn).await?;
-		let env = Environment::<B, R, C, D>::new(ctx.backend().clone(), client, actors.storage.clone());
+		let env = Environment::<B, R, C, D>::new(
+			conf.backend().clone(),
+			client,
+			actors.storage.clone(),
+			conf.tracing_targets.clone(),
+		);
 		let env = AssertUnwindSafe(env);
 
 		let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
-			.num_threads(ctx.workers)
+			.num_threads(conf.workers)
+			// times out if tasks don't start execution on the threadpool within 20 seconds.
 			.timeout(Duration::from_secs(20))
 			.max_tasks(64)
 			.build()?;
@@ -216,28 +219,34 @@ where
 			futures::pin_mut!(tasks);
 			futures::select! {
 				t = tasks => {
-					if t? == 0 {
-						smol::Timer::after(std::time::Duration::from_millis(256)).await;
+					match t {
+						Ok(0) => {
+							smol::Timer::after(std::time::Duration::from_millis(500)).await;
+						},
+						Ok(n) => log::debug!("Executed {} tasks successfully", n),
+						Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
+						Err(e) => log::error!("{:?}", e),
 					}
 				},
 				_ = rx.recv_async() => break,
 			}
 		}
-		listener.kill_async().await;
 		Self::kill_actors(actors).await?;
+		listener.kill_async().await;
 		Ok(())
 	}
 
-	async fn spawn_actors(ctx: ActorContext<B, D>) -> Result<Actors<B, D>> {
-		let db = workers::DatabaseActor::<B>::new(ctx.pg_url().into()).await?;
+	async fn spawn_actors(conf: SystemConfig<B, D>) -> Result<Actors<B, D>> {
+		let db = workers::DatabaseActor::<B>::new(conf.pg_url().into()).await?;
 		let db_pool = actor_pool::ActorPool::new(db, 4).create(None).spawn(&mut Smol::Global);
 		let storage = workers::StorageAggregator::new(db_pool.clone()).create(None).spawn(&mut Smol::Global);
-		let metadata = workers::MetadataActor::new(db_pool.clone(), ctx.meta().clone())
+		let metadata = workers::MetadataActor::new(db_pool.clone(), conf.meta().clone())
 			.await?
 			.create(None)
 			.spawn(&mut Smol::Global);
 		let blocks =
-			workers::BlocksIndexer::new(ctx, db_pool.clone(), metadata.clone()).create(None).spawn(&mut Smol::Global);
+			workers::BlocksIndexer::new(&conf, db_pool.clone(), metadata.clone()).create(None).spawn(&mut Smol::Global);
+
 		Ok(Actors { storage, blocks, metadata, db_pool })
 	}
 
@@ -337,7 +346,7 @@ where
 		Ok(())
 	}
 
-	fn context(&self) -> Result<super::actors::ActorContext<B, D>> {
-		Ok(self.context.clone())
+	fn context(&self) -> Result<super::actors::SystemConfig<B, D>> {
+		Ok(self.config.clone())
 	}
 }

@@ -42,7 +42,7 @@ pub use self::{
 	block_exec::BlockExecutor,
 	database::SecondaryRocksDB,
 	error::BackendError,
-	frontend::{runtime_api, TArchiveClient},
+	frontend::{runtime_api, RuntimeConfig, TArchiveClient},
 	read_only_backend::ReadOnlyBackend,
 	runtime_version_cache::RuntimeVersionCache,
 };

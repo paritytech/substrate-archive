@@ -19,8 +19,7 @@ mod database;
 mod metadata;
 mod storage_aggregator;
 
-pub use self::blocks::*;
-/// Database message to get state internal database state
-pub use self::database::*;
-pub use self::metadata::*;
-pub use self::storage_aggregator::*;
+pub use self::database::{DatabaseActor, GetState};
+pub use self::metadata::MetadataActor;
+pub use blocks::BlocksIndexer;
+pub use storage_aggregator::StorageAggregator;

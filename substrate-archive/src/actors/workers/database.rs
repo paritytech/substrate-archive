@@ -14,12 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::marker::PhantomData;
 use std::time::Duration;
 
 use xtra::prelude::*;
-
-use sp_runtime::traits::{Block as BlockT, NumberFor};
 
 use substrate_archive_common::{
 	models::StorageModel,
@@ -29,6 +28,7 @@ use substrate_archive_common::{
 use crate::{
 	database::{queries, Database, DbConn},
 	error::Result,
+	wasm_tracing::Traces,
 };
 
 #[derive(Clone)]
@@ -97,7 +97,9 @@ impl<B: BlockT> DatabaseActor<B> {
 		let mut conn = self.db.conn().await?;
 		let mut block_nums = storages.inner().iter().map(|s| s.block_num()).collect::<Vec<_>>();
 		block_nums.sort_unstable();
-		log::debug!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
+		if !block_nums.is_empty() {
+			log::debug!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
+		}
 		let len = block_nums.len();
 		while queries::has_blocks::<B>(block_nums.as_slice(), &mut conn).await?.len() != len {
 			smol::Timer::after(std::time::Duration::from_millis(50)).await;
@@ -172,6 +174,21 @@ impl<B: BlockT> Handler<BatchStorage<B>> for DatabaseActor<B> {
 			log::error!("{}", e.to_string());
 		}
 		log::debug!("Took {:?} to insert {} storage entries", now.elapsed(), len);
+	}
+}
+
+impl Message for Traces {
+	type Result = ();
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT> Handler<Traces> for DatabaseActor<B> {
+	async fn handle(&mut self, traces: Traces, _: &mut Context<Self>) {
+		let now = std::time::Instant::now();
+		if let Err(e) = self.db.insert(traces).await {
+			log::error!("{}", e.to_string());
+		}
+		log::debug!("took {:?} to insert traces", now.elapsed());
 	}
 }
 

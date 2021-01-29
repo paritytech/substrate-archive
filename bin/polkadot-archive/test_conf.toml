@@ -20,7 +20,8 @@ cache_size = 128
 # Optional. If not specified, threads will be set
 # to the default number of logical system threads
 # More BlockWorkers requires that you also increase the number of WASM pages
-# else the wasm executor will run out of memory. This also increases substrate-archives
+# else the wasm executor will run out of memory.
+# This also increases substrate-archives memory usage.
 # Generally, you want 32 pages per block worker
 # memory usage
 block_workers = 8
@@ -44,3 +45,6 @@ db_pass = "123"
 westend_db = "westend-archive"
 kusama_db = "kusama-db"
 polkadot_db = "polkadot-db"
+
+wasm_tracing_targets = '''wasm_tracing,pallet,frame,state'''
+

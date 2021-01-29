@@ -16,7 +16,7 @@
 
 mod client;
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use futures::{future::BoxFuture, task::SpawnExt};
 
@@ -25,7 +25,7 @@ use sc_client_api::{
 	ExecutionStrategy,
 };
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
-use sc_service::LocalCallExecutor;
+use sc_service::{ClientConfig, LocalCallExecutor};
 use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
@@ -41,10 +41,32 @@ pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TB
 /// Full client call executor type.
 type TFullCallExecutor<TBl, TExecDisp, D> = LocalCallExecutor<ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
 
+#[derive(Clone, Debug)]
+pub struct RuntimeConfig {
+	pub block_workers: usize,
+	pub wasm_pages: u64,
+	pub wasm_runtime_overrides: Option<PathBuf>,
+}
+
+impl From<RuntimeConfig> for ClientConfig {
+	fn from(config: RuntimeConfig) -> ClientConfig {
+		ClientConfig {
+			offchain_worker_enabled: false,
+			offchain_indexing_api: false,
+			wasm_runtime_overrides: config.wasm_runtime_overrides,
+		}
+	}
+}
+
+impl Default for RuntimeConfig {
+	fn default() -> RuntimeConfig {
+		Self { block_workers: 2, wasm_pages: 512, wasm_runtime_overrides: None }
+	}
+}
+
 pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDB + 'static>(
 	db: Arc<D>,
-	block_workers: usize,
-	wasm_pages: u64,
+	config: RuntimeConfig,
 ) -> Result<TArchiveClient<Block, Runtime, Dispatch, D>, BackendError>
 where
 	Block: BlockT,
@@ -58,11 +80,12 @@ where
 {
 	let backend = Arc::new(ReadOnlyBackend::new(db, true));
 
-	let executor =
-		NativeExecutor::<Dispatch>::new(WasmExecutionMethod::Interpreted, Some(wasm_pages), block_workers as usize);
-
-	let executor =
-		LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), Default::default())?;
+	let executor = NativeExecutor::<Dispatch>::new(
+		WasmExecutionMethod::Interpreted,
+		Some(config.wasm_pages),
+		config.block_workers,
+	);
+	let executor = LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.into())?;
 
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None))?;
 	Ok(client)
@@ -101,7 +124,7 @@ fn execution_strategies() -> ExecutionStrategies {
 		syncing: ExecutionStrategy::NativeElseWasm,
 		importing: ExecutionStrategy::NativeElseWasm,
 		block_construction: ExecutionStrategy::NativeElseWasm,
-		offchain_worker: ExecutionStrategy::NativeWhenPossible,
-		other: ExecutionStrategy::AlwaysWasm,
+		offchain_worker: ExecutionStrategy::NativeElseWasm,
+		other: ExecutionStrategy::NativeElseWasm,
 	}
 }

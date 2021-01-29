@@ -45,6 +45,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) -> io::Result<
 		.level_for("cranelift_codegen", log::LevelFilter::Warn)
 		.level_for("header", log::LevelFilter::Warn)
 		.level_for("", log::LevelFilter::Error)
+		.level_for("frame_executive", log::LevelFilter::Error)
 		.format(move |out, message, record| {
 			out.finish(format_args!(
 				"{} {} {}",
@@ -62,6 +63,7 @@ pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) -> io::Result<
 		.level_for("sqlx", log::LevelFilter::Warn)
 		.level_for("staking", log::LevelFilter::Warn)
 		.level_for("cranelift_codegen", log::LevelFilter::Warn)
+		.level_for("frame_executive", log::LevelFilter::Error)
 		// .level_for("desub_core", log::LevelFilter::Debug)
 		// .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
 		// .level_for("kvdb_rocksdb", log::LevelFilter::Debug)

@@ -34,7 +34,7 @@ use crate::{
 			database::{DatabaseActor, GetState},
 			metadata::MetadataActor,
 		},
-		ActorContext,
+		SystemConfig,
 	},
 	database::queries,
 	error::{ArchiveError, Result},
@@ -66,14 +66,14 @@ where
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
 {
-	pub fn new(ctx: ActorContext<B, D>, db: DatabaseAct<B>, meta: MetadataAct<B>) -> Self {
+	pub fn new(conf: &SystemConfig<B, D>, db: DatabaseAct<B>, meta: MetadataAct<B>) -> Self {
 		Self {
-			rt_cache: Arc::new(RuntimeVersionCache::new(ctx.backend.clone())),
+			rt_cache: Arc::new(RuntimeVersionCache::new(conf.backend.clone())),
 			last_max: 0,
-			backend: ctx.backend().clone(),
+			backend: conf.backend().clone(),
 			db,
 			meta,
-			max_block_load: ctx.max_block_load,
+			max_block_load: conf.max_block_load,
 		}
 	}
 
@@ -169,7 +169,6 @@ where
 
 		smol::spawn(async move {
 			loop {
-				smol::Timer::after(std::time::Duration::from_secs(5));
 				if addr.send(Crawl).await.is_err() {
 					break;
 				}

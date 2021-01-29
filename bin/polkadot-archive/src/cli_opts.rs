@@ -24,6 +24,7 @@ pub struct CliOpts {
 	pub log_level: log::LevelFilter,
 	pub log_num: u64,
 	pub chain: String,
+	pub wasm_overrides_path: Option<PathBuf>,
 }
 
 impl CliOpts {
@@ -37,11 +38,11 @@ impl CliOpts {
 			1 => log::LevelFilter::Info,
 			2 => log::LevelFilter::Info,
 			3 => log::LevelFilter::Debug,
-			4 | _ => log::LevelFilter::Trace,
+			_ => log::LevelFilter::Trace,
 		};
 
 		let chain = matches.value_of("chain").unwrap_or("polkadot").to_string();
-
-		CliOpts { file: file.map(PathBuf::from), log_level, log_num, chain }
+		let wasm_overrides_path = matches.value_of("wasm_runtime_overrides").map(PathBuf::from);
+		CliOpts { file: file.map(PathBuf::from), log_level, log_num, chain, wasm_overrides_path }
 	}
 }

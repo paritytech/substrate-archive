@@ -17,12 +17,32 @@
 use anyhow::{anyhow, Context, Result};
 use polkadot_service::kusama_runtime as ksm_rt;
 use polkadot_service::polkadot_runtime as dot_rt;
-use polkadot_service::westend_runtime as westend_rt;
-use polkadot_service::{Block, KusamaExecutor, PolkadotExecutor, WestendExecutor};
+use polkadot_service::westend_runtime as wnd_rt;
+use polkadot_service::Block;
 use sc_chain_spec::ChainSpec;
-use substrate_archive::{Archive, ArchiveBuilder};
+use substrate_archive::{native_executor_instance, Archive, ArchiveBuilder};
 use substrate_archive_common::ReadOnlyDB;
 
+native_executor_instance!(
+	pub PolkadotExecutor,
+	dot_rt::api::dispatch,
+	dot_rt::native_version,
+	sp_io::SubstrateHostFunctions,
+);
+
+native_executor_instance!(
+	pub KusamaExecutor,
+	ksm_rt::api::dispatch,
+	ksm_rt::native_version,
+	sp_io::SubstrateHostFunctions,
+);
+
+native_executor_instance!(
+	pub WestendExecutor,
+	wnd_rt::api::dispatch,
+	wnd_rt::native_version,
+	sp_io::SubstrateHostFunctions,
+);
 use crate::config::Config;
 
 pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Archive<Block, D>>> {
@@ -45,7 +65,6 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 	}
 
 	let db_path = db_path.as_path().to_str().context("could not convert rocksdb path to str")?.to_string();
-
 	match config.cli().chain.to_ascii_lowercase().as_str() {
 		"kusama" | "ksm" => {
 			let archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, KusamaExecutor, D>::default()
@@ -56,11 +75,12 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 				.block_workers(config.block_workers())
 				.wasm_pages(config.wasm_pages())
 				.max_block_load(config.max_block_load())
+				.wasm_tracing(config.wasm_tracing())
 				.build()?;
 			Ok(Box::new(archive))
 		}
 		"westend" | "wnd" => {
-			let archive = ArchiveBuilder::<Block, westend_rt::RuntimeApi, WestendExecutor, D>::default()
+			let archive = ArchiveBuilder::<Block, wnd_rt::RuntimeApi, WestendExecutor, D>::default()
 				.chain_spec(spec)
 				.chain_data_path(Some(db_path))
 				.pg_url(config.psql_conf().map(|u| u.url()))
@@ -68,6 +88,7 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 				.block_workers(config.block_workers())
 				.wasm_pages(config.wasm_pages())
 				.max_block_load(config.max_block_load())
+				.wasm_tracing(config.wasm_tracing())
 				.build()?;
 			Ok(Box::new(archive))
 		}
@@ -80,6 +101,7 @@ pub fn run_archive<D: ReadOnlyDB + 'static>(config: Config) -> Result<Box<dyn Ar
 				.block_workers(config.block_workers())
 				.wasm_pages(config.wasm_pages())
 				.max_block_load(config.max_block_load())
+				.wasm_tracing(config.wasm_tracing())
 				.build()?;
 			Ok(Box::new(archive))
 		}

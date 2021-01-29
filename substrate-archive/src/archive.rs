@@ -16,7 +16,7 @@
 
 use std::{env, fs, marker::PhantomData, path::PathBuf, sync::Arc};
 
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
@@ -29,11 +29,11 @@ use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
 
-use substrate_archive_backend::{runtime_api, ReadOnlyBackend, TArchiveClient};
+use substrate_archive_backend::{runtime_api, ReadOnlyBackend, RuntimeConfig, TArchiveClient};
 use substrate_archive_common::{util, ReadOnlyDB};
 
 use crate::{
-	actors::{ActorContext, System},
+	actors::{System, SystemConfig},
 	error::Result,
 	migrations,
 };
@@ -43,6 +43,17 @@ const POSTGRES_VAR: &str = "DATABASE_URL";
 
 /// The recommended open file descriptor limit to be configured for the process.
 const RECOMMENDED_OPEN_FILE_DESCRIPTOR_LIMIT: u64 = 10_000;
+
+/// Configure WASM Tracing.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TracingConfig {
+	/// Targets for tracing.
+	pub targets: String,
+	/// Folder where Tracing-Enabled WASM Binaries are kept.
+	/// Folder should contain all runtime-versions for their chain
+	/// that a user should want to collect traces from.
+	pub folder: PathBuf,
+}
 
 /// The control interface of an archive system.
 #[async_trait::async_trait(?Send)]
@@ -63,7 +74,7 @@ where
 	fn boxed_shutdown(self: Box<Self>) -> Result<()>;
 
 	/// Get a reference to the context the actors are using
-	fn context(&self) -> Result<ActorContext<B, D>>;
+	fn context(&self) -> Result<SystemConfig<B, D>>;
 }
 
 pub struct ArchiveBuilder<B, R, D, DB> {
@@ -81,7 +92,10 @@ pub struct ArchiveBuilder<B, R, D, DB> {
 	/// Number of 64KB Heap pages to allocate for wasm execution
 	wasm_pages: u64,
 	/// maximum amount of blocks to index at once
-	max_block_load: u32,
+	pub max_block_load: u32,
+	/// Enable state tracing while also specifying the targets
+	/// and directory where the WASM runtimes are stored.
+	pub wasm_tracing: Option<TracingConfig>,
 }
 
 impl<B, R, D, DB> Default for ArchiveBuilder<B, R, D, DB> {
@@ -96,6 +110,7 @@ impl<B, R, D, DB> Default for ArchiveBuilder<B, R, D, DB> {
 			block_workers: num_cpus,          // the number of logical cpus in the system
 			wasm_pages: 64 * num_cpus as u64, // 64 * (number of logic cpu's)
 			max_block_load: 100_000,          // 100_000 blocks to index at once
+			wasm_tracing: None,
 		}
 	}
 }
@@ -172,6 +187,20 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 		}
 		self
 	}
+
+	/// Set the folder and targets for tracing.
+	/// This tells substrate-archive to also store all state-traces resulting from the execution of blocks.
+	///
+	/// # Note
+	/// Traces will only be collected if a coexisting WASM binary
+	/// for the runtime version of the block being currently executed is available.
+	///
+	/// # Default
+	/// Wasm Tracing is disabled by default.
+	pub fn wasm_tracing(mut self, wasm_tracing: Option<TracingConfig>) -> Self {
+		self.wasm_tracing = wasm_tracing;
+		self
+	}
 }
 
 /// Create rocksdb secondary directory if it doesn't exist yet.
@@ -226,18 +255,30 @@ where
 		let chain_path = chain_path.to_str().expect("chain data path is invalid");
 		let db_path = create_database_path(self.chain_spec)?;
 		let db = Arc::new(DB::open_database(chain_path, self.cache_size, db_path)?);
-
+		let config = RuntimeConfig {
+			block_workers: self.block_workers,
+			wasm_pages: self.wasm_pages,
+			wasm_runtime_overrides: self.wasm_tracing.as_ref().map(|c| c.folder.clone()),
+		};
 		let pg_url = self
 			.pg_url
 			.unwrap_or_else(|| env::var(POSTGRES_VAR).expect("DATABASE_URL must be set if not passed initially."));
 		smol::block_on(migrations::migrate(&pg_url))?;
 
-		let client = Arc::new(runtime_api::<B, R, D, DB>(db.clone(), self.block_workers, self.wasm_pages)?);
+		let client = Arc::new(runtime_api::<B, R, D, DB>(db.clone(), config)?);
 		let backend = Arc::new(ReadOnlyBackend::new(db, true));
 		Self::startup_info(&*client, &*backend)?;
 
-		let ctx = System::<_, R, _, _>::new(client, backend, self.block_workers, pg_url.as_str(), self.max_block_load)?;
-		Ok(ctx)
+		let config = SystemConfig::new(
+			backend,
+			client.clone(),
+			self.block_workers,
+			pg_url,
+			self.max_block_load,
+			self.wasm_tracing.map(|t| t.targets),
+		);
+		let sys = System::<_, R, _, _>::new(client, config)?;
+		Ok(sys)
 	}
 
 	/// Log some general startup info
@@ -245,7 +286,7 @@ where
 		let last_finalized_block = backend.last_finalized()?;
 		let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
 		log::info!(
-            "Running archive for chain `{}` 🔗, implementation `{}`. Latest known runtime version: {}. Latest finalized block {} 🛡️",
+            "Running archive for 🔗 `{}`, implementation `{}`. Latest known runtime version: {}. Latest finalized block {} 🛡️",
             rt.spec_name,
             rt.impl_name,
             rt.spec_version,

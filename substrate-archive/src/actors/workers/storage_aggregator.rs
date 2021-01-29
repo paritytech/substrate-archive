@@ -26,11 +26,13 @@ use substrate_archive_common::types::{BatchStorage, Die, Storage};
 use crate::{
 	actors::{actor_pool::ActorPool, workers::database::DatabaseActor},
 	error::Result,
+	wasm_tracing::Traces,
 };
 
 pub struct StorageAggregator<B: BlockT + Unpin> {
 	db: Address<ActorPool<DatabaseActor<B>>>,
 	storage: Vec<Storage<B>>,
+	traces: Vec<Traces>,
 }
 
 impl<B: BlockT + Unpin> StorageAggregator<B>
@@ -38,17 +40,30 @@ where
 	B::Hash: Unpin,
 {
 	pub fn new(db: Address<ActorPool<DatabaseActor<B>>>) -> Self {
-		Self { db, storage: Vec::with_capacity(500) }
+		Self { db, storage: Vec::with_capacity(500), traces: Vec::with_capacity(250) }
 	}
 
 	async fn handle_storage(&mut self, ctx: &mut Context<Self>) -> Result<()> {
-		let storage = std::mem::take(&mut self.storage);
+		let storage = std::mem::replace(&mut self.storage, Vec::with_capacity(500));
 		if !storage.is_empty() {
 			log::info!("Indexing {} blocks of storage entries", storage.len());
 			let send_result = self.db.send(BatchStorage::new(storage).into()).await?;
 			// handle_while the actual insert is happening, not the send
 			ctx.handle_while(self, send_result).await;
 		}
+		Ok(())
+	}
+
+	async fn handle_traces(&mut self, ctx: &mut Context<Self>) -> Result<()> {
+		let mut traces = std::mem::take(&mut self.traces);
+		if !traces.is_empty() {
+			log::info!("Inserting {} traces", traces.len());
+			for trace in traces.drain(..) {
+				let send_result = self.db.send(trace.into()).await?;
+				ctx.handle_while(self, send_result).await;
+			}
+		}
+		std::mem::swap(&mut self.traces, &mut traces);
 		Ok(())
 	}
 }
@@ -64,6 +79,9 @@ where
 			loop {
 				smol::Timer::after(std::time::Duration::from_secs(1)).await;
 				if addr.send(SendStorage).await.is_err() {
+					break;
+				}
+				if addr.send(SendTraces).await.is_err() {
 					break;
 				}
 			}
@@ -107,6 +125,23 @@ where
 	}
 }
 
+struct SendTraces;
+impl Message for SendTraces {
+	type Result = ();
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT + Unpin> Handler<SendTraces> for StorageAggregator<B>
+where
+	B::Hash: Unpin,
+{
+	async fn handle(&mut self, _: SendTraces, ctx: &mut Context<Self>) {
+		if let Err(e) = self.handle_traces(ctx).await {
+			log::error!("{:?}", e);
+		}
+	}
+}
+
 #[async_trait::async_trait]
 impl<B: BlockT + Unpin> Handler<Storage<B>> for StorageAggregator<B>
 where
@@ -114,6 +149,16 @@ where
 {
 	async fn handle(&mut self, s: Storage<B>, _: &mut Context<Self>) {
 		self.storage.push(s)
+	}
+}
+
+#[async_trait::async_trait]
+impl<B: BlockT + Unpin> Handler<Traces> for StorageAggregator<B>
+where
+	B::Hash: Unpin,
+{
+	async fn handle(&mut self, t: Traces, _: &mut Context<Self>) {
+		self.traces.push(t)
 	}
 }
 

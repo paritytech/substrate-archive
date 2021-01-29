@@ -21,6 +21,7 @@ use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
+use parking_lot::Mutex;
 use xtra::prelude::*;
 
 use sc_client_api::backend;
@@ -35,7 +36,11 @@ use sp_runtime::{
 use substrate_archive_backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend};
 use substrate_archive_common::{types::Storage, ReadOnlyDB};
 
-use crate::actors::StorageAggregator;
+use crate::{
+	actors::StorageAggregator,
+	error::TracingError,
+	wasm_tracing::{SpansAndEvents, TraceHandler, Traces},
+};
 
 /// The environment passed to each task
 pub struct Environment<B, R, C, D>
@@ -44,6 +49,10 @@ where
 	B: BlockT + Unpin,
 	B::Hash: Unpin,
 {
+	// Tracing targets
+	// if `Some` will trace the execution of the block
+	// and traces will be sent to the [`StorageAggregator`].
+	tracing_targets: Option<String>,
 	backend: Arc<Backend<B, D>>,
 	client: Arc<C>,
 	storage: Address<StorageAggregator<B>>,
@@ -57,8 +66,13 @@ where
 	B: BlockT + Unpin,
 	B::Hash: Unpin,
 {
-	pub fn new(backend: Arc<Backend<B, D>>, client: Arc<C>, storage: Address<StorageAggregator<B>>) -> Self {
-		Self { backend, client, storage, _marker: PhantomData }
+	pub fn new(
+		backend: Arc<Backend<B, D>>,
+		client: Arc<C>,
+		storage: Address<StorageAggregator<B>>,
+		tracing_targets: Option<String>,
+	) -> Self {
+		Self { backend, client, storage, tracing_targets, _marker: PhantomData }
 	}
 }
 
@@ -90,16 +104,45 @@ where
 		return Ok(());
 	}
 
-	log::trace!(
+	let hash = block.header().hash();
+	let number = *block.header().number();
+
+	log::debug!(
 		"Executing Block: {}:{}, version {}",
 		block.header().hash(),
 		block.header().number(),
 		env.client.runtime_version_at(&BlockId::Hash(block.hash())).map_err(|e| format!("{:?}", e))?.spec_version,
 	);
+	let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
+
+	let storage = {
+		// storage scope
+		let handler = env
+			.tracing_targets
+			.as_ref()
+			.map(|t| TraceHandler::new(&t, number.into(), hash.as_ref().to_vec(), span_events.clone()));
+
+		let _guard = handler.map(tracing::subscriber::set_default);
+
+		let now = std::time::Instant::now();
+		let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
+		log::debug!("Took {:?} to execute block", now.elapsed());
+
+		Storage::from(block)
+	};
+
+	// We destroy the Arc and transform the Mutex here in order to avoid additional allocation.
+	// The Arc is cloned into the thread-local tracing subscriber in the scope of `storage`, creating
+	// 2 strong references. When block execution finishes, storage is collected and that reference is dropped.
+	// This allows us to unwrap it here. QED.
+	let traces = Arc::try_unwrap(span_events).map_err(|_| TracingError::NoTraceAccess)?.into_inner();
+
 	let now = std::time::Instant::now();
-	let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
-	log::debug!("Took {:?} to execute block", now.elapsed());
-	let storage = Storage::from(block);
 	smol::block_on(env.storage.send(storage))?;
+	if !traces.events.is_empty() || !traces.spans.is_empty() {
+		let traces = Traces::new(number.into(), hash.as_ref().to_vec(), traces.events, traces.spans);
+		smol::block_on(env.storage.send(traces))?;
+	}
+	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())
 }

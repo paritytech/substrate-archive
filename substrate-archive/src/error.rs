@@ -55,10 +55,27 @@ pub enum ArchiveError {
 	Disconnected,
 	#[error("Sending on a disconnected channel")]
 	Channel,
-
 	// archive backend error
 	#[error("Backend error: {0}")]
 	Backend(#[from] substrate_archive_backend::BackendError),
+	#[error(transparent)]
+	Conversion(#[from] std::num::TryFromIntError),
+	#[error("Tracing: {0}")]
+	Trace(#[from] TracingError),
+	#[error("Rust Standard Library does not support negative durations")]
+	TimestampOutOfRange,
+}
+
+#[derive(Error, Debug)]
+pub enum TracingError {
+	#[error("Traces for block {0} not found")]
+	NoTraceForBlock(u32),
+	#[error("Traces could not be accessed from within Arc")]
+	NoTraceAccess,
+	#[error("Parent ID for span does not exist in the tree")]
+	ParentNotFound,
+	#[error("Wrong Type")]
+	TypeError,
 }
 
 impl From<sp_blockchain::Error> for ArchiveError {

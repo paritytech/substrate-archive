@@ -31,9 +31,10 @@ mod error;
 mod migrations;
 mod sql_block_builder;
 mod tasks;
+mod wasm_tracing;
 
 pub use self::actors::System;
-pub use self::archive::{Archive, ArchiveBuilder};
+pub use self::archive::{Archive, ArchiveBuilder, TracingConfig};
 pub use self::database::queries;
 pub use self::error::ArchiveError;
 pub use self::migrations::MigrationConfig;

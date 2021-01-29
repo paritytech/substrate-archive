@@ -21,6 +21,7 @@ mod batch;
 pub mod listener;
 pub mod queries;
 
+use std::convert::{TryFrom, TryInto};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -32,12 +33,14 @@ use sqlx::{
 };
 
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-
 use substrate_archive_common::{models::StorageModel, types::*};
 
 use self::batch::Batch;
 pub use self::listener::*;
-use crate::error::Result;
+use crate::{
+	error::{ArchiveError, Result},
+	wasm_tracing::Traces,
+};
 
 pub type DbReturn = Result<u64>;
 pub type DbConn = PoolConnection<Postgres>;
@@ -271,4 +274,100 @@ impl Insert for Metadata {
 		.map(|d| d.rows_affected())
 		.map_err(Into::into)
 	}
+}
+
+#[async_trait]
+impl Insert for Traces {
+	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
+		log::debug!("Inserting Trace Data");
+		let mut batch = Batch::new(
+			"state_tracing",
+			r#"
+			INSERT INTO "state_traces" (
+				block_num, hash, is_event, timestamp, duration, file, line, trace_id, trace_parent_id, target, name, traces
+			) VALUES
+			"#,
+			r#"
+			ON CONFLICT DO NOTHING
+			"#,
+		);
+
+		for span in self.spans.iter() {
+			let id = i32::try_from(span.id.into_u64())?;
+			let parent_id: Option<i32> =
+				if let Some(id) = &span.parent_id { Some(i32::try_from(id.into_u64())?) } else { None };
+			let overall_time: i64 = time_to_std(span.overall_time)?.as_nanos().try_into()?;
+			batch.reserve(12)?;
+			if batch.current_num_arguments() > 0 {
+				batch.append(",");
+			}
+			batch.append("(");
+			batch.bind(self.block_num())?; // block_numk
+			batch.append(",");
+			batch.bind(self.hash())?; // hash
+			batch.append(",");
+			batch.bind(false)?; // is_event
+			batch.append(",");
+			batch.bind(span.start_time)?; // timestamp
+			batch.append(",");
+			batch.bind(overall_time)?; // duration
+			batch.append(",");
+			batch.bind(span.file.as_ref())?; // file
+			batch.append(",");
+			batch.bind(span.line)?; // line
+			batch.append(",");
+			batch.bind(id)?; // trace_id
+			batch.append(",");
+			batch.bind(parent_id)?; // trace_parent_id
+			batch.append(",");
+			batch.bind(&span.target)?; // target
+			batch.append(",");
+			batch.bind(&span.name)?; // name
+			batch.append(",");
+			batch.bind(sqlx::types::Json(&span.values))?; // traces
+			batch.append(")");
+		}
+
+		for event in self.events.iter() {
+			let parent_id = event.parent_id.as_ref().map(|id| i32::try_from(id.into_u64())).transpose()?;
+			batch.reserve(12)?;
+			if batch.current_num_arguments() > 0 {
+				batch.append(",");
+			}
+			batch.append("(");
+			batch.bind(self.block_num())?; // block number
+			batch.append(",");
+			batch.bind(self.hash())?; // hash
+			batch.append(",");
+			batch.bind(true)?; // is_event
+			batch.append(",");
+			batch.bind(event.time)?; //time
+			batch.append(",");
+			batch.bind(Option::<chrono::Duration>::None)?; // an event won't have a duration
+			batch.append(",");
+			batch.bind(&event.file)?; // file
+			batch.append(",");
+			batch.bind(event.line)?; // line
+			batch.append(",");
+			batch.bind(Option::<i32>::None)?; // Event has no ID
+			batch.append(",");
+			batch.bind(parent_id)?; // parent ikd
+			batch.append(",");
+			batch.bind(&event.target)?; // target
+			batch.append(",");
+			batch.bind(&event.name)?; // name
+			batch.append(",");
+			batch.bind(sqlx::types::Json(&event.values))?; // values
+			batch.append(")");
+		}
+
+		Ok(batch.execute(conn).await?)
+	}
+}
+
+// Chrono depends on an error type in `time` that is a full version behind the one that SQLX uses
+// This function avoids depending on two time lib.
+// Old time is disabled in chrono by not providing the feature flag in Cargo.toml.
+fn time_to_std(time: chrono::Duration) -> Result<std::time::Duration> {
+	time.to_std().map_err(|_| ArchiveError::TimestampOutOfRange)
 }
