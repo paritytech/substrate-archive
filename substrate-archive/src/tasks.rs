@@ -116,6 +116,7 @@ where
 	let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
 
 	let storage = {
+		// storage scope
 		let handler = env
 			.tracing_targets
 			.as_ref()
@@ -129,6 +130,11 @@ where
 
 		Storage::from(block)
 	};
+
+	// We destroy the Arc and transform the Mutex here in order to avoid additional allocation.
+	// The Arc is cloned into the thread-local tracing subscriber in the scope of `storage`, creating
+	// 2 strong references. When block execution finishes, storage is collected and that reference is dropped.
+	// This allows us to unwrap it here. QED.
 	let traces = Arc::try_unwrap(span_events).map_err(|_| TracingError::NoTraceAccess)?.into_inner();
 
 	let now = std::time::Instant::now();

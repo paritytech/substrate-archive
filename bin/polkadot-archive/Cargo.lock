@@ -4819,7 +4819,6 @@ dependencies = [
  "anyhow",
  "clap",
  "ctrlc",
- "frame-benchmarking",
  "log",
  "polkadot-service",
  "sc-chain-spec",

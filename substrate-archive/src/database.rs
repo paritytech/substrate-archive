@@ -292,22 +292,19 @@ impl Insert for Traces {
 			"#,
 		);
 
-		let block_num = self.block_num();
-		let hash = self.hash().to_vec();
-
-		for span in self.spans.into_iter() {
+		for span in self.spans.iter() {
 			let id = i32::try_from(span.id.into_u64())?;
 			let parent_id: Option<i32> =
-				if let Some(id) = span.parent_id { Some(i32::try_from(id.into_u64())?) } else { None };
+				if let Some(id) = &span.parent_id { Some(i32::try_from(id.into_u64())?) } else { None };
 			let overall_time: i64 = time_to_std(span.overall_time)?.as_nanos().try_into()?;
 			batch.reserve(12)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
 			}
 			batch.append("(");
-			batch.bind(block_num)?; // block_numk
+			batch.bind(self.block_num())?; // block_numk
 			batch.append(",");
-			batch.bind(hash.as_slice())?; // hash
+			batch.bind(self.hash())?; // hash
 			batch.append(",");
 			batch.bind(false)?; // is_event
 			batch.append(",");
@@ -315,7 +312,7 @@ impl Insert for Traces {
 			batch.append(",");
 			batch.bind(overall_time)?; // duration
 			batch.append(",");
-			batch.bind(span.file)?; // file
+			batch.bind(span.file.as_ref())?; // file
 			batch.append(",");
 			batch.bind(span.line)?; // line
 			batch.append(",");
@@ -323,24 +320,24 @@ impl Insert for Traces {
 			batch.append(",");
 			batch.bind(parent_id)?; // trace_parent_id
 			batch.append(",");
-			batch.bind(span.target)?; // target
+			batch.bind(&span.target)?; // target
 			batch.append(",");
-			batch.bind(span.name)?; // name
+			batch.bind(&span.name)?; // name
 			batch.append(",");
-			batch.bind(sqlx::types::Json(span.values))?; // traces
+			batch.bind(sqlx::types::Json(&span.values))?; // traces
 			batch.append(")");
 		}
 
-		for event in self.events.into_iter() {
-			let parent_id = event.parent_id.map(|id| i32::try_from(id.into_u64())).transpose()?;
+		for event in self.events.iter() {
+			let parent_id = event.parent_id.as_ref().map(|id| i32::try_from(id.into_u64())).transpose()?;
 			batch.reserve(12)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
 			}
 			batch.append("(");
-			batch.bind(block_num)?; // block number
+			batch.bind(self.block_num())?; // block number
 			batch.append(",");
-			batch.bind(hash.as_slice())?; // hash
+			batch.bind(self.hash())?; // hash
 			batch.append(",");
 			batch.bind(true)?; // is_event
 			batch.append(",");
@@ -348,7 +345,7 @@ impl Insert for Traces {
 			batch.append(",");
 			batch.bind(Option::<chrono::Duration>::None)?; // an event won't have a duration
 			batch.append(",");
-			batch.bind(event.file)?; // file
+			batch.bind(&event.file)?; // file
 			batch.append(",");
 			batch.bind(event.line)?; // line
 			batch.append(",");
@@ -356,11 +353,11 @@ impl Insert for Traces {
 			batch.append(",");
 			batch.bind(parent_id)?; // parent ikd
 			batch.append(",");
-			batch.bind(event.target)?; // target
+			batch.bind(&event.target)?; // target
 			batch.append(",");
-			batch.bind(event.name)?; // name
+			batch.bind(&event.name)?; // name
 			batch.append(",");
-			batch.bind(sqlx::types::Json(event.values))?; // values
+			batch.bind(sqlx::types::Json(&event.values))?; // values
 			batch.append(")");
 		}
 
