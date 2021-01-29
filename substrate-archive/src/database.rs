@@ -378,8 +378,3 @@ fn time_to_std(time: chrono::Duration) -> Result<std::time::Duration> {
 		Ok(time.to_std().expect("Checked for less than 0"))
 	}
 }
-
-#[cfg(test)]
-mod tests {
-	//! Must be connected to a local database
-}
