@@ -8372,8 +8372,10 @@ dependencies = [
  "bincode",
  "chrono",
  "coil",
+ "directories 3.0.1",
  "dotenv",
  "fdlimit",
+ "fern",
  "flate2",
  "flume",
  "futures 0.3.12",
@@ -8405,7 +8407,6 @@ dependencies = [
  "sp-tracing",
  "sqlx",
  "substrate-archive-backend",
- "substrate-archive-common",
  "tempfile",
  "thiserror",
  "tracing",
@@ -8443,22 +8444,6 @@ dependencies = [
  "sp-version",
  "sp-wasm-interface",
  "thiserror",
-]
-
-[[package]]
-name = "substrate-archive-common"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "directories 3.0.1",
- "fern",
- "log",
- "parity-scale-codec",
- "serde",
- "sp-runtime",
- "sp-storage",
- "sqlx",
- "xtra",
 ]
 
 [[package]]

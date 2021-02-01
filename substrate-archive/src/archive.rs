@@ -30,12 +30,11 @@ use sp_runtime::{
 };
 
 use substrate_archive_backend::{runtime_api, ReadOnlyBackend, ReadOnlyDB, RuntimeConfig, TArchiveClient};
-use substrate_archive_common::util;
 
 use crate::{
 	actors::{System, SystemConfig},
 	error::Result,
-	migrations,
+	migrations, util,
 };
 
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
