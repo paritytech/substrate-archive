@@ -4,7 +4,7 @@ use polkadot_service::{kusama_runtime::RuntimeApi, Block, KusamaExecutor};
 use substrate_archive::{Archive, ArchiveBuilder};
 
 pub fn main() {
-    substrate_archive::init_logger(log::LevelFilter::Info, log::LevelFilter::Info);
+    substrate_archive::logger::init(Default::default());
 
     // get spec/runtime from node library
     let spec = polkadot_service::chain_spec::kusama_config().unwrap();

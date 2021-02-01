@@ -825,7 +825,6 @@ dependencies = [
  "textwrap",
  "unicode-width",
  "vec_map",
- "yaml-rust",
 ]
 
 [[package]]
@@ -3405,6 +3404,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fabed175da42fed1fa0746b0ea71f412aa9d35e76e95e59b192c64b9dc2bf8b"
 dependencies = [
  "cfg-if 0.1.10",
+ "serde",
 ]
 
 [[package]]
@@ -3811,14 +3811,13 @@ name = "node-template-archive"
 version = "0.2.1"
 dependencies = [
  "anyhow",
- "clap",
  "ctrlc",
  "log",
  "node-template",
  "node-template-runtime",
  "serde",
+ "structopt",
  "substrate-archive",
- "substrate-archive-backend",
  "toml",
 ]
 
@@ -7537,12 +7536,14 @@ dependencies = [
  "kvdb",
  "kvdb-rocksdb",
  "log",
+ "num_cpus",
  "parity-scale-codec",
  "parity-util-mem",
  "parking_lot 0.11.1",
  "sc-client-api",
  "sc-executor",
  "sc-service",
+ "serde",
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
@@ -8876,12 +8877,6 @@ dependencies = [
  "pollster",
  "smol",
 ]
-
-[[package]]
-name = "yaml-rust"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e66366e18dc58b46801afbf2ca7661a9f59cc8c5962c29892b6039b4f86fa992"
 
 [[package]]
 name = "yamux"

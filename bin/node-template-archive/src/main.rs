@@ -14,28 +14,23 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod cli_opts;
-mod config;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{
+	atomic::{AtomicBool, Ordering},
+	Arc,
+};
 
 use node_template::service::Executor;
 use node_template_runtime::{opaque::Block, RuntimeApi};
 
-use substrate_archive::{Archive, ArchiveBuilder};
-use substrate_archive_backend::SecondaryRocksDB;
+use substrate_archive::{Archive, ArchiveBuilder, SecondaryRocksDB};
 
-pub fn main() -> anyhow::Result<()> {
-	let config = config::Config::new()?;
-	substrate_archive::logger::init(config.cli().log_level, log::LevelFilter::Debug)?;
+fn main() -> anyhow::Result<()> {
+	let cli = cli_opts::CliOpts::init();
+	let config = cli.parse()?;
 
-	let mut archive = ArchiveBuilder::<Block, RuntimeApi, Executor, SecondaryRocksDB>::default()
-		.chain_spec(Box::new(config.cli().chain_spec.clone()))
-		.chain_data_path(config.db_path().map(|path| path))
-		.pg_url(config.psql_conf().map(|conf| conf.url()))
-		.cache_size(config.cache_size())
-		.block_workers(config.block_workers())
-		.wasm_pages(config.wasm_pages())
+	let mut archive = ArchiveBuilder::<Block, RuntimeApi, Executor, SecondaryRocksDB>::with_config(config)
+		.chain_spec(Box::new(cli.chain_spec))
 		.build()?;
 	archive.drive()?;
 

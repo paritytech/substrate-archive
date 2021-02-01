@@ -44,7 +44,7 @@ use crate::{
 	archive::Archive,
 	database::{models::BlockModelDecoder, queries, Channel, Listener},
 	error::Result,
-	tasks::Environment,
+	tasks::{Environment, TaskExecutor},
 	types::Die,
 };
 
@@ -87,13 +87,13 @@ where
 {
 	pub fn new(
 		backend: Arc<ReadOnlyBackend<B, D>>,
+		pg_url: String,
 		meta: Meta<B>,
 		workers: usize,
-		pg_url: String,
 		max_block_load: u32,
 		tracing_targets: Option<String>,
 	) -> Self {
-		Self { backend, meta, workers, pg_url, max_block_load, tracing_targets }
+		Self { backend, pg_url, meta, workers, max_block_load, tracing_targets }
 	}
 
 	pub fn backend(&self) -> &Arc<ReadOnlyBackend<B, D>> {
@@ -205,7 +205,7 @@ where
 		);
 		let env = AssertUnwindSafe(env);
 
-		let runner = coil::Runner::builder(env, crate::TaskExecutor, &pool)
+		let runner = coil::Runner::builder(env, TaskExecutor, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(conf.workers)
 			// times out if tasks don't start execution on the threadpool within 20 seconds.
