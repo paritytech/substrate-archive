@@ -4,7 +4,7 @@ use fern::colors::{Color, ColoredLevelConfig};
 
 use crate::util::{create_dir, substrate_dir};
 
-pub fn init_logger(std: log::LevelFilter, file: log::LevelFilter) -> io::Result<()> {
+pub fn init(std: log::LevelFilter, file: log::LevelFilter) -> io::Result<()> {
 	let colors = ColoredLevelConfig::new()
 		.info(Color::Green)
 		.warn(Color::Yellow)

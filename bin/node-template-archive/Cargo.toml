@@ -16,5 +16,4 @@ node-template-runtime = { git = "https://github.com/paritytech/substrate", defau
 node-template = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 substrate-archive = { path = "../../substrate-archive", features = ["logging"] }
-substrate-archive-common = { path = "../../substrate-archive-common" }
 substrate-archive-backend = { path = "../../substrate-archive-backend" }

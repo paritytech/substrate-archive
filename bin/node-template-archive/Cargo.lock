@@ -3818,7 +3818,6 @@ dependencies = [
  "serde",
  "substrate-archive",
  "substrate-archive-backend",
- "substrate-archive-common",
  "toml",
 ]
 
@@ -7488,7 +7487,9 @@ dependencies = [
  "async-trait",
  "chrono",
  "coil",
+ "directories 3.0.1",
  "fdlimit",
+ "fern",
  "flume",
  "futures 0.3.9",
  "hashbrown",
@@ -7512,10 +7513,10 @@ dependencies = [
  "sp-blockchain",
  "sp-core",
  "sp-runtime",
+ "sp-storage",
  "sp-tracing",
  "sqlx",
  "substrate-archive-backend",
- "substrate-archive-common",
  "tempfile",
  "thiserror",
  "tracing",
@@ -7552,24 +7553,7 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "sp-wasm-interface",
- "substrate-archive-common",
  "thiserror",
-]
-
-[[package]]
-name = "substrate-archive-common"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "directories 3.0.1",
- "fern",
- "log",
- "parity-scale-codec",
- "serde",
- "sp-runtime",
- "sp-storage",
- "sqlx",
- "xtra",
 ]
 
 [[package]]
