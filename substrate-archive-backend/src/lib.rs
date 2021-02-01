@@ -19,7 +19,6 @@
 #![forbid(unsafe_code)]
 #![deny(dead_code)]
 
-mod block_exec;
 mod database;
 mod error;
 mod frontend;
@@ -39,7 +38,6 @@ pub use substrate_archive_common::util::init_logger;
 use self::frontend::{GetMetadata, GetRuntimeVersion};
 // re-exports
 pub use self::{
-	block_exec::BlockExecutor,
 	database::{KeyValuePair, ReadOnlyDB, SecondaryRocksDB},
 	error::BackendError,
 	frontend::{runtime_api, RuntimeConfig, TArchiveClient},

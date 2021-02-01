@@ -37,8 +37,6 @@ use sp_storage::well_known_keys;
 use sp_version::RuntimeVersion;
 use sp_wasm_interface::HostFunctions;
 
-use substrate_archive_common::types::Block;
-
 use crate::{
 	database::ReadOnlyDB,
 	error::{BackendError, Result},
@@ -115,27 +113,6 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 		Ok(versions)
 	}
 
-	/// Finds the versions of all the blocks.
-	/// Returns a new set of type `Block`.
-	///
-	/// # Panics
-	/// panics if our search fails to get the version for a block
-	pub fn find_versions_as_blocks(&self, blocks: Vec<SignedBlock<B>>) -> Result<Vec<Block<B>>>
-	where
-		NumberFor<B>: Into<u32>,
-	{
-		let versions = self.find_versions(&blocks)?;
-		Ok(blocks
-			.into_iter()
-			.map(|b| {
-				let v = versions.iter().find(|v| v.contains_block(b.block.header().number())).unwrap_or_else(|| {
-					panic!("Could not find a runtime version for block #{}", b.block.header().number());
-				});
-				Block::new(b, v.version.spec_version)
-			})
-			.collect())
-	}
-
 	/// This can be thought of as similar to a recursive Binary Search
 	fn find_pivot(&self, blocks: &[SignedBlock<B>], versions: &mut Vec<VersionRange<B>>) -> Result<()> {
 		if blocks.is_empty() {
@@ -176,7 +153,7 @@ impl<B: BlockT> VersionRange<B> {
 		Self { start: *first.block.header().number(), end: *last.block.header().number(), version }
 	}
 
-	fn contains_block(&self, b: &NumberFor<B>) -> bool {
+	pub fn contains_block(&self, b: &NumberFor<B>) -> bool {
 		(self.start..=self.end).contains(b)
 	}
 }

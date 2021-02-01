@@ -34,7 +34,6 @@ use sp_blockchain::Error as BlockchainError;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDB};
-use substrate_archive_common::types::Die;
 
 use self::workers::GetState;
 pub use self::{
@@ -43,10 +42,10 @@ pub use self::{
 };
 use crate::{
 	archive::Archive,
-	database::{queries, Channel, Listener},
+	database::{models::BlockModelDecoder, queries, Channel, Listener},
 	error::Result,
-	sql_block_builder::SqlBlockBuilder,
 	tasks::Environment,
+	types::Die,
 };
 
 // TODO: Split this up into two objects
@@ -265,7 +264,7 @@ where
 		Listener::builder(pg_url, move |notif, conn| {
 			async move {
 				let block = queries::get_full_block_by_id(conn, notif.id).await?;
-				let b: (B, u32) = SqlBlockBuilder::with_single(block)?;
+				let b: (B, u32) = BlockModelDecoder::with_single(block)?;
 				crate::tasks::execute_block::<B, R, C, D>(b.0, PhantomData).enqueue(conn).await?;
 				Ok(())
 			}
@@ -294,7 +293,7 @@ where
 			.collect();
 		missing_storage_blocks.retain(|b| difference.contains(&(b.block_num as u32)));
 		let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> =
-			SqlBlockBuilder::with_vec(missing_storage_blocks)?
+			BlockModelDecoder::with_vec(missing_storage_blocks)?
 				.into_iter()
 				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 				.collect();

@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{env, fmt, io};
+use std::{env, fmt, io, num};
 use thiserror::Error;
 
 pub type Result<T, E = ArchiveError> = std::result::Result<T, E>;
@@ -21,10 +21,13 @@ pub type Result<T, E = ArchiveError> = std::result::Result<T, E>;
 /// Substrate Archive Error Enum
 #[derive(Debug, Error)]
 pub enum ArchiveError {
+	// Rust std error
 	#[error(transparent)]
 	Io(#[from] io::Error),
 	#[error(transparent)]
 	Env(#[from] env::VarError),
+	#[error(transparent)]
+	Conversion(#[from] num::TryFromIntError),
 
 	// encoding error
 	#[error(transparent)]
@@ -55,13 +58,18 @@ pub enum ArchiveError {
 	Disconnected,
 	#[error("Sending on a disconnected channel")]
 	Channel,
+
+	#[error("{0}")]
+	ConvertStorageChanges(String),
+
 	// archive backend error
 	#[error("Backend error: {0}")]
 	Backend(#[from] substrate_archive_backend::BackendError),
-	#[error(transparent)]
-	Conversion(#[from] std::num::TryFromIntError),
+
+	// WASM tracing error
 	#[error("Tracing: {0}")]
 	Trace(#[from] TracingError),
+
 	#[error("Rust Standard Library does not support negative durations")]
 	TimestampOutOfRange,
 }

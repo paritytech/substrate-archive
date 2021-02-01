@@ -26,19 +26,19 @@ use xtra::prelude::*;
 
 use sc_client_api::backend;
 use serde::de::DeserializeOwned;
-use sp_api::{ApiExt, ConstructRuntimeApi};
+use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
 	generic::BlockId,
 	traits::{Block as BlockT, Header, NumberFor},
 };
 
-use substrate_archive_backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend, ReadOnlyDB};
-use substrate_archive_common::types::Storage;
+use substrate_archive_backend::{ApiAccess, ReadOnlyBackend as Backend, ReadOnlyDB};
 
 use crate::{
 	actors::StorageAggregator,
-	error::TracingError,
+	error::{ArchiveError, TracingError},
+	types::Storage,
 	wasm_tracing::{SpansAndEvents, TraceHandler, Traces},
 };
 
@@ -73,6 +73,105 @@ where
 		tracing_targets: Option<String>,
 	) -> Self {
 		Self { backend, client, storage, tracing_targets, _marker: PhantomData }
+	}
+}
+
+pub type StorageKey = Vec<u8>;
+pub type StorageValue = Vec<u8>;
+pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
+pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
+
+/// Storage Changes that occur as a result of a block's executions
+#[derive(Clone, Debug)]
+pub struct BlockChanges<Block: BlockT> {
+	/// In memory array of storage values.
+	pub storage_changes: StorageCollection,
+	/// In memory arrays of storage values for multiple child tries.
+	pub child_storage: ChildStorageCollection,
+	/// Hash of the block these changes come from
+	pub block_hash: Block::Hash,
+	pub block_num: NumberFor<Block>,
+}
+
+impl<Block> From<BlockChanges<Block>> for Storage<Block>
+where
+	Block: BlockT,
+	NumberFor<Block>: Into<u32>,
+{
+	fn from(changes: BlockChanges<Block>) -> Storage<Block> {
+		use sp_storage::{StorageData, StorageKey};
+
+		let hash = changes.block_hash;
+		let num: u32 = changes.block_num.into();
+
+		Storage::new(
+			hash,
+			num,
+			false,
+			changes
+				.storage_changes
+				.into_iter()
+				.map(|s| (StorageKey(s.0), s.1.map(StorageData)))
+				.collect::<Vec<(StorageKey, Option<StorageData>)>>(),
+		)
+	}
+}
+
+pub struct BlockExecutor<'a, Block, Api, B>
+where
+	Block: BlockT,
+	Api: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+		+ ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
+	B: backend::Backend<Block>,
+{
+	api: ApiRef<'a, Api>,
+	backend: &'a Arc<B>,
+	block: Block,
+	id: BlockId<Block>,
+}
+
+impl<'a, Block, Api, B> BlockExecutor<'a, Block, Api, B>
+where
+	Block: BlockT,
+	Api: BlockBuilderApi<Block, Error = sp_blockchain::Error>
+		+ ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
+	B: backend::Backend<Block>,
+{
+	pub fn new(api: ApiRef<'a, Api>, backend: &'a Arc<B>, block: Block) -> Self {
+		let header = block.header();
+		let parent_hash = header.parent_hash();
+		let id = BlockId::Hash(*parent_hash);
+
+		Self { api, backend, block, id }
+	}
+
+	pub fn block_into_storage(self) -> Result<BlockChanges<Block>, ArchiveError> {
+		let header = (&self.block).header();
+		let parent_hash = *header.parent_hash();
+		let hash = header.hash();
+		let num = *header.number();
+
+		let state = self.backend.state_at(self.id)?;
+
+		// Wasm runtime calculates a different number of digest items
+		// than what we have in the block
+		// We don't do anything with consensus
+		// so digest isn't very important (we don't currently index digest items anyway)
+		// popping a digest item has no effect on storage changes afaik
+		let (mut header, ext) = self.block.deconstruct();
+		header.digest_mut().pop();
+		let block = Block::new(header, ext);
+
+		self.api.execute_block(&self.id, block)?;
+		let storage_changes =
+			self.api.into_storage_changes(&state, None, parent_hash).map_err(ArchiveError::ConvertStorageChanges)?;
+
+		Ok(BlockChanges {
+			storage_changes: storage_changes.main_storage_changes,
+			child_storage: storage_changes.child_storage_changes,
+			block_hash: hash,
+			block_num: num,
+		})
 	}
 }
 
@@ -125,7 +224,7 @@ where
 		let _guard = handler.map(tracing::subscriber::set_default);
 
 		let now = std::time::Instant::now();
-		let block = BlockExecutor::new(api, &env.backend, block)?.block_into_storage()?;
+		let block = BlockExecutor::new(api, &env.backend, block).block_into_storage()?;
 		log::debug!("Took {:?} to execute block", now.elapsed());
 
 		Storage::from(block)

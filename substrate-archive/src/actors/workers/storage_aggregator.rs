@@ -21,11 +21,10 @@ use xtra::prelude::*;
 
 use sp_runtime::traits::Block as BlockT;
 
-use substrate_archive_common::types::{BatchStorage, Die, Storage};
-
 use crate::{
 	actors::{actor_pool::ActorPool, workers::database::DatabaseActor},
 	error::Result,
+	types::{BatchStorage, Die, Storage},
 	wasm_tracing::Traces,
 };
 

@@ -29,8 +29,8 @@ pub mod archive;
 mod database;
 mod error;
 mod migrations;
-mod sql_block_builder;
 mod tasks;
+mod types;
 mod wasm_tracing;
 
 pub use self::actors::System;

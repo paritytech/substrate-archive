@@ -19,6 +19,7 @@
 
 mod batch;
 pub mod listener;
+pub mod models;
 pub mod queries;
 
 use std::convert::{TryFrom, TryInto};
@@ -32,12 +33,12 @@ use sqlx::{
 };
 
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
-use substrate_archive_common::{models::StorageModel, types::*};
 
 use self::batch::Batch;
-pub use self::listener::*;
+pub use self::{listener::*, models::*};
 use crate::{
 	error::{ArchiveError, Result},
+	types::*,
 	wasm_tracing::Traces,
 };
 

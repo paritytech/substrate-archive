@@ -17,6 +17,4 @@
 #![forbid(unsafe_code)]
 #![deny(dead_code)]
 
-pub mod models;
-pub mod types;
 pub mod util;

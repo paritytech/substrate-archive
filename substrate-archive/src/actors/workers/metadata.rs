@@ -21,7 +21,6 @@ use sp_runtime::{
 	traits::{Block as BlockT, NumberFor},
 };
 use substrate_archive_backend::Meta;
-use substrate_archive_common::types::{BatchBlock, Block, Die, Metadata};
 
 use crate::{
 	actors::{
@@ -30,6 +29,7 @@ use crate::{
 	},
 	database::{queries, DbConn},
 	error::Result,
+	types::{BatchBlock, Block, Die, Metadata},
 };
 
 /// Actor to fetch metadata about a block/blocks from RPC

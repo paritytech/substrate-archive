@@ -8401,6 +8401,7 @@ dependencies = [
  "sp-blockchain",
  "sp-core",
  "sp-runtime",
+ "sp-storage",
  "sp-tracing",
  "sqlx",
  "substrate-archive-backend",
@@ -8441,7 +8442,6 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "sp-wasm-interface",
- "substrate-archive-common",
  "thiserror",
 ]
 
