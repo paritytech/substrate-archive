@@ -35,9 +35,8 @@ use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT, One},
 };
 
-use substrate_archive_common::ReadOnlyDB;
-
 use crate::{
+	database::ReadOnlyDB,
 	error::{BackendError, Result},
 	read_only_backend::{ReadOnlyBackend, TrieState},
 };

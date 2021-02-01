@@ -42,11 +42,9 @@ use sp_runtime::{
 	Justification,
 };
 
-use substrate_archive_common::ReadOnlyDB;
-
 pub use self::state_backend::TrieState;
 use self::state_backend::{DbState, StateVault};
-use crate::{error::Result, util::columns};
+use crate::{database::ReadOnlyDB, error::Result, util::columns};
 
 pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDB> {
 	db: Arc<D>,

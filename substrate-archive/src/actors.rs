@@ -33,8 +33,8 @@ use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_blockchain::Error as BlockchainError;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
-use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend};
-use substrate_archive_common::{types::Die, ReadOnlyDB};
+use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDB};
+use substrate_archive_common::types::Die;
 
 use self::workers::GetState;
 pub use self::{

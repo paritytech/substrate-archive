@@ -29,8 +29,8 @@ use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
 
-use substrate_archive_backend::{runtime_api, ReadOnlyBackend, RuntimeConfig, TArchiveClient};
-use substrate_archive_common::{util, ReadOnlyDB};
+use substrate_archive_backend::{runtime_api, ReadOnlyBackend, ReadOnlyDB, RuntimeConfig, TArchiveClient};
+use substrate_archive_common::util;
 
 use crate::{
 	actors::{System, SystemConfig},

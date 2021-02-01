@@ -40,7 +40,7 @@ use self::frontend::{GetMetadata, GetRuntimeVersion};
 // re-exports
 pub use self::{
 	block_exec::BlockExecutor,
-	database::SecondaryRocksDB,
+	database::{KeyValuePair, ReadOnlyDB, SecondaryRocksDB},
 	error::BackendError,
 	frontend::{runtime_api, RuntimeConfig, TArchiveClient},
 	read_only_backend::ReadOnlyBackend,

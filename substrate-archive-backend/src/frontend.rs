@@ -30,10 +30,8 @@ use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
-use substrate_archive_common::ReadOnlyDB;
-
 pub use self::client::{Client, GetMetadata, GetRuntimeVersion};
-use crate::{error::BackendError, read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
+use crate::{database::ReadOnlyDB, error::BackendError, read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
 pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;

@@ -29,11 +29,12 @@ use sp_runtime::{
 	Justification,
 };
 
-use substrate_archive_common::ReadOnlyDB;
-
-use crate::read_only_backend::{
-	misc_backend::{OffchainStorageBackend, RealBlockImportOperation},
-	ReadOnlyBackend,
+use crate::{
+	database::ReadOnlyDB,
+	read_only_backend::{
+		misc_backend::{OffchainStorageBackend, RealBlockImportOperation},
+		ReadOnlyBackend,
+	},
 };
 
 type ChainResult<T> = Result<T, BlockchainError>;

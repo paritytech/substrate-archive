@@ -37,9 +37,10 @@ use sp_storage::well_known_keys;
 use sp_version::RuntimeVersion;
 use sp_wasm_interface::HostFunctions;
 
-use substrate_archive_common::{types::Block, ReadOnlyDB};
+use substrate_archive_common::types::Block;
 
 use crate::{
+	database::ReadOnlyDB,
 	error::{BackendError, Result},
 	read_only_backend::ReadOnlyBackend,
 };

@@ -21,11 +21,8 @@ use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, Header as _, NumberFor},
 };
-use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
-use substrate_archive_common::{
-	types::{BatchBlock, Block, Die},
-	ReadOnlyDB,
-};
+use substrate_archive_backend::{ReadOnlyBackend, ReadOnlyDB, RuntimeVersionCache};
+use substrate_archive_common::types::{BatchBlock, Block, Die};
 
 use crate::{
 	actors::{

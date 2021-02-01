@@ -33,8 +33,8 @@ use sp_runtime::{
 	traits::{Block as BlockT, Header, NumberFor},
 };
 
-use substrate_archive_backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend};
-use substrate_archive_common::{types::Storage, ReadOnlyDB};
+use substrate_archive_backend::{ApiAccess, BlockExecutor, ReadOnlyBackend as Backend, ReadOnlyDB};
+use substrate_archive_common::types::Storage;
 
 use crate::{
 	actors::StorageAggregator,

@@ -17,9 +17,6 @@
 #![forbid(unsafe_code)]
 #![deny(dead_code)]
 
-mod database;
 pub mod models;
 pub mod types;
 pub mod util;
-
-pub use self::database::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS};
