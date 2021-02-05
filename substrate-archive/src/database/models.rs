@@ -71,13 +71,12 @@ impl<'a, B: BlockT> BlockModelDecoder<B> {
 		let state_root = Decode::decode(&mut block.state_root.as_slice())?;
 		let parent_hash = Decode::decode(&mut block.parent_hash.as_slice())?;
 		let digest = Decode::decode(&mut block.digest.as_slice())?;
-		let header = <B::Header as HeaderT>::new(block_num, extrinsics_root, state_root, parent_hash, digest);
 		let ext = Decode::decode(&mut block.ext.as_slice())?;
+		let header = <B::Header as HeaderT>::new(block_num, extrinsics_root, state_root, parent_hash, digest);
 
 		let spec = block.spec as u32;
 
-		let block = B::new(header, ext);
-		Ok((block, spec))
+		Ok((B::new(header, ext), spec))
 	}
 }
 
