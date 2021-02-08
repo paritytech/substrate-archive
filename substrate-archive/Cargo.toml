@@ -10,7 +10,7 @@ async-trait = "0.1"
 coil = { git = "https://github.com/insipx/coil" }
 log = "0.4"
 fdlimit = "0.2"
-flume = "0.10.1"
+flume = "0.10.2"
 futures = "0.3"
 hashbrown = { version = "0.9", features = ["inline-more"] }
 hex = "0.4"
