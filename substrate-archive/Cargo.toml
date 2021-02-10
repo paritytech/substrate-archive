@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 # external
 async-trait = "0.1"
-coil = { git = "https://github.com/insipx/coil" }
+coil = "0.2"
 log = "0.4"
 fdlimit = "0.2"
 flume = "0.10.2"
@@ -24,7 +24,7 @@ rmp-serde = "0.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 smol = "1.2"
-sqlx = { version = "0.4", default-features = false, features = ["postgres", "macros", "runtime-async-std-rustls", "migrate", "json", "offline", "chrono"] }
+sqlx = { version = "0.5", default-features = false, features = ["postgres", "macros", "runtime-async-std-rustls", "migrate", "json", "offline", "chrono"] }
 tempfile = "3.2.0"
 thiserror = "1.0"
 xtra = { version = "0.5.0-rc.1", features = ["with-smol-1"] }

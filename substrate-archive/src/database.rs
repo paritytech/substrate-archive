@@ -29,7 +29,6 @@ use codec::Encode;
 use sqlx::{
 	pool::PoolConnection,
 	postgres::{PgPool, PgPoolOptions, Postgres},
-	prelude::*,
 };
 
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
