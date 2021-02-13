@@ -164,6 +164,7 @@ impl TraceHandler {
 
 	// we need this because we don't know the values until after tracing has been executed
 	/// Returns true if a span is part of an enabled Target. Checks WASM in addition to the spans target.
+	#[allow(clippy::suspicious_operation_groupings)]
 	fn is_enabled(&self, span: &SpanMessage) -> bool {
 		let wasm_target = span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string());
 
