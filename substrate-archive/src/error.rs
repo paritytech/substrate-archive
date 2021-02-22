@@ -21,7 +21,7 @@ pub type Result<T, E = ArchiveError> = std::result::Result<T, E>;
 /// Substrate Archive Error Enum
 #[derive(Debug, Error)]
 pub enum ArchiveError {
-	// Rust std error
+	// Rust std io error
 	#[error(transparent)]
 	Io(#[from] io::Error),
 	#[error(transparent)]

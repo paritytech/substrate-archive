@@ -36,7 +36,7 @@ pub trait ReadOnlyDB: Send + Sync {
 	fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = KeyValuePair> + 'a>;
 	/// Catch up with the latest information added to the database
 	fn catch_up_with_primary(&self) -> io::Result<()>;
-	// Open database as read-only
+	/// Open database as read-only
 	fn open_database(path: &str, cache_size: usize, db_path: PathBuf) -> io::Result<Self>
 	where
 		Self: Sized;
