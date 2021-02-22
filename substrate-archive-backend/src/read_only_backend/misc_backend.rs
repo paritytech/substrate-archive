@@ -32,10 +32,7 @@ use sp_runtime::{
 use sp_state_machine::{ChangesTrieTransaction, ChildStorageCollection, StorageCollection};
 use sp_storage::Storage;
 
-use substrate_archive_common::ReadOnlyDB;
-
-use crate::read_only_backend::ReadOnlyBackend;
-use crate::util::columns;
+use crate::{database::ReadOnlyDB, read_only_backend::ReadOnlyBackend, util::columns};
 
 type ChainResult<T> = Result<T, BlockchainError>;
 

@@ -18,10 +18,16 @@
 //! Only some types implemented, for convenience most types are already in their database model
 //! equivalents
 
+use std::marker::PhantomData;
+
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use sp_runtime::traits::Block as BlockT;
+use codec::{Decode, Encode, Error as DecodeError};
+use sp_runtime::{
+	generic::SignedBlock,
+	traits::{Block as BlockT, Header as HeaderT},
+};
 use sp_storage::{StorageData, StorageKey};
 
 use crate::types::*;
@@ -38,6 +44,40 @@ pub struct BlockModel {
 	pub digest: Vec<u8>,
 	pub ext: Vec<u8>,
 	pub spec: i32,
+}
+
+/// Helper struct for decoding block modeling data into block type.
+pub struct BlockModelDecoder<B: BlockT> {
+	_marker: PhantomData<B>,
+}
+
+impl<'a, B: BlockT> BlockModelDecoder<B> {
+	/// With a vector of BlockModel
+	pub fn with_vec(blocks: Vec<BlockModel>) -> Result<Vec<Block<B>>, DecodeError> {
+		blocks
+			.into_iter()
+			.map(|b| {
+				let (block, spec) = Self::with_single(b)?;
+				let block = SignedBlock { block, justification: None };
+				Ok(Block::new(block, spec))
+			})
+			.collect()
+	}
+
+	/// With a single BlockModel
+	pub fn with_single(block: BlockModel) -> Result<(B, u32), DecodeError> {
+		let block_num = Decode::decode(&mut (block.block_num as u32).encode().as_slice())?;
+		let extrinsics_root = Decode::decode(&mut block.extrinsics_root.as_slice())?;
+		let state_root = Decode::decode(&mut block.state_root.as_slice())?;
+		let parent_hash = Decode::decode(&mut block.parent_hash.as_slice())?;
+		let digest = Decode::decode(&mut block.digest.as_slice())?;
+		let ext = Decode::decode(&mut block.ext.as_slice())?;
+		let header = <B::Header as HeaderT>::new(block_num, extrinsics_root, state_root, parent_hash, digest);
+
+		let spec = block.spec as u32;
+
+		Ok((B::new(header, ext), spec))
+	}
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

@@ -29,13 +29,12 @@ use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
 
-use substrate_archive_backend::{runtime_api, ReadOnlyBackend, RuntimeConfig, TArchiveClient};
-use substrate_archive_common::{util, ReadOnlyDB};
+use substrate_archive_backend::{runtime_api, ReadOnlyBackend, ReadOnlyDB, RuntimeConfig, TArchiveClient};
 
 use crate::{
 	actors::{System, SystemConfig},
 	error::Result,
-	migrations,
+	migrations, util,
 };
 
 const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";

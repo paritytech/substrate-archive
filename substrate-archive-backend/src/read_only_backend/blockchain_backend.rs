@@ -30,9 +30,8 @@ use sp_runtime::{
 	Justification,
 };
 
-use substrate_archive_common::ReadOnlyDB;
-
 use crate::{
+	database::ReadOnlyDB,
 	read_only_backend::ReadOnlyBackend,
 	util::{self, columns},
 };

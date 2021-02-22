@@ -25,9 +25,11 @@ use sp_runtime::{
 	generic::BlockId,
 	traits::{Block as BlockT, Header as HeaderT, UniqueSaturatedFrom, UniqueSaturatedInto, Zero},
 };
-use substrate_archive_common::ReadOnlyDB;
 
-use crate::error::{BackendError, Result};
+use crate::{
+	database::ReadOnlyDB,
+	error::{BackendError, Result},
+};
 
 pub type NumberIndexKey = [u8; 4];
 

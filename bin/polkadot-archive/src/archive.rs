@@ -21,7 +21,7 @@ use polkadot_service::westend_runtime as wnd_rt;
 use polkadot_service::Block;
 use sc_chain_spec::ChainSpec;
 use substrate_archive::{native_executor_instance, Archive, ArchiveBuilder};
-use substrate_archive_common::ReadOnlyDB;
+use substrate_archive_backend::ReadOnlyDB;
 
 native_executor_instance!(
 	pub PolkadotExecutor,

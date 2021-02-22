@@ -14,20 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::{marker::PhantomData, time::Duration};
+
 use sp_runtime::traits::{Block as BlockT, NumberFor};
-use std::marker::PhantomData;
-use std::time::Duration;
 
 use xtra::prelude::*;
 
-use substrate_archive_common::{
-	models::StorageModel,
-	types::{BatchBlock, BatchStorage, Block, Die, Metadata, Storage},
-};
-
 use crate::{
-	database::{queries, Database, DbConn},
+	database::{models::StorageModel, queries, Database, DbConn},
 	error::Result,
+	types::{BatchBlock, BatchStorage, Block, Die, Metadata, Storage},
 	wasm_tracing::Traces,
 };
 

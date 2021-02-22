@@ -14,9 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::env;
-use std::fmt;
-use std::string::ToString;
+use std::{env, fmt, string::ToString};
 
 use sqlx::{postgres::PgConnection, Connection};
 

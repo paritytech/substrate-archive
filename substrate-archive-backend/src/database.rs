@@ -23,7 +23,24 @@ use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 
 use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
-use substrate_archive_common::{KeyValuePair, ReadOnlyDB, NUM_COLUMNS};
+
+const NUM_COLUMNS: u32 = 11;
+
+pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
+
+// Archive specific K/V database reader implementation
+pub trait ReadOnlyDB: Send + Sync {
+	/// Read key/value pairs from the database
+	fn get(&self, col: u32, key: &[u8]) -> Option<Vec<u8>>;
+	/// Iterate over all blocks in the database
+	fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = KeyValuePair> + 'a>;
+	/// Catch up with the latest information added to the database
+	fn catch_up_with_primary(&self) -> io::Result<()>;
+	/// Open database as read-only
+	fn open_database(path: &str, cache_size: usize, db_path: PathBuf) -> io::Result<Self>
+	where
+		Self: Sized;
+}
 
 pub struct Config {
 	pub config: DatabaseConfig,

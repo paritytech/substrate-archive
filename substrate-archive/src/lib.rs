@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Parity Technologies (UK) Ltd.
+// Copyright 2018-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -21,16 +21,18 @@
 pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
 pub use sp_runtime::MultiSignature;
+
 #[cfg(feature = "logging")]
-pub use substrate_archive_common::util::init_logger;
+pub mod logger;
 
 mod actors;
 pub mod archive;
 mod database;
 mod error;
 mod migrations;
-mod sql_block_builder;
 mod tasks;
+mod types;
+mod util;
 mod wasm_tracing;
 
 pub use self::actors::System;

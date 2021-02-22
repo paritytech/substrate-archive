@@ -24,7 +24,7 @@ use substrate_archive_backend::SecondaryRocksDB;
 
 pub fn main() -> anyhow::Result<()> {
 	let config = config::Config::new()?;
-	substrate_archive::init_logger(config.cli().log_level, log::LevelFilter::Debug)?;
+	substrate_archive::logger::init(config.cli().log_level, log::LevelFilter::Debug)?;
 	log::debug!("CONFIG {:?}", config);
 
 	let mut archive = archive::run_archive::<SecondaryRocksDB>(config)?;

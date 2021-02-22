@@ -21,11 +21,7 @@ use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, Header as _, NumberFor},
 };
-use substrate_archive_backend::{ReadOnlyBackend, RuntimeVersionCache};
-use substrate_archive_common::{
-	types::{BatchBlock, Block, Die},
-	ReadOnlyDB,
-};
+use substrate_archive_backend::{ReadOnlyBackend, ReadOnlyDB, RuntimeVersionCache};
 
 use crate::{
 	actors::{
@@ -38,6 +34,7 @@ use crate::{
 	},
 	database::queries,
 	error::{ArchiveError, Result},
+	types::{BatchBlock, Block, Die},
 };
 
 type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
@@ -88,7 +85,23 @@ where
 		let blocks = smol::unblock(gather_blocks).await?;
 		log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
 		let cache = self.rt_cache.clone();
-		let blocks = smol::unblock(move || cache.find_versions_as_blocks(blocks)).await?;
+		let blocks = smol::unblock(move || {
+			// Finds the versions of all the blocks, returns a new set of type `Block`.
+			// panics if our search fails to get the version for a block.
+			cache.find_versions(&blocks).map(|versions| {
+				blocks
+					.into_iter()
+					.map(|b| {
+						let version =
+							versions.iter().find(|&v| v.contains_block(b.block.header().number())).unwrap_or_else(
+								|| panic!("Could not find a runtime version for block #{}", b.block.header().number()),
+							);
+						Block::new(b, version.version.spec_version)
+					})
+					.collect()
+			})
+		})
+		.await?;
 		Ok(blocks)
 	}
 
