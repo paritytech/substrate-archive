@@ -60,7 +60,7 @@ pretty_env_logger = "0.4.0"
 flate2 = "1.0"
 bincode = "1.3"
 tempfile = "3.2"
-once_cell = "1.4.1"
+once_cell = "1.6.0"
 dotenv = "0.15.0"
 
 [features]
