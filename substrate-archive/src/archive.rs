@@ -71,8 +71,8 @@ impl Default for ChainConfig {
 	}
 }
 
-// 128 MB
-fn default_cache_size() -> usize {
+// Default cache size for the backend substrate database.
+const fn default_cache_size() -> usize {
 	128
 }
 
@@ -109,7 +109,7 @@ fn default_task_workers() -> usize {
 }
 
 // 100_000 blocks to index at once
-fn default_max_block_load() -> u32 {
+const fn default_max_block_load() -> u32 {
 	100_000
 }
 
@@ -196,7 +196,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 		self
 	}
 
-	/// Set the amount of cache Rocksdb should keep.
+	/// Set the amount of cache RocksDB should keep.
 	///
 	/// # Default
 	/// defaults to 128MB
@@ -205,7 +205,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 		self
 	}
 
-	/// Set the path of rocksdb secondary directory according to the chain spec.
+	/// Set the path of RocksDB secondary directory according to the chain spec.
 	///
 	/// # Default
 	/// defaults to storing metadata in a temporary directory.

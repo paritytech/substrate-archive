@@ -7,7 +7,7 @@ data_path = "/home/insipx/.local/share/node-template/chains/dev/db"
 # Optional, default: 128
 cache_size = 128
 
-# Rocksdb secondary directory, output will be `./output/rocksdb_secondary/`
+# RocksDB secondary directory, output will be `./output/rocksdb_secondary/`
 # Optional, default: /<local>/substrate_archive/rocksdb_secondary/
 rocksdb_secondary_path = "./output/"
 
@@ -27,6 +27,7 @@ wasm_pages = 512
 [database]
 # Database url.
 # Can also be specified via the `DATABASE_URL` environment variable
+# More info on the wiki: https://github.com/paritytech/substrate-archive/wiki/1.)-Requirements
 url = "postgres://user:pass@localhost:5432/archive"
 
 [log]

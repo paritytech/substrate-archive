@@ -7,7 +7,7 @@ data_path = "/home/insipx/.local/share/polkadot/chains/polkadot/db"
 # Optional, default: 128
 cache_size = 128
 
-# Rocksdb secondary directory, output will be `./output/rocksdb_secondary/`
+# RocksDB secondary directory, output will be `./output/rocksdb_secondary/`
 # Optional, default: /<local>/substrate_archive/rocksdb_secondary/
 rocksdb_secondary_path = "./output/"
 
@@ -22,7 +22,6 @@ rocksdb_secondary_path = "./output/"
 # else the wasm executor will run out of memory.
 # This also increases substrate-archives memory usage.
 # Generally, you want 32 pages per block worker
-# memory usage
 block_workers = 8
 
 # Number of 64KB Heap Pages to allocate for WASM execution
@@ -31,10 +30,11 @@ wasm_pages = 2048
 
 [database]
 # Database url.
-# Each chain will get it's own PostgreSQL database if run with that chain
+# Each chain needs it's own PostgreSQL database
 # A fully synced Kusama PostgreSQL database (~2.8Million blocks) takes up around 70GB
 # These variables can also be exposed with DB_NAME environment variable
 # Can also be specified via the `DATABASE_URL` environment variable
+# More info on the wiki: https://github.com/paritytech/substrate-archive/wiki/1.)-Requirements
 url = "postgres://postgres:123@localhost:5432/polkadot-archive"
 
 [log]
