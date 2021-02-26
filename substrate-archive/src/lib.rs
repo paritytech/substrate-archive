@@ -32,8 +32,8 @@ mod tasks;
 mod types;
 mod wasm_tracing;
 
-pub use self::actors::System;
-pub use self::archive::{Archive, ArchiveBuilder, ArchiveConfig, ChainConfig, ControlConfig, TracingConfig};
+pub use self::actors::{ControlConfig, System};
+pub use self::archive::{Archive, ArchiveBuilder, ArchiveConfig, ChainConfig, TracingConfig};
 pub use self::database::{queries, DatabaseConfig};
 pub use self::error::ArchiveError;
 

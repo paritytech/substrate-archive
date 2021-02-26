@@ -24,7 +24,7 @@ use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duratio
 use coil::Job as _;
 use futures::{future::BoxFuture, FutureExt};
 use hashbrown::HashSet;
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Deserialize};
 use xtra::{prelude::*, spawn::Smol, Disconnected};
 
 use sc_client_api::backend;
@@ -60,8 +60,7 @@ where
 	pub backend: Arc<ReadOnlyBackend<B, D>>,
 	pub pg_url: String,
 	pub meta: Meta<B>,
-	pub workers: usize,
-	pub max_block_load: u32,
+	pub control: ControlConfig,
 	pub tracing_targets: Option<String>,
 }
 
@@ -74,11 +73,62 @@ where
 			backend: Arc::clone(&self.backend),
 			pg_url: self.pg_url.clone(),
 			meta: self.meta.clone(),
-			workers: self.workers,
-			max_block_load: self.max_block_load,
+			control: self.control,
 			tracing_targets: self.tracing_targets.clone(),
 		}
 	}
+}
+
+#[derive(Copy, Clone, Debug, Deserialize)]
+pub struct ControlConfig {
+	/// number of database actors to be spawned in the actor pool.
+	#[serde(default = "default_db_actor_pool_size")]
+	pub(crate) db_actor_pool_size: usize,
+	/// number of threads to spawn for task execution.
+	#[serde(default = "default_task_workers")]
+	pub(crate) task_workers: usize,
+	/// maximum amount of time coil will wait for a task to begin.
+	/// times out if tasks don't start execution in the threadpool within `task_timeout` seconds.
+	#[serde(default = "default_task_timeout")]
+	pub(crate) task_timeout: u64,
+	/// maximum tasks to queue in the threadpool.
+	#[serde(default = "default_task_workers")]
+	pub(crate) max_tasks: usize,
+	/// maximum amount of blocks to index at once
+	#[serde(default = "default_max_block_load")]
+	pub(crate) max_block_load: u32,
+}
+
+impl Default for ControlConfig {
+	fn default() -> Self {
+		Self {
+			db_actor_pool_size: default_db_actor_pool_size(),
+			task_workers: default_task_workers(),
+			task_timeout: default_task_timeout(),
+			max_tasks: default_max_tasks(),
+			max_block_load: default_max_block_load(),
+		}
+	}
+}
+
+const fn default_db_actor_pool_size() -> usize {
+	4
+}
+
+fn default_task_workers() -> usize {
+	num_cpus::get()
+}
+
+const fn default_task_timeout() -> u64 {
+	20
+}
+
+const fn default_max_tasks() -> usize {
+	64
+}
+
+const fn default_max_block_load() -> u32 {
+	100_000
 }
 
 impl<B: BlockT + Unpin, D: ReadOnlyDB> SystemConfig<B, D>
@@ -89,11 +139,10 @@ where
 		backend: Arc<ReadOnlyBackend<B, D>>,
 		pg_url: String,
 		meta: Meta<B>,
-		workers: usize,
-		max_block_load: u32,
+		control: ControlConfig,
 		tracing_targets: Option<String>,
 	) -> Self {
-		Self { backend, pg_url, meta, workers, max_block_load, tracing_targets }
+		Self { backend, pg_url, meta, control, tracing_targets }
 	}
 
 	pub fn backend(&self) -> &Arc<ReadOnlyBackend<B, D>> {
@@ -207,10 +256,10 @@ where
 
 		let runner = coil::Runner::builder(env, TaskExecutor, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
-			.num_threads(conf.workers)
+			.num_threads(conf.control.task_workers)
 			// times out if tasks don't start execution on the threadpool within 20 seconds.
-			.timeout(Duration::from_secs(20))
-			.max_tasks(64)
+			.timeout(Duration::from_secs(conf.control.task_timeout))
+			.max_tasks(conf.control.max_tasks)
 			.build()?;
 
 		loop {
@@ -237,7 +286,8 @@ where
 
 	async fn spawn_actors(conf: SystemConfig<B, D>) -> Result<Actors<B, D>> {
 		let db = workers::DatabaseActor::<B>::new(conf.pg_url().into()).await?;
-		let db_pool = actor_pool::ActorPool::new(db, 4).create(None).spawn(&mut Smol::Global);
+		let db_pool =
+			actor_pool::ActorPool::new(db, conf.control.db_actor_pool_size).create(None).spawn(&mut Smol::Global);
 		let storage = workers::StorageAggregator::new(db_pool.clone()).create(None).spawn(&mut Smol::Global);
 		let metadata = workers::MetadataActor::new(db_pool.clone(), conf.meta().clone())
 			.await?
@@ -345,7 +395,7 @@ where
 		Ok(())
 	}
 
-	fn context(&self) -> Result<super::actors::SystemConfig<B, D>> {
-		Ok(self.config.clone())
+	fn context(&self) -> &SystemConfig<B, D> {
+		&self.config
 	}
 }

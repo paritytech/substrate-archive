@@ -34,7 +34,7 @@ use substrate_archive_backend::{
 };
 
 use crate::{
-	actors::{System, SystemConfig},
+	actors::{ControlConfig, System, SystemConfig},
 	database::{self, DatabaseConfig},
 	error::Result,
 	logger::{self, FileLoggerConfig, LoggerConfig},
@@ -88,31 +88,6 @@ pub struct TracingConfig {
 	pub folder: Option<PathBuf>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
-pub struct ControlConfig {
-	/// number of threads to spawn for task execution.
-	#[serde(default = "default_task_workers")]
-	pub(crate) task_workers: usize,
-	/// maximum amount of blocks to index at once
-	#[serde(default = "default_max_block_load")]
-	pub(crate) max_block_load: u32,
-}
-
-impl Default for ControlConfig {
-	fn default() -> Self {
-		Self { task_workers: default_task_workers(), max_block_load: default_max_block_load() }
-	}
-}
-
-fn default_task_workers() -> usize {
-	num_cpus::get()
-}
-
-// 100_000 blocks to index at once
-const fn default_max_block_load() -> u32 {
-	100_000
-}
-
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ArchiveConfig {
 	/// chain spec and database
@@ -144,7 +119,7 @@ where
 	fn drive(&mut self) -> Result<()>;
 
 	/// this method will block indefinitely
-	async fn block_until_stopped(&self) -> ();
+	async fn block_until_stopped(&self);
 
 	/// shutdown the system
 	fn shutdown(self) -> Result<()>;
@@ -153,7 +128,7 @@ where
 	fn boxed_shutdown(self: Box<Self>) -> Result<()>;
 
 	/// Get a reference to the context the actors are using
-	fn context(&self) -> Result<SystemConfig<B, D>>;
+	fn context(&self) -> &SystemConfig<B, D>;
 }
 
 pub struct ArchiveBuilder<B, R, D, DB> {
@@ -241,12 +216,21 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 		self
 	}
 
-	/// Number of 64KB Heap Pages to allocate for WASM execution
+	/// Set the number of 64KB Heap Pages to allocate for WASM execution
 	///
 	/// # Default
 	/// defaults to 64 * (number of logic cpu's)
 	pub fn wasm_pages(mut self, pages: u64) -> Self {
 		self.config.runtime.wasm_pages = pages;
+		self
+	}
+
+	/// Set the number of database actors to be spawned in the actor pool.
+	///
+	/// # Default
+	/// defaults to 4
+	pub fn db_actor_pool_size(mut self, size: usize) -> Self {
+		self.config.control.db_actor_pool_size = size;
 		self
 	}
 
@@ -256,6 +240,24 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// defaults to the number of logical cpus in the system
 	pub fn task_workers(mut self, workers: usize) -> Self {
 		self.config.control.task_workers = workers;
+		self
+	}
+
+	/// Set the timeout to wait for a task to start execution.
+	///
+	/// # Default
+	/// defaults to 20 seconds
+	pub fn task_timeout(mut self, timeout: u64) -> Self {
+		self.config.control.task_timeout = timeout;
+		self
+	}
+
+	/// Set the maximum tasks to queue in the threadpool.
+	///
+	/// # Default
+	/// defaults to 64
+	pub fn max_tasks(mut self, max: usize) -> Self {
+		self.config.control.max_tasks = max;
 		self
 	}
 
@@ -392,8 +394,7 @@ where
 			backend,
 			pg_url,
 			client.clone(),
-			self.config.control.task_workers,
-			self.config.control.max_block_load,
+			self.config.control,
 			self.config.wasm_tracing.map(|t| t.targets),
 		);
 		let sys = System::<_, R, _, _>::new(client, config)?;

@@ -51,13 +51,25 @@ std = "DEBUG"
 #name = "archive.log"
 
 [control]
+# Number of database actors to be spawned.
+# Optional, default: 4
+db_actor_pool_size = 4
+
 # Number of threads to dedicate for executing tasks
 # Optional, default: the number of logical system threads
 task_workers = 8
 
+# Timeout to wait for a task to start execution.
+# Optional, default: 20 seconds
+task_timeout = 20
+
+# Maximum number of tasks to queue in the threadpool.
+# Optional, default: 64
+max_tasks = 64
+
 # Maximium number of blocks to load and insert into database at a time.
 # Useful for controlling memory usage.
-# Optional, defaults: 100,000.
+# Optional, defaults: 100,000
 max_block_load = 100000
 
 [wasm_tracing]
