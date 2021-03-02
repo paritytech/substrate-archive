@@ -55,7 +55,7 @@ fn default_file_log_level() -> log::LevelFilter {
 }
 
 fn default_file_log_name() -> String {
-	"archive.log".into()
+	"substrate-archive.log".into()
 }
 
 pub fn init(config: LoggerConfig) -> io::Result<()> {
@@ -99,9 +99,6 @@ pub fn init(config: LoggerConfig) -> io::Result<()> {
 			.level_for("staking", log::LevelFilter::Warn)
 			.level_for("cranelift_codegen", log::LevelFilter::Warn)
 			.level_for("frame_executive", log::LevelFilter::Error)
-			// .level_for("desub_core", log::LevelFilter::Debug)
-			// .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
-			// .level_for("kvdb_rocksdb", log::LevelFilter::Debug)
 			.format(move |out, message, record| {
 				out.finish(format_args!(
 					"{} [{}][{}] {}::{};{}",
@@ -113,7 +110,7 @@ pub fn init(config: LoggerConfig) -> io::Result<()> {
 					record.line().map(|l| l.to_string()).unwrap_or_default(),
 				))
 			})
-			.chain(fern::log_file(log_dir).expect("Failed to create substrate_archive.logs file"));
+			.chain(fern::log_file(log_dir).expect("Failed to create log file"));
 		fern::Dispatch::new().chain(stdout_dispatcher).chain(file_dispatcher).apply().expect("Could not init logging");
 	} else {
 		stdout_dispatcher.apply().expect("Could not init logging");

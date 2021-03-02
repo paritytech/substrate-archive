@@ -1,15 +1,15 @@
 [chain]
 # Must be an absolute path to the folder where polkadot/kusama/and westend chain data is stored
 # Can also be specified via the `CHAIN_DATA_DB` environment variable
-data_path = "/home/insipx/.local/share/polkadot/chains/polkadot/db"
+data_path = "/.local/share/polkadot/chains/polkadot/db"
 
 # How much should the read-only database keep in cache (MB)
 # Optional, default: 128
 cache_size = 128
 
-# RocksDB secondary directory, output will be `./output/rocksdb_secondary/`
+# RocksDB secondary directory
 # Optional, default: /<local>/substrate_archive/rocksdb_secondary/
-rocksdb_secondary_path = "./output/"
+rocksdb_secondary_path = "./substrate_archive/rocksdb_secondary"
 
 [runtime]
 # Specification of different methods of executing the runtime Wasm code.
@@ -25,16 +25,15 @@ rocksdb_secondary_path = "./output/"
 block_workers = 8
 
 # Number of 64KB Heap Pages to allocate for WASM execution
-# Optional, default: 64 * the number of logical system threads
-wasm_pages = 2048
+# Optional, default: 1024.
+wasm_pages = 512
 
 [database]
 # Database url.
 # Each chain needs it's own PostgreSQL database
-# A fully synced Kusama PostgreSQL database (~2.8Million blocks) takes up around 70GB
-# These variables can also be exposed with DB_NAME environment variable
-# Can also be specified via the `DATABASE_URL` environment variable
-# More info on the wiki: https://github.com/paritytech/substrate-archive/wiki/1.)-Requirements
+# Can also be specified via the `DATABASE_URL` environment variable.
+# For production use, using `DATABASE_URL` is preferable.
+# More info on the wiki: https://github.com/paritytech/substrate-archive/wiki/1.)-Requirements.
 url = "postgres://postgres:123@localhost:5432/polkadot-archive"
 
 [log]
@@ -50,6 +49,9 @@ std = "DEBUG"
 # Optional log file name, default: "archive.log"
 #name = "archive.log"
 
+# Advanced options
+#
+# Changing these may lead to unexpected results.
 [control]
 # Number of database actors to be spawned.
 # Optional, default: 4

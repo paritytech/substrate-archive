@@ -44,14 +44,14 @@ use crate::{
 /// Configure Chain.
 #[derive(Clone, Debug, Deserialize)]
 pub struct ChainConfig {
-	/// chain path to the rocksdb database.
+	/// Chain path to the rocksdb database.
 	pub(crate) data_path: Option<PathBuf>,
-	/// how much cache should rocksdb keep
+	/// How much cache should rocksdb keep.
 	#[serde(default = "default_cache_size")]
 	pub(crate) cache_size: usize,
-	/// rocksdb secondary directory
+	/// RocksDB secondary directory.
 	pub(crate) rocksdb_secondary_path: Option<PathBuf>,
-	/// chain spec.
+	/// Chain spec.
 	#[serde(skip)]
 	pub(crate) spec: Option<ChainSpecConfig>,
 }
@@ -59,9 +59,9 @@ pub struct ChainConfig {
 /// Configure Chain Spec.
 #[derive(Clone, Debug)]
 pub(crate) struct ChainSpecConfig {
-	/// chain spec name.
+	/// Chain spec name.
 	pub name: String,
-	/// chain spec id.
+	/// Chain spec id.
 	pub id: String,
 }
 
@@ -90,18 +90,18 @@ pub struct TracingConfig {
 
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ArchiveConfig {
-	/// chain spec and database
+	/// Chain spec and database.
 	#[serde(default)]
 	pub chain: ChainConfig,
-	/// runtime execution
+	/// Runtime execution.
 	#[serde(default)]
 	pub runtime: RuntimeConfig,
-	/// postgres url
+	/// Postgres config.
 	pub database: Option<DatabaseConfig>,
-	/// Control the actor system
+	/// Actor system control config.
 	#[serde(default)]
 	pub control: ControlConfig,
-	/// Logger
+	/// Logger config.
 	#[serde(default)]
 	pub log: LoggerConfig,
 	/// Enable state tracing while also specifying the targets
@@ -156,7 +156,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// in a persistent directory.
 	///
 	/// # Default
-	/// defaults to storing metadata in a temporary directory.
+	/// Defaults to storing metadata in a temporary directory.
 	pub fn chain_spec(mut self, spec: Box<dyn ChainSpec>) -> Self {
 		self.config.chain.spec = Some(ChainSpecConfig { name: spec.name().into(), id: spec.id().into() });
 		self
@@ -165,7 +165,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// Set the chain data backend path to use for this instance.
 	///
 	/// # Default
-	/// defaults to the environment variable CHAIN_DATA_DB
+	/// Defaults to the environment variable CHAIN_DATA_DB.
 	pub fn chain_data_path<S: Into<PathBuf>>(mut self, path: S) -> Self {
 		self.config.chain.data_path = Some(path.into());
 		self
@@ -174,25 +174,27 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// Set the amount of cache RocksDB should keep.
 	///
 	/// # Default
-	/// defaults to 128MB
+	/// Defaults to 128MB.
 	pub fn cache_size(mut self, cache_size: usize) -> Self {
 		self.config.chain.cache_size = cache_size;
 		self
 	}
 
-	/// Set the path of RocksDB secondary directory according to the chain spec.
+	/// Set the path to the secondary RocksDB database directory.
+	/// E.g. if you specify the path `./substrate-archive/rocksdb_secondary` and chain spec,
+	/// the actual path will be `./substrate-archive/rocksdb_secondary/<chain-spec-name>/<chain-spec-id>`.
 	///
 	/// # Default
-	/// defaults to storing metadata in a temporary directory.
+	/// Defaults to storing metadata in a temporary directory.
 	pub fn rocksdb_secondary_path<S: Into<PathBuf>>(mut self, path: S) -> Self {
 		self.config.chain.rocksdb_secondary_path = Some(path.into());
 		self
 	}
 
-	/// Set the url to the Postgres Database
+	/// Set the url to the Postgres Database.
 	///
 	/// # Default
-	/// defaults to value of the environment variable DATABASE_URL
+	/// Defaults to value of the environment variable DATABASE_URL.
 	pub fn pg_url<S: Into<String>>(mut self, url: S) -> Self {
 		self.config.database = Some(DatabaseConfig { url: url.into() });
 		self
@@ -201,7 +203,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// Set the method of executing the runtime Wasm code.
 	///
 	/// # Default
-	/// defaults to the interpreted method.
+	/// Defaults to the interpreted method.
 	pub fn execution_method(mut self, method: ExecutionMethod) -> Self {
 		self.config.runtime.exec_method = method;
 		self
@@ -210,25 +212,25 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// Set the number of threads spawn for block execution.
 	///
 	/// # Default
-	/// defaults to the number of logical cpus in the system
+	/// Defaults to the number of logical cpus in the system.
 	pub fn block_workers(mut self, workers: usize) -> Self {
 		self.config.runtime.block_workers = workers;
 		self
 	}
 
-	/// Set the number of 64KB Heap Pages to allocate for WASM execution
+	/// Set the number of 64KB Heap Pages to allocate for WASM execution.
 	///
 	/// # Default
-	/// defaults to 64 * (number of logic cpu's)
+	/// Defaults to 64 * (number of logic cpu's).
 	pub fn wasm_pages(mut self, pages: u64) -> Self {
-		self.config.runtime.wasm_pages = pages;
+		self.config.runtime.wasm_pages = Some(pages);
 		self
 	}
 
 	/// Set the number of database actors to be spawned in the actor pool.
 	///
 	/// # Default
-	/// defaults to 4
+	/// Defaults to 4.
 	pub fn db_actor_pool_size(mut self, size: usize) -> Self {
 		self.config.control.db_actor_pool_size = size;
 		self
@@ -237,7 +239,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// Set the  number of threads spawn for task execution.
 	///
 	/// # Default
-	/// defaults to the number of logical cpus in the system
+	/// Defaults to the number of logical cpus in the system.
 	pub fn task_workers(mut self, workers: usize) -> Self {
 		self.config.control.task_workers = workers;
 		self
@@ -246,7 +248,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// Set the timeout to wait for a task to start execution.
 	///
 	/// # Default
-	/// defaults to 20 seconds
+	/// Defaults to 20 seconds.
 	pub fn task_timeout(mut self, timeout: u64) -> Self {
 		self.config.control.task_timeout = timeout;
 		self
@@ -255,16 +257,16 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// Set the maximum tasks to queue in the threadpool.
 	///
 	/// # Default
-	/// defaults to 64
+	/// Defaults to 64.
 	pub fn max_tasks(mut self, max: usize) -> Self {
 		self.config.control.max_tasks = max;
 		self
 	}
 
-	/// Set the number of blocks to index at once
+	/// Set the number of blocks to index at once.
 	///
 	/// # Default
-	/// defaults to 100_000
+	/// Defaults to 100_000.
 	pub fn max_block_load(mut self, max_block_load: u32) -> Self {
 		self.config.control.max_block_load = max_block_load;
 		self
@@ -273,7 +275,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// Set the log level of stdout.
 	///
 	/// # Default
-	/// defaults to `DEBUG`
+	/// Defaults to `DEBUG`.
 	pub fn log_std_level(mut self, level: log::LevelFilter) -> Self {
 		self.config.log.std = level;
 		self
@@ -282,7 +284,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// Set the log level of file.
 	///
 	/// # Default
-	/// defaults to `DEBUG`
+	/// Defaults to `DEBUG`.
 	pub fn log_file_level(mut self, level: log::LevelFilter) -> Self {
 		if let Some(file) = &mut self.config.log.file {
 			file.level = level;
@@ -295,7 +297,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// Set the log file directory path.
 	///
 	/// # Default
-	/// defaults to `/<local>/substrate-archive`
+	/// Defaults to `/<local>/substrate-archive`.
 	pub fn log_file_dir<P: Into<PathBuf>>(mut self, dir: P) -> Self {
 		if let Some(file) = &mut self.config.log.file {
 			file.dir = Some(dir.into());
@@ -305,10 +307,10 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 		self
 	}
 
-	/// Set the log file name
+	/// Set the log file name.
 	///
 	/// # Default
-	/// defaults to `archive.log`
+	/// Defaults to `substrate-archive.log`.
 	pub fn log_file_name<S: Into<String>>(mut self, name: S) -> Self {
 		if let Some(file) = &mut self.config.log.file {
 			file.name = name.into();
@@ -362,12 +364,12 @@ where
 		log::debug!("Archive Config: {:?}", self.config);
 
 		// config chain
-		const CHAIN_DATA_VAR: &str = "CHAIN_DATA_DB";
+		const CHAIN_DATA_DB: &str = "CHAIN_DATA_DB";
 		let chain_path = self
 			.config
 			.chain
 			.data_path
-			.unwrap_or_else(|| env::var(CHAIN_DATA_VAR).expect("missing CHAIN_DATA_DB").into());
+			.unwrap_or_else(|| env::var(CHAIN_DATA_DB).expect("missing CHAIN_DATA_DB").into());
 		let chain_path = chain_path.to_str().expect("chain data path is invalid");
 		let db_path = create_database_path(self.config.chain.rocksdb_secondary_path, self.config.chain.spec)?;
 		let db = Arc::new(DB::open_database(chain_path, self.config.chain.cache_size, db_path)?);
@@ -381,12 +383,12 @@ where
 		Self::startup_info(&*client, &*backend)?;
 
 		// config postgres database
-		const POSTGRES_VAR: &str = "DATABASE_URL";
+		const DATABASE_URL: &str = "DATABASE_URL";
 		let pg_url = self
 			.config
 			.database
 			.map(|config| config.url)
-			.unwrap_or_else(|| env::var(POSTGRES_VAR).expect("missing DATABASE_URL"));
+			.unwrap_or_else(|| env::var(DATABASE_URL).expect("missing DATABASE_URL"));
 		smol::block_on(database::migrate(&pg_url))?;
 
 		// config actor system
@@ -428,17 +430,17 @@ where
 	}
 }
 
-/// Create rocksdb secondary directory if it doesn't exist yet.
+/// Create the secondary RocksDB directory if it doesn't exist yet.
 /// If the ChainSpec is not specified, a temporary directory is used.
-/// Return path to that directory
+/// Returns the path to that directory.
 ///
 /// # Panics
 ///
-/// Panics if the directories fail to be created.
+/// Panics if the directories creation fails.
 fn create_database_path(db_path: Option<PathBuf>, spec: Option<ChainSpecConfig>) -> io::Result<PathBuf> {
 	match (db_path, spec) {
 		(Some(mut db_path), Some(spec)) => {
-			db_path.extend(&["rocksdb_secondary", &spec.name, &spec.id]);
+			db_path.extend(&[&spec.name, &spec.id]);
 			fs::create_dir_all(db_path.as_path())?;
 			Ok(db_path)
 		}
@@ -449,7 +451,6 @@ fn create_database_path(db_path: Option<PathBuf>, spec: Option<ChainSpecConfig>)
 			Ok(path)
 		}
 		_ => {
-			// TODO: make sure this is cleaned up on kill
 			let mut tmp_path = tempfile::tempdir()?.into_path();
 			tmp_path.push("rocksdb_secondary");
 			Ok(tmp_path)

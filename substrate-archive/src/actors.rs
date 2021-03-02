@@ -81,20 +81,20 @@ where
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub struct ControlConfig {
-	/// number of database actors to be spawned in the actor pool.
+	/// Number of database actors to be spawned in the actor pool.
 	#[serde(default = "default_db_actor_pool_size")]
 	pub(crate) db_actor_pool_size: usize,
-	/// number of threads to spawn for task execution.
+	/// Number of threads to spawn for task execution.
 	#[serde(default = "default_task_workers")]
 	pub(crate) task_workers: usize,
-	/// maximum amount of time coil will wait for a task to begin.
-	/// times out if tasks don't start execution in the threadpool within `task_timeout` seconds.
+	/// Maximum amount of time coil will wait for a task to begin.
+	/// Times out if tasks don't start execution in the threadpool within `task_timeout` seconds.
 	#[serde(default = "default_task_timeout")]
 	pub(crate) task_timeout: u64,
-	/// maximum tasks to queue in the threadpool.
+	/// Maximum tasks to queue in the threadpool.
 	#[serde(default = "default_task_workers")]
 	pub(crate) max_tasks: usize,
-	/// maximum amount of blocks to index at once
+	/// Maximum amount of blocks to index at once.
 	#[serde(default = "default_max_block_load")]
 	pub(crate) max_block_load: u32,
 }

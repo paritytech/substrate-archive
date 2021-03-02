@@ -1,33 +1,35 @@
 [chain]
 # Must be an absolute path to chain data db (no ~/)
 # Can also be specified via the `CHAIN_DATA_DB` environment variable
-data_path = "/home/insipx/.local/share/node-template/chains/dev/db"
+data_path = "/.local/share/node-template/chains/dev/db"
 
 # How much should the read-only database keep in cache (MB)
 # Optional, default: 128
 cache_size = 128
 
-# RocksDB secondary directory, output will be `./output/rocksdb_secondary/`
+# RocksDB secondary directory
 # Optional, default: /<local>/substrate_archive/rocksdb_secondary/
-rocksdb_secondary_path = "./output/"
+rocksdb_secondary_path = "./substrate_archive/rocksdb_secondary"
 
 [runtime]
 # Specification of different methods of executing the runtime Wasm code.
-# Optional, "Interpreted" or "Compiled", default: "Interpreted"
+# Optional, "Interpreted" or "Compiled", default: "Interpreted".
 #exec_method = "Interpreted"
 
 # Number of threads to dedicate for executing blocks
-# Optional, default: the number of logical system threads
+# Optional, default: the number of logical system threads.
 block_workers = 4
 
 # Number of 64KB Heap Pages to allocate for WASM execution
-# Optional, default: 64 * the number of logical system threads
-wasm_pages = 512
+# Optional, default: 1024.
+wasm_pages = 256
 
 [database]
 # Database url.
-# Can also be specified via the `DATABASE_URL` environment variable
-# More info on the wiki: https://github.com/paritytech/substrate-archive/wiki/1.)-Requirements
+# Each chain needs it's own PostgreSQL database
+# Can also be specified via the `DATABASE_URL` environment variable.
+# For production use, using `DATABASE_URL` is preferable.
+# More info on the wiki: https://github.com/paritytech/substrate-archive/wiki/1.)-Requirements.
 url = "postgres://user:pass@localhost:5432/archive"
 
 [log]
@@ -43,6 +45,9 @@ std = "DEBUG"
 # Optional log file name, default: "archive.log"
 #name = "archive.log"
 
+# Advanced options
+#
+# Changing these may lead to unexpected results.
 [control]
 # Number of database actors to be spawned.
 # Optional, default: 4

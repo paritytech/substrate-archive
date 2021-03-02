@@ -63,16 +63,15 @@ impl From<ExecutionMethod> for WasmExecutionMethod {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct RuntimeConfig {
-	/// Specification of different methods of executing the runtime Wasm code.
+	/// How to execute the runtime code: interpreted (default) or JIT compiled.
 	#[serde(default)]
 	pub exec_method: ExecutionMethod,
-	/// number of threads to spawn for block execution.
+	/// Number of threads to spawn for block execution.
 	#[serde(default = "default_block_workers")]
 	pub block_workers: usize,
 	/// Number of 64KB Heap pages to allocate for wasm execution.
-	#[serde(default = "default_wasm_pages")]
-	pub wasm_pages: u64,
-	/// Path where WASM files exist to override the on-chain WASM.
+	pub wasm_pages: Option<u64>,
+	/// Path to WASM blobs to override the on-chain WASM with (required for state change tracing).
 	pub wasm_runtime_overrides: Option<PathBuf>,
 }
 
@@ -81,7 +80,7 @@ impl Default for RuntimeConfig {
 		Self {
 			exec_method: ExecutionMethod::Interpreted,
 			block_workers: default_block_workers(),
-			wasm_pages: default_wasm_pages(),
+			wasm_pages: None,
 			wasm_runtime_overrides: None,
 		}
 	}
@@ -90,11 +89,6 @@ impl Default for RuntimeConfig {
 // the number of logical cpus in the system
 fn default_block_workers() -> usize {
 	num_cpus::get()
-}
-
-// 64 * (number of logic cpu's)
-fn default_wasm_pages() -> u64 {
-	64 * num_cpus::get() as u64
 }
 
 impl From<RuntimeConfig> for ClientConfig {
@@ -123,8 +117,7 @@ where
 {
 	let backend = Arc::new(ReadOnlyBackend::new(db, true));
 
-	let executor =
-		NativeExecutor::<Dispatch>::new(config.exec_method.into(), Some(config.wasm_pages), config.block_workers);
+	let executor = NativeExecutor::<Dispatch>::new(config.exec_method.into(), config.wasm_pages, config.block_workers);
 	let executor = LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.into())?;
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None))?;
 	Ok(client)
