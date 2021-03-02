@@ -14,39 +14,45 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
-use clap::{load_yaml, App};
+use anyhow::Result;
+use structopt::StructOpt;
 
-#[derive(Clone)]
+use substrate_archive::ArchiveConfig;
+
+#[derive(Clone, StructOpt)]
+#[structopt(author, about)]
 pub struct CliOpts {
-	pub file: Option<PathBuf>,
-	pub log_level: log::LevelFilter,
+	/// Sets a custom config file
+	#[structopt(short = "c", long, name = "FILE")]
+	pub config: Option<PathBuf>,
+	/// Sets spec for chain to run in (dev/local).
+	#[structopt(short = "s", long = "spec", name = "CHAIN", parse(from_str = parse_chain_spec))]
 	pub chain_spec: node_template::chain_spec::ChainSpec,
 }
 
+fn parse_chain_spec(spec: &str) -> node_template::chain_spec::ChainSpec {
+	let spec = match spec {
+		"dev" => node_template::chain_spec::development_config(),
+		"" | "local" => node_template::chain_spec::local_testnet_config(),
+		path => node_template::chain_spec::ChainSpec::from_json_file(PathBuf::from(path)),
+	};
+	spec.expect("Chain spec could not be loaded")
+}
+
 impl CliOpts {
-	pub fn parse() -> Self {
-		let yaml = load_yaml!("cli_opts.yaml");
-		let matches = App::from(yaml).get_matches();
-		let file = matches.value_of("config");
-		let log_level = match matches.occurrences_of("verbose") {
-			0 => log::LevelFilter::Info,
-			1 => log::LevelFilter::Info,
-			2 => log::LevelFilter::Info,
-			3 => log::LevelFilter::Debug,
-			4 | _ => log::LevelFilter::Trace,
-		};
-		let chain_spec = match matches.value_of("spec") {
-			Some("dev") => node_template::chain_spec::development_config(),
-			Some("") | Some("local") => node_template::chain_spec::local_testnet_config(),
-			Some(path) => node_template::chain_spec::ChainSpec::from_json_file(PathBuf::from(path)),
-			_ => panic!("Chain spec could not be loaded; is the path correct?"),
-		};
-		CliOpts {
-			file: file.map(PathBuf::from),
-			log_level,
-			chain_spec: chain_spec.expect("Chain spec could not be loaded"),
+	pub fn init() -> Self {
+		CliOpts::from_args()
+	}
+
+	pub fn parse(&self) -> Result<Option<ArchiveConfig>> {
+		if let Some(config) = &self.config {
+			let toml_str = fs::read_to_string(config.as_path())?;
+			let config = toml::from_str::<ArchiveConfig>(toml_str.as_str())?;
+			Ok(Some(config))
+		} else {
+			Ok(None)
 		}
 	}
 }

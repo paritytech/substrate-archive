@@ -22,14 +22,18 @@ pub mod listener;
 pub mod models;
 pub mod queries;
 
-use std::convert::{TryFrom, TryInto};
-use std::time::Duration;
+use std::{
+	convert::{TryFrom, TryInto},
+	fmt,
+	time::Duration,
+};
 
-use async_trait::async_trait;
 use codec::Encode;
+use serde::Deserialize;
 use sqlx::{
 	pool::PoolConnection,
-	postgres::{PgPool, PgPoolOptions, Postgres},
+	postgres::{PgConnection, PgPool, PgPoolOptions, Postgres},
+	Connection,
 };
 
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
@@ -42,14 +46,23 @@ use crate::{
 	wasm_tracing::Traces,
 };
 
-pub type DbReturn = Result<u64>;
-pub type DbConn = PoolConnection<Postgres>;
+/// Run all the migrations.
+pub async fn migrate<T: AsRef<str>>(url: T) -> Result<()> {
+	let mut conn = PgConnection::connect(url.as_ref()).await?;
+	sqlx::migrate!("./src/migrations/").run(&mut conn).await?;
+	Ok(())
+}
 
-#[async_trait]
-pub trait Insert: Send {
-	async fn insert(mut self, conn: &mut DbConn) -> DbReturn
-	where
-		Self: Sized;
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct DatabaseConfig {
+	/// PostgreSQL url.
+	pub url: String,
+}
+
+impl fmt::Display for DatabaseConfig {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{}", self.url)
+	}
 }
 
 #[derive(Clone)]
@@ -93,7 +106,15 @@ impl Database {
 	}
 }
 
-#[async_trait]
+pub type DbReturn = Result<u64>;
+pub type DbConn = PoolConnection<Postgres>;
+
+#[async_trait::async_trait]
+pub trait Insert: Send + Sized {
+	async fn insert(mut self, conn: &mut DbConn) -> DbReturn;
+}
+
+#[async_trait::async_trait]
 impl<B> Insert for Block<B>
 where
 	B: BlockT,
@@ -136,7 +157,7 @@ where
 	}
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<B> Insert for BatchBlock<B>
 where
 	B: BlockT,
@@ -188,7 +209,7 @@ where
 	}
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<B: BlockT> Insert for StorageModel<B> {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
 		log::info!("Inserting Single Storage");
@@ -216,7 +237,7 @@ impl<B: BlockT> Insert for StorageModel<B> {
 	}
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<B: BlockT> Insert for Vec<StorageModel<B>> {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
 		let mut batch = Batch::new(
@@ -256,10 +277,10 @@ impl<B: BlockT> Insert for Vec<StorageModel<B>> {
 	}
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Insert for Metadata {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
-		log::debug!("Inserting Metadata");
+		log::debug!("Inserting Metadata, version = {}", self.version());
 		sqlx::query(
 			r#"
             INSERT INTO metadata (version, meta)
@@ -276,7 +297,7 @@ impl Insert for Metadata {
 	}
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Insert for Traces {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
 		log::debug!("Inserting Trace Data");
@@ -368,6 +389,6 @@ impl Insert for Traces {
 // Chrono depends on an error type in `time` that is a full version behind the one that SQLX uses
 // This function avoids depending on two time lib.
 // Old time is disabled in chrono by not providing the feature flag in Cargo.toml.
-fn time_to_std(time: chrono::Duration) -> Result<std::time::Duration> {
+fn time_to_std(time: chrono::Duration) -> Result<Duration> {
 	time.to_std().map_err(|_| ArchiveError::TimestampOutOfRange)
 }

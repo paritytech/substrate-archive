@@ -3,17 +3,17 @@ name = "node-template-archive"
 version = "0.2.1"
 authors = ["Andrew Plaza <aplaza@liquidthink.net>"]
 edition = "2018"
+description = "Indexes Substrate Data"
 
 [dependencies]
 anyhow = "1.0"
-clap = { version = "2.33.1", features = ["yaml", "suggestions", "color"] }
 ctrlc = { version = "3.1.5", features = ["termination"] }
 log = "0.4"
 serde = "1.0"
+structopt = { version = "0.3", features = ["suggestions", "color"] }
 toml = "0.5"
 
 node-template-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 node-template = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-substrate-archive = { path = "../../substrate-archive", features = ["logging"] }
-substrate-archive-backend = { path = "../../substrate-archive-backend" }
+substrate-archive = { path = "../../substrate-archive" }

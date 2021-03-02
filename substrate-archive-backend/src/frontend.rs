@@ -19,6 +19,7 @@ mod client;
 use std::{path::PathBuf, sync::Arc};
 
 use futures::{future::BoxFuture, task::SpawnExt};
+use serde::Deserialize;
 
 use sc_client_api::{
 	execution_extensions::{ExecutionExtensions, ExecutionStrategies},
@@ -39,11 +40,55 @@ pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TB
 /// Full client call executor type.
 type TFullCallExecutor<TBl, TExecDisp, D> = LocalCallExecutor<ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug, Deserialize)]
+pub enum ExecutionMethod {
+	Interpreted,
+	Compiled,
+}
+
+impl Default for ExecutionMethod {
+	fn default() -> Self {
+		Self::Interpreted
+	}
+}
+
+impl From<ExecutionMethod> for WasmExecutionMethod {
+	fn from(method: ExecutionMethod) -> Self {
+		match method {
+			ExecutionMethod::Interpreted => Self::Interpreted,
+			ExecutionMethod::Compiled => Self::Compiled,
+		}
+	}
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct RuntimeConfig {
+	/// How to execute the runtime code: interpreted (default) or JIT compiled.
+	#[serde(default)]
+	pub exec_method: ExecutionMethod,
+	/// Number of threads to spawn for block execution.
+	#[serde(default = "default_block_workers")]
 	pub block_workers: usize,
-	pub wasm_pages: u64,
+	/// Number of 64KB Heap pages to allocate for wasm execution.
+	pub wasm_pages: Option<u64>,
+	/// Path to WASM blobs to override the on-chain WASM with (required for state change tracing).
 	pub wasm_runtime_overrides: Option<PathBuf>,
+}
+
+impl Default for RuntimeConfig {
+	fn default() -> RuntimeConfig {
+		Self {
+			exec_method: ExecutionMethod::Interpreted,
+			block_workers: default_block_workers(),
+			wasm_pages: None,
+			wasm_runtime_overrides: None,
+		}
+	}
+}
+
+// the number of logical cpus in the system
+fn default_block_workers() -> usize {
+	num_cpus::get()
 }
 
 impl From<RuntimeConfig> for ClientConfig {
@@ -53,12 +98,6 @@ impl From<RuntimeConfig> for ClientConfig {
 			offchain_indexing_api: false,
 			wasm_runtime_overrides: config.wasm_runtime_overrides,
 		}
-	}
-}
-
-impl Default for RuntimeConfig {
-	fn default() -> RuntimeConfig {
-		Self { block_workers: 2, wasm_pages: 512, wasm_runtime_overrides: None }
 	}
 }
 
@@ -78,29 +117,14 @@ where
 {
 	let backend = Arc::new(ReadOnlyBackend::new(db, true));
 
-	let executor = NativeExecutor::<Dispatch>::new(
-		WasmExecutionMethod::Interpreted,
-		Some(config.wasm_pages),
-		config.block_workers,
-	);
+	let executor = NativeExecutor::<Dispatch>::new(config.exec_method.into(), config.wasm_pages, config.block_workers);
 	let executor = LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.into())?;
-
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None))?;
 	Ok(client)
 }
 
-impl SpawnNamed for TaskExecutor {
-	fn spawn_blocking(&self, _: &'static str, fut: BoxFuture<'static, ()>) {
-		let _ = self.pool.spawn(fut);
-	}
-
-	fn spawn(&self, _: &'static str, fut: BoxFuture<'static, ()>) {
-		let _ = self.pool.spawn(fut);
-	}
-}
-
-#[derive(Debug, Clone)]
-pub struct TaskExecutor {
+#[derive(Clone, Debug)]
+struct TaskExecutor {
 	pool: futures::executor::ThreadPool,
 }
 
@@ -114,6 +138,16 @@ impl TaskExecutor {
 impl futures::task::Spawn for TaskExecutor {
 	fn spawn_obj(&self, future: futures::task::FutureObj<'static, ()>) -> Result<(), futures::task::SpawnError> {
 		self.pool.spawn_obj(future)
+	}
+}
+
+impl SpawnNamed for TaskExecutor {
+	fn spawn_blocking(&self, _: &'static str, fut: BoxFuture<'static, ()>) {
+		let _ = self.pool.spawn(fut);
+	}
+
+	fn spawn(&self, _: &'static str, fut: BoxFuture<'static, ()>) {
+		let _ = self.pool.spawn(fut);
 	}
 }
 

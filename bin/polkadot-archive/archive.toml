@@ -1,0 +1,82 @@
+[chain]
+# Must be an absolute path to the folder where polkadot/kusama/and westend chain data is stored
+# Can also be specified via the `CHAIN_DATA_DB` environment variable
+data_path = "/.local/share/polkadot/chains/polkadot/db"
+
+# How much should the read-only database keep in cache (MB)
+# Optional, default: 128
+cache_size = 128
+
+# RocksDB secondary directory
+# Optional, default: /<local>/substrate_archive/rocksdb_secondary/
+rocksdb_secondary_path = "./substrate_archive/rocksdb_secondary"
+
+[runtime]
+# Specification of different methods of executing the runtime Wasm code.
+# Optional, "Interpreted" or "Compiled", default: "Interpreted"
+#exec_method = "Interpreted"
+
+# Number of threads to dedicate for executing blocks
+# Optional, default: the number of logical system threads
+# More BlockWorkers requires that you also increase the number of WASM pages
+# else the wasm executor will run out of memory.
+# This also increases substrate-archives memory usage.
+# Generally, you want 32 pages per block worker
+block_workers = 8
+
+# Number of 64KB Heap Pages to allocate for WASM execution
+# Optional, default: 1024.
+wasm_pages = 512
+
+[database]
+# Database url.
+# Each chain needs it's own PostgreSQL database
+# Can also be specified via the `DATABASE_URL` environment variable.
+# For production use, using `DATABASE_URL` is preferable.
+# More info on the wiki: https://github.com/paritytech/substrate-archive/wiki/1.)-Requirements.
+url = "postgres://postgres:123@localhost:5432/polkadot-archive"
+
+[log]
+# Optional log level of stdout, default: "DEBUG"
+std = "DEBUG"
+
+# Optional file log.
+#[log.file]
+# Optional log level of file, default: "DEBUG"
+#level = "DEBUG"
+# Optional log file directory path, default: "/<local>/substrate_archive/"
+#dir = "./output/"
+# Optional log file name, default: "archive.log"
+#name = "archive.log"
+
+# Advanced options
+#
+# Changing these may lead to unexpected results.
+[control]
+# Number of database actors to be spawned.
+# Optional, default: 4
+db_actor_pool_size = 4
+
+# Number of threads to dedicate for executing tasks
+# Optional, default: the number of logical system threads
+task_workers = 8
+
+# Timeout to wait for a task to start execution.
+# Optional, default: 20 seconds
+task_timeout = 20
+
+# Maximum number of tasks to queue in the threadpool.
+# Optional, default: 64
+max_tasks = 64
+
+# Maximium number of blocks to load and insert into database at a time.
+# Useful for controlling memory usage.
+# Optional, defaults: 100,000
+max_block_load = 100000
+
+[wasm_tracing]
+# Targets for tracing.
+targets = '''wasm_tracing,pallet,frame,state'''
+
+# Folder where tracing-enabled WASM binaries are kept.
+#folder = ""

@@ -197,8 +197,3 @@ pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
 		Ok(b.block)
 	}))
 }
-
-#[cfg(test)]
-mod tests {
-	//! Must be connected to a postgres database
-}
