@@ -18,7 +18,7 @@ use std::sync::Arc;
 use xtra::prelude::*;
 
 use sp_runtime::{
-	generic::SignedBlock,
+	generic::{BlockId, SignedBlock},
 	traits::{Block as BlockT, Header as _, NumberFor},
 };
 use substrate_archive_backend::{ReadOnlyBackend, ReadOnlyDB, RuntimeVersionCache};
@@ -74,6 +74,29 @@ where
 		}
 	}
 
+	async fn fetch_genesis_block(&self) -> Result<Option<Block<B>>>
+	where
+		NumberFor<B>: From<u32>,
+	{
+		let backend = self.backend.clone();
+		if let Some(block) = backend.block(&BlockId::Number(0.into())) {
+			let cache = self.rt_cache.clone();
+			let spec = cache.get(block.block.hash())?.map(|ver| ver.spec_version).unwrap_or_default();
+			Ok(Some(Block { inner: block, spec }))
+		} else {
+			Ok(None)
+		}
+	}
+
+	async fn fetch_and_send_genesis_block(&self) -> Result<()> {
+		if let Some(genesis_block) = self.fetch_genesis_block().await? {
+			self.meta.send(genesis_block).await?;
+		} else {
+			log::error!("Couldn't fetch the genesis block from backend");
+		}
+		Ok(())
+	}
+
 	/// A async wrapper around the backend fn `iter_blocks` which
 	/// runs in a `spawn_blocking` async task (its own thread)
 	async fn collect_blocks(&self, fun: impl Fn(u32) -> bool + Send + 'static) -> Result<Vec<Block<B>>> {
@@ -121,7 +144,8 @@ where
 			m
 		} else {
 			// a `None` means that the blocks table is not populated yet
-			log::info!("{} missing blocks", 0);
+			self.fetch_and_send_genesis_block().await?;
+			log::info!("Fetch and send the genesis block");
 			return Ok(());
 		};
 
@@ -148,16 +172,7 @@ where
 	async fn crawl(&mut self) -> Result<Vec<Block<B>>> {
 		let copied_last_max = self.last_max;
 		let max_to_collect = copied_last_max + self.max_block_load;
-		let blocks = self
-			.collect_blocks(move |n| {
-				if copied_last_max == 0 {
-					// includes the genesis block
-					n >= copied_last_max && n <= max_to_collect
-				} else {
-					n > copied_last_max && n <= max_to_collect
-				}
-			})
-			.await?;
+		let blocks = self.collect_blocks(move |n| n > copied_last_max && n <= max_to_collect).await?;
 		self.last_max = blocks
 			.iter()
 			.map(|b| (*b.inner.block.header().number()).into())
