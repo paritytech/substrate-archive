@@ -223,13 +223,9 @@ where
 
 	let hash = block.header().hash();
 	let number = *block.header().number();
+	let spec = env.client.runtime_version_at(&BlockId::Hash(hash)).map_err(|e| format!("{:?}", e))?.spec_version;
+	log::debug!("Executing Block: {}:{}, version {}", hash, number, spec);
 
-	log::debug!(
-		"Executing Block: {}:{}, version {}",
-		block.header().hash(),
-		block.header().number(),
-		env.client.runtime_version_at(&BlockId::Hash(block.hash())).map_err(|e| format!("{:?}", e))?.spec_version,
-	);
 	let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
 
 	let storage = {
