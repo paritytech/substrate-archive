@@ -8,7 +8,7 @@ edition = "2018"
 # External
 arc-swap = "1.2.0"
 futures = "0.3"
-hashbrown = { version = "0.9", features = ["inline-more"] }
+hashbrown = { version = "0.11", features = ["inline-more"] }
 log = "0.4"
 num_cpus = "1.13"
 parking_lot = "0.11"
