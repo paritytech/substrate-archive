@@ -21,25 +21,21 @@
 pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
 pub use sp_runtime::MultiSignature;
-
-#[cfg(feature = "logging")]
-pub mod logger;
+pub use substrate_archive_backend::{ExecutionMethod, ReadOnlyDB, RuntimeConfig, SecondaryRocksDB};
 
 mod actors;
 pub mod archive;
 mod database;
 mod error;
-mod migrations;
+mod logger;
 mod tasks;
 mod types;
-mod util;
 mod wasm_tracing;
 
-pub use self::actors::System;
-pub use self::archive::{Archive, ArchiveBuilder, TracingConfig};
-pub use self::database::queries;
+pub use self::actors::{ControlConfig, System};
+pub use self::archive::{Archive, ArchiveBuilder, ArchiveConfig, ChainConfig, TracingConfig};
+pub use self::database::{queries, DatabaseConfig};
 pub use self::error::ArchiveError;
-pub use self::migrations::MigrationConfig;
 
 pub mod chain_traits {
 	//! Traits defining functions on the client needed for indexing
@@ -48,24 +44,17 @@ pub mod chain_traits {
 	pub use sp_runtime::traits::{BlakeTwo256, Block, IdentifyAccount, Verify};
 }
 
-#[derive(Debug, Clone)]
-pub struct TaskExecutor;
-
-impl futures::task::Spawn for TaskExecutor {
-	fn spawn_obj(&self, future: futures::task::FutureObj<'static, ()>) -> Result<(), futures::task::SpawnError> {
-		smol::spawn(future).detach();
-		Ok(())
-	}
-}
-
-impl sp_core::traits::SpawnNamed for TaskExecutor {
-	fn spawn_blocking(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
-		smol::spawn(async move { smol::unblock(|| fut).await.await }).detach();
-	}
-
-	fn spawn(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
-		smol::spawn(fut).detach()
-	}
+/// Get the path to a local substrate directory where we can save data.
+/// Platform | Value | Example
+/// -- | -- | --
+/// Linux | $XDG_DATA_HOME or $HOME/.local/share/substrate_archive | /home/alice/.local/share/substrate_archive/
+/// macOS | $HOME/Library/Application Support/substrate_archive | /Users/Alice/Library/Application Support/substrate_archive/
+/// Windows | {FOLDERID_LocalAppData}\substrate_archive | C:\Users\Alice\AppData\Local\substrate_archive
+pub fn substrate_archive_default_dir() -> std::path::PathBuf {
+	let base_dirs = dirs::BaseDirs::new().expect("Invalid home directory path");
+	let mut path = base_dirs.data_local_dir().to_path_buf();
+	path.push("substrate_archive");
+	path
 }
 
 #[cfg(test)]
@@ -101,7 +90,7 @@ mod test {
 			pretty_env_logger::init();
 			let url: &str = &DATABASE_URL;
 			smol::block_on(async {
-				crate::migrations::migrate(url).await.unwrap();
+				crate::database::migrate(url).await.unwrap();
 			});
 		});
 	}

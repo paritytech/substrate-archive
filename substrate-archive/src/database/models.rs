@@ -20,10 +20,10 @@
 
 use std::marker::PhantomData;
 
+use codec::{Decode, Encode, Error as DecodeError};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use codec::{Decode, Encode, Error as DecodeError};
 use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, Header as HeaderT},

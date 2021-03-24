@@ -13,21 +13,48 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-mod archive;
 mod cli_opts;
-mod config;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{
+	atomic::{AtomicBool, Ordering},
+	Arc,
+};
 
-use substrate_archive_backend::SecondaryRocksDB;
+use anyhow::{anyhow, Result};
+use polkadot_service::kusama_runtime as ksm_rt;
+use polkadot_service::polkadot_runtime as dot_rt;
+use polkadot_service::westend_runtime as wnd_rt;
+use polkadot_service::Block;
+use substrate_archive::{
+	native_executor_instance, Archive, ArchiveBuilder, ArchiveConfig, ReadOnlyDB, SecondaryRocksDB,
+};
 
-pub fn main() -> anyhow::Result<()> {
-	let config = config::Config::new()?;
-	substrate_archive::logger::init(config.cli().log_level, log::LevelFilter::Debug)?;
-	log::debug!("CONFIG {:?}", config);
+native_executor_instance!(
+	pub PolkadotExecutor,
+	dot_rt::api::dispatch,
+	dot_rt::native_version,
+	sp_io::SubstrateHostFunctions,
+);
 
-	let mut archive = archive::run_archive::<SecondaryRocksDB>(config)?;
+native_executor_instance!(
+	pub KusamaExecutor,
+	ksm_rt::api::dispatch,
+	ksm_rt::native_version,
+	sp_io::SubstrateHostFunctions,
+);
+
+native_executor_instance!(
+	pub WestendExecutor,
+	wnd_rt::api::dispatch,
+	wnd_rt::native_version,
+	sp_io::SubstrateHostFunctions,
+);
+
+pub fn main() -> Result<()> {
+	let cli = cli_opts::CliOpts::init();
+	let config = cli.parse()?;
+
+	let mut archive = run_archive::<SecondaryRocksDB>(&cli.chain_spec, config)?;
 	archive.drive()?;
 	let running = Arc::new(AtomicBool::new(true));
 	let r = running.clone();
@@ -40,4 +67,34 @@ pub fn main() -> anyhow::Result<()> {
 	archive.boxed_shutdown()?;
 
 	Ok(())
+}
+
+fn run_archive<D: ReadOnlyDB + 'static>(
+	chain_spec: &str,
+	config: Option<ArchiveConfig>,
+) -> Result<Box<dyn Archive<Block, D>>> {
+	match chain_spec.to_ascii_lowercase().as_str() {
+		"kusama" | "ksm" => {
+			let spec = polkadot_service::chain_spec::kusama_config().map_err(|err| anyhow!("{}", err))?;
+			let archive = ArchiveBuilder::<Block, wnd_rt::RuntimeApi, KusamaExecutor, D>::with_config(config)
+				.chain_spec(Box::new(spec))
+				.build()?;
+			Ok(Box::new(archive))
+		}
+		"westend" | "wnd" => {
+			let spec = polkadot_service::chain_spec::westend_config().map_err(|err| anyhow!("{}", err))?;
+			let archive = ArchiveBuilder::<Block, wnd_rt::RuntimeApi, WestendExecutor, D>::with_config(config)
+				.chain_spec(Box::new(spec))
+				.build()?;
+			Ok(Box::new(archive))
+		}
+		"polkadot" | "dot" => {
+			let spec = polkadot_service::chain_spec::polkadot_config().map_err(|err| anyhow!("{}", err))?;
+			let archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, PolkadotExecutor, D>::with_config(config)
+				.chain_spec(Box::new(spec))
+				.build()?;
+			Ok(Box::new(archive))
+		}
+		c => Err(anyhow!("unknown chain {}", c)),
+	}
 }

@@ -15,17 +15,15 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Background tasks that take their parameters from Postgres, and are either
-//! executed on a threadpool or spaned onto the executor.
+//! executed on a threadpool or spawned onto the executor.
 
-use std::marker::PhantomData;
-use std::panic::AssertUnwindSafe;
-use std::sync::Arc;
+use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc};
 
 use parking_lot::Mutex;
+use serde::de::DeserializeOwned;
 use xtra::prelude::*;
 
 use sc_client_api::backend;
-use serde::de::DeserializeOwned;
 use sp_api::{ApiExt, ApiRef, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::{
@@ -117,7 +115,7 @@ where
 	}
 }
 
-pub struct BlockExecutor<'a, Block, Api, B>
+struct BlockExecutor<'a, Block, Api, B>
 where
 	Block: BlockT,
 	Api: BlockBuilderApi<Block, Error = sp_blockchain::Error>
@@ -137,7 +135,7 @@ where
 		+ ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
 	B: backend::Backend<Block>,
 {
-	pub fn new(api: ApiRef<'a, Api>, backend: &'a Arc<B>, block: Block) -> Self {
+	fn new(api: ApiRef<'a, Api>, backend: &'a Arc<B>, block: Block) -> Self {
 		let header = block.header();
 		let parent_hash = header.parent_hash();
 		let id = BlockId::Hash(*parent_hash);
@@ -145,7 +143,7 @@ where
 		Self { api, backend, block, id }
 	}
 
-	pub fn block_into_storage(self) -> Result<BlockChanges<Block>, ArchiveError> {
+	fn block_into_storage(self) -> Result<BlockChanges<Block>, ArchiveError> {
 		let header = (&self.block).header();
 		let parent_hash = *header.parent_hash();
 		let hash = header.hash();
@@ -172,6 +170,26 @@ where
 			block_hash: hash,
 			block_num: num,
 		})
+	}
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskExecutor;
+
+impl futures::task::Spawn for TaskExecutor {
+	fn spawn_obj(&self, future: futures::task::FutureObj<'static, ()>) -> Result<(), futures::task::SpawnError> {
+		smol::spawn(future).detach();
+		Ok(())
+	}
+}
+
+impl sp_core::traits::SpawnNamed for TaskExecutor {
+	fn spawn_blocking(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
+		smol::spawn(async move { smol::unblock(|| fut).await.await }).detach();
+	}
+
+	fn spawn(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
+		smol::spawn(fut).detach()
 	}
 }
 

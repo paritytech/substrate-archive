@@ -32,15 +32,12 @@ use sc_client_api::Backend as BackendT;
 use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
-#[cfg(feature = "logging")]
-pub use substrate_archive_common::util::init_logger;
-
 use self::frontend::{GetMetadata, GetRuntimeVersion};
 // re-exports
 pub use self::{
 	database::{KeyValuePair, ReadOnlyDB, SecondaryRocksDB},
 	error::BackendError,
-	frontend::{runtime_api, RuntimeConfig, TArchiveClient},
+	frontend::{runtime_api, ExecutionMethod, RuntimeConfig, TArchiveClient},
 	read_only_backend::ReadOnlyBackend,
 	runtime_version_cache::RuntimeVersionCache,
 };

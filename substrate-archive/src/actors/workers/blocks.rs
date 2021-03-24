@@ -70,7 +70,7 @@ where
 			backend: conf.backend().clone(),
 			db,
 			meta,
-			max_block_load: conf.max_block_load,
+			max_block_load: conf.control.max_block_load,
 		}
 	}
 
