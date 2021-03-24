@@ -8384,7 +8384,7 @@ dependencies = [
 
 [[package]]
 name = "substrate-archive"
-version = "0.5.0-pre"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "bincode",

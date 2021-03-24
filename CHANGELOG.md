@@ -21,6 +21,10 @@
 - [Removed] Archive no longer needs an RPC url to function
 - [Changed] Printing out of Postgres URL in plain text
 - [Added] Maximum amount of blocks loaded at once can be configured with `max_block_load`
+- [Added] Two options to configuration file for State Tracing
+  - `targets` for specifying runtime targets to trace in WASM
+  - `folder` where WASM blobs with tracing enabled are kept.
+- [Changed] Archive config is now separated into sections for readability. Migration can be achieved by looking at the new `archive.conf` in `polkadot-archive` or `node-template-archive` folders.
 
 ### Internal Changes
 - [Changed] Postgres Queries are now type checked
@@ -38,6 +42,8 @@ taking advantage of sequential read-speeds. Gathering blocks by RPC is no longer
   persists blocks that need to be executed on-disk.
 - [QoL] remove the last frame dependency, `frame-system`. Archive now relies only on generic traits defined in substrate-core.
 - new method of batch inserts avoids starving the Postgres Pool of connections
+- [perf] Notification stream from Postgres indexes storage changes in the background.
+- [Changed] Switch substrate-archive `LocalCallExecutor` with Substrate's `LocalCallExecutor`
 
 ## Polkadot Archive
 - [Changed] Config file is now optional. Can configure polkadot archive entirely through environment variables.
