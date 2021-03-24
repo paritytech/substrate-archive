@@ -108,8 +108,7 @@ pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDB + 'static>(
 where
 	Block: BlockT,
 	Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch, D>> + Send + Sync + 'static,
-	Runtime::RuntimeApi:
-		RuntimeApiCollection<Block, StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block, D>, Block>>
+	Runtime::RuntimeApi: RuntimeApiCollection<Block, StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block, D>, Block>>
 			+ Send
 			+ Sync
 			+ 'static,
