@@ -39,7 +39,7 @@ use sp_blockchain::{Backend as _, HeaderBackend as _};
 use sp_runtime::{
 	generic::{BlockId, SignedBlock},
 	traits::{Block as BlockT, HashFor, Header as HeaderT},
-	Justification,
+	Justifications,
 };
 
 pub use self::state_backend::TrieState;
@@ -121,8 +121,8 @@ where
 	pub fn block(&self, id: &BlockId<Block>) -> Option<SignedBlock<Block>> {
 		let header = self.header(*id).ok()?;
 		let body = self.body(*id).ok()?;
-		let justification = self.justification(*id).ok()?;
-		construct_block(header, body, justification)
+		let justifications = self.justifications(*id).ok()?;
+		construct_block(header, body, justifications)
 	}
 
 	/// Iterate over all blocks that match the predicate `fun`
@@ -147,7 +147,7 @@ where
 						.get(super::util::columns::BODY, &value)
 						.map(|bytes| Decode::decode(&mut &bytes[..]).ok())
 						.flatten();
-					let justif: Option<Justification> = readable_db
+					let justif: Option<Justifications> = readable_db
 						.get(super::util::columns::JUSTIFICATION, &value)
 						.map(|bytes| Decode::decode(&mut &bytes[..]).ok())
 						.flatten();
@@ -170,11 +170,11 @@ impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for DbGenesisStora
 fn construct_block<Block: BlockT>(
 	header: Option<Block::Header>,
 	body: Option<Vec<Block::Extrinsic>>,
-	justification: Option<Justification>,
+	justifications: Option<Justifications>,
 ) -> Option<SignedBlock<Block>> {
-	match (header, body, justification) {
-		(Some(header), Some(extrinsics), justification) => {
-			Some(SignedBlock { block: Block::new(header, extrinsics), justification })
+	match (header, body, justifications) {
+		(Some(header), Some(extrinsics), justifications) => {
+			Some(SignedBlock { block: Block::new(header, extrinsics), justifications })
 		}
 		_ => None,
 	}

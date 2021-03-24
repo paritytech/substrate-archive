@@ -30,7 +30,6 @@ use xtra::{prelude::*, spawn::Smol, Disconnected};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_blockchain::Error as BlockchainError;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDB};
@@ -191,8 +190,8 @@ where
 	D: ReadOnlyDB + 'static,
 	B: BlockT + Unpin + DeserializeOwned,
 	R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
-	R::RuntimeApi: BlockBuilderApi<B, Error = BlockchainError>
-		+ sp_api::Metadata<B, Error = BlockchainError>
+	R::RuntimeApi: BlockBuilderApi<B>
+		+ sp_api::Metadata<B>
 		+ ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B, D>, B>>
 		+ Send
 		+ Sync
@@ -361,8 +360,8 @@ where
 	B: BlockT + Unpin + DeserializeOwned,
 	<B as BlockT>::Hash: Unpin,
 	R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
-	R::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
-		+ sp_api::Metadata<B, Error = sp_blockchain::Error>
+	R::RuntimeApi: BlockBuilderApi<B>
+		+ sp_api::Metadata<B>
 		+ ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B, D>, B>>
 		+ Send
 		+ Sync

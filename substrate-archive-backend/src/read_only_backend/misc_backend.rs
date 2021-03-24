@@ -27,9 +27,9 @@ use sp_core::offchain::OffchainStorage;
 use sp_runtime::{
 	generic::BlockId,
 	traits::{Block as BlockT, HashFor, NumberFor},
-	Justification,
+	Justification, Justifications,
 };
-use sp_state_machine::{ChangesTrieTransaction, ChildStorageCollection, StorageCollection};
+use sp_state_machine::{ChangesTrieTransaction, ChildStorageCollection, IndexOperation, StorageCollection};
 use sp_storage::Storage;
 
 use crate::{database::ReadOnlyDB, read_only_backend::ReadOnlyBackend, util::columns};
@@ -53,7 +53,7 @@ impl<Block: BlockT, D: ReadOnlyDB> BlockImportOperation<Block> for RealBlockImpo
 		&mut self,
 		_header: Block::Header,
 		_body: Option<Vec<Block::Extrinsic>>,
-		_justification: Option<Justification>,
+		_justification: Option<Justifications>,
 		_state: NewBlockState,
 	) -> ChainResult<()> {
 		log::warn!("Block state may not be set with a Read Only Backend");
@@ -103,6 +103,11 @@ impl<Block: BlockT, D: ReadOnlyDB> BlockImportOperation<Block> for RealBlockImpo
 
 	fn mark_head(&mut self, _id: BlockId<Block>) -> ChainResult<()> {
 		log::warn!("Cannot modify storage of a read only backend. Head not marked.");
+		Ok(())
+	}
+
+	fn update_transaction_index(&mut self, _: Vec<IndexOperation>) -> sp_blockchain::Result<()> {
+		log::warn!("Tried updating transaction index; Block import operations not supported on Read Only backend");
 		Ok(())
 	}
 }

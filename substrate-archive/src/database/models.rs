@@ -58,7 +58,7 @@ impl<'a, B: BlockT> BlockModelDecoder<B> {
 			.into_iter()
 			.map(|b| {
 				let (block, spec) = Self::with_single(b)?;
-				let block = SignedBlock { block, justification: None };
+				let block = SignedBlock { block, justifications: None };
 				Ok(Block::new(block, spec))
 			})
 			.collect()

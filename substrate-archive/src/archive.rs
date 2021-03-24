@@ -23,7 +23,7 @@ use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_blockchain::{Backend as BlockchainBackend, Error as BlockchainError};
+use sp_blockchain::Backend as BlockchainBackend;
 use sp_runtime::{
 	generic::BlockId,
 	traits::{BlakeTwo256, Block as BlockT, NumberFor},
@@ -340,8 +340,8 @@ where
 	DB: ReadOnlyDB + 'static,
 	B: BlockT + Unpin + DeserializeOwned,
 	R: ConstructRuntimeApi<B, TArchiveClient<B, R, D, DB>> + Send + Sync + 'static,
-	R::RuntimeApi: BlockBuilderApi<B, Error = BlockchainError>
-		+ sp_api::Metadata<B, Error = BlockchainError>
+	R::RuntimeApi: BlockBuilderApi<B>
+		+ sp_api::Metadata<B>
 		+ ApiExt<B, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<B, DB>, B>>
 		+ Send
 		+ Sync

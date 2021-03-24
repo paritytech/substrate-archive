@@ -27,7 +27,7 @@ use sp_blockchain::{
 use sp_runtime::{
 	generic::BlockId,
 	traits::{Block as BlockT, Header as HeaderT, NumberFor},
-	Justification,
+	Justifications,
 };
 
 use crate::{
@@ -52,7 +52,7 @@ impl<Block: BlockT, D: ReadOnlyDB> BlockchainBackend<Block> for ReadOnlyBackend<
 		}
 	}
 
-	fn justification(&self, id: BlockId<Block>) -> ChainResult<Option<Justification>> {
+	fn justifications(&self, id: BlockId<Block>) -> ChainResult<Option<Justifications>> {
 		let res = util::read_db::<Block, D>(&*self.db, columns::KEY_LOOKUP, columns::JUSTIFICATION, id)
 			.map_err(|e| BlockchainError::Backend(e.to_string()))?;
 
@@ -86,13 +86,10 @@ impl<Block: BlockT, D: ReadOnlyDB> BlockchainBackend<Block> for ReadOnlyBackend<
 		unimplemented!()
 	}
 
-	fn best_containing(
-		&self,
-		_target_hash: Block::Hash,
-		_maybe_max_number: Option<NumberFor<Block>>,
-		_import_lock: &parking_lot::RwLock<()>,
-	) -> ChainResult<Option<Block::Hash>> {
-		Ok(None)
+	/// Get single indexed transaction by content hash. Note that this will only fetch transactions
+	/// that are indexed by the runtime with `storage_index_transaction`.
+	fn indexed_transaction(&self, hash: &Block::Hash) -> ChainResult<Option<Vec<u8>>> {
+		Ok(self.db.get(columns::TRANSACTION, hash.as_ref()))
 	}
 }
 

@@ -74,7 +74,8 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 			.filter(|f| f.name().matches("ext_logging").count() == 0)
 			.collect::<Vec<_>>();
 
-		let exec = WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(128), funs, 1);
+		// TODO: https://github.com/paritytech/substrate-archive/issues/247
+		let exec = WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(128), funs, 1, None);
 		Self { versions: ArcSwap::from_pointee(HashMap::new()), backend, exec }
 	}
 

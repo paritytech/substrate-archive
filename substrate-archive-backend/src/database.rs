@@ -22,7 +22,7 @@ use std::{collections::HashMap, fmt, io, path::PathBuf};
 use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 
-use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
+use sp_database::{ColumnId, Database as DatabaseTrait, Transaction};
 
 const NUM_COLUMNS: u32 = 11;
 
@@ -132,32 +132,12 @@ impl ReadOnlyDB for SecondaryRocksDB {
 type DBError = std::result::Result<(), sp_database::error::DatabaseError>;
 //TODO: Remove panics with a warning that database has not been written to / is read-only
 /// Preliminary trait for ReadOnlyDB
-impl<H: Clone> DatabaseTrait<H> for SecondaryRocksDB {
+impl<H: Clone + AsRef<[u8]>> DatabaseTrait<H> for SecondaryRocksDB {
 	fn commit(&self, _transaction: Transaction<H>) -> DBError {
-		panic!("Read only db")
-	}
-
-	fn commit_ref<'a>(&self, _transaction: &mut dyn Iterator<Item = ChangeRef<'a, H>>) -> DBError {
 		panic!("Read only db")
 	}
 
 	fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
 		self.get(col, key)
 	}
-	// with_get -> default is fine
-
-	fn remove(&self, _col: ColumnId, _key: &[u8]) -> std::result::Result<(), sp_database::error::DatabaseError> {
-		panic!("Read only db")
-	}
-
-	fn lookup(&self, _hash: &H) -> Option<Vec<u8>> {
-		unimplemented!();
-	}
-
-	// with_lookup -> default
-	/*
-		fn store(&self, _hash: , _preimage: _) {
-			panic!("Read only db")
-		}
-	*/
 }

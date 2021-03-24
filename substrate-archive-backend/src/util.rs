@@ -53,6 +53,7 @@ pub(crate) mod columns {
 	/// Off Chain workers local storage
 	pub const OFFCHAIN: u32 = 9;
 	pub const CACHE: u32 = 10;
+	pub const TRANSACTION: u32 = 11;
 }
 
 /// Keys of entries in COLUMN_META.
