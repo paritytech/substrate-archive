@@ -110,7 +110,7 @@ where
 	RA: Send + Sync,
 {
 	fn runtime_version(&self, at: &BlockId<Block>) -> Result<sp_version::RuntimeVersion, String> {
-		GetRuntimeVersion::runtime_version(&self.executor, at).map_err(|e| e.to_string())
+		GetRuntimeVersion::runtime_version(&self.executor, at)
 	}
 
 	fn native_version(&self) -> &NativeVersion {

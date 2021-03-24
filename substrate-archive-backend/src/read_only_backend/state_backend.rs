@@ -78,7 +78,7 @@ pub struct TrieState<Block: BlockT, D: ReadOnlyDB> {
 
 impl<B: BlockT, D: ReadOnlyDB> TrieState<B, D> {
 	pub fn new(state: DbState<B>, storage: Arc<StateVault<B, D>>, parent_hash: Option<B::Hash>) -> Self {
-		TrieState { state, parent_hash, storage }
+		TrieState { state, storage, parent_hash }
 	}
 }
 

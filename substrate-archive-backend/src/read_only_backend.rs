@@ -110,10 +110,7 @@ where
 
 	/// get storage keys for a prefix at a block in time
 	pub fn storage_keys(&self, hash: Block::Hash, prefix: &[u8]) -> Option<Vec<Vec<u8>>> {
-		match self.state_at(hash) {
-			Some(state) => Some(state.keys(prefix)),
-			None => None,
-		}
+		self.state_at(hash).map(|state| state.keys(prefix))
 	}
 
 	/// Get a block from the canon chain

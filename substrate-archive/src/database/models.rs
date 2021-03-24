@@ -97,7 +97,7 @@ impl<Block: BlockT> StorageModel<Block> {
 		key: StorageKey,
 		data: Option<StorageData>,
 	) -> Self {
-		Self { block_num, hash, full_storage, key, data }
+		Self { hash, block_num, full_storage, key, data }
 	}
 
 	pub fn is_full(&self) -> bool {
