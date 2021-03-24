@@ -1,5 +1,8 @@
 # **[Unreleased]**
 
+
+# [v0.5.0]
+
 ## Substrate Archive
 - [Changed] Use SQLX for migrations
   - this will create a new table in the database, `sqlx_migrations` or similiar.
@@ -15,11 +18,15 @@
   make configuring the archive more straightforward. Takes from environment variable `DATABASE_URL` if not passed to the 
   archive directly
 - [Added] Archive now reads the `CHAIN_DATA_DB` environment variable if the path to the backend chain database is not passed directly.
-- [Changed] `drive` changed from sync to async function
 - [Removed] Archive no longer needs an RPC url to function
+- [Changed] Printing out of Postgres URL in plain text
+- [Added] Maximum amount of blocks loaded at once can be configured with `max_block_load`
 
 ### Internal Changes
-- [QoL] upgrade to SQLx 0.4.0
+- [Changed] Postgres Queries are now type checked
+- [QoL] Refactor file layout to `substrate-archive` and `substrate-archive-backend`.
+- [perf] Decouple Database actors
+- [QoL] upgrade to SQLx 0.5.0
 - [perf] Overhaul of block indexing. Now uses a Iterator to only collect batches of blocks from the database, 
 taking advantage of sequential read-speeds. Gathering blocks by RPC is no longer done.
   - [perf] a new module `runtime_version_cache` is introduced in order to cache and run a binary search on runtime version & blocks.
