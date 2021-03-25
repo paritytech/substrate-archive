@@ -21,7 +21,7 @@
 - [Removed] Archive no longer needs an RPC url to function
 - [Changed] Print out the Postgres URL at startup
 - [Added] `max_block_load` to configure the maximum number of blocks loaded at once
-- [Added] Two options to configuration file for State Tracing
+- [Added] Two new options to the configuration relative to state tracing:
   - `targets` for specifying runtime targets to trace in WASM
   - `folder` where WASM blobs with tracing enabled are kept.
 - [Changed] Archive config is now separated into sections for readability. Migration is manual but looking at the new `archive.conf` in `polkadot-archive` or `node-template-archive` folders should help.
