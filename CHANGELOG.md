@@ -19,20 +19,20 @@
   archive directly
 - [Added] Archive now reads the `CHAIN_DATA_DB` environment variable if the path to the backend chain database is not passed directly.
 - [Removed] Archive no longer needs an RPC url to function
-- [Changed] Printing out of Postgres URL in plain text
-- [Added] Maximum amount of blocks loaded at once can be configured with `max_block_load`
+- [Changed] Print out the Postgres URL at startup
+- [Added] `max_block_load` to configure the maximum number of blocks loaded at once
 - [Added] Two options to configuration file for State Tracing
   - `targets` for specifying runtime targets to trace in WASM
   - `folder` where WASM blobs with tracing enabled are kept.
-- [Changed] Archive config is now separated into sections for readability. Migration can be achieved by looking at the new `archive.conf` in `polkadot-archive` or `node-template-archive` folders.
+- [Changed] Archive config is now separated into sections for readability. Migration is manual but looking at the new `archive.conf` in `polkadot-archive` or `node-template-archive` folders should help.
 
 ### Internal Changes
-- [Changed] Postgres Queries are now type checked
+- [Changed] Postgres SQL queries are now type checked
 - [QoL] Refactor file layout to `substrate-archive` and `substrate-archive-backend`.
 - [perf] Decouple Database actors
 - [QoL] upgrade to SQLx 0.5.0
 - [perf] Overhaul of block indexing. Now uses a Iterator to only collect batches of blocks from the database,
-taking advantage of sequential read-speeds. Gathering blocks by RPC is no longer done.
+taking advantage of the better reading performance of sequential data access. Gathering blocks by RPC is no longer done.
   - [perf] a new module `runtime_version_cache` is introduced in order to cache and run a binary search on runtime version & blocks.
 - [perf] better queries for the set difference between the storage and blocks table
    - makes querying for missing storage more efficient
