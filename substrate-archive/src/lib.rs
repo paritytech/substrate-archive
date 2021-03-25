@@ -21,7 +21,7 @@
 pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
 pub use sp_runtime::MultiSignature;
-pub use substrate_archive_backend::{ExecutionMethod, ReadOnlyDB, RuntimeConfig, SecondaryRocksDB};
+pub use substrate_archive_backend::{ExecutionMethod, ReadOnlyDb, RuntimeConfig, SecondaryRocksDb};
 
 mod actors;
 pub mod archive;

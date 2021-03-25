@@ -32,7 +32,7 @@ use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
-use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDB};
+use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDb};
 
 use self::workers::GetState;
 pub use self::{
@@ -52,7 +52,7 @@ use crate::{
 
 /// Provides parameters that are passed in from the user.
 /// Provides context that every actor may use
-pub struct SystemConfig<B: BlockT + Unpin, D: ReadOnlyDB + 'static>
+pub struct SystemConfig<B: BlockT + Unpin, D: ReadOnlyDb + 'static>
 where
 	B::Hash: Unpin,
 {
@@ -63,7 +63,7 @@ where
 	pub tracing_targets: Option<String>,
 }
 
-impl<B: BlockT + Unpin, D: ReadOnlyDB> Clone for SystemConfig<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDb> Clone for SystemConfig<B, D>
 where
 	B::Hash: Unpin,
 {
@@ -130,7 +130,7 @@ const fn default_max_block_load() -> u32 {
 	100_000
 }
 
-impl<B: BlockT + Unpin, D: ReadOnlyDB> SystemConfig<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDb> SystemConfig<B, D>
 where
 	B::Hash: Unpin,
 {
@@ -157,7 +157,7 @@ where
 	}
 }
 
-struct Actors<B: BlockT + Unpin, D: ReadOnlyDB + 'static>
+struct Actors<B: BlockT + Unpin, D: ReadOnlyDb + 'static>
 where
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
@@ -172,7 +172,7 @@ where
 /// Will exit on Drop.
 pub struct System<B, R, C, D>
 where
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 	B: BlockT + Unpin,
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
@@ -187,7 +187,7 @@ where
 
 impl<B, R, C, D> System<B, R, C, D>
 where
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 	B: BlockT + Unpin + DeserializeOwned,
 	R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
 	R::RuntimeApi: BlockBuilderApi<B>
@@ -356,7 +356,7 @@ where
 #[async_trait::async_trait(?Send)]
 impl<B, R, C, D> Archive<B, D> for System<B, R, C, D>
 where
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 	B: BlockT + Unpin + DeserializeOwned,
 	<B as BlockT>::Hash: Unpin,
 	R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,

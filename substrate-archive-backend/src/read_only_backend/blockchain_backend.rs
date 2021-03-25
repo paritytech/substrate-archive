@@ -31,14 +31,14 @@ use sp_runtime::{
 };
 
 use crate::{
-	database::ReadOnlyDB,
+	database::ReadOnlyDb,
 	read_only_backend::ReadOnlyBackend,
 	util::{self, columns},
 };
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
-impl<Block: BlockT, D: ReadOnlyDB> BlockchainBackend<Block> for ReadOnlyBackend<Block, D> {
+impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<Block, D> {
 	fn body(&self, id: BlockId<Block>) -> ChainResult<Option<Vec<<Block as BlockT>::Extrinsic>>> {
 		let res = util::read_db::<Block, D>(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
 			.map_err(|e| BlockchainError::Backend(e.to_string()))?;
@@ -93,7 +93,7 @@ impl<Block: BlockT, D: ReadOnlyDB> BlockchainBackend<Block> for ReadOnlyBackend<
 	}
 }
 
-impl<Block: BlockT, D: ReadOnlyDB> HeaderBackend<Block> for ReadOnlyBackend<Block, D> {
+impl<Block: BlockT, D: ReadOnlyDb> HeaderBackend<Block> for ReadOnlyBackend<Block, D> {
 	fn header(&self, id: BlockId<Block>) -> ChainResult<Option<Block::Header>> {
 		util::read_header::<Block, D>(&*self.db, columns::KEY_LOOKUP, columns::HEADER, id)
 			.map_err(|e| BlockchainError::Backend(e.to_string()))
@@ -127,7 +127,7 @@ impl<Block: BlockT, D: ReadOnlyDB> HeaderBackend<Block> for ReadOnlyBackend<Bloc
 	}
 }
 
-impl<Block: BlockT, D: ReadOnlyDB> HeaderMetadata<Block> for ReadOnlyBackend<Block, D> {
+impl<Block: BlockT, D: ReadOnlyDb> HeaderMetadata<Block> for ReadOnlyBackend<Block, D> {
 	type Error = BlockchainError;
 	// TODO: Header Metadata isn't actually cached. We could cache it
 	fn header_metadata(&self, hash: Block::Hash) -> ChainResult<CachedHeaderMetadata<Block>> {

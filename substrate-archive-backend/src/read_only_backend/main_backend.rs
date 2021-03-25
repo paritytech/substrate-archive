@@ -30,7 +30,7 @@ use sp_runtime::{
 };
 
 use crate::{
-	database::ReadOnlyDB,
+	database::ReadOnlyDb,
 	read_only_backend::{
 		misc_backend::{OffchainStorageBackend, RealBlockImportOperation},
 		ReadOnlyBackend,
@@ -39,7 +39,7 @@ use crate::{
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
-impl<Block: BlockT, D: ReadOnlyDB + 'static> Backend<Block> for ReadOnlyBackend<Block, D> {
+impl<Block: BlockT, D: ReadOnlyDb + 'static> Backend<Block> for ReadOnlyBackend<Block, D> {
 	type BlockImportOperation = RealBlockImportOperation<D>;
 	type Blockchain = Self;
 	type State = super::state_backend::TrieState<Block, D>;

@@ -39,7 +39,7 @@ use sp_runtime::{
 use sp_version::{GetRuntimeVersion, NativeVersion};
 
 use crate::{
-	database::ReadOnlyDB,
+	database::ReadOnlyDb,
 	error::BackendError,
 	read_only_backend::{ReadOnlyBackend, TrieState},
 };
@@ -51,7 +51,7 @@ pub trait GetMetadata<Block: BlockT>: Send + Sync {
 }
 
 /// Archive Client
-pub struct Client<Exec, Block: BlockT, RA, D: ReadOnlyDB> {
+pub struct Client<Exec, Block: BlockT, RA, D: ReadOnlyDb> {
 	backend: Arc<ReadOnlyBackend<Block, D>>,
 	executor: Exec,
 	execution_extensions: ExecutionExtensions<Block>,
@@ -60,7 +60,7 @@ pub struct Client<Exec, Block: BlockT, RA, D: ReadOnlyDB> {
 
 impl<Exec, Block, RA, D> Client<Exec, Block, RA, D>
 where
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 	Exec: CallExecutor<Block> + GetRuntimeVersion<Block> + Send + Sync,
 	Block: BlockT,
 	RA: Send + Sync,
@@ -104,7 +104,7 @@ where
 
 impl<Exec, Block, RA, D> GetRuntimeVersion<Block> for Client<Exec, Block, RA, D>
 where
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 	Exec: CallExecutor<Block> + Send + Sync + GetRuntimeVersion<Block>,
 	Block: BlockT,
 	RA: Send + Sync,
@@ -120,7 +120,7 @@ where
 
 impl<Exec, Block, RA, D> GetMetadata<Block> for Client<Exec, Block, RA, D>
 where
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 	Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + GetRuntimeVersion<Block> + Send + Sync,
 	Block: BlockT,
 	RA: ConstructRuntimeApi<Block, Self> + Send + Sync,
@@ -133,7 +133,7 @@ where
 
 impl<Exec, Block, RA, D> ProvideRuntimeApi<Block> for Client<Exec, Block, RA, D>
 where
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 	Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + GetRuntimeVersion<Block> + Send + Sync,
 	Block: BlockT,
 	RA: ConstructRuntimeApi<Block, Self> + Send + Sync,
@@ -146,7 +146,7 @@ where
 
 impl<E, Block, RA, D> CallApiAt<Block> for Client<E, Block, RA, D>
 where
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 	E: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + GetRuntimeVersion<Block> + Send + Sync,
 	Block: BlockT,
 	RA: Send + Sync,

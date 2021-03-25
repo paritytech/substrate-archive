@@ -30,7 +30,7 @@ use sp_runtime::{
 };
 
 use substrate_archive_backend::{
-	runtime_api, ExecutionMethod, ReadOnlyBackend, ReadOnlyDB, RuntimeConfig, TArchiveClient,
+	runtime_api, ExecutionMethod, ReadOnlyBackend, ReadOnlyDb, RuntimeConfig, TArchiveClient,
 };
 
 use crate::{
@@ -111,7 +111,7 @@ pub struct ArchiveConfig {
 
 /// The control interface of an archive system.
 #[async_trait::async_trait(?Send)]
-pub trait Archive<B: BlockT + Unpin, D: ReadOnlyDB>
+pub trait Archive<B: BlockT + Unpin, D: ReadOnlyDb>
 where
 	B::Hash: Unpin,
 {
@@ -337,7 +337,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 
 impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB>
 where
-	DB: ReadOnlyDB + 'static,
+	DB: ReadOnlyDb + 'static,
 	B: BlockT + Unpin + DeserializeOwned,
 	R: ConstructRuntimeApi<B, TArchiveClient<B, R, D, DB>> + Send + Sync + 'static,
 	R::RuntimeApi: BlockBuilderApi<B>

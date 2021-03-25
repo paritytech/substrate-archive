@@ -38,19 +38,19 @@ use sp_version::RuntimeVersion;
 use sp_wasm_interface::HostFunctions;
 
 use crate::{
-	database::ReadOnlyDB,
+	database::ReadOnlyDb,
 	error::{BackendError, Result},
 	read_only_backend::ReadOnlyBackend,
 };
 
-pub struct RuntimeVersionCache<B: BlockT, D: ReadOnlyDB> {
+pub struct RuntimeVersionCache<B: BlockT, D: ReadOnlyDb> {
 	/// Hash of the WASM Blob -> RuntimeVersion
 	versions: ArcSwap<HashMap<u64, RuntimeVersion>>,
 	backend: Arc<ReadOnlyBackend<B, D>>,
 	exec: WasmExecutor,
 }
 
-impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
+impl<B: BlockT, D: ReadOnlyDb + 'static> RuntimeVersionCache<B, D> {
 	pub fn new(backend: Arc<ReadOnlyBackend<B, D>>) -> Self {
 		// all _available_ functions
 		// sp_io::storage::HostFunctions

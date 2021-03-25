@@ -21,7 +21,7 @@ use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, Header as _, NumberFor},
 };
-use substrate_archive_backend::{ReadOnlyBackend, ReadOnlyDB, RuntimeVersionCache};
+use substrate_archive_backend::{ReadOnlyBackend, ReadOnlyDb, RuntimeVersionCache};
 
 use crate::{
 	actors::{
@@ -42,7 +42,7 @@ type MetadataAct<B> = Address<MetadataActor<B>>;
 
 pub struct BlocksIndexer<B: BlockT, D>
 where
-	D: ReadOnlyDB,
+	D: ReadOnlyDb,
 	NumberFor<B>: Into<u32>,
 	B: Unpin,
 	B::Hash: Unpin,
@@ -58,7 +58,7 @@ where
 	max_block_load: u32,
 }
 
-impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> BlocksIndexer<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDb + 'static> BlocksIndexer<B, D>
 where
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
@@ -167,7 +167,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT, D: ReadOnlyDB + 'static> Actor for BlocksIndexer<B, D>
+impl<B: BlockT, D: ReadOnlyDb + 'static> Actor for BlocksIndexer<B, D>
 where
 	NumberFor<B>: Into<u32>,
 	B: Unpin,
@@ -197,7 +197,7 @@ impl Message for Crawl {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<Crawl> for BlocksIndexer<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDb + 'static> Handler<Crawl> for BlocksIndexer<B, D>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
@@ -220,7 +220,7 @@ impl Message for ReIndex {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<ReIndex> for BlocksIndexer<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDb + 'static> Handler<ReIndex> for BlocksIndexer<B, D>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
@@ -236,7 +236,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin, D: ReadOnlyDB + 'static> Handler<Die> for BlocksIndexer<B, D>
+impl<B: BlockT + Unpin, D: ReadOnlyDb + 'static> Handler<Die> for BlocksIndexer<B, D>
 where
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,

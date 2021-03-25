@@ -32,7 +32,7 @@ use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
 pub use self::client::{Client, GetMetadata};
-use crate::{database::ReadOnlyDB, error::BackendError, read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
+use crate::{database::ReadOnlyDb, error::BackendError, read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
 pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;
@@ -101,7 +101,7 @@ impl From<RuntimeConfig> for ClientConfig {
 	}
 }
 
-pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDB + 'static>(
+pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDb + 'static>(
 	db: Arc<D>,
 	config: RuntimeConfig,
 ) -> Result<TArchiveClient<Block, Runtime, Dispatch, D>, BackendError>

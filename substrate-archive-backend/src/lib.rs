@@ -36,7 +36,7 @@ use sp_version::GetRuntimeVersion;
 use self::frontend::GetMetadata;
 // re-exports
 pub use self::{
-	database::{KeyValuePair, ReadOnlyDB, SecondaryRocksDB},
+	database::{KeyValuePair, ReadOnlyDb, SecondaryRocksDb},
 	error::BackendError,
 	frontend::{runtime_api, ExecutionMethod, RuntimeConfig, TArchiveClient},
 	read_only_backend::ReadOnlyBackend,

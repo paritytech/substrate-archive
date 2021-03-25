@@ -44,9 +44,9 @@ use sp_runtime::{
 
 pub use self::state_backend::TrieState;
 use self::state_backend::{DbState, StateVault};
-use crate::{database::ReadOnlyDB, error::Result, util::columns};
+use crate::{database::ReadOnlyDb, error::Result, util::columns};
 
-pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDB> {
+pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDb> {
 	db: Arc<D>,
 	storage: Arc<StateVault<Block, D>>,
 }
@@ -55,7 +55,7 @@ impl<Block, D> ReadOnlyBackend<Block, D>
 where
 	Block: BlockT,
 	Block::Header: HeaderT,
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 {
 	pub fn new(db: Arc<D>, prefix_keys: bool) -> Self {
 		let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));

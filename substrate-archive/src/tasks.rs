@@ -31,7 +31,7 @@ use sp_runtime::{
 	traits::{Block as BlockT, Header, NumberFor},
 };
 
-use substrate_archive_backend::{ApiAccess, ReadOnlyBackend as Backend, ReadOnlyDB};
+use substrate_archive_backend::{ApiAccess, ReadOnlyBackend as Backend, ReadOnlyDb};
 
 use crate::{
 	actors::StorageAggregator,
@@ -43,7 +43,7 @@ use crate::{
 /// The environment passed to each task
 pub struct Environment<B, R, C, D>
 where
-	D: ReadOnlyDB,
+	D: ReadOnlyDb,
 	B: BlockT + Unpin,
 	B::Hash: Unpin,
 {
@@ -60,7 +60,7 @@ where
 type Env<B, R, C, D> = AssertUnwindSafe<Environment<B, R, C, D>>;
 impl<B, R, C, D> Environment<B, R, C, D>
 where
-	D: ReadOnlyDB,
+	D: ReadOnlyDb,
 	B: BlockT + Unpin,
 	B::Hash: Unpin,
 {
@@ -204,7 +204,7 @@ pub fn execute_block<B, RA, Api, D>(
 	_m: PhantomData<(RA, Api, D)>,
 ) -> Result<(), coil::PerformError>
 where
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 	B: BlockT + DeserializeOwned + Unpin,
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,

@@ -27,7 +27,7 @@ use sp_runtime::{
 };
 
 use crate::{
-	database::ReadOnlyDB,
+	database::ReadOnlyDb,
 	error::{BackendError, Result},
 };
 
@@ -77,7 +77,7 @@ pub mod meta_keys {
 	pub const CHILDREN_PREFIX: &[u8; 8] = b"children";
 }
 
-pub fn read_header<Block: BlockT, D: ReadOnlyDB>(
+pub fn read_header<Block: BlockT, D: ReadOnlyDb>(
 	db: &D,
 	col_index: u32,
 	col: u32,
@@ -92,7 +92,7 @@ pub fn read_header<Block: BlockT, D: ReadOnlyDB>(
 	}
 }
 
-pub fn read_db<Block: BlockT, D: ReadOnlyDB>(
+pub fn read_db<Block: BlockT, D: ReadOnlyDb>(
 	db: &D,
 	col_index: u32,
 	col: u32,
@@ -105,7 +105,7 @@ pub fn block_id_to_lookup_key<Block, D>(db: &D, key_lookup_col: u32, id: BlockId
 where
 	Block: BlockT,
 	sp_runtime::traits::NumberFor<Block>: UniqueSaturatedFrom<u64> + UniqueSaturatedInto<u64>,
-	D: ReadOnlyDB,
+	D: ReadOnlyDb,
 {
 	Ok(match id {
 		BlockId::Number(n) => db.get(key_lookup_col, number_index_key(n)?.as_ref()),
@@ -140,7 +140,7 @@ pub struct Meta<N, H> {
 }
 
 /// Read meta from the database.
-pub fn read_meta<Block: BlockT, D: ReadOnlyDB>(
+pub fn read_meta<Block: BlockT, D: ReadOnlyDb>(
 	db: &D,
 	col_header: u32,
 ) -> sp_blockchain::Result<Meta<<<Block as BlockT>::Header as HeaderT>::Number, Block::Hash>>
@@ -180,7 +180,7 @@ where
 }
 
 /// Read genesis hash from database.
-pub fn read_genesis_hash<Hash: Decode, D: ReadOnlyDB>(db: &D) -> sp_blockchain::Result<Option<Hash>> {
+pub fn read_genesis_hash<Hash: Decode, D: ReadOnlyDb>(db: &D) -> sp_blockchain::Result<Option<Hash>> {
 	match db.get(columns::META, meta_keys::GENESIS_HASH) {
 		Some(h) => match Decode::decode(&mut &h[..]) {
 			Ok(h) => Ok(Some(h)),
