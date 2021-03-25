@@ -19,7 +19,7 @@
   archive directly
 - [Added] Archive now reads the `CHAIN_DATA_DB` environment variable if the path to the backend chain database is not passed directly.
 - [Removed] Archive no longer needs an RPC url to function
-- [Changed] Printing out of Postgres URL in plain text
+- [Changed] Print out the Postgres URL at startup
 - [Added] Maximum amount of blocks loaded at once can be configured with `max_block_load`
 - [Added] Two options to configuration file for State Tracing
   - `targets` for specifying runtime targets to trace in WASM
