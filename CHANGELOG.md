@@ -32,7 +32,7 @@
 - [perf] Decouple Database actors
 - [QoL] upgrade to SQLx 0.5.0
 - [perf] Overhaul of block indexing. Now uses a Iterator to only collect batches of blocks from the database,
-taking advantage of sequential read-speeds. Gathering blocks by RPC is no longer done.
+taking advantage of the better reading performance of sequential data access. Gathering blocks by RPC is no longer done.
   - [perf] a new module `runtime_version_cache` is introduced in order to cache and run a binary search on runtime version & blocks.
 - [perf] better queries for the set difference between the storage and blocks table
    - makes querying for missing storage more efficient
