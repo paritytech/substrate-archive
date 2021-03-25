@@ -24,7 +24,7 @@
 - [Added] Two options to configuration file for State Tracing
   - `targets` for specifying runtime targets to trace in WASM
   - `folder` where WASM blobs with tracing enabled are kept.
-- [Changed] Archive config is now separated into sections for readability. Migration can be achieved by looking at the new `archive.conf` in `polkadot-archive` or `node-template-archive` folders.
+- [Changed] Archive config is now separated into sections for readability. Migration is manual but looking at the new `archive.conf` in `polkadot-archive` or `node-template-archive` folders should help.
 
 ### Internal Changes
 - [Changed] Postgres Queries are now type checked
