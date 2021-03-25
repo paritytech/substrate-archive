@@ -24,6 +24,7 @@
 - [Added] Two new options to the configuration relative to state tracing:
   - `targets` for specifying runtime targets to trace in WASM
   - `folder` where WASM blobs with tracing enabled are kept.
+  - More on state-tracing here: https://github.com/paritytech/substrate-archive/wiki/6.)-State-Tracing-&-Balance-Reconciliation  
 - [Changed] Archive config is now separated into sections for readability. Migration is manual but looking at the new `archive.conf` in `polkadot-archive` or `node-template-archive` folders should help.
 
 ### Internal Changes
