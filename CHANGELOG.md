@@ -27,7 +27,7 @@
 - [Changed] Archive config is now separated into sections for readability. Migration is manual but looking at the new `archive.conf` in `polkadot-archive` or `node-template-archive` folders should help.
 
 ### Internal Changes
-- [Changed] Postgres Queries are now type checked
+- [Changed] Postgres SQL queries are now type checked
 - [QoL] Refactor file layout to `substrate-archive` and `substrate-archive-backend`.
 - [perf] Decouple Database actors
 - [QoL] upgrade to SQLx 0.5.0
