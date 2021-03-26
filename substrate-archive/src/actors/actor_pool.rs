@@ -131,7 +131,7 @@ impl<M> Message for PoolMessage<M>
 where
 	M: Message + Send + Unpin + std::fmt::Debug,
 {
-	type Result = M::Result;
+	type Result = BoxFuture<'static, M::Result>;
 }
 
 #[async_trait::async_trait]
@@ -141,8 +141,8 @@ where
 	M: Message + Send + std::fmt::Debug + Unpin,
 	M::Result: Unpin + std::fmt::Debug,
 {
-	async fn handle(&mut self, msg: PoolMessage<M>, _: &mut Context<Self>) -> M::Result {
-		self.forward(msg.0).await
+	async fn handle(&mut self, msg: PoolMessage<M>, _: &mut Context<Self>) -> BoxFuture<'static, M::Result> {
+		self.forward(msg.0)
 	}
 }
 
