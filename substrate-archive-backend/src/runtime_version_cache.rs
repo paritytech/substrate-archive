@@ -160,13 +160,10 @@ impl<B: BlockT> VersionRange<B> {
 }
 
 fn decode_version(version: &[u8]) -> Result<sp_version::RuntimeVersion> {
-	// FIXME: On Clippy Allows: https://github.com/rust-lang/rust-clippy/issues/6968
-	#[allow(clippy::redundant_slicing)]
-	let v: RuntimeVersion = sp_api::OldRuntimeVersion::decode(&mut &version[..])?.into();
+	let v: RuntimeVersion = sp_api::OldRuntimeVersion::decode(&mut &*version)?.into();
 	let core_api_id = sp_core::hashing::blake2_64(b"Core");
 	if v.has_api_with(&core_api_id, |v| v >= 3) {
-		#[allow(clippy::redundant_slicing)]
-		sp_api::RuntimeVersion::decode(&mut &version[..]).map_err(Into::into)
+		sp_api::RuntimeVersion::decode(&mut &*version).map_err(Into::into)
 	} else {
 		Ok(v)
 	}
