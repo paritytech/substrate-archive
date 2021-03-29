@@ -116,7 +116,7 @@ where
 	/// gets any blocks that are missing from database and indexes those.
 	/// sets the `last_max` value.
 	async fn re_index(&mut self) -> Result<()> {
-		let mut conn = self.db.send(GetState::Conn.into()).await?.await?.conn();
+		let mut conn = self.db.send(GetState::Conn.into()).await??.conn();
 		let cur_max = if let Some(m) = queries::max_block(&mut conn).await? {
 			m
 		} else {

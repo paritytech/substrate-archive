@@ -241,7 +241,7 @@ where
 
 	async fn main_loop(conf: SystemConfig<B, D>, rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
 		let actors = Self::spawn_actors(conf.clone()).await?;
-		let pool = actors.db_pool.send(GetState::Pool.into()).await?.await?.pool();
+		let pool = actors.db_pool.send(GetState::Pool.into()).await??.pool();
 		let listener = Self::init_listeners(conf.pg_url()).await?;
 		let mut conn = pool.acquire().await?;
 		Self::restore_missing_storage(&mut *conn).await?;
@@ -305,7 +305,7 @@ where
 			Box::pin(actors.metadata.send(Die)),
 		];
 		futures::future::join_all(fut).await;
-		let _ = actors.db_pool.send(Die.into()).await?.await;
+		let _ = actors.db_pool.send(Die.into()).await?;
 		Ok(())
 	}
 

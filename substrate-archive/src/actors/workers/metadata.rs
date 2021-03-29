@@ -42,7 +42,7 @@ pub struct MetadataActor<B: BlockT> {
 
 impl<B: BlockT + Unpin> MetadataActor<B> {
 	pub async fn new(addr: Address<ActorPool<DatabaseActor<B>>>, meta: Meta<B>) -> Result<Self> {
-		let conn = addr.send(GetState::Conn.into()).await?.await?.conn();
+		let conn = addr.send(GetState::Conn.into()).await??.conn();
 		Ok(Self { conn, addr, meta })
 	}
 
@@ -55,7 +55,7 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 			let meta = smol::unblock(move || meta.metadata(&BlockId::hash(hash))).await?;
 			let meta: sp_core::Bytes = meta.into();
 			let meta = Metadata::new(ver, meta.0);
-			self.addr.send(meta.into()).await?.await;
+			self.addr.send(meta.into()).await?;
 		}
 		Ok(())
 	}
@@ -66,7 +66,7 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 	{
 		let hash = blk.inner.block.hash();
 		self.meta_checker(blk.spec, hash).await?;
-		self.addr.send(blk.into()).await?.await;
+		self.addr.send(blk.into()).await?;
 		Ok(())
 	}
 
@@ -77,7 +77,7 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 		for blk in blks.inner().iter().unique_by(|&blk| blk.spec) {
 			self.meta_checker(blk.spec, blk.inner.block.hash()).await?;
 		}
-		self.addr.send(blks.into()).await?.await;
+		self.addr.send(blks.into()).await?;
 		Ok(())
 	}
 }
