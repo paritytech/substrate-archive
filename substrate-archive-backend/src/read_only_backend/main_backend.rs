@@ -119,7 +119,7 @@ impl<Block: BlockT, D: ReadOnlyDb + 'static> Backend<Block> for ReadOnlyBackend<
 	}
 
 	fn get_import_lock(&self) -> &parking_lot::RwLock<()> {
-		panic!("No lock exists for read only backend!")
+		log::warn!("No lock exists for read only backend.");
 	}
 
 	fn append_justification(&self, _: BlockId<Block>, _: Justification) -> sp_blockchain::Result<()> {

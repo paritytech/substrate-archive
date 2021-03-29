@@ -130,11 +130,10 @@ impl ReadOnlyDb for SecondaryRocksDb {
 }
 
 type DbError = std::result::Result<(), sp_database::error::DatabaseError>;
-//TODO: Remove panics with a warning that database has not been written to / is read-only
 /// Preliminary trait for ReadOnlyDb
 impl<H: Clone + AsRef<[u8]>> DatabaseTrait<H> for SecondaryRocksDb {
 	fn commit(&self, _transaction: Transaction<H>) -> DbError {
-		panic!("Read only db")
+		log::warn!("Read Only Database; commits not supported.");
 	}
 
 	fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
