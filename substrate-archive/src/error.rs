@@ -66,6 +66,9 @@ pub enum ArchiveError {
 	#[error("Backend error: {0}")]
 	Backend(#[from] substrate_archive_backend::BackendError),
 
+	#[error(transparent)]
+	Api(#[from] sp_api::ApiError),
+
 	// WASM tracing error
 	#[error("Tracing: {0}")]
 	Trace(#[from] TracingError),

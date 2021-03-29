@@ -31,7 +31,7 @@ use sp_runtime::{
 	traits::{Block as BlockT, Header, NumberFor},
 };
 
-use substrate_archive_backend::{ApiAccess, ReadOnlyBackend as Backend, ReadOnlyDB};
+use substrate_archive_backend::{ApiAccess, ReadOnlyBackend as Backend, ReadOnlyDb};
 
 use crate::{
 	actors::StorageAggregator,
@@ -43,7 +43,7 @@ use crate::{
 /// The environment passed to each task
 pub struct Environment<B, R, C, D>
 where
-	D: ReadOnlyDB,
+	D: ReadOnlyDb,
 	B: BlockT + Unpin,
 	B::Hash: Unpin,
 {
@@ -60,7 +60,7 @@ where
 type Env<B, R, C, D> = AssertUnwindSafe<Environment<B, R, C, D>>;
 impl<B, R, C, D> Environment<B, R, C, D>
 where
-	D: ReadOnlyDB,
+	D: ReadOnlyDb,
 	B: BlockT + Unpin,
 	B::Hash: Unpin,
 {
@@ -118,8 +118,7 @@ where
 struct BlockExecutor<'a, Block, Api, B>
 where
 	Block: BlockT,
-	Api: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-		+ ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
+	Api: BlockBuilderApi<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
 	B: backend::Backend<Block>,
 {
 	api: ApiRef<'a, Api>,
@@ -131,8 +130,7 @@ where
 impl<'a, Block, Api, B> BlockExecutor<'a, Block, Api, B>
 where
 	Block: BlockT,
-	Api: BlockBuilderApi<Block, Error = sp_blockchain::Error>
-		+ ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
+	Api: BlockBuilderApi<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
 	B: backend::Backend<Block>,
 {
 	fn new(api: ApiRef<'a, Api>, backend: &'a Arc<B>, block: Block) -> Self {
@@ -206,13 +204,12 @@ pub fn execute_block<B, RA, Api, D>(
 	_m: PhantomData<(RA, Api, D)>,
 ) -> Result<(), coil::PerformError>
 where
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 	B: BlockT + DeserializeOwned + Unpin,
 	NumberFor<B>: Into<u32>,
 	B::Hash: Unpin,
 	RA: ConstructRuntimeApi<B, Api> + Send + Sync + 'static,
-	RA::RuntimeApi: BlockBuilderApi<B, Error = sp_blockchain::Error>
-		+ ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B, D>, B>>,
+	RA::RuntimeApi: BlockBuilderApi<B> + ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B, D>, B>>,
 	Api: ApiAccess<B, Backend<B, D>, RA> + 'static,
 {
 	let api = env.client.runtime_api();

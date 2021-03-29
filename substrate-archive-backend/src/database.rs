@@ -22,14 +22,14 @@ use std::{collections::HashMap, fmt, io, path::PathBuf};
 use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 
-use sp_database::{ChangeRef, ColumnId, Database as DatabaseTrait, Transaction};
+use sp_database::{ColumnId, Database as DatabaseTrait, Transaction};
 
 const NUM_COLUMNS: u32 = 11;
 
 pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
 
 // Archive specific K/V database reader implementation
-pub trait ReadOnlyDB: Send + Sync {
+pub trait ReadOnlyDb: Send + Sync {
 	/// Read key/value pairs from the database
 	fn get(&self, col: u32, key: &[u8]) -> Option<Vec<u8>>;
 	/// Iterate over all blocks in the database
@@ -47,18 +47,18 @@ pub struct Config {
 }
 
 #[derive(parity_util_mem::MallocSizeOf)]
-pub struct SecondaryRocksDB {
+pub struct SecondaryRocksDb {
 	inner: Database,
 }
 
-impl fmt::Debug for SecondaryRocksDB {
+impl fmt::Debug for SecondaryRocksDb {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let stats = self.inner.io_stats(kvdb::IoStatsKind::Overall);
 		f.write_fmt(format_args!("Read Only Database Stats: {:?}", stats))
 	}
 }
 
-impl SecondaryRocksDB {
+impl SecondaryRocksDb {
 	pub fn open(config: Config, path: &str) -> io::Result<Self> {
 		let inner = Database::open(&config.config, path)?;
 		inner.try_catch_up_with_primary()?;
@@ -83,7 +83,7 @@ impl SecondaryRocksDB {
 	}
 }
 
-impl ReadOnlyDB for SecondaryRocksDB {
+impl ReadOnlyDb for SecondaryRocksDb {
 	fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
 		self.get(col, key)
 	}
@@ -96,7 +96,7 @@ impl ReadOnlyDB for SecondaryRocksDB {
 		self.inner.try_catch_up_with_primary()
 	}
 
-	fn open_database(path: &str, cache_size: usize, db_path: PathBuf) -> io::Result<SecondaryRocksDB> {
+	fn open_database(path: &str, cache_size: usize, db_path: PathBuf) -> io::Result<SecondaryRocksDb> {
 		// need to make sure this is `Some` to open secondary instance
 		let db_path = db_path.as_path().to_str().expect("Creating db path failed");
 		let mut db_config = Config {
@@ -129,35 +129,15 @@ impl ReadOnlyDB for SecondaryRocksDB {
 	}
 }
 
-type DBError = std::result::Result<(), sp_database::error::DatabaseError>;
-//TODO: Remove panics with a warning that database has not been written to / is read-only
-/// Preliminary trait for ReadOnlyDB
-impl<H: Clone> DatabaseTrait<H> for SecondaryRocksDB {
-	fn commit(&self, _transaction: Transaction<H>) -> DBError {
-		panic!("Read only db")
-	}
-
-	fn commit_ref<'a>(&self, _transaction: &mut dyn Iterator<Item = ChangeRef<'a, H>>) -> DBError {
-		panic!("Read only db")
+type DbError = std::result::Result<(), sp_database::error::DatabaseError>;
+/// Preliminary trait for ReadOnlyDb
+impl<H: Clone + AsRef<[u8]>> DatabaseTrait<H> for SecondaryRocksDb {
+	fn commit(&self, _transaction: Transaction<H>) -> DbError {
+		log::warn!("Read Only Database; commits not supported.");
+		Ok(())
 	}
 
 	fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
 		self.get(col, key)
 	}
-	// with_get -> default is fine
-
-	fn remove(&self, _col: ColumnId, _key: &[u8]) -> std::result::Result<(), sp_database::error::DatabaseError> {
-		panic!("Read only db")
-	}
-
-	fn lookup(&self, _hash: &H) -> Option<Vec<u8>> {
-		unimplemented!();
-	}
-
-	// with_lookup -> default
-	/*
-		fn store(&self, _hash: , _preimage: _) {
-			panic!("Read only db")
-		}
-	*/
 }

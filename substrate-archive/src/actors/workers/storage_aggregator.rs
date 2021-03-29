@@ -46,9 +46,9 @@ where
 		let storage = std::mem::replace(&mut self.storage, Vec::with_capacity(500));
 		if !storage.is_empty() {
 			log::info!("Indexing {} blocks of storage entries", storage.len());
-			let send_result = self.db.send(BatchStorage::new(storage).into()).await?;
+			let send_result = self.db.send(BatchStorage::new(storage).into());
 			// handle_while the actual insert is happening, not the send
-			ctx.handle_while(self, send_result).await;
+			ctx.handle_while(self, send_result).await?;
 		}
 		Ok(())
 	}
@@ -58,8 +58,8 @@ where
 		if !traces.is_empty() {
 			log::info!("Inserting {} traces", traces.len());
 			for trace in traces.drain(..) {
-				let send_result = self.db.send(trace.into()).await?;
-				ctx.handle_while(self, send_result).await;
+				let send_result = self.db.send(trace.into());
+				ctx.handle_while(self, send_result).await?;
 			}
 		}
 		std::mem::swap(&mut self.traces, &mut traces);
@@ -95,14 +95,8 @@ where
 		let task = self.db.send(BatchStorage::new(storage).into()).await;
 
 		match task {
-			Err(e) => {
-				log::info!("{} storage entries will be missing, {:?}", len, e);
-			}
-			Ok(v) => {
-				log::info!("waiting for last storage insert...");
-				v.await;
-				log::info!("storage inserted");
-			}
+			Err(e) => log::info!("{} storage entries will be missing, {:?}", len, e),
+			Ok(_) => log::info!("storage inserted"),
 		}
 	}
 }

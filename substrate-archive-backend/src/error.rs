@@ -25,6 +25,8 @@ pub enum BackendError {
 	Io(#[from] io::Error),
 	#[error(transparent)]
 	Codec(#[from] codec::Error),
+	#[error(transparent)]
+	Api(#[from] sp_api::ApiError),
 	#[error("Blockchain error: {0}")]
 	Blockchain(String),
 	#[error("Wasm exists but could not extract runtime version")]

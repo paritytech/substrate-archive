@@ -38,19 +38,19 @@ use sp_version::RuntimeVersion;
 use sp_wasm_interface::HostFunctions;
 
 use crate::{
-	database::ReadOnlyDB,
+	database::ReadOnlyDb,
 	error::{BackendError, Result},
 	read_only_backend::ReadOnlyBackend,
 };
 
-pub struct RuntimeVersionCache<B: BlockT, D: ReadOnlyDB> {
+pub struct RuntimeVersionCache<B: BlockT, D: ReadOnlyDb> {
 	/// Hash of the WASM Blob -> RuntimeVersion
 	versions: ArcSwap<HashMap<u64, RuntimeVersion>>,
 	backend: Arc<ReadOnlyBackend<B, D>>,
 	exec: WasmExecutor,
 }
 
-impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
+impl<B: BlockT, D: ReadOnlyDb + 'static> RuntimeVersionCache<B, D> {
 	pub fn new(backend: Arc<ReadOnlyBackend<B, D>>) -> Self {
 		// all _available_ functions
 		// sp_io::storage::HostFunctions
@@ -74,7 +74,8 @@ impl<B: BlockT, D: ReadOnlyDB + 'static> RuntimeVersionCache<B, D> {
 			.filter(|f| f.name().matches("ext_logging").count() == 0)
 			.collect::<Vec<_>>();
 
-		let exec = WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(128), funs, 1);
+		// TODO: https://github.com/paritytech/substrate-archive/issues/247
+		let exec = WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(128), funs, 1, None);
 		Self { versions: ArcSwap::from_pointee(HashMap::new()), backend, exec }
 	}
 
@@ -159,10 +160,10 @@ impl<B: BlockT> VersionRange<B> {
 }
 
 fn decode_version(version: &[u8]) -> Result<sp_version::RuntimeVersion> {
-	let v: RuntimeVersion = sp_api::OldRuntimeVersion::decode(&mut &version[..])?.into();
+	let v: RuntimeVersion = sp_api::OldRuntimeVersion::decode(&mut &*version)?.into();
 	let core_api_id = sp_core::hashing::blake2_64(b"Core");
 	if v.has_api_with(&core_api_id, |v| v >= 3) {
-		sp_api::RuntimeVersion::decode(&mut &version[..]).map_err(Into::into)
+		sp_api::RuntimeVersion::decode(&mut &*version).map_err(Into::into)
 	} else {
 		Ok(v)
 	}

@@ -58,7 +58,7 @@ impl<'a, B: BlockT> BlockModelDecoder<B> {
 			.into_iter()
 			.map(|b| {
 				let (block, spec) = Self::with_single(b)?;
-				let block = SignedBlock { block, justification: None };
+				let block = SignedBlock { block, justifications: None };
 				Ok(Block::new(block, spec))
 			})
 			.collect()
@@ -97,7 +97,7 @@ impl<Block: BlockT> StorageModel<Block> {
 		key: StorageKey,
 		data: Option<StorageData>,
 	) -> Self {
-		Self { block_num, hash, full_storage, key, data }
+		Self { hash, block_num, full_storage, key, data }
 	}
 
 	pub fn is_full(&self) -> bool {

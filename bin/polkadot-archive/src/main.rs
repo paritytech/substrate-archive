@@ -26,7 +26,7 @@ use polkadot_service::polkadot_runtime as dot_rt;
 use polkadot_service::westend_runtime as wnd_rt;
 use polkadot_service::Block;
 use substrate_archive::{
-	native_executor_instance, Archive, ArchiveBuilder, ArchiveConfig, ReadOnlyDB, SecondaryRocksDB,
+	native_executor_instance, Archive, ArchiveBuilder, ArchiveConfig, ReadOnlyDb, SecondaryRocksDb,
 };
 
 native_executor_instance!(
@@ -54,7 +54,7 @@ pub fn main() -> Result<()> {
 	let cli = cli_opts::CliOpts::init();
 	let config = cli.parse()?;
 
-	let mut archive = run_archive::<SecondaryRocksDB>(&cli.chain_spec, config)?;
+	let mut archive = run_archive::<SecondaryRocksDb>(&cli.chain_spec, config)?;
 	archive.drive()?;
 	let running = Arc::new(AtomicBool::new(true));
 	let r = running.clone();
@@ -69,7 +69,7 @@ pub fn main() -> Result<()> {
 	Ok(())
 }
 
-fn run_archive<D: ReadOnlyDB + 'static>(
+fn run_archive<D: ReadOnlyDb + 'static>(
 	chain_spec: &str,
 	config: Option<ArchiveConfig>,
 ) -> Result<Box<dyn Archive<Block, D>>> {

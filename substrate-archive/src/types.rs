@@ -97,7 +97,7 @@ impl<Block: BlockT> Storage<Block> {
 		full_storage: bool,
 		changes: Vec<(StorageKey, Option<StorageData>)>,
 	) -> Self {
-		Self { block_num, hash, full_storage, changes }
+		Self { hash, block_num, full_storage, changes }
 	}
 
 	pub fn is_full(&self) -> bool {

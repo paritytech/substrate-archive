@@ -23,14 +23,14 @@ use sc_client_api::backend as api_backend;
 use sc_executor::NativeExecutionDispatch;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_blockchain::{Backend as BlockchainBackend, Error as BlockchainError};
+use sp_blockchain::Backend as BlockchainBackend;
 use sp_runtime::{
 	generic::BlockId,
 	traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
 
 use substrate_archive_backend::{
-	runtime_api, ExecutionMethod, ReadOnlyBackend, ReadOnlyDB, RuntimeConfig, TArchiveClient,
+	runtime_api, ExecutionMethod, ReadOnlyBackend, ReadOnlyDb, RuntimeConfig, TArchiveClient,
 };
 
 use crate::{
@@ -111,7 +111,7 @@ pub struct ArchiveConfig {
 
 /// The control interface of an archive system.
 #[async_trait::async_trait(?Send)]
-pub trait Archive<B: BlockT + Unpin, D: ReadOnlyDB>
+pub trait Archive<B: BlockT + Unpin, D: ReadOnlyDb>
 where
 	B::Hash: Unpin,
 {
@@ -337,11 +337,11 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 
 impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB>
 where
-	DB: ReadOnlyDB + 'static,
+	DB: ReadOnlyDb + 'static,
 	B: BlockT + Unpin + DeserializeOwned,
 	R: ConstructRuntimeApi<B, TArchiveClient<B, R, D, DB>> + Send + Sync + 'static,
-	R::RuntimeApi: BlockBuilderApi<B, Error = BlockchainError>
-		+ sp_api::Metadata<B, Error = BlockchainError>
+	R::RuntimeApi: BlockBuilderApi<B>
+		+ sp_api::Metadata<B>
 		+ ApiExt<B, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<B, DB>, B>>
 		+ Send
 		+ Sync

@@ -31,8 +31,8 @@ use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
-pub use self::client::{Client, GetMetadata, GetRuntimeVersion};
-use crate::{database::ReadOnlyDB, error::BackendError, read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
+pub use self::client::{Client, GetMetadata};
+use crate::{database::ReadOnlyDb, error::BackendError, read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
 pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;
@@ -101,7 +101,7 @@ impl From<RuntimeConfig> for ClientConfig {
 	}
 }
 
-pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDB + 'static>(
+pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDb + 'static>(
 	db: Arc<D>,
 	config: RuntimeConfig,
 ) -> Result<TArchiveClient<Block, Runtime, Dispatch, D>, BackendError>
@@ -119,7 +119,7 @@ where
 
 	let executor = NativeExecutor::<Dispatch>::new(config.exec_method.into(), config.wasm_pages, config.block_workers);
 	let executor = LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.into())?;
-	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None))?;
+	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None, None))?;
 	Ok(client)
 }
 

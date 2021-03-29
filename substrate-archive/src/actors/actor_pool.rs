@@ -20,11 +20,7 @@
 
 use std::collections::VecDeque;
 
-use futures::{
-	future::{BoxFuture, Future, FutureExt},
-	sink::SinkExt,
-	stream::StreamExt,
-};
+use futures::{future::Future, sink::SinkExt, stream::StreamExt};
 use xtra::{prelude::*, spawn::Smol, Disconnected, WeakAddress};
 
 // TODO: Could restart actors which have panicked
@@ -86,18 +82,18 @@ impl<A: Actor + Send + Clone> ActorPool<A> {
 
 	/// Forward a message to one of the spawned actors
 	/// and advance the state of the futures in queue.
-	pub fn forward<M>(&mut self, msg: M) -> BoxFuture<'static, M::Result>
+	pub async fn forward<M>(&mut self, msg: M) -> M::Result
 	where
 		M: Message + std::fmt::Debug + Send,
 		M::Result: std::fmt::Debug + Unpin + Send,
 		A: Handler<M>,
 	{
 		self.queue.rotate_left(1);
-		spawn(self.queue[0].send(msg))
+		spawn(self.queue[0].send(msg)).await
 	}
 }
 
-fn spawn<R>(fut: impl Future<Output = Result<R, Disconnected>> + Send + 'static) -> BoxFuture<'static, R>
+async fn spawn<R>(fut: impl Future<Output = Result<R, Disconnected>> + Send + 'static) -> R
 where
 	R: Send + 'static + Unpin + std::fmt::Debug,
 {
@@ -118,7 +114,7 @@ where
 		};
 	};
 	smol::spawn(fut).detach();
-	handle.boxed()
+	handle.await
 }
 
 impl<A: Actor> Actor for ActorPool<A> {}
@@ -131,7 +127,7 @@ impl<M> Message for PoolMessage<M>
 where
 	M: Message + Send + Unpin + std::fmt::Debug,
 {
-	type Result = BoxFuture<'static, M::Result>;
+	type Result = M::Result;
 }
 
 #[async_trait::async_trait]
@@ -141,8 +137,8 @@ where
 	M: Message + Send + std::fmt::Debug + Unpin,
 	M::Result: Unpin + std::fmt::Debug,
 {
-	async fn handle(&mut self, msg: PoolMessage<M>, _: &mut Context<Self>) -> BoxFuture<'static, M::Result> {
-		self.forward(msg.0)
+	async fn handle(&mut self, msg: PoolMessage<M>, _: &mut Context<Self>) -> M::Result {
+		self.forward(msg.0).await
 	}
 }
 

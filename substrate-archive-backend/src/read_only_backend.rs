@@ -39,14 +39,14 @@ use sp_blockchain::{Backend as _, HeaderBackend as _};
 use sp_runtime::{
 	generic::{BlockId, SignedBlock},
 	traits::{Block as BlockT, HashFor, Header as HeaderT},
-	Justification,
+	Justifications,
 };
 
 pub use self::state_backend::TrieState;
 use self::state_backend::{DbState, StateVault};
-use crate::{database::ReadOnlyDB, error::Result, util::columns};
+use crate::{database::ReadOnlyDb, error::Result, util::columns};
 
-pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDB> {
+pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDb> {
 	db: Arc<D>,
 	storage: Arc<StateVault<Block, D>>,
 }
@@ -55,7 +55,7 @@ impl<Block, D> ReadOnlyBackend<Block, D>
 where
 	Block: BlockT,
 	Block::Header: HeaderT,
-	D: ReadOnlyDB + 'static,
+	D: ReadOnlyDb + 'static,
 {
 	pub fn new(db: Arc<D>, prefix_keys: bool) -> Self {
 		let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
@@ -110,10 +110,7 @@ where
 
 	/// get storage keys for a prefix at a block in time
 	pub fn storage_keys(&self, hash: Block::Hash, prefix: &[u8]) -> Option<Vec<Vec<u8>>> {
-		match self.state_at(hash) {
-			Some(state) => Some(state.keys(prefix)),
-			None => None,
-		}
+		self.state_at(hash).map(|state| state.keys(prefix))
 	}
 
 	/// Get a block from the canon chain
@@ -121,8 +118,8 @@ where
 	pub fn block(&self, id: &BlockId<Block>) -> Option<SignedBlock<Block>> {
 		let header = self.header(*id).ok()?;
 		let body = self.body(*id).ok()?;
-		let justification = self.justification(*id).ok()?;
-		construct_block(header, body, justification)
+		let justifications = self.justifications(*id).ok()?;
+		construct_block(header, body, justifications)
 	}
 
 	/// Iterate over all blocks that match the predicate `fun`
@@ -147,7 +144,7 @@ where
 						.get(super::util::columns::BODY, &value)
 						.map(|bytes| Decode::decode(&mut &bytes[..]).ok())
 						.flatten();
-					let justif: Option<Justification> = readable_db
+					let justif: Option<Justifications> = readable_db
 						.get(super::util::columns::JUSTIFICATION, &value)
 						.map(|bytes| Decode::decode(&mut &bytes[..]).ok())
 						.flatten();
@@ -170,11 +167,11 @@ impl<Block: BlockT> sp_state_machine::Storage<HashFor<Block>> for DbGenesisStora
 fn construct_block<Block: BlockT>(
 	header: Option<Block::Header>,
 	body: Option<Vec<Block::Extrinsic>>,
-	justification: Option<Justification>,
+	justifications: Option<Justifications>,
 ) -> Option<SignedBlock<Block>> {
-	match (header, body, justification) {
-		(Some(header), Some(extrinsics), justification) => {
-			Some(SignedBlock { block: Block::new(header, extrinsics), justification })
+	match (header, body, justifications) {
+		(Some(header), Some(extrinsics), justifications) => {
+			Some(SignedBlock { block: Block::new(header, extrinsics), justifications })
 		}
 		_ => None,
 	}
