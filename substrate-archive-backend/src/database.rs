@@ -134,6 +134,7 @@ type DbError = std::result::Result<(), sp_database::error::DatabaseError>;
 impl<H: Clone + AsRef<[u8]>> DatabaseTrait<H> for SecondaryRocksDb {
 	fn commit(&self, _transaction: Transaction<H>) -> DbError {
 		log::warn!("Read Only Database; commits not supported.");
+		Ok(())
 	}
 
 	fn get(&self, col: ColumnId, key: &[u8]) -> Option<Vec<u8>> {
