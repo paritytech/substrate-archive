@@ -20,33 +20,35 @@
 use xtra::prelude::*;
 
 use sp_runtime::traits::Block as BlockT;
+use std::sync::Arc;
 
 use crate::{
-	actors::{actor_pool::ActorPool, workers::database::DatabaseActor},
+	actors::workers::database::DatabaseActor,
 	error::Result,
 	types::{BatchStorage, Die, Storage},
 	wasm_tracing::Traces,
 };
 
 pub struct StorageAggregator<B: BlockT + Unpin> {
-	db: Address<ActorPool<DatabaseActor<B>>>,
+	db: Address<DatabaseActor<B>>,
 	storage: Vec<Storage<B>>,
 	traces: Vec<Traces>,
+	executor: Arc<smol::Executor<'static>>
 }
 
 impl<B: BlockT + Unpin> StorageAggregator<B>
 where
 	B::Hash: Unpin,
 {
-	pub fn new(db: Address<ActorPool<DatabaseActor<B>>>) -> Self {
-		Self { db, storage: Vec::with_capacity(500), traces: Vec::with_capacity(250) }
+	pub fn new(db: Address<DatabaseActor<B>>, executor: Arc<smol::Executor<'static>>) -> Self {
+		Self { db, storage: Vec::with_capacity(500), traces: Vec::with_capacity(250), executor }
 	}
 
 	async fn handle_storage(&mut self, ctx: &mut Context<Self>) -> Result<()> {
 		let storage = std::mem::replace(&mut self.storage, Vec::with_capacity(500));
 		if !storage.is_empty() {
 			log::info!("Indexing {} blocks of storage entries", storage.len());
-			let send_result = self.db.send(BatchStorage::new(storage).into());
+			let send_result = self.db.send(BatchStorage::new(storage));
 			// handle_while the actual insert is happening, not the send
 			ctx.handle_while(self, send_result).await?;
 		}
@@ -58,7 +60,7 @@ where
 		if !traces.is_empty() {
 			log::info!("Inserting {} traces", traces.len());
 			for trace in traces.drain(..) {
-				let send_result = self.db.send(trace.into());
+				let send_result = self.db.send(trace);
 				ctx.handle_while(self, send_result).await?;
 			}
 		}
@@ -74,7 +76,7 @@ where
 {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		let addr = ctx.address().expect("Actor just started");
-		smol::spawn(async move {
+		self.executor.spawn(async move {
 			loop {
 				smol::Timer::after(std::time::Duration::from_secs(1)).await;
 				if addr.send(SendStorage).await.is_err() {
@@ -92,7 +94,7 @@ where
 		let len = self.storage.len();
 		let storage = std::mem::take(&mut self.storage);
 		// insert any storage left in queue
-		let task = self.db.send(BatchStorage::new(storage).into()).await;
+		let task = self.db.send(BatchStorage::new(storage)).await;
 
 		match task {
 			Err(e) => log::info!("{} storage entries will be missing, {:?}", len, e),

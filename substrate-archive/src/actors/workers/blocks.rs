@@ -25,7 +25,6 @@ use substrate_archive_backend::{ReadOnlyBackend, ReadOnlyDb, RuntimeVersionCache
 
 use crate::{
 	actors::{
-		actor_pool::ActorPool,
 		workers::{
 			database::{DatabaseActor, GetState},
 			metadata::MetadataActor,
@@ -37,7 +36,7 @@ use crate::{
 	types::{BatchBlock, Block, Die},
 };
 
-type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
+type DatabaseAct<B> = Address<DatabaseActor<B>>;
 type MetadataAct<B> = Address<MetadataActor<B>>;
 
 pub struct BlocksIndexer<B: BlockT, D>
@@ -52,6 +51,7 @@ where
 	db: DatabaseAct<B>,
 	meta: MetadataAct<B>,
 	rt_cache: Arc<RuntimeVersionCache<B, D>>,
+	executor: Arc<smol::Executor<'static>>,
 	/// the last maximum block number from which we are sure every block before then is indexed
 	last_max: u32,
 	/// the maximum amount of blocks to index at once
@@ -66,6 +66,7 @@ where
 	pub fn new(conf: &SystemConfig<B, D>, db: DatabaseAct<B>, meta: MetadataAct<B>) -> Self {
 		Self {
 			rt_cache: Arc::new(RuntimeVersionCache::new(conf.backend.clone())),
+			executor: conf.executor.clone(),
 			last_max: 0,
 			backend: conf.backend().clone(),
 			db,
@@ -116,7 +117,7 @@ where
 	/// gets any blocks that are missing from database and indexes those.
 	/// sets the `last_max` value.
 	async fn re_index(&mut self) -> Result<()> {
-		let mut conn = self.db.send(GetState::Conn.into()).await??.conn();
+		let mut conn = self.db.send(GetState::Conn).await??.conn();
 		let cur_max = if let Some(m) = queries::max_block(&mut conn).await? {
 			m
 		} else {
@@ -180,7 +181,7 @@ where
 
 		addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
 
-		smol::spawn(async move {
+		self.executor.spawn(async move {
 			loop {
 				if addr.send(Crawl).await.is_err() {
 					break;

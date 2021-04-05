@@ -23,10 +23,7 @@ use sp_runtime::{
 use substrate_archive_backend::Meta;
 
 use crate::{
-	actors::{
-		actor_pool::ActorPool,
-		workers::database::{DatabaseActor, GetState},
-	},
+	actors::workers::database::{DatabaseActor, GetState},
 	database::{queries, DbConn},
 	error::Result,
 	types::{BatchBlock, Block, Die, Metadata},
@@ -36,13 +33,13 @@ use crate::{
 /// Accepts workers to decode blocks and a URL for the RPC
 pub struct MetadataActor<B: BlockT> {
 	conn: DbConn,
-	addr: Address<ActorPool<DatabaseActor<B>>>,
+	addr: Address<DatabaseActor<B>>,
 	meta: Meta<B>,
 }
 
 impl<B: BlockT + Unpin> MetadataActor<B> {
-	pub async fn new(addr: Address<ActorPool<DatabaseActor<B>>>, meta: Meta<B>) -> Result<Self> {
-		let conn = addr.send(GetState::Conn.into()).await??.conn();
+	pub async fn new(addr: Address<DatabaseActor<B>>, meta: Meta<B>) -> Result<Self> {
+		let conn = addr.send(GetState::Conn).await??.conn();
 		Ok(Self { conn, addr, meta })
 	}
 
@@ -53,9 +50,8 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 			let meta = self.meta.clone();
 			log::info!("Getting metadata for hash {}, version {}", hex::encode(hash.as_ref()), ver);
 			let meta = smol::unblock(move || meta.metadata(&BlockId::hash(hash))).await?;
-			let meta: sp_core::Bytes = meta.into();
-			let meta = Metadata::new(ver, meta.0);
-			self.addr.send(meta.into()).await?;
+			let meta = Metadata::new(ver, meta.to_vec());
+			self.addr.send(meta).await?;
 		}
 		Ok(())
 	}
@@ -66,7 +62,7 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 	{
 		let hash = blk.inner.block.hash();
 		self.meta_checker(blk.spec, hash).await?;
-		self.addr.send(blk.into()).await?;
+		self.addr.send(blk).await?;
 		Ok(())
 	}
 
@@ -77,7 +73,7 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 		for blk in blks.inner().iter().unique_by(|&blk| blk.spec) {
 			self.meta_checker(blk.spec, blk.inner.block.hash()).await?;
 		}
-		self.addr.send(blks.into()).await?;
+		self.addr.send(blks).await?;
 		Ok(())
 	}
 }

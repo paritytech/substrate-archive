@@ -116,7 +116,7 @@ where
 	}
 
 	/// Spawns this listener which will work on its assigned tasks in the background
-	pub async fn spawn(self) -> Result<Listener> {
+	pub async fn spawn(self, executor: &smol::Executor<'_>) -> Result<Listener> {
 		let (tx, rx) = flume::bounded(1);
 
 		let mut listener = PgListener::connect(&self.pg_url).await?;
@@ -169,7 +169,7 @@ where
 			}
 		};
 
-		smol::spawn(fut).detach();
+		executor.spawn(fut).detach();
 
 		Ok(Listener { tx })
 	}
