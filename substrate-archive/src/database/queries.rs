@@ -120,10 +120,10 @@ pub(crate) async fn get_full_block_by_id(conn: &mut sqlx::PgConnection, id: i32)
 	sqlx::query_as!(
 		BlockModel,
 		"
-        SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
-        FROM blocks
-        WHERE id = $1
-        ",
+		SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
+		FROM blocks
+		WHERE id = $1
+		",
 		id
 	)
 	.fetch_one(conn)
@@ -148,7 +148,6 @@ pub(crate) async fn get_full_block_by_number(conn: &mut sqlx::PgConnection, numb
 	.await
 	.map_err(Into::into)
 }
-
 
 /// Check if the runtime version identified by `spec` exists in the relational database
 pub(crate) async fn check_if_meta_exists(spec: u32, conn: &mut PgConnection) -> Result<bool> {

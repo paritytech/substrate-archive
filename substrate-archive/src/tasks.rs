@@ -115,7 +115,13 @@ where
 	}
 }
 
-struct BlockExecutor<'a, Block, Api, B>
+/// Execute substrate blocks if the RuntimeApi object is known.
+///
+/// NOTE: This is hidden. The API is public for benchmarking purposes. Otherwise, there is little
+/// reason for a substrate-archive user to directly access these functions.
+///
+#[doc(hidden)]
+pub struct BlockExecutor<'a, Block, Api, B>
 where
 	Block: BlockT,
 	Api: BlockBuilderApi<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
@@ -133,7 +139,8 @@ where
 	Api: BlockBuilderApi<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
 	B: backend::Backend<Block>,
 {
-	fn new(api: ApiRef<'a, Api>, backend: &'a Arc<B>, block: Block) -> Self {
+	#[doc(hidden)]
+	pub fn new(api: ApiRef<'a, Api>, backend: &'a Arc<B>, block: Block) -> Self {
 		let header = block.header();
 		let parent_hash = header.parent_hash();
 		let id = BlockId::Hash(*parent_hash);
@@ -141,7 +148,8 @@ where
 		Self { api, backend, block, id }
 	}
 
-	fn block_into_storage(self) -> Result<BlockChanges<Block>, ArchiveError> {
+	#[doc(hidden)]
+	pub fn block_into_storage(self) -> Result<BlockChanges<Block>, ArchiveError> {
 		let header = (&self.block).header();
 		let parent_hash = *header.parent_hash();
 		let hash = header.hash();
@@ -239,11 +247,4 @@ where
 	}
 	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())
-}
-
-#[cfg(all(feature = "unstable", test))]
-mod tests {
-	use super::*;
-	use test::Bencher;
-
 }

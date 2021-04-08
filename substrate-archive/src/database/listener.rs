@@ -230,7 +230,7 @@ mod tests {
 				.boxed()
 			})
 			.listen_on(Channel::Blocks)
-			.spawn()
+			.spawn(&smol::Executor::new())
 			.await
 			.unwrap();
 			let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
@@ -268,11 +268,11 @@ mod tests {
 		let json = serde_json::json!({
 			"table": "blocks",
 			"action": "INSERT",
-			"id":  1337
+			"block_num":  1337
 		});
 
 		let notif: Notif = serde_json::from_value(json).unwrap();
 
-		assert_eq!(Notif { table: Table::Blocks, action: Action::Insert, id: 1337 }, notif);
+		assert_eq!(Notif { table: Table::Blocks, action: Action::Insert, block_num: 1337 }, notif);
 	}
 }

@@ -1,0 +1,20 @@
+[package]
+name = "test-common"
+version = "0.1.0"
+authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+substrate-archive = { path = "../substrate-archive" }
+substrate-archive-backend = { path = "../substrate-archive-backend" }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master" }
+# used in tests for storing test data on disk
+dotenv = "0.15.0"
+csv = "1"
+anyhow = "1"
+criterion = "0.3"
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+hex = "0.4"
+tempfile = "3.2.0"

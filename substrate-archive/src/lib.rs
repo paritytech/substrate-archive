@@ -16,7 +16,6 @@
 
 #![forbid(unsafe_code)]
 #![deny(dead_code)]
-#![cfg_attr(feature = "unstable", feature(test))]
 
 // Re-Exports
 pub use sc_executor::native_executor_instance;
@@ -26,14 +25,14 @@ pub use substrate_archive_backend::{ExecutionMethod, ReadOnlyDb, RuntimeConfig, 
 
 mod actors;
 pub mod archive;
-mod database;
+pub mod database;
 mod error;
 mod logger;
-mod tasks;
+// Hidden because it doesn't explicitly expose public api, but needs to be pub for benchmarks
+#[doc(hidden)]
+pub mod tasks;
 mod types;
 mod wasm_tracing;
-#[cfg(all(feature = "unstable", test))]
-mod test_util;
 
 pub use self::actors::{ControlConfig, System};
 pub use self::archive::{Archive, ArchiveBuilder, ArchiveConfig, ChainConfig, TracingConfig};
@@ -61,10 +60,10 @@ pub fn substrate_archive_default_dir() -> std::path::PathBuf {
 }
 
 #[cfg(test)]
-use test::{initialize, TestGuard, DATABASE_URL, PG_POOL};
+use tests::{initialize, TestGuard, DATABASE_URL, PG_POOL};
 
 #[cfg(test)]
-mod test {
+mod tests {
 	use once_cell::sync::Lazy;
 	use sqlx::prelude::*;
 	use std::sync::{Mutex, MutexGuard, Once};
@@ -156,6 +155,4 @@ mod test {
 			});
 		}
 	}
-
-
 }

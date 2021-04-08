@@ -33,7 +33,7 @@ pub struct StorageAggregator<B: BlockT + Unpin> {
 	db: Address<DatabaseActor<B>>,
 	storage: Vec<Storage<B>>,
 	traces: Vec<Traces>,
-	executor: Arc<smol::Executor<'static>>
+	executor: Arc<smol::Executor<'static>>,
 }
 
 impl<B: BlockT + Unpin> StorageAggregator<B>
@@ -75,18 +75,19 @@ where
 {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		let addr = ctx.address().expect("Actor just started");
-		self.executor.spawn(async move {
-			loop {
-				smol::Timer::after(std::time::Duration::from_secs(1)).await;
-				if addr.send(SendStorage).await.is_err() {
-					break;
+		self.executor
+			.spawn(async move {
+				loop {
+					smol::Timer::after(std::time::Duration::from_secs(1)).await;
+					if addr.send(SendStorage).await.is_err() {
+						break;
+					}
+					if addr.send(SendTraces).await.is_err() {
+						break;
+					}
 				}
-				if addr.send(SendTraces).await.is_err() {
-					break;
-				}
-			}
-		})
-		.detach();
+			})
+			.detach();
 	}
 
 	async fn stopped(&mut self) {

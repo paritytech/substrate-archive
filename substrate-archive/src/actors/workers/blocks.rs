@@ -181,14 +181,15 @@ where
 
 		addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
 
-		self.executor.spawn(async move {
-			loop {
-				if addr.send(Crawl).await.is_err() {
-					break;
+		self.executor
+			.spawn(async move {
+				loop {
+					if addr.send(Crawl).await.is_err() {
+						break;
+					}
 				}
-			}
-		})
-		.detach();
+			})
+			.detach();
 	}
 }
 

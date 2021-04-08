@@ -315,7 +315,6 @@ where
 	async fn init_listeners(conf: &SystemConfig<B, D>) -> Result<Listener> {
 		Listener::builder(conf.pg_url(), move |notif, conn| {
 			async move {
-				let now = std::time::Instant::now();
 				let block = queries::get_full_block_by_number(conn, notif.block_num).await?;
 				let b: (B, u32) = BlockModelDecoder::with_single(block)?;
 				crate::tasks::execute_block::<B, R, C, D>(b.0, PhantomData).enqueue(conn).await?;
