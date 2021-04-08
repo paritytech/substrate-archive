@@ -36,7 +36,7 @@ pub struct Notif {
 	pub table: Table,
 	pub action: Action,
 	#[serde(deserialize_with = "deserialize_number_from_string")]
-	pub id: i32,
+	pub block_num: i32,
 }
 
 fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
@@ -237,7 +237,7 @@ mod tests {
 			let json = serde_json::json!({
 				"table": "blocks",
 				"action": "INSERT",
-				"id":  1337
+				"block_num":  1337
 			})
 			.to_string();
 			for _ in 0usize..5usize {
@@ -268,11 +268,11 @@ mod tests {
 		let json = serde_json::json!({
 			"table": "blocks",
 			"action": "INSERT",
-			"id":  1337
+			"block_num":  1337
 		});
 
 		let notif: Notif = serde_json::from_value(json).unwrap();
 
-		assert_eq!(Notif { table: Table::Blocks, action: Action::Insert, id: 1337 }, notif);
+		assert_eq!(Notif { table: Table::Blocks, action: Action::Insert, block_num: 1337 }, notif);
 	}
 }
