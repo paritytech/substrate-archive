@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{marker::PhantomData, time::Duration};
+use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
@@ -30,17 +30,13 @@ use crate::{
 #[derive(Clone)]
 pub struct DatabaseActor<B: BlockT> {
 	db: Database,
+	executor: Arc<smol::Executor<'static>>,
 	_marker: PhantomData<B>,
 }
 
 impl<B: BlockT> DatabaseActor<B> {
-	pub async fn new(url: String) -> Result<Self> {
-		Ok(Self { db: Database::new(url).await?, _marker: PhantomData })
-	}
-
-	#[allow(unused)]
-	pub fn with_db(db: Database) -> Self {
-		Self { db, _marker: PhantomData }
+	pub async fn new(url: String, executor: Arc<smol::Executor<'static>>) -> Result<Self> {
+		Ok(Self { db: Database::new(url).await?, executor, _marker: PhantomData })
 	}
 
 	async fn block_handler(&self, blk: Block<B>) -> Result<()>

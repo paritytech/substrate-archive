@@ -8,7 +8,7 @@ edition = "2018"
 # external
 async-trait = "0.1"
 chrono = "0.4.19"
-coil = "0.2"
+coil = { path = "../../../coil/coil/"}
 dirs = { version = "3", package = "directories" }
 fdlimit = "0.2"
 fern = { version = "0.6", features = ["colored"] }
@@ -33,6 +33,7 @@ thiserror = "1.0"
 tracing = "0.1.23"
 tracing-subscriber = "0.2.15"
 xtra = { version = "0.5.0-rc.1", features = ["with-smol-1"] }
+easy-parallel = "3"
 
 # Parity
 codec = { package = "parity-scale-codec", version = "2.0", default-features = false, features = ["derive", "full"] }
@@ -57,8 +58,19 @@ substrate-archive-backend = { path = '../substrate-archive-backend' }
 polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master" }
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
-flate2 = "1.0"
-bincode = "1.3"
 tempfile = "3.2"
 once_cell = "1.7.2"
 dotenv = "0.15.0"
+csv = "1"
+anyhow = "1"
+criterion = "0.3"
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+test-common = { path = "../test-common" }
+
+[[bench]]
+name = "bench_block_execution"
+harness = false
+
+[[bench]]
+name = "bench_many_blocks"
+harness = false

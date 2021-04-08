@@ -113,18 +113,36 @@ pub(crate) async fn blocks_storage_intersection(conn: &mut sqlx::PgConnection) -
 	.await
 	.map_err(Into::into)
 }
-
+/*
 /// Get a block by id from the relational database
 pub(crate) async fn get_full_block_by_id(conn: &mut sqlx::PgConnection, id: i32) -> Result<BlockModel> {
 	#[allow(clippy::toplevel_ref_arg)]
 	sqlx::query_as!(
 		BlockModel,
 		"
+		SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
+		FROM blocks
+		WHERE id = $1
+		",
+		id
+	)
+	.fetch_one(conn)
+	.await
+	.map_err(Into::into)
+}
+ */
+
+/// Get a block by number from the relational database
+pub(crate) async fn get_full_block_by_number(conn: &mut sqlx::PgConnection, number: i32) -> Result<BlockModel> {
+	#[allow(clippy::toplevel_ref_arg)]
+	sqlx::query_as!(
+		BlockModel,
+		"
         SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
         FROM blocks
-        WHERE id = $1
+        WHERE block_num = $1
         ",
-		id
+		number
 	)
 	.fetch_one(conn)
 	.await

@@ -24,7 +24,7 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 
 use sp_database::{ColumnId, Database as DatabaseTrait, Transaction};
 
-const NUM_COLUMNS: u32 = 11;
+const NUM_COLUMNS: u32 = 12;
 
 pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
 

@@ -36,7 +36,7 @@ pub struct Notif {
 	pub table: Table,
 	pub action: Action,
 	#[serde(deserialize_with = "deserialize_number_from_string")]
-	pub id: i32,
+	pub block_num: i32,
 }
 
 fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
@@ -116,7 +116,7 @@ where
 	}
 
 	/// Spawns this listener which will work on its assigned tasks in the background
-	pub async fn spawn(self) -> Result<Listener> {
+	pub async fn spawn(self, executor: &smol::Executor<'_>) -> Result<Listener> {
 		let (tx, rx) = flume::bounded(1);
 
 		let mut listener = PgListener::connect(&self.pg_url).await?;
@@ -169,7 +169,7 @@ where
 			}
 		};
 
-		smol::spawn(fut).detach();
+		executor.spawn(fut).detach();
 
 		Ok(Listener { tx })
 	}
@@ -230,7 +230,7 @@ mod tests {
 				.boxed()
 			})
 			.listen_on(Channel::Blocks)
-			.spawn()
+			.spawn(&smol::Executor::new())
 			.await
 			.unwrap();
 			let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
@@ -268,11 +268,11 @@ mod tests {
 		let json = serde_json::json!({
 			"table": "blocks",
 			"action": "INSERT",
-			"id":  1337
+			"block_num":  1337
 		});
 
 		let notif: Notif = serde_json::from_value(json).unwrap();
 
-		assert_eq!(Notif { table: Table::Blocks, action: Action::Insert, id: 1337 }, notif);
+		assert_eq!(Notif { table: Table::Blocks, action: Action::Insert, block_num: 1337 }, notif);
 	}
 }

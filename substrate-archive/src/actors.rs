@@ -16,13 +16,12 @@
 //! Main entrypoint for substrate-archive. `init` will start all actors and begin indexing the
 //! chain defined with the passed-in Client and URL.
 
-mod actor_pool;
 mod workers;
 
 use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
 use coil::Job as _;
-use futures::{future::BoxFuture, FutureExt};
+use futures::{executor::block_on, future::BoxFuture, FutureExt};
 use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
 use xtra::{prelude::*, spawn::Smol, Disconnected};
@@ -35,17 +34,15 @@ use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDb};
 
 use self::workers::GetState;
-pub use self::{
-	actor_pool::ActorPool,
-	workers::{BlocksIndexer, DatabaseActor, StorageAggregator},
-};
+pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use crate::{
 	archive::Archive,
 	database::{models::BlockModelDecoder, queries, Channel, Listener},
 	error::Result,
-	tasks::{Environment, TaskExecutor},
+	tasks::Environment,
 	types::Die,
 };
+use easy_parallel::Parallel;
 
 // TODO: Split this up into two objects
 // System should be a factory that produces objects that should be spawned
@@ -61,6 +58,7 @@ where
 	pub meta: Meta<B>,
 	pub control: ControlConfig,
 	pub tracing_targets: Option<String>,
+	pub executor: Arc<smol::Executor<'static>>,
 }
 
 impl<B: BlockT + Unpin, D: ReadOnlyDb> Clone for SystemConfig<B, D>
@@ -74,6 +72,7 @@ where
 			meta: self.meta.clone(),
 			control: self.control,
 			tracing_targets: self.tracing_targets.clone(),
+			executor: self.executor.clone(),
 		}
 	}
 }
@@ -141,7 +140,8 @@ where
 		control: ControlConfig,
 		tracing_targets: Option<String>,
 	) -> Self {
-		Self { backend, pg_url, meta, control, tracing_targets }
+		let executor = Arc::new(smol::Executor::new());
+		Self { backend, pg_url, meta, control, tracing_targets, executor }
 	}
 
 	pub fn backend(&self) -> &Arc<ReadOnlyBackend<B, D>> {
@@ -165,7 +165,7 @@ where
 	storage: Address<workers::StorageAggregator<B>>,
 	blocks: Address<workers::BlocksIndexer<B, D>>,
 	metadata: Address<workers::MetadataActor<B>>,
-	db_pool: Address<ActorPool<DatabaseActor<B>>>,
+	db: Address<DatabaseActor<B>>,
 }
 
 /// Control the execution of the indexing engine.
@@ -228,11 +228,19 @@ where
 		let (tx_start, rx_start) = flume::bounded(1);
 		let (tx_kill, rx_kill) = flume::bounded(1);
 
+		let executor = conf.executor.clone();
 		let handle = jod_thread::spawn(move || {
 			// block until we receive the message to start
 			let _ = rx_start.recv();
-
-			smol::block_on(Self::main_loop(conf, rx_kill, client))?;
+			let rx_kill_2 = rx_kill.clone();
+			let (left_res, right_res) = Parallel::new()
+				.each(0..4, |_| block_on(executor.run(rx_kill_2.recv_async())))
+				.finish(|| block_on(Self::main_loop(conf, rx_kill, client)));
+			match left_res.into_iter().collect::<Result<Vec<()>, flume::RecvError>>() {
+				Err(flume::RecvError::Disconnected) => log::warn!("Senders dropped connection"),
+				_ => (),
+			};
+			right_res?;
 			Ok(())
 		});
 
@@ -241,8 +249,8 @@ where
 
 	async fn main_loop(conf: SystemConfig<B, D>, rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
 		let actors = Self::spawn_actors(conf.clone()).await?;
-		let pool = actors.db_pool.send(GetState::Pool.into()).await??.pool();
-		let listener = Self::init_listeners(conf.pg_url()).await?;
+		let pool = actors.db.send(GetState::Pool).await??.pool();
+		let listener = Self::init_listeners(&conf).await?;
 		let mut conn = pool.acquire().await?;
 		Self::restore_missing_storage(&mut *conn).await?;
 		let env = Environment::<B, R, C, D>::new(
@@ -253,29 +261,24 @@ where
 		);
 		let env = AssertUnwindSafe(env);
 
-		let runner = coil::Runner::builder(env, TaskExecutor, &pool)
+		let runner = coil::Runner::builder(env, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(conf.control.task_workers)
 			// times out if tasks don't start execution on the threadpool within 20 seconds.
 			.timeout(Duration::from_secs(conf.control.task_timeout))
-			.max_tasks(conf.control.max_tasks)
 			.build()?;
 
 		loop {
-			let tasks = runner.run_all_sync_tasks().fuse();
-			futures::pin_mut!(tasks);
-			futures::select! {
-				t = tasks => {
-					match t {
-						Ok(0) => {
-							smol::Timer::after(std::time::Duration::from_millis(500)).await;
-						},
-						Ok(n) => log::debug!("Executed {} tasks successfully", n),
-						Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
-						Err(e) => log::error!("{:?}", e),
-					}
-				},
-				_ = rx.recv_async() => break,
+			match runner.run_pending_tasks() {
+				Ok(_) => (),
+				Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
+				Err(e) => log::error!("{:?}", e),
+			}
+
+			match rx.try_recv() {
+				Err(flume::TryRecvError::Empty) => continue,
+				Err(flume::TryRecvError::Disconnected) => break,
+				Ok(_) => break,
 			}
 		}
 		Self::kill_actors(actors).await?;
@@ -284,18 +287,18 @@ where
 	}
 
 	async fn spawn_actors(conf: SystemConfig<B, D>) -> Result<Actors<B, D>> {
-		let db = workers::DatabaseActor::<B>::new(conf.pg_url().into()).await?;
-		let db_pool =
-			actor_pool::ActorPool::new(db, conf.control.db_actor_pool_size).create(None).spawn(&mut Smol::Global);
-		let storage = workers::StorageAggregator::new(db_pool.clone()).create(None).spawn(&mut Smol::Global);
-		let metadata = workers::MetadataActor::new(db_pool.clone(), conf.meta().clone())
+		let db = workers::DatabaseActor::<B>::new(conf.pg_url().into(), conf.executor.clone())
 			.await?
 			.create(None)
 			.spawn(&mut Smol::Global);
+		let storage =
+			workers::StorageAggregator::new(db.clone(), conf.executor.clone()).create(None).spawn(&mut Smol::Global);
+		let metadata =
+			workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None).spawn(&mut Smol::Global);
 		let blocks =
-			workers::BlocksIndexer::new(&conf, db_pool.clone(), metadata.clone()).create(None).spawn(&mut Smol::Global);
+			workers::BlocksIndexer::new(&conf, db.clone(), metadata.clone()).create(None).spawn(&mut Smol::Global);
 
-		Ok(Actors { storage, blocks, metadata, db_pool })
+		Ok(Actors { storage, blocks, metadata, db })
 	}
 
 	async fn kill_actors(actors: Actors<B, D>) -> Result<()> {
@@ -303,16 +306,16 @@ where
 			Box::pin(actors.storage.send(Die)),
 			Box::pin(actors.blocks.send(Die)),
 			Box::pin(actors.metadata.send(Die)),
+			Box::pin(actors.db.send(Die)),
 		];
 		futures::future::join_all(fut).await;
-		let _ = actors.db_pool.send(Die.into()).await?;
 		Ok(())
 	}
 
-	async fn init_listeners(pg_url: &str) -> Result<Listener> {
-		Listener::builder(pg_url, move |notif, conn| {
+	async fn init_listeners(conf: &SystemConfig<B, D>) -> Result<Listener> {
+		Listener::builder(conf.pg_url(), move |notif, conn| {
 			async move {
-				let block = queries::get_full_block_by_id(conn, notif.id).await?;
+				let block = queries::get_full_block_by_number(conn, notif.block_num).await?;
 				let b: (B, u32) = BlockModelDecoder::with_single(block)?;
 				crate::tasks::execute_block::<B, R, C, D>(b.0, PhantomData).enqueue(conn).await?;
 				Ok(())
@@ -320,7 +323,7 @@ where
 			.boxed()
 		})
 		.listen_on(Channel::Blocks)
-		.spawn()
+		.spawn(&conf.executor)
 		.await
 	}
 
