@@ -171,26 +171,6 @@ where
 	}
 }
 
-#[derive(Debug, Clone)]
-pub struct TaskExecutor;
-
-impl futures::task::Spawn for TaskExecutor {
-	fn spawn_obj(&self, future: futures::task::FutureObj<'static, ()>) -> Result<(), futures::task::SpawnError> {
-		smol::spawn(future).detach();
-		Ok(())
-	}
-}
-
-impl sp_core::traits::SpawnNamed for TaskExecutor {
-	fn spawn_blocking(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
-		smol::spawn(async move { smol::unblock(|| fut).await.await }).detach();
-	}
-
-	fn spawn(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
-		smol::spawn(fut).detach()
-	}
-}
-
 // FIXME:
 // we need PhantomData here so that the proc_macro correctly puts PhantomData into the `Job` struct
 // + DeserializeOwned so that the types work.
@@ -240,7 +220,7 @@ where
 
 		let now = std::time::Instant::now();
 		let block = BlockExecutor::new(api, &env.backend, block).block_into_storage()?;
-		log::debug!("Took {:?} to execute block", now.elapsed());
+		log::debug!("[BLOCK_EXEC] Took {:?} to execute block", now.elapsed());
 
 		Storage::from(block)
 	};
@@ -259,4 +239,11 @@ where
 	}
 	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())
+}
+
+#[cfg(all(feature = "unstable", test))]
+mod tests {
+	use super::*;
+	use test::Bencher;
+
 }

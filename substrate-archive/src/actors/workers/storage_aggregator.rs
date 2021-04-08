@@ -44,24 +44,23 @@ where
 		Self { db, storage: Vec::with_capacity(500), traces: Vec::with_capacity(250), executor }
 	}
 
-	async fn handle_storage(&mut self, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle_storage(&mut self, _: &mut Context<Self>) -> Result<()> {
 		let storage = std::mem::replace(&mut self.storage, Vec::with_capacity(500));
 		if !storage.is_empty() {
 			log::info!("Indexing {} blocks of storage entries", storage.len());
-			let send_result = self.db.send(BatchStorage::new(storage));
-			// handle_while the actual insert is happening, not the send
-			ctx.handle_while(self, send_result).await?;
+			let now = std::time::Instant::now();
+			self.db.send(BatchStorage::new(storage)).await?;
+			log::debug!("Took {:?} to send & insert storage", now.elapsed());
 		}
 		Ok(())
 	}
 
-	async fn handle_traces(&mut self, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle_traces(&mut self, _: &mut Context<Self>) -> Result<()> {
 		let mut traces = std::mem::take(&mut self.traces);
 		if !traces.is_empty() {
 			log::info!("Inserting {} traces", traces.len());
 			for trace in traces.drain(..) {
-				let send_result = self.db.send(trace);
-				ctx.handle_while(self, send_result).await?;
+				self.db.send(trace).await?;
 			}
 		}
 		std::mem::swap(&mut self.traces, &mut traces);

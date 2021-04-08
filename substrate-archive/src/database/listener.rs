@@ -36,7 +36,7 @@ pub struct Notif {
 	pub table: Table,
 	pub action: Action,
 	#[serde(deserialize_with = "deserialize_number_from_string")]
-	pub id: i32,
+	pub block_num: i32,
 }
 
 fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>

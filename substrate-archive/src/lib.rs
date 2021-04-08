@@ -16,6 +16,7 @@
 
 #![forbid(unsafe_code)]
 #![deny(dead_code)]
+#![cfg_attr(feature = "unstable", feature(test))]
 
 // Re-Exports
 pub use sc_executor::native_executor_instance;
@@ -31,7 +32,8 @@ mod logger;
 mod tasks;
 mod types;
 mod wasm_tracing;
-// mod executor;
+#[cfg(all(feature = "unstable", test))]
+mod test_util;
 
 pub use self::actors::{ControlConfig, System};
 pub use self::archive::{Archive, ArchiveBuilder, ArchiveConfig, ChainConfig, TracingConfig};
@@ -154,4 +156,6 @@ mod test {
 			});
 		}
 	}
+
+
 }

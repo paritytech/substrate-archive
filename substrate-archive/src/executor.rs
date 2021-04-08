@@ -28,6 +28,4 @@ impl Executor {
 			threads, executor
 		}
 	}
-
-	
 }
