@@ -145,10 +145,10 @@ pub(crate) async fn check_if_meta_exists(spec: u32, conn: &mut PgConnection) -> 
 }
 
 /// Check if the block identified by `hash` exists in the relational database
-pub(crate) async fn has_block<B: BlockT>(hash: B::Hash, conn: &mut PgConnection) -> Result<bool> {
+pub(crate) async fn has_block<H: AsRef<[u8]>>(hash: H, conn: &mut PgConnection) -> Result<bool> {
 	let hash = hash.as_ref();
 	#[allow(clippy::toplevel_ref_arg)]
-	let does_exist = sqlx::query_as!(DoesExist, r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash = $1)"#, hash,)
+	let does_exist = sqlx::query_as!(DoesExist, r#"SELECT EXISTS(SELECT 1 FROM blocks WHERE hash = $1)"#, hash)
 		.fetch_one(conn)
 		.await?;
 	Ok(does_exist.exists.unwrap_or(false))
@@ -156,7 +156,7 @@ pub(crate) async fn has_block<B: BlockT>(hash: B::Hash, conn: &mut PgConnection)
 
 /// Get a list of block_numbers, out of the passed-in blocknumbers, which exist in the relational
 /// database
-pub(crate) async fn has_blocks<B: BlockT>(nums: &[u32], conn: &mut PgConnection) -> Result<Vec<u32>> {
+pub(crate) async fn has_blocks(nums: &[u32], conn: &mut PgConnection) -> Result<Vec<u32>> {
 	let nums: Vec<i32> = nums.iter().filter_map(|n| i32::try_from(*n).ok()).collect();
 	#[allow(clippy::toplevel_ref_arg)]
 	Ok(sqlx::query_as!(BlockNum, "SELECT block_num FROM blocks WHERE block_num = ANY ($1)", &nums,)

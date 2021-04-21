@@ -227,15 +227,6 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 		self
 	}
 
-	/// Set the number of database actors to be spawned in the actor pool.
-	///
-	/// # Default
-	/// Defaults to 4.
-	pub fn db_actor_pool_size(mut self, size: usize) -> Self {
-		self.config.control.db_actor_pool_size = size;
-		self
-	}
-
 	/// Set the  number of threads spawn for task execution.
 	///
 	/// # Default

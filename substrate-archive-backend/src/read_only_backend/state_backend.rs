@@ -34,7 +34,7 @@ pub type DbState<B> = TrieBackend<Arc<dyn sp_state_machine::Storage<HashFor<B>>>
 
 /// Holds a reference to the disk backend
 /// that trie operations can make use of
-pub struct StateVault<Block: BlockT, D: ReadOnlyDb> {
+pub struct StateVault<Block, D> {
 	/// disk backend
 	pub db: Arc<D>,
 	prefix_keys: bool,

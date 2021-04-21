@@ -46,7 +46,7 @@ pub use self::state_backend::TrieState;
 use self::state_backend::{DbState, StateVault};
 use crate::{database::ReadOnlyDb, error::Result, util::columns};
 
-pub struct ReadOnlyBackend<Block: BlockT, D: ReadOnlyDb> {
+pub struct ReadOnlyBackend<Block, D> {
 	db: Arc<D>,
 	storage: Arc<StateVault<Block, D>>,
 }

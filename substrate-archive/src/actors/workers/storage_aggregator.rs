@@ -17,10 +17,8 @@
 //! Module that accepts individual storage entries and wraps them up into batch requests for
 //! Postgres
 
-use xtra::prelude::*;
-
-use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
+use xtra::prelude::*;
 
 use crate::{
 	actors::workers::database::DatabaseActor,
@@ -29,18 +27,19 @@ use crate::{
 	wasm_tracing::Traces,
 };
 
-pub struct StorageAggregator<B: BlockT + Unpin> {
-	db: Address<DatabaseActor<B>>,
-	storage: Vec<Storage<B>>,
+pub struct StorageAggregator<H: Send + 'static> {
+	db: Address<DatabaseActor>,
+	storage: Vec<Storage<H>>,
 	traces: Vec<Traces>,
-	executor: Arc<smol::Executor<'static>>
+	executor: Arc<smol::Executor<'static>>,
 }
 
-impl<B: BlockT + Unpin> StorageAggregator<B>
-where
-	B::Hash: Unpin,
-{
-	pub fn new(db: Address<DatabaseActor<B>>, executor: Arc<smol::Executor<'static>>) -> Self {
+trait Hash: Copy + Send + Sync + Unpin + AsRef<[u8]> + 'static {}
+
+impl<T> Hash for T where T: Copy + Send + Sync + Unpin + AsRef<[u8]> + 'static {}
+
+impl<H: Hash> StorageAggregator<H> {
+	pub fn new(db: Address<DatabaseActor>, executor: Arc<smol::Executor<'static>>) -> Self {
 		Self { db, storage: Vec::with_capacity(500), traces: Vec::with_capacity(250), executor }
 	}
 
@@ -70,36 +69,22 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Actor for StorageAggregator<B>
-where
-	B::Hash: Unpin,
-{
+impl<H: Send + Sync + 'static> Actor for StorageAggregator<H> {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		let addr = ctx.address().expect("Actor just started");
-		self.executor.spawn(async move {
-			loop {
-				smol::Timer::after(std::time::Duration::from_secs(1)).await;
-				if addr.send(SendStorage).await.is_err() {
-					break;
+		self.executor
+			.spawn(async move {
+				loop {
+					smol::Timer::after(std::time::Duration::from_secs(1)).await;
+					if addr.send(SendStorage).await.is_err() {
+						break;
+					}
+					if addr.send(SendTraces).await.is_err() {
+						break;
+					}
 				}
-				if addr.send(SendTraces).await.is_err() {
-					break;
-				}
-			}
-		})
-		.detach();
-	}
-
-	async fn stopped(&mut self) {
-		let len = self.storage.len();
-		let storage = std::mem::take(&mut self.storage);
-		// insert any storage left in queue
-		let task = self.db.send(BatchStorage::new(storage)).await;
-
-		match task {
-			Err(e) => log::info!("{} storage entries will be missing, {:?}", len, e),
-			Ok(_) => log::info!("storage inserted"),
-		}
+			})
+			.detach();
 	}
 }
 
@@ -109,10 +94,7 @@ impl Message for SendStorage {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<SendStorage> for StorageAggregator<B>
-where
-	B::Hash: Unpin,
-{
+impl<H: Hash> Handler<SendStorage> for StorageAggregator<H> {
 	async fn handle(&mut self, _: SendStorage, ctx: &mut Context<Self>) {
 		if let Err(e) = self.handle_storage(ctx).await {
 			log::error!("{:?}", e)
@@ -126,10 +108,7 @@ impl Message for SendTraces {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<SendTraces> for StorageAggregator<B>
-where
-	B::Hash: Unpin,
-{
+impl<H: Hash> Handler<SendTraces> for StorageAggregator<H> {
 	async fn handle(&mut self, _: SendTraces, ctx: &mut Context<Self>) {
 		if let Err(e) = self.handle_traces(ctx).await {
 			log::error!("{:?}", e);
@@ -138,30 +117,21 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<Storage<B>> for StorageAggregator<B>
-where
-	B::Hash: Unpin,
-{
-	async fn handle(&mut self, s: Storage<B>, _: &mut Context<Self>) {
+impl<H: Hash> Handler<Storage<H>> for StorageAggregator<H> {
+	async fn handle(&mut self, s: Storage<H>, _: &mut Context<Self>) {
 		self.storage.push(s)
 	}
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<Traces> for StorageAggregator<B>
-where
-	B::Hash: Unpin,
-{
+impl<H: Hash> Handler<Traces> for StorageAggregator<H> {
 	async fn handle(&mut self, t: Traces, _: &mut Context<Self>) {
 		self.traces.push(t)
 	}
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<Die> for StorageAggregator<B>
-where
-	B::Hash: Unpin,
-{
+impl<H: Send + Sync + 'static> Handler<Die> for StorageAggregator<H> {
 	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
 		ctx.stop();
 	}

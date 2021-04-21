@@ -31,14 +31,14 @@ use crate::{
 
 /// Actor to fetch metadata about a block/blocks from RPC
 /// Accepts workers to decode blocks and a URL for the RPC
-pub struct MetadataActor<B: BlockT> {
+pub struct MetadataActor<B: Send + 'static> {
 	conn: DbConn,
-	addr: Address<DatabaseActor<B>>,
+	addr: Address<DatabaseActor>,
 	meta: Meta<B>,
 }
 
 impl<B: BlockT + Unpin> MetadataActor<B> {
-	pub async fn new(addr: Address<DatabaseActor<B>>, meta: Meta<B>) -> Result<Self> {
+	pub async fn new(addr: Address<DatabaseActor>, meta: Meta<B>) -> Result<Self> {
 		let conn = addr.send(GetState::Conn).await??.conn();
 		Ok(Self { conn, addr, meta })
 	}
@@ -78,7 +78,7 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 	}
 }
 
-impl<B: BlockT> Actor for MetadataActor<B> {}
+impl<B: Send> Actor for MetadataActor<B> {}
 
 #[async_trait::async_trait]
 impl<B> Handler<Block<B>> for MetadataActor<B>

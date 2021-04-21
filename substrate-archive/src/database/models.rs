@@ -81,22 +81,16 @@ impl<'a, B: BlockT> BlockModelDecoder<B> {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct StorageModel<Block: BlockT> {
-	hash: Block::Hash,
+pub struct StorageModel<Hash> {
+	hash: Hash,
 	block_num: u32,
 	full_storage: bool,
 	key: StorageKey,
 	data: Option<StorageData>,
 }
 
-impl<Block: BlockT> StorageModel<Block> {
-	pub fn new(
-		hash: Block::Hash,
-		block_num: u32,
-		full_storage: bool,
-		key: StorageKey,
-		data: Option<StorageData>,
-	) -> Self {
+impl<Hash> StorageModel<Hash> {
+	pub fn new(hash: Hash, block_num: u32, full_storage: bool, key: StorageKey, data: Option<StorageData>) -> Self {
 		Self { hash, block_num, full_storage, key, data }
 	}
 
@@ -108,7 +102,7 @@ impl<Block: BlockT> StorageModel<Block> {
 		self.block_num
 	}
 
-	pub fn hash(&self) -> &Block::Hash {
+	pub fn hash(&self) -> &Hash {
 		&self.hash
 	}
 
@@ -121,8 +115,8 @@ impl<Block: BlockT> StorageModel<Block> {
 	}
 }
 
-impl<Block: BlockT> From<Storage<Block>> for Vec<StorageModel<Block>> {
-	fn from(original: Storage<Block>) -> Vec<StorageModel<Block>> {
+impl<Hash: Copy> From<Storage<Hash>> for Vec<StorageModel<Hash>> {
+	fn from(original: Storage<Hash>) -> Vec<StorageModel<Hash>> {
 		let hash = *original.hash();
 		let block_num = original.block_num();
 		let full_storage = original.is_full();
@@ -130,12 +124,12 @@ impl<Block: BlockT> From<Storage<Block>> for Vec<StorageModel<Block>> {
 			.changes
 			.into_iter()
 			.map(|changes| StorageModel::new(hash, block_num, full_storage, changes.0, changes.1))
-			.collect::<Vec<StorageModel<Block>>>()
+			.collect::<Vec<StorageModel<Hash>>>()
 	}
 }
 
-impl<Block: BlockT> From<BatchStorage<Block>> for Vec<StorageModel<Block>> {
-	fn from(original: BatchStorage<Block>) -> Vec<StorageModel<Block>> {
-		original.inner.into_iter().flat_map(Vec::<StorageModel<Block>>::from).collect()
+impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
+	fn from(original: BatchStorage<Hash>) -> Vec<StorageModel<Hash>> {
+		original.inner.into_iter().flat_map(Vec::<StorageModel<Hash>>::from).collect()
 	}
 }

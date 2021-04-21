@@ -41,33 +41,23 @@ use crate::{
 };
 
 /// The environment passed to each task
-pub struct Environment<B, R, C, D>
-where
-	D: ReadOnlyDb,
-	B: BlockT + Unpin,
-	B::Hash: Unpin,
-{
+pub struct Environment<B: Send + 'static, H: Send + Sync + 'static, R, C, D> {
 	// Tracing targets
 	// if `Some` will trace the execution of the block
 	// and traces will be sent to the [`StorageAggregator`].
 	tracing_targets: Option<String>,
 	backend: Arc<Backend<B, D>>,
 	client: Arc<C>,
-	storage: Address<StorageAggregator<B>>,
+	storage: Address<StorageAggregator<H>>,
 	_marker: PhantomData<R>,
 }
 
-type Env<B, R, C, D> = AssertUnwindSafe<Environment<B, R, C, D>>;
-impl<B, R, C, D> Environment<B, R, C, D>
-where
-	D: ReadOnlyDb,
-	B: BlockT + Unpin,
-	B::Hash: Unpin,
-{
+type Env<B, H, R, C, D> = AssertUnwindSafe<Environment<B, H, R, C, D>>;
+impl<B: Send, H: Send + Sync, R, C, D> Environment<B, H, R, C, D> {
 	pub fn new(
 		backend: Arc<Backend<B, D>>,
 		client: Arc<C>,
-		storage: Address<StorageAggregator<B>>,
+		storage: Address<StorageAggregator<H>>,
 		tracing_targets: Option<String>,
 	) -> Self {
 		Self { backend, client, storage, tracing_targets, _marker: PhantomData }
@@ -91,12 +81,12 @@ pub struct BlockChanges<Block: BlockT> {
 	pub block_num: NumberFor<Block>,
 }
 
-impl<Block> From<BlockChanges<Block>> for Storage<Block>
+impl<Block> From<BlockChanges<Block>> for Storage<Block::Hash>
 where
 	Block: BlockT,
 	NumberFor<Block>: Into<u32>,
 {
-	fn from(changes: BlockChanges<Block>) -> Storage<Block> {
+	fn from(changes: BlockChanges<Block>) -> Storage<Block::Hash> {
 		use sp_storage::{StorageData, StorageKey};
 
 		let hash = changes.block_hash;
@@ -199,7 +189,7 @@ impl sp_core::traits::SpawnNamed for TaskExecutor {
 /// Execute a block, and send it to the database actor
 #[coil::background_job]
 pub fn execute_block<B, RA, Api, D>(
-	env: &Env<B, RA, Api, D>,
+	env: &Env<B, B::Hash, RA, Api, D>,
 	block: B,
 	_m: PhantomData<(RA, Api, D)>,
 ) -> Result<(), coil::PerformError>

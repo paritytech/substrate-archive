@@ -35,20 +35,13 @@ use crate::{
 	error::{ArchiveError, Result},
 	types::{BatchBlock, Block, Die},
 };
-
-type DatabaseAct<B> = Address<DatabaseActor<B>>;
+type DatabaseAct = Address<DatabaseActor>;
 type MetadataAct<B> = Address<MetadataActor<B>>;
 
-pub struct BlocksIndexer<B: BlockT, D>
-where
-	D: ReadOnlyDb,
-	NumberFor<B>: Into<u32>,
-	B: Unpin,
-	B::Hash: Unpin,
-{
+pub struct BlocksIndexer<B: Send + 'static, D: Send + 'static> {
 	/// background task to crawl blocks
 	backend: Arc<ReadOnlyBackend<B, D>>,
-	db: DatabaseAct<B>,
+	db: DatabaseAct,
 	meta: MetadataAct<B>,
 	rt_cache: Arc<RuntimeVersionCache<B, D>>,
 	executor: Arc<smol::Executor<'static>>,
@@ -63,7 +56,7 @@ where
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
 {
-	pub fn new(conf: &SystemConfig<B, D>, db: DatabaseAct<B>, meta: MetadataAct<B>) -> Self {
+	pub fn new(conf: &SystemConfig<B, D>, db: DatabaseAct, meta: MetadataAct<B>) -> Self {
 		Self {
 			rt_cache: Arc::new(RuntimeVersionCache::new(conf.backend.clone())),
 			executor: conf.executor.clone(),
@@ -168,12 +161,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT, D: ReadOnlyDb + 'static> Actor for BlocksIndexer<B, D>
-where
-	NumberFor<B>: Into<u32>,
-	B: Unpin,
-	B::Hash: Unpin,
-{
+impl<B: Send + Sync, D: Send + Sync> Actor for BlocksIndexer<B, D> {
 	async fn started(&mut self, ctx: &mut Context<Self>) {
 		// using this instead of notify_immediately because
 		// ReIndexing is async process
@@ -181,14 +169,15 @@ where
 
 		addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
 
-		self.executor.spawn(async move {
-			loop {
-				if addr.send(Crawl).await.is_err() {
-					break;
+		self.executor
+			.spawn(async move {
+				loop {
+					if addr.send(Crawl).await.is_err() {
+						break;
+					}
 				}
-			}
-		})
-		.detach();
+			})
+			.detach();
 	}
 }
 

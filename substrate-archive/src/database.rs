@@ -210,7 +210,10 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Insert for StorageModel<B> {
+impl<Hash> Insert for StorageModel<Hash>
+where
+	Hash: Send + Sync + AsRef<[u8]> + 'static,
+{
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
 		log::info!("Inserting Single Storage");
 		sqlx::query(
@@ -238,7 +241,10 @@ impl<B: BlockT> Insert for StorageModel<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Insert for Vec<StorageModel<B>> {
+impl<Hash> Insert for Vec<StorageModel<Hash>>
+where
+	Hash: Send + Sync + AsRef<[u8]> + 'static,
+{
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
 		let mut batch = Batch::new(
 			"storage",
