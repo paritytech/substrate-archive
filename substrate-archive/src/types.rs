@@ -21,6 +21,10 @@ use xtra::Message;
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
 
+pub trait Hash: Copy + Send + Sync + Unpin + AsRef<[u8]> + 'static {}
+
+impl<T> Hash for T where T: Copy + Send + Sync + Unpin + AsRef<[u8]> + 'static {}
+
 #[derive(Debug)]
 pub struct Metadata {
 	version: u32,

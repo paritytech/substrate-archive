@@ -21,7 +21,11 @@ mod workers;
 use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
 use coil::Job as _;
-use futures::{executor::block_on, future::BoxFuture, FutureExt};
+use futures::{
+	executor::block_on,
+	future::{self, BoxFuture},
+	FutureExt,
+};
 use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
 use xtra::{prelude::*, spawn::Smol, Disconnected};
@@ -33,14 +37,18 @@ use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDb};
 
-use self::workers::GetState;
+use self::workers::{
+	blocks::{Crawl, ReIndex},
+	storage_aggregator::{SendStorage, SendTraces},
+	GetState,
+};
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use crate::{
 	archive::Archive,
 	database::{models::BlockModelDecoder, queries, Channel, Listener},
 	error::Result,
 	tasks::{Environment, TaskExecutor},
-	types::Die,
+	types::{Die, Hash},
 };
 use easy_parallel::Parallel;
 
@@ -143,8 +151,9 @@ where
 	}
 }
 
-struct Actors<Block: Send + Sync + 'static, Hash: Send + Sync + 'static, Db: Send + Sync + 'static> {
-	storage: Address<workers::StorageAggregator<Hash>>,
+#[derive(Clone)]
+struct Actors<Block: Send + Sync + 'static, H: Send + Sync + 'static, Db: Send + Sync + 'static> {
+	storage: Address<workers::StorageAggregator<H>>,
 	blocks: Address<workers::BlocksIndexer<Block, Db>>,
 	metadata: Address<workers::MetadataActor<Block>>,
 	db: Address<DatabaseActor>,
@@ -172,6 +181,26 @@ where
 		Ok(Actors { storage, blocks, metadata, db })
 	}
 
+	// Run a future that sends actors a signal to index every X seconds
+	async fn index(&'static self, executor: &'static smol::Executor<'static>) -> Result<()> {
+		// messages that only need to be sent once
+		self.blocks.send(ReIndex).await?;
+		let actors = self.clone();
+		let handle = executor
+			.spawn(async move {
+				loop {
+					let fut: Vec<BoxFuture<'_, Result<(), Disconnected>>> = vec![
+						Box::pin(actors.blocks.send(Crawl)),
+						Box::pin(actors.storage.send(SendStorage)),
+						Box::pin(actors.storage.send(SendTraces)),
+					];
+					future::join_all(fut).await;
+				}
+			})
+			.detach();
+		Ok(())
+	}
+
 	async fn kill(self) -> Result<()> {
 		let fut: Vec<BoxFuture<'_, Result<(), Disconnected>>> = vec![
 			Box::pin(self.storage.send(Die)),
@@ -179,7 +208,7 @@ where
 			Box::pin(self.metadata.send(Die)),
 			Box::pin(self.db.send(Die)),
 		];
-		futures::future::join_all(fut).await;
+		future::join_all(fut).await;
 		Ok(())
 	}
 }
@@ -402,11 +431,14 @@ where
 	}
 }
 
-/*
-struct Engine<B, H, D> {
+struct Engine<B, H, D>
+where
+	B: Send + Sync + 'static,
+	H: Send + Sync + 'static,
+	D: Send + Sync + 'static,
+{
 	config: SystemConfig<B, D>,
 	actors: Actors<B, H, D>,
 }
 
-impl<B, H, D> Engine<B, H, D> {}
-*/
+// impl<B, H, D> Engine<B, H, D> {}

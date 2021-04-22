@@ -23,20 +23,16 @@ use xtra::prelude::*;
 use crate::{
 	actors::workers::database::DatabaseActor,
 	error::Result,
-	types::{BatchStorage, Die, Storage},
+	types::{BatchStorage, Die, Hash, Storage},
 	wasm_tracing::Traces,
 };
 
-pub struct StorageAggregator<H: Send + 'static> {
+pub struct StorageAggregator<H: Send + Sync + 'static> {
 	db: Address<DatabaseActor>,
 	storage: Vec<Storage<H>>,
 	traces: Vec<Traces>,
 	executor: Arc<smol::Executor<'static>>,
 }
-
-trait Hash: Copy + Send + Sync + Unpin + AsRef<[u8]> + 'static {}
-
-impl<T> Hash for T where T: Copy + Send + Sync + Unpin + AsRef<[u8]> + 'static {}
 
 impl<H: Hash> StorageAggregator<H> {
 	pub fn new(db: Address<DatabaseActor>, executor: Arc<smol::Executor<'static>>) -> Self {
@@ -69,26 +65,9 @@ impl<H: Hash> StorageAggregator<H> {
 }
 
 #[async_trait::async_trait]
-impl<H: Send + Sync + 'static> Actor for StorageAggregator<H> {
-	async fn started(&mut self, ctx: &mut Context<Self>) {
-		let addr = ctx.address().expect("Actor just started");
-		self.executor
-			.spawn(async move {
-				loop {
-					smol::Timer::after(std::time::Duration::from_secs(1)).await;
-					if addr.send(SendStorage).await.is_err() {
-						break;
-					}
-					if addr.send(SendTraces).await.is_err() {
-						break;
-					}
-				}
-			})
-			.detach();
-	}
-}
+impl<H: Send + Sync + 'static> Actor for StorageAggregator<H> {}
 
-struct SendStorage;
+pub struct SendStorage;
 impl Message for SendStorage {
 	type Result = ();
 }
@@ -102,7 +81,7 @@ impl<H: Hash> Handler<SendStorage> for StorageAggregator<H> {
 	}
 }
 
-struct SendTraces;
+pub struct SendTraces;
 impl Message for SendTraces {
 	type Result = ();
 }
@@ -131,7 +110,7 @@ impl<H: Hash> Handler<Traces> for StorageAggregator<H> {
 }
 
 #[async_trait::async_trait]
-impl<H: Send + Sync + 'static> Handler<Die> for StorageAggregator<H> {
+impl<H: Hash> Handler<Die> for StorageAggregator<H> {
 	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
 		ctx.stop();
 	}

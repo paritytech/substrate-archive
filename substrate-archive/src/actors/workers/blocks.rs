@@ -51,8 +51,10 @@ pub struct BlocksIndexer<B: Send + 'static, D: Send + 'static> {
 	max_block_load: u32,
 }
 
-impl<B: BlockT + Unpin, D: ReadOnlyDb + 'static> BlocksIndexer<B, D>
+impl<B, D> BlocksIndexer<B, D>
 where
+	B: BlockT + Unpin,
+	D: ReadOnlyDb + 'static,
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
 {
@@ -161,27 +163,9 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: Send + Sync, D: Send + Sync> Actor for BlocksIndexer<B, D> {
-	async fn started(&mut self, ctx: &mut Context<Self>) {
-		// using this instead of notify_immediately because
-		// ReIndexing is async process
-		let addr = ctx.address().expect("Actor just started");
+impl<B: Send + Sync, D: Send + Sync> Actor for BlocksIndexer<B, D> {}
 
-		addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
-
-		self.executor
-			.spawn(async move {
-				loop {
-					if addr.send(Crawl).await.is_err() {
-						break;
-					}
-				}
-			})
-			.detach();
-	}
-}
-
-struct Crawl;
+pub struct Crawl;
 impl Message for Crawl {
 	type Result = ();
 }
@@ -204,7 +188,7 @@ where
 	}
 }
 
-struct ReIndex;
+pub struct ReIndex;
 impl Message for ReIndex {
 	type Result = ();
 }
