@@ -40,7 +40,8 @@ impl<H: Hash> StorageAggregator<H> {
 	async fn handle_storage(&mut self, ctx: &mut Context<Self>) -> Result<()> {
 		let storage = std::mem::replace(&mut self.storage, Vec::with_capacity(500));
 		if !storage.is_empty() {
-			log::info!("Indexing {} blocks of storage entries", storage.len());
+			let changes = storage.iter().flat_map(|c| c.changes.iter()).count();
+			log::info!("Indexing {} blocks of storage entries, with {} total changes", storage.len(), changes);
 			let send_result = self.db.send(BatchStorage::new(storage));
 			// handle_while the actual insert is happening, not the send
 			ctx.handle_while(self, send_result).await?;

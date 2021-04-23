@@ -47,7 +47,7 @@ use crate::{
 	archive::Archive,
 	database::{models::BlockModelDecoder, queries, Channel, Listener},
 	error::Result,
-	tasks::{Environment, TaskExecutor},
+	tasks::Environment,
 	types::Die,
 };
 use easy_parallel::Parallel;
@@ -198,16 +198,18 @@ where
 		// messages that only need to be sent once
 		self.blocks.send(ReIndex).await?;
 		let actors = self.clone();
-		let handle = executor
+		let _handle = executor
 			.spawn(async move {
 				loop {
-					let fut: Vec<BoxFuture<'_, Result<(), Disconnected>>> = vec![
+					// <BoxFuture<'_, Result<(), Disconnected>>>
+					let fut = (
 						Box::pin(actors.blocks.send(Crawl)),
 						Box::pin(actors.storage.send(SendStorage)),
 						Box::pin(actors.storage.send(SendTraces)),
-					];
-					let res = future::join_all(fut).await;
-					log::info!("Done! {:?}", res);
+					);
+					if let (Err(_), Err(_), Err(_)) = future::join3(fut.0, fut.1, fut.2).await {
+						break;
+					}
 				}
 			})
 			.detach();
@@ -336,24 +338,25 @@ where
 			.num_threads(conf.control.task_workers)
 			// times out if tasks don't start execution on the threadpool within 20 seconds.
 			.timeout(Duration::from_secs(conf.control.task_timeout))
-			.max_tasks(conf.control.max_tasks)
 			.build()?;
 
 		loop {
-			let tasks = runner.run_pending_tasks().fuse();
-			futures::pin_mut!(tasks);
-			futures::select! {
-				t = tasks => {
-					match t {
-						Ok(0) => {
-							smol::Timer::after(std::time::Duration::from_millis(500)).await;
-						},
-						Ok(n) => log::debug!("Executed {} tasks successfully", n),
-						Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
-						Err(e) => log::error!("{:?}", e),
-					}
-				},
-				_ = rx.recv_async() => break,
+			match rx.try_recv() {
+				Err(flume::TryRecvError::Empty) => {
+					log::info!("Recv chan empty");
+					continue;
+				}
+				Err(flume::TryRecvError::Disconnected) => break,
+				Ok(_) => {
+					log::info!("closing main loop");
+					break;
+				}
+			}
+
+			match runner.run_pending_tasks() {
+				Ok(_) => (),
+				Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
+				Err(e) => log::error!("{:?}", e),
 			}
 		}
 		actors.kill().await?;
@@ -435,15 +438,27 @@ where
 	}
 
 	fn shutdown(self) -> Result<()> {
-		let _ = self.kill_tx.send(());
+		let mut count = 0;
+		loop {
+			match self.kill_tx.send(()) {
+				Err(_) => break, // everyone got the shutdown signal
+				Ok(_) => {
+					if count % 2 == 0 {
+						log::info!("Sending!");
+					}
+					// some receivers may still be alive
+					std::thread::sleep(std::time::Duration::from_millis(20));
+					count += 1;
+					continue;
+				}
+			}
+		}
 		self.handle.join()?;
 		Ok(())
 	}
 
 	fn boxed_shutdown(self: Box<Self>) -> Result<()> {
-		let _ = self.kill_tx.send(());
-		self.handle.join()?;
-		Ok(())
+		self.shutdown()
 	}
 
 	fn context(&self) -> &SystemConfig<B, D> {
