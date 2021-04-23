@@ -44,7 +44,6 @@ pub struct BlocksIndexer<B: Send + 'static, D: Send + 'static> {
 	db: DatabaseAct,
 	meta: MetadataAct<B>,
 	rt_cache: Arc<RuntimeVersionCache<B, D>>,
-	executor: Arc<smol::Executor<'static>>,
 	/// the last maximum block number from which we are sure every block before then is indexed
 	last_max: u32,
 	/// the maximum amount of blocks to index at once
@@ -61,7 +60,6 @@ where
 	pub fn new(conf: &SystemConfig<B, D>, db: DatabaseAct, meta: MetadataAct<B>) -> Self {
 		Self {
 			rt_cache: Arc::new(RuntimeVersionCache::new(conf.backend.clone())),
-			executor: conf.executor.clone(),
 			last_max: 0,
 			backend: conf.backend().clone(),
 			db,

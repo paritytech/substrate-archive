@@ -17,7 +17,6 @@
 //! Module that accepts individual storage entries and wraps them up into batch requests for
 //! Postgres
 
-use std::sync::Arc;
 use xtra::prelude::*;
 
 use crate::{
@@ -31,12 +30,11 @@ pub struct StorageAggregator<H: Send + Sync + 'static> {
 	db: Address<DatabaseActor>,
 	storage: Vec<Storage<H>>,
 	traces: Vec<Traces>,
-	executor: Arc<smol::Executor<'static>>,
 }
 
 impl<H: Hash> StorageAggregator<H> {
-	pub fn new(db: Address<DatabaseActor>, executor: Arc<smol::Executor<'static>>) -> Self {
-		Self { db, storage: Vec::with_capacity(500), traces: Vec::with_capacity(250), executor }
+	pub fn new(db: Address<DatabaseActor>) -> Self {
+		Self { db, storage: Vec::with_capacity(500), traces: Vec::with_capacity(250) }
 	}
 
 	async fn handle_storage(&mut self, ctx: &mut Context<Self>) -> Result<()> {

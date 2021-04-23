@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{marker::PhantomData, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 

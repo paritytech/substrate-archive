@@ -197,12 +197,7 @@ impl Listener {
 		Builder::new(pg_url, f)
 	}
 
-	#[allow(unused)]
-	pub fn kill(&self) {
-		let _ = self.tx.send(());
-	}
-
-	pub async fn kill_async(&self) {
+	pub async fn kill(&self) {
 		let _ = self.tx.send_async(()).await;
 	}
 }
