@@ -39,22 +39,22 @@ codec = { package = "parity-scale-codec", version = "2.0", default-features = fa
 
 # Substrate is pinned to the latest substrate version that polkadot release v0.8.25 is
 # using. This is necessary to make substrate-archive compatible with the polkadot runtime.
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git ="https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git ="https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-tracing = { git ="https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-storage = { git ="https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
 
 # Workspace
 substrate-archive-backend = { path = '../substrate-archive-backend' }
 
 [dev-dependencies]
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master" }
+polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", tag = "v0.8.30" }
 pretty_env_logger = "0.4.0"
 # used in tests for storing test data on disk
 flate2 = "1.0"
