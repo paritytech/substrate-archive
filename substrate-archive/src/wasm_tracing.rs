@@ -73,7 +73,7 @@ pub struct SpanMessage {
 }
 
 /// Finished Trace Data Format. Ready for insertion into a relational database.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Traces {
 	block_num: u32,
 	hash: Vec<u8>,
@@ -121,9 +121,10 @@ pub struct TraceHandler {
 
 impl TraceHandler {
 	pub fn new(targets: &str, block_num: u32, hash: BlockHash, span_events: Arc<Mutex<SpansAndEvents>>) -> Self {
-		let targets = targets.split(',').map(|s| parse_target(s)).collect();
+		let mut targets: Vec<_> = targets.split(',').map(|s| parse_target(s)).collect();
 		// must start indexing from 1 otherwise `tracing` panics
 		let counter = AtomicU64::new(1);
+		targets.push((WASM_TRACE_IDENTIFIER.to_string(), Level::TRACE));
 		Self { targets, counter, span_events, block_num, hash, current_span: Default::default() }
 	}
 
@@ -167,7 +168,7 @@ impl TraceHandler {
 	#[allow(clippy::suspicious_operation_groupings)]
 	fn is_enabled(&self, span: &SpanMessage) -> bool {
 		let wasm_target = span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string());
-
+		log::debug!("Is {:?} enabled", span);
 		self.targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
 			let wanted_target = &t.0.as_str();
 			let valid_native_target = span.target.starts_with(wanted_target);

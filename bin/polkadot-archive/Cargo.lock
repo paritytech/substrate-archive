@@ -1766,9 +1766,9 @@ dependencies = [
 
 [[package]]
 name = "flume"
-version = "0.10.2"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "531a685ab99b8f60a271b44d5dd1a76e55124a8c9fa0407b7a8e9cd172d5b588"
+checksum = "11fce69af4d4582ea989e6adfc5c9b81fd2071ff89234e5c14675c82a85217df"
 dependencies = [
  "futures-core",
  "futures-sink",
