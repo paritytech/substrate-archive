@@ -12,7 +12,7 @@ Here's how to make a new release of `substrate-archive`.
 1. Push the PR against the `release` branch.
 1. Once reviewed, merge it to `release`.
 1. Tag the `release` branch` with `git tag vx.y.z` and push the tags with `git push --tags`
-1. Build a binary for debian, compatible with the current glibc version (`v1.2.3`)
+1. Build a binary for debian, compatible with the current glibc version (`v2.31`)
     1. `docker run --rm -it debian:jessie`
     2. install required dependencies `apt-get update && apt-get install git curl gcc clang`
     3. install rust from rustup.rs: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
