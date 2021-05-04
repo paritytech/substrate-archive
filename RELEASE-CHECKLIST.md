@@ -19,4 +19,4 @@ Here's how to make a new release of `substrate-archive`.
     1. reload the shell: `source $HOME/.cargo/env`
     1. build archive: `git clone https://github.com/paritytech/substrate-archive.git --branch release --single-branch && cd substrate-archive/bin/polkadot-archive && SKIP_WASM_BUILD=1 cargo build --release`
     1. keeping the container running, in a another terminal find the id of the docker container with `docker ps -a`, copy the binary to host with `docker cp $YOUR_CONTAINER_ID:/substrate-archive/bin/polkadot-archive/target/release/polkadot-archive .`
-1. Signal the new release to devops for deployment
+1. Prepare a new release in the github UI
