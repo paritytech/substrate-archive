@@ -71,7 +71,7 @@ taking advantage of the better reading performance of sequential data access. Ga
 - refactored error types
 - integrate database migrations into substrate-archive library
 
-## [v0.3.1]
+## **[v0.3.1]**
 
 - add node-template-archive
 
