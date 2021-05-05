@@ -342,10 +342,7 @@ where
 
 		loop {
 			match rx.try_recv() {
-				Err(flume::TryRecvError::Empty) => {
-					log::info!("Recv chan empty");
-					continue;
-				}
+				Err(flume::TryRecvError::Empty) => (),
 				Err(flume::TryRecvError::Disconnected) => break,
 				Ok(_) => {
 					log::info!("closing main loop");
