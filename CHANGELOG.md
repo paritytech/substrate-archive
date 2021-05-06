@@ -63,7 +63,7 @@ taking advantage of the better reading performance of sequential data access. Ga
 - [Changed] remove `rpc_url` from the polkadot-archive TOML configuration file
 - [Changed] All options in config file apart from `db_url`.
 
-## [v0.4.0]
+## **[v0.4.0]**
 
 - Speed up Storage Indexing by re-executing blocks
 - [internal] Remove some depdendencies for service and backend
