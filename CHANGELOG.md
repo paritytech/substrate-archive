@@ -8,7 +8,7 @@
 - [Changed] Pinned to `substrate`/`polkadot` release v0.8.30
 - [Changed] Keeping the `substrate-archive` and `substrate-archive-backend` crates's versions aligned.
 
-## [v0.5.0]
+## **[v0.5.0]**
 
 ### Substrate Archive
 
