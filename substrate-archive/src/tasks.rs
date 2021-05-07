@@ -21,7 +21,6 @@ use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc};
 
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
-use tracing::{dispatcher, Dispatch};
 use xtra::prelude::*;
 
 use sc_client_api::backend;
@@ -128,19 +127,9 @@ where
 	id: BlockId<Block>,
 }
 
-// convenience struct for unwrapping parameters needed for block execution
-struct BlockPrep<Block, S, H, N> {
-	block: Block,
-	state: S,
-	hash: H,
-	parent_hash: H,
-	number: N,
-}
-
 impl<'a, Block, Api, B> BlockExecutor<'a, Block, Api, B>
 where
 	Block: BlockT,
-	NumberFor<Block>: Into<u32>,
 	Api: BlockBuilderApi<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>,
 	B: backend::Backend<Block>,
 {
@@ -152,31 +141,22 @@ where
 		Self { api, backend, block, id }
 	}
 
-	fn prepare_block(
-		block: Block,
-		backend: &B,
-		id: &BlockId<Block>,
-	) -> Result<BlockPrep<Block, B::State, Block::Hash, NumberFor<Block>>, ArchiveError> {
-		let header = block.header();
+	fn block_into_storage(self) -> Result<BlockChanges<Block>, ArchiveError> {
+		let header = (&self.block).header();
 		let parent_hash = *header.parent_hash();
 		let hash = header.hash();
-		let number = *header.number();
+		let num = *header.number();
 
-		let state = backend.state_at(*id)?;
+		let state = self.backend.state_at(self.id)?;
 
 		// Wasm runtime calculates a different number of digest items
 		// than what we have in the block
 		// We don't do anything with consensus
 		// so digest isn't very important (we don't currently index digest items anyway)
 		// popping a digest item has no effect on storage changes afaik
-		let (mut header, ext) = block.deconstruct();
+		let (mut header, ext) = self.block.deconstruct();
 		header.digest_mut().pop();
-		Ok(BlockPrep { block: Block::new(header, ext), state, hash, parent_hash, number })
-	}
-
-	fn block_into_storage(self) -> Result<BlockChanges<Block>, ArchiveError> {
-		let BlockPrep { block, state, hash, parent_hash, number } =
-			Self::prepare_block(self.block, &self.backend, &self.id)?;
+		let block = Block::new(header, ext);
 
 		self.api.execute_block(&self.id, block)?;
 		let storage_changes =
@@ -186,53 +166,8 @@ where
 			storage_changes: storage_changes.main_storage_changes,
 			child_storage: storage_changes.child_storage_changes,
 			block_hash: hash,
-			block_num: number,
+			block_num: num,
 		})
-	}
-
-	fn execute_with_tracing(self, targets: &str) -> Result<(BlockChanges<Block>, Traces), ArchiveError> {
-		let BlockExecutor { block, backend, id, api } = self;
-		let BlockPrep { block, state, hash, parent_hash, number } = Self::prepare_block(block, &backend, &id)?;
-
-		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
-		{
-			let handler = TraceHandler::new(&targets, number.into(), hash.as_ref().to_vec(), span_events.clone());
-			let dispatch = Dispatch::new(handler);
-
-			let dispatcher_span = tracing::debug_span!(
-				target: "state_tracing",
-				"execute_block",
-				extrinsics_len = block.extrinsics().len()
-			);
-			let _guard = dispatcher_span.enter();
-			let res = dispatcher::with_default(&dispatch, || {
-				let span = tracing::info_span!("block_trace", "trace_block");
-				let _enter = span.enter();
-				api.execute_block(&id, block)
-			});
-			if res.is_err() {
-				println!("{:?}", res);
-				panic!("FUCK");
-			}
-		}
-
-		let changes =
-			api.into_storage_changes(&state, None, parent_hash).map_err(ArchiveError::ConvertStorageChanges)?;
-
-		let changes = BlockChanges {
-			storage_changes: changes.main_storage_changes,
-			child_storage: changes.child_storage_changes,
-			block_hash: hash,
-			block_num: number,
-		};
-		log::debug!("CHANGES LENGTH: {}", changes.storage_changes.len());
-		// We destroy the Arc and transform the Mutex here in order to avoid additional allocation.
-		// The Arc is cloned into the thread-local tracing subscriber in the scope of `storage`, creating
-		// 2 strong references. When block execution finishes, storage is collected and that reference is dropped.
-		// This allows us to unwrap it here. QED.
-		let traces = Arc::try_unwrap(span_events).map_err(|_| TracingError::NoTraceAccess)?.into_inner();
-		let traces = Traces::new(number.into(), hash.as_ref().to_vec(), traces.events, traces.spans);
-		Ok((changes, traces))
 	}
 }
 
@@ -283,33 +218,43 @@ where
 		return Ok(());
 	}
 
+	let hash = block.header().hash();
+	let number = *block.header().number();
+
 	log::debug!(
 		"Executing Block: {}:{}, version {}",
 		block.header().hash(),
 		block.header().number(),
 		env.client.runtime_version_at(&BlockId::Hash(block.hash())).map_err(|e| format!("{:?}", e))?.spec_version,
 	);
+	let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
 
-	let block = BlockExecutor::new(api, &env.backend, block);
+	let storage = {
+		// storage scope
+		let handler = env
+			.tracing_targets
+			.as_ref()
+			.map(|t| TraceHandler::new(&t, number.into(), hash.as_ref().to_vec(), span_events.clone()));
 
-	let now = std::time::Instant::now();
-	let (storage, traces) = if let Some(targets) = env.tracing_targets.as_ref() {
-		let res = block.execute_with_tracing(targets);
-		if res.is_err() {
-			println!("{:?}", res);
-			panic!("ERR");
-		} else {
-			res?
-		}
-	} else {
-		(block.block_into_storage()?, Default::default())
+		let _guard = handler.map(tracing::subscriber::set_default);
+
+		let now = std::time::Instant::now();
+		let block = BlockExecutor::new(api, &env.backend, block).block_into_storage()?;
+		log::debug!("Took {:?} to execute block", now.elapsed());
+
+		Storage::from(block)
 	};
-	log::debug!("Took {:?} to execute block", now.elapsed());
+
+	// We destroy the Arc and transform the Mutex here in order to avoid additional allocation.
+	// The Arc is cloned into the thread-local tracing subscriber in the scope of `storage`, creating
+	// 2 strong references. When block execution finishes, storage is collected and that reference is dropped.
+	// This allows us to unwrap it here. QED.
+	let traces = Arc::try_unwrap(span_events).map_err(|_| TracingError::NoTraceAccess)?.into_inner();
 
 	let now = std::time::Instant::now();
-	smol::block_on(env.storage.send(Storage::from(storage)))?;
+	smol::block_on(env.storage.send(storage))?;
 	if !traces.events.is_empty() || !traces.spans.is_empty() {
-		log::info!("Sending {} events and {} spans", traces.events.len(), traces.spans.len());
+		let traces = Traces::new(number.into(), hash.as_ref().to_vec(), traces.events, traces.spans);
 		smol::block_on(env.storage.send(traces))?;
 	}
 	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
