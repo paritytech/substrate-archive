@@ -88,8 +88,8 @@ pub struct BlockChanges<Block: BlockT> {
 	/// In memory arrays of storage values for multiple child tries.
 	pub child_storage: ChildStorageCollection,
 	/// Hash of the block these changes come from
-	pub block_hash: Block::Hash,
-	pub block_num: NumberFor<Block>,
+	pub hash: Block::Hash,
+	pub number: NumberFor<Block>,
 }
 
 impl<Block> From<BlockChanges<Block>> for Storage<Block>
@@ -100,8 +100,8 @@ where
 	fn from(changes: BlockChanges<Block>) -> Storage<Block> {
 		use sp_storage::{StorageData, StorageKey};
 
-		let hash = changes.block_hash;
-		let num: u32 = changes.block_num.into();
+		let hash = changes.hash;
+		let num: u32 = changes.number.into();
 
 		Storage::new(
 			hash,
@@ -185,8 +185,8 @@ where
 		Ok(BlockChanges {
 			storage_changes: storage_changes.main_storage_changes,
 			child_storage: storage_changes.child_storage_changes,
-			block_hash: hash,
-			block_num: number,
+			hash,
+			number,
 		})
 	}
 
@@ -221,8 +221,8 @@ where
 		let changes = BlockChanges {
 			storage_changes: changes.main_storage_changes,
 			child_storage: changes.child_storage_changes,
-			block_hash: hash,
-			block_num: number,
+			hash,
+			number,
 		};
 		// We destroy the Arc and transform the Mutex here in order to avoid additional allocation.
 		// The Arc is cloned into the thread-local tracing subscriber in the scope of `storage`, creating
