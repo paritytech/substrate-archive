@@ -177,10 +177,8 @@ where
 		// using this instead of notify_immediately because
 		// ReIndexing is async process
 		let addr = ctx.address().expect("Actor just started");
+		addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
 
-		// addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
-
-		self.last_max = 7_146_496;
 		smol::spawn(async move {
 			loop {
 				if addr.send(Crawl).await.is_err() {
