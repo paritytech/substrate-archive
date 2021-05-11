@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Parity Technologies (UK) Ltd.
+// Copyright 2018-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
@@ -292,7 +292,7 @@ where
 
 	let now = std::time::Instant::now();
 	let (storage, traces) = if let Some(targets) = env.tracing_targets.as_ref() {
-		block.execute_with_tracing(targets)?;
+		block.execute_with_tracing(targets)?
 	} else {
 		(block.block_into_storage()?, Default::default())
 	};
