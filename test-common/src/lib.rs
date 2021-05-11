@@ -78,6 +78,9 @@ macro_rules! decl_block_data {
 }
 
 decl_block_data! {
+	["v25", "./test-common/test_data/blocks_v25.csv" ]
+	["v26", "./test-common/test_data/blocks_v26.csv" ]
+	["v27", "./test-common/test_data/blocks_v27.csv" ]
 	["v28", "../test-common/test_data/blocks_v28.csv"]
 	["v29", "../test-common/test_data/blocks_v29.csv"]
 	["v30", "../test-common/test_data/blocks_v30.csv"]

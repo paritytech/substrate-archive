@@ -329,11 +329,11 @@ mod test {
 	fn trace_block_v0_8_28() -> Result<(), Error> {
 		let (client, backend) = get_dot_runtime_api(1, 128).unwrap();
 		let client = Arc::new(client);
-		let blocks = blocks_v28().unwrap();
+		let blocks = blocks_v25().unwrap();
 		let api = client.runtime_api();
-		let (block, spec) = blocks[0].clone().into_block_and_spec()?;
+		let (block, _) = blocks[0].clone().into_block_and_spec()?;
 		let executor = BlockExecutor::new(api, &backend, block);
-		let (changes, traces) = executor.execute_with_tracing(targets).unwrap();
+		let (_, traces) = executor.execute_with_tracing(targets).unwrap();
 		println!("{:?}", traces);
 		Ok(())
 	}
