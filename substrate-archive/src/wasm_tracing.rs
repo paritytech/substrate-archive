@@ -168,7 +168,6 @@ impl TraceHandler {
 	#[allow(clippy::suspicious_operation_groupings)]
 	fn is_enabled(&self, span: &SpanMessage) -> bool {
 		let wasm_target = span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string());
-		log::debug!("Is {:?} enabled", span);
 		self.targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
 			let wanted_target = &t.0.as_str();
 			let valid_native_target = span.target.starts_with(wanted_target);
