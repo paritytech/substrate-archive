@@ -9389,15 +9389,14 @@ dependencies = [
 name = "substrate-archive"
 version = "0.5.1"
 dependencies = [
+ "anyhow",
  "async-trait",
- "bincode",
  "chrono",
  "coil",
  "directories",
  "dotenv",
  "fdlimit",
  "fern",
- "flate2",
  "flume",
  "futures 0.3.14",
  "hashbrown 0.11.2",

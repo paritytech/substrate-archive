@@ -39,20 +39,20 @@ pub fn get_dot_runtime_api(
 }
 
 
-fn csv_to_block(file: &str) -> Result<Vec<BlockModel>, Error> {
+fn csv_to_block(file: &str, has_header: bool) -> Result<Vec<BlockModel>, Error> {
 	let blocks = File::open(file)?;
-	let mut rdr = csv::ReaderBuilder::new().has_headers(true).delimiter(b'\t').from_reader(blocks);
+	let mut rdr = csv::ReaderBuilder::new().has_headers(has_header).from_reader(blocks);
 	let mut blocks = Vec::new();
 	for line in rdr.records() {
 		let line = line?;
 		let id: i32 = line.get(0).unwrap().parse()?;
-		let parent_hash: Vec<u8> = hex::decode(line.get(1).unwrap().strip_prefix("\\\\x").unwrap())?;
-		let hash: Vec<u8> = hex::decode(line.get(2).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let parent_hash: Vec<u8> = hex::decode(line.get(1).unwrap().strip_prefix("\\x").unwrap())?;
+		let hash: Vec<u8> = hex::decode(line.get(2).unwrap().strip_prefix("\\x").unwrap())?;
 		let block_num: i32 = line.get(3).unwrap().parse()?;
-		let state_root: Vec<u8> = hex::decode(line.get(4).unwrap().strip_prefix("\\\\x").unwrap())?;
-		let extrinsics_root: Vec<u8> = hex::decode(line.get(5).unwrap().strip_prefix("\\\\x").unwrap())?;
-		let digest = hex::decode(line.get(6).unwrap().strip_prefix("\\\\x").unwrap())?;
-		let ext: Vec<u8> = hex::decode(line.get(7).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let state_root: Vec<u8> = hex::decode(line.get(4).unwrap().strip_prefix("\\x").unwrap())?;
+		let extrinsics_root: Vec<u8> = hex::decode(line.get(5).unwrap().strip_prefix("\\x").unwrap())?;
+		let digest = hex::decode(line.get(6).unwrap().strip_prefix("\\x").unwrap())?;
+		let ext: Vec<u8> = hex::decode(line.get(7).unwrap().strip_prefix("\\x").unwrap())?;
 		let spec: i32 = line.get(8).unwrap().parse()?;
 		let block = BlockModel { id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec };
 		blocks.push(block);
@@ -69,7 +69,8 @@ macro_rules! decl_block_data {
 		$(
 			paste! {
 				pub fn [<blocks_ $version>]() -> Result<Vec<BlockModel>, Error> {
-					csv_to_block($file)
+					println!("{:?}", std::env::current_dir().unwrap());
+					csv_to_block($file, true)
 				}
 			}
 		)*
@@ -77,7 +78,7 @@ macro_rules! decl_block_data {
 }
 
 decl_block_data! {
-	["v28", "test_data/blocks_v28.csv"]
-	["v29", "test_data/blocks_v29.csv"]
-	["v30", "test_data/blocks_v30.csv"]
+	["v28", "../test-common/test_data/blocks_v28.csv"]
+	["v29", "../test-common/test_data/blocks_v29.csv"]
+	["v30", "../test-common/test_data/blocks_v30.csv"]
 }
