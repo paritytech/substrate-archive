@@ -18,3 +18,4 @@ criterion = "0.3"
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 hex = "0.4"
 tempfile = "3.2.0"
+paste = "1"

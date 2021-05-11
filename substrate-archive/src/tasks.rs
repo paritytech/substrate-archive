@@ -315,3 +315,15 @@ where
 	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())
 }
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use test_common::*;
+
+	fn trace_block_v0_8_30() {
+		println!("yo");
+		// let (client, backend) = get_dot_runtime_api(1, 128).unwrap();
+		// let executor = BlockExecutor::new(client.runtime_api(), &backend, )
+	}
+}

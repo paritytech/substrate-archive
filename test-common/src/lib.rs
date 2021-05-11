@@ -1,5 +1,6 @@
 use substrate_archive::{database::models::BlockModel, native_executor_instance};
 use anyhow::Error;
+use paste::paste;
 use polkadot_service::{polkadot_runtime as dot_rt, Block};
 use std::{fs::File, sync::Arc};
 use substrate_archive_backend::{
@@ -35,4 +36,48 @@ pub fn get_dot_runtime_api(
 	};
 	let backend = Arc::new(ReadOnlyBackend::new(db.clone(), false));
 	runtime_api(db, config).map(|o| (o, backend)).map_err(Into::into)
+}
+
+
+fn csv_to_block(file: &str) -> Result<Vec<BlockModel>, Error> {
+	let blocks = File::open(file)?;
+	let mut rdr = csv::ReaderBuilder::new().has_headers(true).delimiter(b'\t').from_reader(blocks);
+	let mut blocks = Vec::new();
+	for line in rdr.records() {
+		let line = line?;
+		let id: i32 = line.get(0).unwrap().parse()?;
+		let parent_hash: Vec<u8> = hex::decode(line.get(1).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let hash: Vec<u8> = hex::decode(line.get(2).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let block_num: i32 = line.get(3).unwrap().parse()?;
+		let state_root: Vec<u8> = hex::decode(line.get(4).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let extrinsics_root: Vec<u8> = hex::decode(line.get(5).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let digest = hex::decode(line.get(6).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let ext: Vec<u8> = hex::decode(line.get(7).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let spec: i32 = line.get(8).unwrap().parse()?;
+		let block = BlockModel { id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec };
+		blocks.push(block);
+	}
+	Ok(blocks)
+}
+
+macro_rules! decl_block_data {
+	(
+		$(
+			[$version:expr, $file:expr]
+		)*
+	) => {
+		$(
+			paste! {
+				pub fn [<blocks_ $version>]() -> Result<Vec<BlockModel>, Error> {
+					csv_to_block($file)
+				}
+			}
+		)*
+	};
+}
+
+decl_block_data! {
+	["v28", "test_data/blocks_v28.csv"]
+	["v29", "test_data/blocks_v29.csv"]
+	["v30", "test_data/blocks_v30.csv"]
 }
