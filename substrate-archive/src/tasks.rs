@@ -224,7 +224,6 @@ where
 			block_hash: hash,
 			block_num: number,
 		};
-		log::debug!("CHANGES LENGTH: {}", changes.storage_changes.len());
 		// We destroy the Arc and transform the Mutex here in order to avoid additional allocation.
 		// The Arc is cloned into the thread-local tracing subscriber in the scope of `storage`, creating
 		// 2 strong references. When block execution finishes, storage is collected and that reference is dropped.
