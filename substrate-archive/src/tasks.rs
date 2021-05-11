@@ -212,7 +212,6 @@ where
 			});
 			if res.is_err() {
 				println!("{:?}", res);
-				panic!("FUCK");
 			}
 		}
 
