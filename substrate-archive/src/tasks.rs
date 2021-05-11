@@ -292,13 +292,7 @@ where
 
 	let now = std::time::Instant::now();
 	let (storage, traces) = if let Some(targets) = env.tracing_targets.as_ref() {
-		let res = block.execute_with_tracing(targets);
-		if res.is_err() {
-			println!("{:?}", res);
-			panic!("ERR");
-		} else {
-			res?
-		}
+		block.execute_with_tracing(targets)?;
 	} else {
 		(block.block_into_storage()?, Default::default())
 	};
