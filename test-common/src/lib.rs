@@ -57,6 +57,9 @@ fn csv_to_block(file: &str, has_header: bool) -> Result<Vec<BlockModel>, Error> 
 	Ok(blocks)
 }
 
+/// Creates a function from `version` and `file` such that it returns a Vector of `BlockModel` from the
+/// passed in CSV file of substrate blocks. The function will be named `blocks_${version}`, EX: `blocks_v28`
+/// This macro may only be used locally in this file
 macro_rules! decl_block_data {
 	(
 		$(
