@@ -1,7 +1,8 @@
 [workspace]
 members = [
   "substrate-archive",
-  "substrate-archive-backend"
+  "substrate-archive-backend",
+  "test-common"
 ]
 exclude = [
   "bin/polkadot-archive",
