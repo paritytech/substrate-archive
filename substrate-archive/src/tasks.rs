@@ -211,7 +211,7 @@ where
 				api.execute_block(&id, block)
 			});
 			if res.is_err() {
-				println!("{:?}", res);
+				log::error!("{:?}", res);
 			}
 		}
 
