@@ -14,16 +14,13 @@ native_executor_instance!(
 	sp_io::SubstrateHostFunctions,
 );
 
+type PolkadotClient = TArchiveClient<Block, dot_rt::RuntimeApi, PolkadotExecutor, SecondaryRocksDb>;
+type PolkadotBackend = Arc<ReadOnlyBackend<Block, SecondaryRocksDb>>;
+
 pub fn get_dot_runtime_api(
 	block_workers: usize,
 	wasm_pages: u64,
-) -> Result<
-	(
-		TArchiveClient<Block, dot_rt::RuntimeApi, PolkadotExecutor, SecondaryRocksDb>,
-		Arc<ReadOnlyBackend<Block, SecondaryRocksDb>>,
-	),
-	Error,
-> {
+) -> Result<(PolkadotClient, PolkadotBackend), Error> {
 	let chain_path = std::env::var("CHAIN_DATA_DB").expect("must have database as variable CHAIN_DATA_DB");
 	let mut tmp_path = tempfile::tempdir()?.into_path();
 	tmp_path.push("rocksdb_secondary");
