@@ -315,26 +315,3 @@ where
 	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())
 }
-
-/// these tests require a synced polkadot database with --pruning=archive to run
-#[cfg(test)]
-mod test {
-	use super::*;
-	use test_common::*;
-	use sp_api::ProvideRuntimeApi;
-	use anyhow::Error;
-	const targets: &str = "wasm_tracing,pallet,frame,state";
-
-	#[test]
-	fn trace_block_v0_8_28() -> Result<(), Error> {
-		let (client, backend) = get_dot_runtime_api(1, 128).unwrap();
-		let client = Arc::new(client);
-		let blocks = blocks_v25().unwrap();
-		let api = client.runtime_api();
-		let (block, _) = blocks[0].clone().into_block_and_spec()?;
-		let executor = BlockExecutor::new(api, &backend, block);
-		let (_, traces) = executor.execute_with_tracing(targets).unwrap();
-		println!("{:?}", traces);
-		Ok(())
-	}
-}
