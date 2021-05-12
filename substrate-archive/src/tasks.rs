@@ -205,14 +205,11 @@ where
 				extrinsics_len = block.extrinsics().len()
 			);
 			let _guard = dispatcher_span.enter();
-			let res = dispatcher::with_default(&dispatch, || {
+			dispatcher::with_default(&dispatch, || {
 				let span = tracing::info_span!("block_trace", "trace_block");
 				let _enter = span.enter();
 				api.execute_block(&id, block)
-			});
-			if res.is_err() {
-				log::error!("{:?}", res);
-			}
+			})?;
 		}
 
 		let changes =
