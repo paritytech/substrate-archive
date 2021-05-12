@@ -38,7 +38,7 @@ use crate::{
 	actors::StorageAggregator,
 	error::{ArchiveError, TracingError},
 	types::Storage,
-	wasm_tracing::{SpansAndEvents, TraceHandler, Traces},
+	wasm_tracing::{SpansAndEvents, TraceHandler, Traces, SpanMessage, EventMessage},
 };
 
 /// The environment passed to each task
@@ -221,12 +221,12 @@ where
 			hash,
 			number,
 		};
-		// We destroy the Arc and transform the Mutex here in order to avoid additional allocation.
-		// The Arc is cloned into the thread-local tracing subscriber in the scope of `storage`, creating
-		// 2 strong references. When block execution finishes, storage is collected and that reference is dropped.
-		// This allows us to unwrap it here. QED.
-		let traces = Arc::try_unwrap(span_events).map_err(|_| TracingError::NoTraceAccess)?.into_inner();
-		let traces = Traces::new(number.into(), hash.as_ref().to_vec(), traces.events, traces.spans);
+
+		let mut traces = span_events.lock();
+		let spans = traces.spans.drain(..).collect::<Vec<SpanMessage>>();
+		let events = traces.events.drain(..).collect::<Vec<EventMessage>>();
+
+		let traces = Traces::new(number.into(), hash.as_ref().to_vec(), events, spans);
 		Ok((changes, traces))
 	}
 }
