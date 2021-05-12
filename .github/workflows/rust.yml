@@ -36,19 +36,19 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check Code
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.3
         with:
           command: check
           args: --all-targets
 
       - name: Check Code For `node-template-archive`
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.3
         with:
           command: check
           args: --manifest-path bin/node-template-archive/Cargo.toml
 
       - name: Check Code For `polkadot-archive`
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.3
         with:
           command: check
           args: --manifest-path bin/polkadot-archive/Cargo.toml
@@ -80,25 +80,25 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check Code Format
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.3
         with:
           command: fmt
           args: --all -- --check
 
       - name: Check Code Format For `node-template-archive`
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.3
         with:
           command: fmt
           args: --manifest-path bin/node-template-archive/Cargo.toml -- --check
 
       - name: Check Code Format For `polkadot-archive`
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.3
         with:
           command: fmt
           args: --manifest-path bin/polkadot-archive/Cargo.toml -- --check
 
       - name: Code Lint
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1.0.3
         with:
           command: clippy
           args: -- -D warnings
