@@ -17,7 +17,7 @@
 use substrate_archive::{database::models::BlockModel, native_executor_instance};
 use anyhow::Error;
 use paste::paste;
-use polkadot_service::{polkadot_runtime as dot_rt, Block};
+use polkadot_runtime::Block;
 use std::{fs::File, sync::Arc};
 use substrate_archive_backend::{
 	runtime_api, ExecutionMethod, ReadOnlyBackend, ReadOnlyDb, RuntimeConfig, SecondaryRocksDb, TArchiveClient,
@@ -25,12 +25,12 @@ use substrate_archive_backend::{
 
 native_executor_instance!(
 	pub PolkadotExecutor,
-	dot_rt::api::dispatch,
-	dot_rt::native_version,
+	polkadot_runtime::api::dispatch,
+	polkadot_runtime::native_version,
 	sp_io::SubstrateHostFunctions,
 );
 
-type PolkadotClient = TArchiveClient<Block, dot_rt::RuntimeApi, PolkadotExecutor, SecondaryRocksDb>;
+type PolkadotClient = TArchiveClient<Block, polkadot_runtime::RuntimeApi, PolkadotExecutor, SecondaryRocksDb>;
 type PolkadotBackend = Arc<ReadOnlyBackend<Block, SecondaryRocksDb>>;
 
 pub fn get_dot_runtime_api(

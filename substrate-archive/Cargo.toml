@@ -54,7 +54,6 @@ sp-storage = { git ="https://github.com/paritytech/substrate", branch = "master"
 substrate-archive-backend = { path = '../substrate-archive-backend' }
 
 [dev-dependencies]
-polkadot-service = { package = "polkadot-service", git = "https://github.com/paritytech/polkadot", branch = "master" }
 test-common = { path = "../test-common/" }
 anyhow = "1"
 pretty_env_logger = "0.4.0"

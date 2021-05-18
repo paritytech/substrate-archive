@@ -92,6 +92,7 @@ impl<B: BlockT, D: ReadOnlyDb + 'static> RuntimeVersionCache<B, D> {
 		} else {
 			log::debug!("Adding new runtime code hash to cache: {:#X?}", code_hash);
 			let mut ext = BasicExternalities::default();
+			ext.register_extension(sp_core::traits::ReadRuntimeVersionExt::new(self.exec.clone()));
 			let version = decode_version(self.exec.read_runtime_version(&code, &mut ext)?.as_slice())?;
 				log::debug!("Registered a new runtime version: {:?}", version);
 			self.versions.rcu(|cache| {
