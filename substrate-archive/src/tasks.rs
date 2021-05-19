@@ -36,7 +36,7 @@ use substrate_archive_backend::{ApiAccess, ReadOnlyBackend as Backend, ReadOnlyD
 
 use crate::{
 	actors::StorageAggregator,
-	error::{ArchiveError, TracingError},
+	error::ArchiveError,
 	types::Storage,
 	wasm_tracing::{SpansAndEvents, TraceHandler, Traces, SpanMessage, EventMessage},
 };
@@ -318,7 +318,7 @@ mod tests {
 
 	#[test]
 	fn trace_block_v28() -> Result<(), Error> {
-		let (block, spec) = blocks_v28()?[0].clone().into_block_and_spec()?;
+		let (block, _)  = blocks_v28()?[0].clone().into_block_and_spec()?;
 		let (client, backend) = get_dot_runtime_api(1, 128)?;
 		let api = client.runtime_api();
 		let block = BlockExecutor::new(api, &backend, block);

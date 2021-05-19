@@ -14,12 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use substrate_archive::database::models::BlockModel;
-use sc_executor::native_executor_instance;
 use anyhow::Error;
 use paste::paste;
 use polkadot_runtime::Block;
+use sc_executor::native_executor_instance;
 use std::{fs::File, sync::Arc};
+use substrate_archive::database::models::BlockModel;
 use substrate_archive_backend::{
 	runtime_api, ExecutionMethod, ReadOnlyBackend, ReadOnlyDb, RuntimeConfig, SecondaryRocksDb, TArchiveClient,
 };
@@ -34,10 +34,7 @@ native_executor_instance!(
 type PolkadotClient = TArchiveClient<Block, polkadot_runtime::RuntimeApi, PolkadotExecutor, SecondaryRocksDb>;
 type PolkadotBackend = Arc<ReadOnlyBackend<Block, SecondaryRocksDb>>;
 
-pub fn get_dot_runtime_api(
-	block_workers: usize,
-	wasm_pages: u64,
-) -> Result<(PolkadotClient, PolkadotBackend), Error> {
+pub fn get_dot_runtime_api(block_workers: usize, wasm_pages: u64) -> Result<(PolkadotClient, PolkadotBackend), Error> {
 	let chain_path = std::env::var("CHAIN_DATA_DB").expect("must have database as variable CHAIN_DATA_DB");
 	let mut tmp_path = tempfile::tempdir()?.into_path();
 	tmp_path.push("rocksdb_secondary");
@@ -51,7 +48,6 @@ pub fn get_dot_runtime_api(
 	let backend = Arc::new(ReadOnlyBackend::new(db.clone(), false));
 	runtime_api(db, config).map(|o| (o, backend)).map_err(Into::into)
 }
-
 
 fn csv_to_block(file: &str, has_header: bool) -> Result<Vec<BlockModel>, Error> {
 	let blocks = File::open(file)?;
