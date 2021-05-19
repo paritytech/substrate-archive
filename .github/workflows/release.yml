@@ -1,0 +1,67 @@
+name: Release CI
+on:
+  push:
+  branches:
+    - release
+jobs:
+  deploy:
+    # A strategy is used to define various build environments this job will run.
+    #
+    # To say it simple, this will create 3 separate independent jobs which will
+    # run on ubuntu, mac & windows.
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    # Runs when the commit message contains "[Released]"
+    # if: "contains(github.event.head_commit.message, '[Released]')"
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+      - name: Build
+        run: cargo build --release
+
+      # Condition to only run this whenever the runner os is Mac
+      - name: Build Release Mac
+        if: matrix.os == 'macos-latest'
+        run: |
+          strip target/release/aow
+          mkdir -p release
+          tar -C ./target/release/ -czvf ./release/aow-mac.tar.gz ./aow
+
+      # Condition to only run this whenever the runner os is Ubuntu
+      - name: Build Release Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo install cargo-deb
+          cargo deb
+          strip target/release/aow
+          mkdir -p release
+          mv target/debian/*.deb ./release/aow-linux.deb
+          tar -C ./target/release/ -czvf ./release/aow-linux.tar.gz ./aow
+
+      # Condition to only run this whenever the runner os is Windows
+      - name: Build Release Win
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir -p release
+          tar -C ./target/release/ -czvf ./release/aow-win.tar.gz ./aow.exe
+
+      # This will draft a new release & will attach the binaries produced by the above outputs.
+      # You still need to publish this release though after job ends.
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: true
+          files: |
+            ./release/*.tar.gz
+            ./release/*.zip
+            ./release/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # You don't need to add this in secrets it's by default.
