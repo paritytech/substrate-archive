@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use substrate_archive::{database::models::BlockModel, native_executor_instance};
+use substrate_archive::database::models::BlockModel;
+use sc_executor::native_executor_instance;
 use anyhow::Error;
 use paste::paste;
 use polkadot_runtime::Block;

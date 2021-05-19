@@ -9,6 +9,7 @@ edition = "2018"
 substrate-archive = { path = "../substrate-archive" }
 substrate-archive-backend = { path = "../substrate-archive-backend" }
 polkadot-runtime = { package = "polkadot-runtime", git = "https://github.com/paritytech/polkadot", branch = "master" }
+sc-executor = { package = "sc-executor", git = "https://github.com/paritytech/substrate", branch = "master" }
 # used in tests for storing test data on disk
 dotenv = "0.15.0"
 csv = "1"

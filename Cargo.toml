@@ -2,7 +2,8 @@
 members = [
   "substrate-archive",
   "substrate-archive-backend",
-  "test-common"
+  "integration_tests",
+  "test-common",
 ]
 exclude = [
   "bin/polkadot-archive",
