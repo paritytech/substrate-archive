@@ -34,7 +34,7 @@ jobs:
           mkdir -p release
           mv target/debian/*.deb ./release/test_gh_actions-linux.deb
           tar -C ./target/release/ -czvf ./release/test_gh_actions-linux.tar.gz ./test_gh_actions
-      
+
       - name: Package pure binary
         if: matrix.os == 'ubuntu-latest'
         run: |
