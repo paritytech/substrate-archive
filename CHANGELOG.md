@@ -10,12 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.5.1] - 2021-05-06
 ### Added
 - Release checklist
+
 ### Changed
 - Pinned to `substrate`/`polkadot` release v0.8.30
 - Keeping the `substrate-archive` and `substrate-archive-backend` crates's versions aligned.
 
 ## [v0.5.0] - 2021-03-29
-
 ### Added
 - `ArchiveBuilder` struct for constructing the indexer.
 	- returns a trait, `Archive` that manages the underlying actor runtime
