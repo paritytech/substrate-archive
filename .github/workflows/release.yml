@@ -1,8 +1,8 @@
 name: Release CI
 on:
   push:
-  branches:
-    - release
+    branches:
+      - release
 jobs:
   deploy:
     # A strategy is used to define various build environments this job will run.
@@ -11,7 +11,7 @@ jobs:
     # run on ubuntu, mac & windows.
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     # Runs when the commit message contains "[Released]"
     # if: "contains(github.event.head_commit.message, '[Released]')"
@@ -25,43 +25,41 @@ jobs:
       - name: Build
         run: cargo build --release
 
-      # Condition to only run this whenever the runner os is Mac
-      - name: Build Release Mac
-        if: matrix.os == 'macos-latest'
-        run: |
-          strip target/release/aow
-          mkdir -p release
-          tar -C ./target/release/ -czvf ./release/aow-mac.tar.gz ./aow
-
-      # Condition to only run this whenever the runner os is Ubuntu
-      - name: Build Release Linux
+      - name: Package for Debian
         if: matrix.os == 'ubuntu-latest'
         run: |
           cargo install cargo-deb
           cargo deb
-          strip target/release/aow
+          strip target/release/test_gh_actions
           mkdir -p release
-          mv target/debian/*.deb ./release/aow-linux.deb
-          tar -C ./target/release/ -czvf ./release/aow-linux.tar.gz ./aow
-
-      # Condition to only run this whenever the runner os is Windows
-      - name: Build Release Win
-        if: matrix.os == 'windows-latest'
+          mv target/debian/*.deb ./release/test_gh_actions-linux.deb
+          tar -C ./target/release/ -czvf ./release/test_gh_actions-linux.tar.gz ./test_gh_actions
+      
+      - name: Package pure binary
+        if: matrix.os == 'ubuntu-latest'
         run: |
+          strip target/release/test_gh_actions
           mkdir -p release
-          tar -C ./target/release/ -czvf ./release/aow-win.tar.gz ./aow.exe
+          mv target/release/test_gh_actions ./release/test_gh_actions
 
+      - name: Get changelog
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_depth: 2
+          path: ./CHANGELOG.md
       # This will draft a new release & will attach the binaries produced by the above outputs.
       # You still need to publish this release though after job ends.
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          tag_name: ${{ steps.changelog_reader.outputs.version }}
+          release_name: Release ${{ steps.changelog_reader.outputs.version }}
+          body: ${{ steps.changelog_reader.outputs.changes }}
           draft: true
           files: |
             ./release/*.tar.gz
-            ./release/*.zip
             ./release/*.deb
+            ./release/test_gh_actions
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # You don't need to add this in secrets it's by default.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
