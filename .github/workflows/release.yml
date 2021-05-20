@@ -5,16 +5,10 @@ on:
       - release
 jobs:
   deploy:
-    # A strategy is used to define various build environments this job will run.
-    #
-    # To say it simple, this will create 3 separate independent jobs which will
-    # run on ubuntu, mac & windows.
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    # Runs when the commit message contains "[Released]"
-    # if: "contains(github.event.head_commit.message, '[Released]')"
     steps:
       - uses: actions/checkout@v2
       - name: Install Rust
@@ -22,25 +16,27 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
-      - name: Build
-        run: cargo build --release
+
+      - name: Build Polkadot Archive
+        run: cargo build --release --manifest-path bin/polkadot-archive/Cargo.toml
+
+      - name: Prepare binary
+        run: |
+          mkdir -p release
+          strip bin/polkadot-archive/target/release/polkadot-archive
 
       - name: Package for Debian
         if: matrix.os == 'ubuntu-latest'
         run: |
           cargo install cargo-deb
-          cargo deb
-          strip target/release/test_gh_actions
-          mkdir -p release
-          mv target/debian/*.deb ./release/test_gh_actions-linux.deb
-          tar -C ./target/release/ -czvf ./release/test_gh_actions-linux.tar.gz ./test_gh_actions
+          cargo deb --manifest-path ./bin/polkadot-archive/Cargo.toml
+          mv ./bin/polkadot-archive/target/debian/*.deb ./release/polkadot-archive-linux.deb
+          tar -C ./bin/polkadot-archive/target/release/ -czvf ./release/polkadot-archive-linux.tar.gz ./polkadot-archive
 
-      - name: Package pure binary
+      - name: Package just binary
         if: matrix.os == 'ubuntu-latest'
         run: |
-          strip target/release/test_gh_actions
-          mkdir -p release
-          mv target/release/test_gh_actions ./release/test_gh_actions
+          mv bin/polkadot-archive/target/release/polkadot-archive ./release/polkadot-archive
 
       - name: Get changelog
         id: changelog_reader
@@ -48,18 +44,17 @@ jobs:
         with:
           validation_depth: 2
           path: ./CHANGELOG.md
-      # This will draft a new release & will attach the binaries produced by the above outputs.
-      # You still need to publish this release though after job ends.
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.changelog_reader.outputs.version }}
-          release_name: Release ${{ steps.changelog_reader.outputs.version }}
+          name: Release ${{ steps.changelog_reader.outputs.version }}
           body: ${{ steps.changelog_reader.outputs.changes }}
           draft: true
           files: |
             ./release/*.tar.gz
             ./release/*.deb
-            ./release/test_gh_actions
+            ./release/polkadot_archive
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
