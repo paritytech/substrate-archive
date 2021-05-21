@@ -2,7 +2,6 @@
 members = [
   "substrate-archive",
   "substrate-archive-backend",
-  "integration_tests",
   "test-common",
 ]
 exclude = [

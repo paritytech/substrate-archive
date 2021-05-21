@@ -27,6 +27,7 @@ use codec::Decode;
 use hashbrown::HashMap;
 
 use sc_executor::{WasmExecutionMethod, WasmExecutor};
+use sp_core::traits::CallInWasmExt;
 use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, Header as _, NumberFor},
@@ -35,7 +36,6 @@ use sp_state_machine::BasicExternalities;
 use sp_storage::well_known_keys;
 use sp_version::RuntimeVersion;
 use sp_wasm_interface::HostFunctions;
-use sp_core::traits::ReadRuntimeVersion;
 
 use crate::{
 	database::ReadOnlyDb,
@@ -92,9 +92,12 @@ impl<B: BlockT, D: ReadOnlyDb + 'static> RuntimeVersionCache<B, D> {
 		} else {
 			log::debug!("Adding new runtime code hash to cache: {:#X?}", code_hash);
 			let mut ext = BasicExternalities::default();
-			ext.register_extension(sp_core::traits::ReadRuntimeVersionExt::new(self.exec.clone()));
-			let version = decode_version(self.exec.read_runtime_version(&code, &mut ext)?.as_slice())?;
-				log::debug!("Registered a new runtime version: {:?}", version);
+			ext.register_extension(CallInWasmExt::new(self.exec.clone()));
+			let version: RuntimeVersion = ext.execute_with(|| {
+				let ver = sp_io::misc::runtime_version(&code).ok_or(BackendError::WasmExecutionError)?;
+				decode_version(ver.as_slice())
+			})?;
+			log::debug!("Registered a new runtime version: {:?}", version);
 			self.versions.rcu(|cache| {
 				let mut cache = HashMap::clone(&cache);
 				cache.insert(code_hash, version.clone());
