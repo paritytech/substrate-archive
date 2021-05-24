@@ -39,16 +39,16 @@ codec = { package = "parity-scale-codec", version = "2.0", default-features = fa
 
 # Substrate is pinned to the latest substrate version that polkadot release v0.8.25 is
 # using. This is necessary to make substrate-archive compatible with the polkadot runtime.
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "insipx/add-tracing" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "insipx/add-tracing" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "insipx/add-tracing" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "insipx/add-tracing" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "insipx/add-tracing" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "insipx/add-tracing" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "insipx/add-tracing" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "insipx/add-tracing" }
-sp-tracing = { git ="https://github.com/paritytech/substrate", branch = "insipx/add-tracing" }
-sp-storage = { git ="https://github.com/paritytech/substrate", branch = "insipx/add-tracing" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git ="https://github.com/paritytech/substrate", branch = "master" }
+sp-storage = { git ="https://github.com/paritytech/substrate", branch = "master" }
 
 # Workspace
 substrate-archive-backend = { path = '../substrate-archive-backend' }
