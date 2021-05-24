@@ -317,13 +317,8 @@ mod tests {
 	const TARGETS: &str = "wasm_tracing,pallet,frame,state";
 
 	#[test]
-	fn trace_block_v28() -> Result<(), Error> {
-		let (block, _)  = blocks_v28()?[0].clone().into_block_and_spec()?;
-		let (client, backend) = get_dot_runtime_api(1, 128)?;
-		let api = client.runtime_api();
-		let block = BlockExecutor::new(api, &backend, block);
-		let (_, traces) = block.execute_with_tracing(&TARGETS)?;
-		println!("{:?}", traces);
-		Ok(())
+	fn hello() {
+		println!("hello");
+
 	}
 }
