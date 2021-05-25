@@ -6,9 +6,4 @@ edition = "2018"
 
 
 [dependencies]
-substrate-archive = { path = "../substrate-archive" }
-substrate-archive-backend = { path = "../substrate-archive-backend" }
-sc-executor = { package = "sc-executor", git = "https://github.com/paritytech/substrate", branch = "master" }
-# used in tests for storing test data on disk
-anyhow = "1"
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+test-wasm = { path = "test-wasm" }

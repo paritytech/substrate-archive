@@ -128,7 +128,8 @@ impl TraceHandler {
 		Self { targets, counter, span_events, block_num, hash, current_span: Default::default() }
 	}
 
-	/// Formats an event as an [`EventMessage`] and stores it in the [`SpansAndEvents`] (which is sent to the [`StorageAggregator`] after the block is executed).
+	/// Formats an event as an [`EventMessage`] and stores it in the [`SpansAndEvents`]
+	/// (which is sent to the [`StorageAggregator`] after the block is executed).
 	fn gather_event(&self, event: &Event<'_>, time: DateTime<Utc>) -> Result<()> {
 		let meta = event.metadata();
 		let mut values = TraceData::default();
@@ -167,6 +168,7 @@ impl TraceHandler {
 	/// Returns true if a span is part of an enabled Target. Checks WASM in addition to the spans target.
 	#[allow(clippy::suspicious_operation_groupings)]
 	fn is_enabled(&self, span: &SpanMessage) -> bool {
+		println!("SPAN: {:?}", span);
 		let wasm_target = span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string());
 		self.targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
 			let wanted_target = &t.0.as_str();
@@ -330,5 +332,61 @@ fn parse_target(s: &str) -> (String, Level) {
 			}
 		}
 		None => (s.to_string(), Level::TRACE),
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use test_common::wasm_binary_unwrap;
+	use sp_io::TestExternalities;
+	use sp_wasm_interface::HostFunctions;
+	use sc_executor_common::runtime_blob::RuntimeBlob;
+	use sc_executor::{WasmExecutor, WasmExecutionMethod};
+	use tracing::{dispatcher, Dispatch};
+	
+	const TARGETS: &str = "wasm_tracing,pallet,frame,state";
+
+	#[test]
+	fn should_trace_in_wasm() {
+		let mut ext = TestExternalities::default();
+		let mut ext = ext.ext();
+
+		let executor = WasmExecutor::new(
+			WasmExecutionMethod::Compiled,
+			Some(8),
+			sp_io::SubstrateHostFunctions::host_functions(),
+			8,
+			None,
+		);
+
+		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
+
+		let handler = TraceHandler::new(&TARGETS, 1337, vec![0x00, 0x01], span_events.clone());
+		let dispatch = Dispatch::new(handler);
+		{
+			let dispatcher_span = tracing::debug_span!(
+				target: "state_tracing",
+				"execute_block",
+			);
+			let _guard = dispatcher_span.enter();
+			dispatcher::with_default(&dispatch, || {
+				executor
+					.uncached_call(
+						RuntimeBlob::uncompress_if_needed(&wasm_binary_unwrap()[..]).unwrap(),
+						&mut ext,
+						true,
+						"test_trace_handler",
+						&[],
+					)
+					.unwrap();
+			});
+		}
+		let mut traces = span_events.lock();
+		let spans = traces.spans.drain(..).collect::<Vec<SpanMessage>>();
+		let events = traces.events.drain(..).collect::<Vec<EventMessage>>();
+
+		println!("{:?}", spans);
+		println!("{:?}", events);
 	}
 }

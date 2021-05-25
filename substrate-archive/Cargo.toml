@@ -55,6 +55,9 @@ substrate-archive-backend = { path = '../substrate-archive-backend' }
 
 [dev-dependencies]
 test-common = { path = "../test-common/" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
 anyhow = "1"
 pretty_env_logger = "0.4.0"
 tempfile = "3.2"

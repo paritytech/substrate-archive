@@ -304,21 +304,3 @@ where
 	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())
 }
-
-
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use sp_api::ProvideRuntimeApi;
-	use test_common::*;
-	use anyhow::Error;
-
-	const TARGETS: &str = "wasm_tracing,pallet,frame,state";
-
-	#[test]
-	fn hello() {
-		println!("hello");
-
-	}
-}

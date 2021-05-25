@@ -3,29 +3,22 @@ name = "test-wasm"
 version = "0.1.0"
 edition = "2018"
 build = "build.rs"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+publish = false
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dependencies]
-sp-allocator = { version = "3.0.0", default-features = false, path = "../../../primitives/allocator" }
-sp-core = { version = "3.0.0", default-features = false, path = "../../../primitives/core" }
-sp-io = { version = "3.0.0", default-features = false, path = "../../../primitives/io" }
-sp-runtime = { version = "3.0.0", default-features = false, path = "../../../primitives/runtime" }
-sp-sandbox = { version = "0.9.0", default-features = false, path = "../../../primitives/sandbox" }
-sp-std = { version = "3.0.0", default-features = false, path = "../../../primitives/std" }
-sp-tasks = { version = "3.0.0", default-features = false, path = "../../../primitives/tasks" }
+sp-core = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-std = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+tracing = { version = "0.1.26", default-features = false }
 
 [features]
 default = [ "std" ]
 std = [
-	"sp-allocator/std",
 	"sp-core/std",
 	"sp-io/std",
 	"sp-runtime/std",
-	"sp-sandbox/std",
-	"sp-std/std",
- 	"sp-tasks/std",
 ]
