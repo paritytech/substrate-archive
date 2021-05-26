@@ -88,6 +88,7 @@ pub struct BlockChanges<Block: BlockT> {
 	pub child_storage: ChildStorageCollection,
 	/// Hash of the block these changes come from
 	pub hash: Block::Hash,
+    /// Number of the block these changes come from
 	pub number: NumberFor<Block>,
 }
 
