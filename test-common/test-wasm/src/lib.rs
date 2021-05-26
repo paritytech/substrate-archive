@@ -14,13 +14,10 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 }
 
 #[cfg(not(feature = "std"))]
-use sp_std::{vec, vec::Vec};
+use sp_io::wasm_tracing;
 
 #[cfg(not(feature = "std"))]
-use sp_io::{storage, wasm_tracing};
-
-#[cfg(not(feature = "std"))]
-use sp_runtime::{print, traits::Hash};
+use sp_runtime::print;
 
 sp_core::wasm_export_functions! {
 	fn test_trace_handler() {

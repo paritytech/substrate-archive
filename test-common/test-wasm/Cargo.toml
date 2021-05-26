@@ -12,7 +12,6 @@ substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", bran
 sp-core = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 tracing = { version = "0.1.26", default-features = false }
 
 [features]

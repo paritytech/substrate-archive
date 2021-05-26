@@ -388,7 +388,6 @@ mod tests {
 				.unwrap();
 			Ok(())
 		})?;
-
 		Ok(())
 	}
 }
