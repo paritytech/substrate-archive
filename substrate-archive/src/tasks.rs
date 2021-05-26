@@ -21,7 +21,6 @@ use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc};
 
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
-use tracing::{dispatcher, Dispatch};
 use xtra::prelude::*;
 
 use sc_client_api::backend;
@@ -38,7 +37,7 @@ use crate::{
 	actors::StorageAggregator,
 	error::ArchiveError,
 	types::Storage,
-	wasm_tracing::{SpansAndEvents, TraceHandler, Traces, SpanMessage, EventMessage},
+	wasm_tracing::{SpansAndEvents, TraceHandler, Traces},
 };
 
 /// The environment passed to each task
@@ -195,22 +194,16 @@ where
 		let BlockPrep { block, state, hash, parent_hash, number } = Self::prepare_block(block, &backend, &id)?;
 
 		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
-		{
-			let handler = TraceHandler::new(&targets, number.into(), hash.as_ref().to_vec(), span_events.clone());
-			let dispatch = Dispatch::new(handler);
-
-			let dispatcher_span = tracing::debug_span!(
-				target: "state_tracing",
-				"execute_block",
-				extrinsics_len = block.extrinsics().len()
-			);
+		let handler = TraceHandler::new(&targets, number.into(), hash.as_ref().to_vec(), span_events.clone());
+		let dispatcher_span = tracing::debug_span!(
+			target: "state_tracing",
+			"execute_block",
+			extrinsics_len = block.extrinsics().len()
+		);
+		let (spans, events, _) = handler.scoped_trace(|| {
 			let _guard = dispatcher_span.enter();
-			dispatcher::with_default(&dispatch, || {
-				let span = tracing::info_span!("block_trace", "trace_block");
-				let _enter = span.enter();
-				api.execute_block(&id, block)
-			})?;
-		}
+			api.execute_block(&id, block).map_err(ArchiveError::from)
+		})?;
 
 		let changes =
 			api.into_storage_changes(&state, None, parent_hash).map_err(ArchiveError::ConvertStorageChanges)?;
@@ -221,10 +214,6 @@ where
 			hash,
 			number,
 		};
-
-		let mut traces = span_events.lock();
-		let spans = traces.spans.drain(..).collect::<Vec<SpanMessage>>();
-		let events = traces.events.drain(..).collect::<Vec<EventMessage>>();
 
 		let traces = Traces::new(number.into(), hash.as_ref().to_vec(), events, spans);
 		Ok((changes, traces))

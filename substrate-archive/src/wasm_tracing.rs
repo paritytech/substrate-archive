@@ -30,10 +30,11 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use sp_tracing::{WASM_NAME_KEY, WASM_TARGET_KEY, WASM_TRACE_IDENTIFIER};
 use tracing::{
+	dispatcher,
 	event::Event,
 	field::{Field, Visit},
 	span::{Attributes, Id, Record},
-	Level, Metadata, Subscriber,
+	Dispatch, Level, Metadata, Subscriber,
 };
 use tracing_subscriber::CurrentSpan;
 
@@ -168,7 +169,6 @@ impl TraceHandler {
 	/// Returns true if a span is part of an enabled Target. Checks WASM in addition to the spans target.
 	#[allow(clippy::suspicious_operation_groupings)]
 	fn is_enabled(&self, span: &SpanMessage) -> bool {
-		println!("SPAN: {:?}", span);
 		let wasm_target = span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string());
 		self.targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
 			let wanted_target = &t.0.as_str();
@@ -198,6 +198,20 @@ impl TraceHandler {
 
 		self.span_events.lock().spans.push(span);
 		Ok(())
+	}
+
+	/// Start tracing with the predicate `fun`.
+	/// Consumes this TraceHandler.
+	pub fn scoped_trace<T>(self, fun: impl FnOnce() -> Result<T>) -> Result<(Vec<SpanMessage>, Vec<EventMessage>, T)> {
+		let span_events = self.span_events.clone();
+		let dispatch = Dispatch::new(self);
+		let res = dispatcher::with_default(&dispatch, fun)?;
+
+		let mut traces = span_events.lock();
+		let spans = traces.spans.drain(..).collect::<Vec<SpanMessage>>();
+		let events = traces.events.drain(..).collect::<Vec<EventMessage>>();
+
+		Ok((spans, events, res))
 	}
 }
 
@@ -338,17 +352,17 @@ fn parse_target(s: &str) -> (String, Level) {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use test_common::wasm_binary_unwrap;
+	use anyhow::Error;
+	use sc_executor::{WasmExecutionMethod, WasmExecutor};
+	use sc_executor_common::runtime_blob::RuntimeBlob;
 	use sp_io::TestExternalities;
 	use sp_wasm_interface::HostFunctions;
-	use sc_executor_common::runtime_blob::RuntimeBlob;
-	use sc_executor::{WasmExecutor, WasmExecutionMethod};
-	use tracing::{dispatcher, Dispatch};
-	
-	const TARGETS: &str = "wasm_tracing,pallet,frame,state";
+	use test_common::wasm_binary_unwrap;
+
+	const TARGETS: &str = "wasm_tracing,test_wasm";
 
 	#[test]
-	fn should_trace_in_wasm() {
+	fn should_collect_spans_and_events_in_wasm() -> Result<(), Error> {
 		let mut ext = TestExternalities::default();
 		let mut ext = ext.ext();
 
@@ -361,32 +375,20 @@ mod tests {
 		);
 
 		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
-
 		let handler = TraceHandler::new(&TARGETS, 1337, vec![0x00, 0x01], span_events.clone());
-		let dispatch = Dispatch::new(handler);
-		{
-			let dispatcher_span = tracing::debug_span!(
-				target: "state_tracing",
-				"execute_block",
-			);
-			let _guard = dispatcher_span.enter();
-			dispatcher::with_default(&dispatch, || {
-				executor
-					.uncached_call(
-						RuntimeBlob::uncompress_if_needed(&wasm_binary_unwrap()[..]).unwrap(),
-						&mut ext,
-						true,
-						"test_trace_handler",
-						&[],
-					)
-					.unwrap();
-			});
-		}
-		let mut traces = span_events.lock();
-		let spans = traces.spans.drain(..).collect::<Vec<SpanMessage>>();
-		let events = traces.events.drain(..).collect::<Vec<EventMessage>>();
+		let (spans, events, _) = handler.scoped_trace(|| {
+			executor
+				.uncached_call(
+					RuntimeBlob::uncompress_if_needed(&wasm_binary_unwrap()[..]).unwrap(),
+					&mut ext,
+					true,
+					"test_trace_handler",
+					&[],
+				)
+				.unwrap();
+			Ok(())
+		})?;
 
-		println!("{:?}", spans);
-		println!("{:?}", events);
+		Ok(())
 	}
 }

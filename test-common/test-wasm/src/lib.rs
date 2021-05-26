@@ -7,15 +7,17 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 /// Wasm binary unwrapped. If built with `SKIP_WASM_BUILD`, the function panics.
 #[cfg(feature = "std")]
 pub fn wasm_binary_unwrap() -> &'static [u8] {
-	WASM_BINARY.expect("Development wasm binary is not available. Testing is only \
-						supported with the flag disabled.")
+	WASM_BINARY.expect(
+		"Development wasm binary is not available. Testing is only \
+						supported with the flag disabled.",
+	)
 }
 
 #[cfg(not(feature = "std"))]
-use sp_std::{vec::Vec, vec};
+use sp_std::{vec, vec::Vec};
 
 #[cfg(not(feature = "std"))]
-use sp_io::{ storage, wasm_tracing };
+use sp_io::{storage, wasm_tracing};
 
 #[cfg(not(feature = "std"))]
 use sp_runtime::{print, traits::Hash};
@@ -40,7 +42,7 @@ mod wasm_funcs {
 
 	fn generate_events() {
 		tracing::event!(
-			target: "wasm_tracing",
+			target: "test_wasm",
 			tracing::Level::INFO,
 			"im_an_event"
 		);
@@ -48,9 +50,19 @@ mod wasm_funcs {
 
 	fn generate_spans() {
 		tracing::info_span!(
-			target: "wasm_tracing",
+			target: "test_wasm",
 			"im_a_span",
 			some_info = "some_pertinent_information"
+		);
+		{
+			nested_function();
+		}
+	}
+
+	fn nested_function() {
+		tracing::info_span!(
+			target: "test_wasm",
+			"im_a_nested_span",
 		);
 	}
 }
