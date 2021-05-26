@@ -388,6 +388,18 @@ mod tests {
 				.unwrap();
 			Ok(())
 		})?;
+		assert!({
+			spans[0].name == "im_a_span"
+				&& spans[0].target == "test_wasm"
+				&& spans[0].id == Id::from_u64(2)
+				&& spans[1].id == Id::from_u64(3)
+				&& spans[1].parent_id == Some(Id::from_u64(2))
+		});
+		assert!({
+			events[0].block_num == Some(1337)
+				&& events[0].hash == Some(vec![0x0, 0x1])
+				&& events[0].target == "test_wasm"
+		});
 		Ok(())
 	}
 }

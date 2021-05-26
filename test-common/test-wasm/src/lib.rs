@@ -41,7 +41,7 @@ mod wasm_funcs {
 		tracing::event!(
 			target: "test_wasm",
 			tracing::Level::INFO,
-			"im_an_event"
+			"im_an_event",
 		);
 	}
 
