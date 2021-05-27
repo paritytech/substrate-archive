@@ -97,7 +97,7 @@ impl<B: BlockT> From<RuntimeConfig> for ClientConfig<B> {
 			offchain_worker_enabled: false,
 			offchain_indexing_api: false,
 			wasm_runtime_overrides: config.wasm_runtime_overrides,
-			wasm_runtime_substitutes: Default::default()
+			wasm_runtime_substitutes: Default::default(),
 		}
 	}
 }
