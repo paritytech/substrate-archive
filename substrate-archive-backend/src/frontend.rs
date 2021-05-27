@@ -38,7 +38,7 @@ use crate::{database::ReadOnlyDb, error::BackendError, read_only_backend::ReadOn
 pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;
 
 /// Full client call executor type.
-type TFullCallExecutor<TBl, TExecDisp, D> = LocalCallExecutor<ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
+type TFullCallExecutor<TBl, TExecDisp, D> = LocalCallExecutor<TBl, ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub enum ExecutionMethod {
@@ -91,12 +91,13 @@ fn default_block_workers() -> usize {
 	num_cpus::get()
 }
 
-impl From<RuntimeConfig> for ClientConfig {
-	fn from(config: RuntimeConfig) -> ClientConfig {
+impl<B: BlockT> From<RuntimeConfig> for ClientConfig<B> {
+	fn from(config: RuntimeConfig) -> ClientConfig<B> {
 		ClientConfig {
 			offchain_worker_enabled: false,
 			offchain_indexing_api: false,
 			wasm_runtime_overrides: config.wasm_runtime_overrides,
+			wasm_runtime_substitutes: Default::default()
 		}
 	}
 }
