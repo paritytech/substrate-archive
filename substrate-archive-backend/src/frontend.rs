@@ -82,8 +82,8 @@ pub struct RuntimeConfig {
 	/// code substitutes that should be used for the on chain wasm.
 	///
 	/// NOTE: Not to be confused with 'wasm_runtime_overrides'. code_substitutes
-	/// are included in the chain_spec and primarily for fixing problematic on-chain wasm. 
-	/// If both are in use, the `was_runtime_overrides` takes precedence.
+	/// are included in the chain_spec and primarily for fixing problematic on-chain wasm.
+	/// If both are in use, the `wasm_runtime_overrides` takes precedence.
 	#[serde(skip)]
 	code_substitutes: HashMap<String, Vec<u8>>,
 }

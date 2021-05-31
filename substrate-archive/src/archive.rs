@@ -183,7 +183,8 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	}
 
 	/// Set the path to the secondary RocksDB database directory.
-	/// E.g. if you specify the path `./substrate-archive/rocksdb_secondary` and chain spec, the actual path will be `./substrate-archive/rocksdb_secondary/<chain-spec-name>/<chain-spec-id>`.
+	/// E.g. if you specify the path `./substrate-archive/rocksdb_secondary` and chain spec,
+	/// the actual path will be `./substrate-archive/rocksdb_secondary/<chain-spec-name>/<chain-spec-id>`.
 	///
 	/// # Default
 	/// Defaults to storing metadata in a temporary directory.
