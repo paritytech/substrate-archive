@@ -60,7 +60,7 @@ impl Clone for ChainConfig {
 	fn clone(&self) -> ChainConfig {
 		ChainConfig {
 			data_path: self.data_path.clone(),
-			cache_size: self.cache_size.clone(),
+			cache_size: self.cache_size,
 			rocksdb_secondary_path: self.rocksdb_secondary_path.clone(),
 			spec: self.spec.as_ref().map(|s| s.cloned_box()),
 		}
@@ -373,13 +373,16 @@ where
 			.data_path
 			.unwrap_or_else(|| env::var(CHAIN_DATA_DB).expect("missing CHAIN_DATA_DB").into());
 		let chain_path = chain_path.to_str().expect("chain data path is invalid");
-		let db_path = create_database_path(self.config.chain.rocksdb_secondary_path, self.config.chain.spec.as_ref())?;
+		let db_path = create_database_path(
+			self.config.chain.rocksdb_secondary_path,
+			self.config.chain.spec.as_ref().map(AsRef::as_ref),
+		)?;
 		let db = Arc::new(DB::open_database(chain_path, self.config.chain.cache_size, db_path)?);
 
 		// config runtime
 		self.config.runtime.wasm_runtime_overrides = self.config.wasm_tracing.as_ref().and_then(|c| c.folder.clone());
 		if let Some(spec) = self.config.chain.spec {
-			self.config.runtime.set_code_substitutes(&spec);
+			self.config.runtime.set_code_substitutes(spec.as_ref());
 		}
 
 		// configure substrate client and backend
@@ -442,7 +445,7 @@ where
 /// # Panics
 ///
 /// Panics if the directories creation fails.
-fn create_database_path(db_path: Option<PathBuf>, spec: Option<&Box<dyn ChainSpec>>) -> io::Result<PathBuf> {
+fn create_database_path(db_path: Option<PathBuf>, spec: Option<&dyn ChainSpec>) -> io::Result<PathBuf> {
 	match (db_path, spec) {
 		(Some(mut db_path), Some(spec)) => {
 			db_path.extend(&[spec.name(), spec.id()]);

@@ -90,7 +90,7 @@ pub struct RuntimeConfig {
 
 impl RuntimeConfig {
 	/// Set the code substitutes for a chain.
-	pub fn set_code_substitutes(&mut self, spec: &Box<dyn ChainSpec>) {
+	pub fn set_code_substitutes(&mut self, spec: &dyn ChainSpec) {
 		self.code_substitutes = spec.code_substitutes();
 	}
 }
