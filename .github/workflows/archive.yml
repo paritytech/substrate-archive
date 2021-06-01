@@ -1,4 +1,4 @@
-name: Rust
+name: Check Archive Library
 
 on: [push, pull_request]
 

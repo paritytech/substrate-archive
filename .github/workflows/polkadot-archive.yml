@@ -1,4 +1,4 @@
-name: Rust
+name: Check Polkadot-Archive
 
 on: [push, pull_request]
 
