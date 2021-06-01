@@ -137,6 +137,9 @@ struct BlockPrep<Block, S, H, N> {
 	number: N,
 }
 
+type BlockParams<Block, Backend> =
+	BlockPrep<Block, <Backend as backend::Backend<Block>>::State, <Block as BlockT>::Hash, NumberFor<Block>>;
+
 impl<'a, Block, Api, B> BlockExecutor<'a, Block, Api, B>
 where
 	Block: BlockT,
@@ -152,11 +155,7 @@ where
 		Self { api, backend, block, id }
 	}
 
-	fn prepare_block(
-		block: Block,
-		backend: &B,
-		id: &BlockId<Block>,
-	) -> Result<BlockPrep<Block, B::State, Block::Hash, NumberFor<Block>>, ArchiveError> {
+	fn prepare_block(block: Block, backend: &B, id: &BlockId<Block>) -> Result<BlockParams<Block, B>, ArchiveError> {
 		let header = block.header();
 		let parent_hash = *header.parent_hash();
 		let hash = header.hash();
@@ -195,7 +194,7 @@ where
 		let BlockPrep { block, state, hash, parent_hash, number } = Self::prepare_block(block, &backend, &id)?;
 
 		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
-		let handler = TraceHandler::new(&targets, number.into(), hash.as_ref().to_vec(), span_events.clone());
+		let handler = TraceHandler::new(&targets, number.into(), hash.as_ref().to_vec(), span_events);
 		let dispatcher_span = tracing::debug_span!(
 			target: "state_tracing",
 			"execute_block",
