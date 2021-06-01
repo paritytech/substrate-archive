@@ -1,4 +1,4 @@
-name: Release CI
+name: Automated Release CI
 on:
   push:
     branches:

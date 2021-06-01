@@ -364,7 +364,7 @@ impl Insert for Traces {
 			batch.append(",");
 			batch.bind(event.time)?; //time
 			batch.append(",");
-			batch.bind(Option::<chrono::Duration>::None)?; // an event won't have a duration
+			batch.bind(Option::<i64>::None)?; // an event won't have a duration
 			batch.append(",");
 			batch.bind(&event.file)?; // file
 			batch.append(",");
