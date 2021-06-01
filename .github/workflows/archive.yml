@@ -30,7 +30,7 @@ jobs:
           target: wasm32-unknown-unknown
 
       - name: Cache Dependencies & Build Outputs
-        uses: actions/cache@v2.1.5
+        uses: actions/cache@v2.1.6
         with:
           path: |
             ~/.cargo/registry
