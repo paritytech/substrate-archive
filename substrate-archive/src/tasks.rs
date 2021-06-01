@@ -174,7 +174,7 @@ where
 		Ok(BlockPrep { block: Block::new(header, ext), state, hash, parent_hash, number })
 	}
 
-	fn block_into_storage(self) -> Result<BlockChanges<Block>, ArchiveError> {
+	fn execute(self) -> Result<BlockChanges<Block>, ArchiveError> {
 		let BlockPrep { block, state, hash, parent_hash, number } =
 			Self::prepare_block(self.block, &self.backend, &self.id)?;
 
@@ -281,7 +281,7 @@ where
 	let (storage, traces) = if let Some(targets) = env.tracing_targets.as_ref() {
 		block.execute_with_tracing(targets)?
 	} else {
-		(block.block_into_storage()?, Default::default())
+		(block.execute()?, Default::default())
 	};
 	log::debug!("Took {:?} to execute block", now.elapsed());
 

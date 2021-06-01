@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- bump polkadot to `v0.9.3`
+
 ## [0.2.3]
 ### Changed
 - Config file is now optional. Can configure polkadot archive entirely through environment variables.
