@@ -31,7 +31,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-            bin/node-template-archive/target
+            # bin/node-template-archive/target
             bin/polkadot-archive/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
@@ -41,11 +41,11 @@ jobs:
           command: check
           args: --all-targets
 
-      - name: Check Code For `node-template-archive`
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --manifest-path bin/node-template-archive/Cargo.toml
+            # - name: Check Code For `node-template-archive`
+            # uses: actions-rs/cargo@v1
+            # with:
+            # command: check
+            # args: --manifest-path bin/node-template-archive/Cargo.toml
 
       - name: Check Code For `polkadot-archive`
         uses: actions-rs/cargo@v1
