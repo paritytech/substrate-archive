@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - clarify release checklist
 - Update dependencies to match runtime `0.9.3`. 
+- Refactor tracing to work with the latest tracing changes in substrate
 
 ### Fixed
 - Re-Compile WASM Runtime v0.8.30 with rust compiler version nightly-02-27-2021 to fix 'Storage Root Mismatch' when syncing.
