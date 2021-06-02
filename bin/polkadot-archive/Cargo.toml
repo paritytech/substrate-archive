@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-archive"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Andrew Plaza <aplaza@liquidthink.net>"]
 edition = "2018"
 description = "Indexes the Polkadot, Kusama and Westend Networks"
@@ -14,7 +14,7 @@ serde = "1.0"
 structopt = { version = "0.3", features = ["suggestions", "color"] }
 toml = "0.5"
 
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+polkadot-service = { git = "https://github.com/paritytech/polkadot", tag = "v0.9.3" }
 
 substrate-archive = { path = "../../substrate-archive" }
