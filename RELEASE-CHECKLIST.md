@@ -11,6 +11,7 @@ Here's how to make a new release of `substrate-archive`.
 4. Update the `CHANGELOG` for `substrate-archive` and `polkadot-archive` as specified [here](https://keepachangelog.com/en/1.0.0/).
 5. Run all tests: `TEST_DATABASE_URL="postgres://localhost:5432/archive cargo test --all`.
 6. Push the PR against the `release` branch.
+   6a. Any merge conflicts should be resolved with `git checkout --ours -- .`
 7. Once reviewed, merge it to `release`. Upon merging, Github Actions will create a draft release and upload
 binaries.
 8. Tag the `release` branch with `git tag vx.y.z` and push the tags with `git push --tags`.
