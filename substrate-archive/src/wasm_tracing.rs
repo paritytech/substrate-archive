@@ -113,7 +113,7 @@ impl TraceHandler {
 	pub fn new(targets: &str, span_events: Arc<Mutex<SpansAndEvents>>) -> Self {
 		let mut targets: Vec<_> = targets.split(',').map(|s| parse_target(s)).collect();
 		targets.push((WASM_TRACE_IDENTIFIER.to_string(), Level::TRACE));
-		Self { targets, span_events }
+		Self { span_events, targets }
 	}
 
 	/// Formats an event as an [`EventMessage`] and stores it in the [`SpansAndEvents`]
