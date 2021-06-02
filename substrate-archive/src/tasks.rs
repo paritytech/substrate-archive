@@ -194,7 +194,7 @@ where
 		let BlockPrep { block, state, hash, parent_hash, number } = Self::prepare_block(block, &backend, &id)?;
 
 		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
-		let handler = TraceHandler::new(&targets, number.into(), hash.as_ref().to_vec(), span_events);
+		let handler = TraceHandler::new(&targets, span_events);
 		let dispatcher_span = tracing::debug_span!(
 			target: "state_tracing",
 			"execute_block",
