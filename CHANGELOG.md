@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.5.2] - 2021-06-02
 ### Added
 - Tracing Wasm Runtimes `v0.9.0`, `v0.9.1`, `v0.9.2`, `v0.9.3`
+- Test for traced wasm-blobs
 
 ### Changed
 - clarify release checklist
