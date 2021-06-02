@@ -4,10 +4,10 @@ All notable changes for substrate-archive will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
+## [Unreleased]
 ## [v0.5.2] - 2021-06-02
 ### Added
-- Tracing Wasm Runtimes `v0.9.0`, `v0.9.1`, `v0.9.2`, `v0.9.3` ([#284](https://github.com/paritytech/substrate-archive/pull/284)) ([cd6a446](https://github.com/paritytech/substrate-archive/commit/cd6a446bc66002d1945cbdf0c1b39957218f90fd))
+- Test for tracing enabled wasm-blobs `v0.9.0`, `v0.9.1`, `v0.9.2`, `v0.9.3` ([#284](https://github.com/paritytech/substrate-archive/pull/284)) ([cd6a446](https://github.com/paritytech/substrate-archive/commit/cd6a446bc66002d1945cbdf0c1b39957218f90fd))
 
 ### Changed
 - Clarify release checklist ([#279](https://github.com/paritytech/substrate-archive/pull/279)) ([9abef6e](https://github.com/paritytech/substrate-archive/commit/9abef6e2bdda4c1492b6e232ec38c8c0d59a3749))
@@ -91,4 +91,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Use a rocksdb-backed substrate client instead of RPC for indexing
-
