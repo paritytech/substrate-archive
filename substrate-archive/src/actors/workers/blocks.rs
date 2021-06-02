@@ -177,7 +177,6 @@ where
 		// using this instead of notify_immediately because
 		// ReIndexing is async process
 		let addr = ctx.address().expect("Actor just started");
-
 		addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
 
 		smol::spawn(async move {

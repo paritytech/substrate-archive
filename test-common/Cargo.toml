@@ -1,0 +1,9 @@
+[package]
+name = "test-common"
+version = "0.1.0"
+authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
+edition = "2018"
+
+
+[dependencies]
+test-wasm = { path = "test-wasm" }

@@ -1,0 +1,23 @@
+[package]
+name = "test-wasm"
+version = "0.1.0"
+edition = "2018"
+build = "build.rs"
+publish = false
+
+[build-dependencies]
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[dependencies]
+sp-core = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+tracing = { version = "0.1.26", default-features = false }
+
+[features]
+default = [ "std" ]
+std = [
+	"sp-core/std",
+	"sp-io/std",
+	"sp-runtime/std",
+]

@@ -40,6 +40,8 @@ jobs:
 
       - name: Check Code
         uses: actions-rs/cargo@v1
+        env:
+          SKIP_WASM_BUILD: 1
         with:
           command: check
           args: --all-targets

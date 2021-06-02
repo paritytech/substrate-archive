@@ -36,24 +36,32 @@ jobs:
 
       - name: Check Code Format
         uses: actions-rs/cargo@v1
+        env:
+          SKIP_WASM_BUILD: 1
         with:
           command: fmt
           args: --all -- --check
 
       - name: Check Code Format For `node-template-archive`
         uses: actions-rs/cargo@v1
+        env:
+          SKIP_WASM_BUILD: 1
         with:
           command: fmt
           args: --manifest-path bin/node-template-archive/Cargo.toml -- --check
 
       - name: Check Code Format For `polkadot-archive`
         uses: actions-rs/cargo@v1
+        env:
+          SKIP_WASM_BUILD: 1
         with:
           command: fmt
           args: --manifest-path bin/polkadot-archive/Cargo.toml -- --check
 
       - name: Code Lint
         uses: actions-rs/cargo@v1
+        env:
+          SKIP_WASM_BUILD: 1
         with:
           command: clippy
           args: -- -D warnings
