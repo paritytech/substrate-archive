@@ -25,7 +25,7 @@ pub use substrate_archive_backend::{ExecutionMethod, ReadOnlyDb, RuntimeConfig, 
 
 mod actors;
 pub mod archive;
-mod database;
+pub mod database;
 mod error;
 mod logger;
 mod tasks;

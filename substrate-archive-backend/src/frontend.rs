@@ -16,7 +16,13 @@
 
 mod client;
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+	collections::HashMap,
+	convert::{TryFrom, TryInto},
+	path::PathBuf,
+	str::FromStr,
+	sync::Arc,
+};
 
 use futures::{future::BoxFuture, task::SpawnExt};
 use serde::Deserialize;
@@ -26,7 +32,7 @@ use sc_client_api::{
 	ExecutionStrategy,
 };
 use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
-use sc_service::{ClientConfig, LocalCallExecutor};
+use sc_service::{ChainSpec, ClientConfig, LocalCallExecutor};
 use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
@@ -38,7 +44,7 @@ use crate::{database::ReadOnlyDb, error::BackendError, read_only_backend::ReadOn
 pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;
 
 /// Full client call executor type.
-type TFullCallExecutor<TBl, TExecDisp, D> = LocalCallExecutor<ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
+type TFullCallExecutor<TBl, TExecDisp, D> = LocalCallExecutor<TBl, ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub enum ExecutionMethod {
@@ -73,6 +79,20 @@ pub struct RuntimeConfig {
 	pub wasm_pages: Option<u64>,
 	/// Path to WASM blobs to override the on-chain WASM with (required for state change tracing).
 	pub wasm_runtime_overrides: Option<PathBuf>,
+	/// code substitutes that should be used for the on chain wasm.
+	///
+	/// NOTE: Not to be confused with 'wasm_runtime_overrides'. code_substitutes
+	/// are included in the chain_spec and primarily for fixing problematic on-chain wasm.
+	/// If both are in use, the `wasm_runtime_overrides` takes precedence.
+	#[serde(skip)]
+	code_substitutes: HashMap<String, Vec<u8>>,
+}
+
+impl RuntimeConfig {
+	/// Set the code substitutes for a chain.
+	pub fn set_code_substitutes(&mut self, spec: &dyn ChainSpec) {
+		self.code_substitutes = spec.code_substitutes();
+	}
 }
 
 impl Default for RuntimeConfig {
@@ -82,6 +102,7 @@ impl Default for RuntimeConfig {
 			block_workers: default_block_workers(),
 			wasm_pages: None,
 			wasm_runtime_overrides: None,
+			code_substitutes: Default::default(),
 		}
 	}
 }
@@ -91,13 +112,30 @@ fn default_block_workers() -> usize {
 	num_cpus::get()
 }
 
-impl From<RuntimeConfig> for ClientConfig {
-	fn from(config: RuntimeConfig) -> ClientConfig {
-		ClientConfig {
+impl<B> TryFrom<RuntimeConfig> for ClientConfig<B>
+where
+	B: BlockT,
+	B::Hash: FromStr,
+{
+	type Error = BackendError;
+	fn try_from(config: RuntimeConfig) -> Result<ClientConfig<B>, BackendError> {
+		let wasm_runtime_substitutes = config
+			.code_substitutes
+			.into_iter()
+			.map(|(hash, code)| {
+				let hash = B::Hash::from_str(&hash).map_err(|_| {
+					BackendError::Msg(format!("Failed to parse `{}` as block hash for code substitute.", hash))
+				})?;
+				Ok((hash, code))
+			})
+			.collect::<Result<HashMap<B::Hash, Vec<u8>>, BackendError>>()?;
+
+		Ok(ClientConfig {
 			offchain_worker_enabled: false,
 			offchain_indexing_api: false,
 			wasm_runtime_overrides: config.wasm_runtime_overrides,
-		}
+			wasm_runtime_substitutes,
+		})
 	}
 }
 
@@ -107,6 +145,7 @@ pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDb + 'static>(
 ) -> Result<TArchiveClient<Block, Runtime, Dispatch, D>, BackendError>
 where
 	Block: BlockT,
+	Block::Hash: FromStr,
 	Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch, D>> + Send + Sync + 'static,
 	Runtime::RuntimeApi: RuntimeApiCollection<Block, StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block, D>, Block>>
 		+ Send
@@ -118,7 +157,8 @@ where
 	let backend = Arc::new(ReadOnlyBackend::new(db, true));
 
 	let executor = NativeExecutor::<Dispatch>::new(config.exec_method.into(), config.wasm_pages, config.block_workers);
-	let executor = LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.into())?;
+	let executor =
+		LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.try_into()?)?;
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None, None))?;
 	Ok(client)
 }

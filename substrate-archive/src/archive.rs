@@ -42,7 +42,7 @@ use crate::{
 };
 
 /// Configure Chain.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ChainConfig {
 	/// Chain path to the rocksdb database.
 	pub(crate) data_path: Option<PathBuf>,
@@ -53,16 +53,18 @@ pub struct ChainConfig {
 	pub(crate) rocksdb_secondary_path: Option<PathBuf>,
 	/// Chain spec.
 	#[serde(skip)]
-	pub(crate) spec: Option<ChainSpecConfig>,
+	pub(crate) spec: Option<Box<dyn ChainSpec>>,
 }
 
-/// Configure Chain Spec.
-#[derive(Clone, Debug)]
-pub(crate) struct ChainSpecConfig {
-	/// Chain spec name.
-	pub name: String,
-	/// Chain spec id.
-	pub id: String,
+impl Clone for ChainConfig {
+	fn clone(&self) -> ChainConfig {
+		ChainConfig {
+			data_path: self.data_path.clone(),
+			cache_size: self.cache_size,
+			rocksdb_secondary_path: self.rocksdb_secondary_path.clone(),
+			spec: self.spec.as_ref().map(|s| s.cloned_box()),
+		}
+	}
 }
 
 impl Default for ChainConfig {
@@ -158,7 +160,7 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	/// # Default
 	/// Defaults to storing metadata in a temporary directory.
 	pub fn chain_spec(mut self, spec: Box<dyn ChainSpec>) -> Self {
-		self.config.chain.spec = Some(ChainSpecConfig { name: spec.name().into(), id: spec.id().into() });
+		self.config.chain.spec = Some(spec);
 		self
 	}
 
@@ -349,7 +351,7 @@ where
 	D: NativeExecutionDispatch + 'static,
 	<R::RuntimeApi as sp_api::ApiExt<B>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 	NumberFor<B>: Into<u32> + From<u32> + Unpin,
-	B::Hash: Unpin,
+	B::Hash: Unpin + std::str::FromStr,
 	B::Header: serde::de::DeserializeOwned,
 {
 	/// Build this instance of the Archiver.
@@ -371,11 +373,17 @@ where
 			.data_path
 			.unwrap_or_else(|| env::var(CHAIN_DATA_DB).expect("missing CHAIN_DATA_DB").into());
 		let chain_path = chain_path.to_str().expect("chain data path is invalid");
-		let db_path = create_database_path(self.config.chain.rocksdb_secondary_path, self.config.chain.spec)?;
+		let db_path = create_database_path(
+			self.config.chain.rocksdb_secondary_path,
+			self.config.chain.spec.as_ref().map(AsRef::as_ref),
+		)?;
 		let db = Arc::new(DB::open_database(chain_path, self.config.chain.cache_size, db_path)?);
 
 		// config runtime
 		self.config.runtime.wasm_runtime_overrides = self.config.wasm_tracing.as_ref().and_then(|c| c.folder.clone());
+		if let Some(spec) = self.config.chain.spec {
+			self.config.runtime.set_code_substitutes(spec.as_ref());
+		}
 
 		// configure substrate client and backend
 		let client = Arc::new(runtime_api::<B, R, D, DB>(db.clone(), self.config.runtime)?);
@@ -437,16 +445,16 @@ where
 /// # Panics
 ///
 /// Panics if the directories creation fails.
-fn create_database_path(db_path: Option<PathBuf>, spec: Option<ChainSpecConfig>) -> io::Result<PathBuf> {
+fn create_database_path(db_path: Option<PathBuf>, spec: Option<&dyn ChainSpec>) -> io::Result<PathBuf> {
 	match (db_path, spec) {
 		(Some(mut db_path), Some(spec)) => {
-			db_path.extend(&[&spec.name, &spec.id]);
+			db_path.extend(&[spec.name(), spec.id()]);
 			fs::create_dir_all(db_path.as_path())?;
 			Ok(db_path)
 		}
 		(None, Some(spec)) => {
 			let mut path = substrate_archive_default_dir();
-			path.extend(&["rocksdb_secondary", &spec.name, &spec.id]);
+			path.extend(&["rocksdb_secondary", spec.name(), spec.id()]);
 			fs::create_dir_all(path.as_path())?;
 			Ok(path)
 		}

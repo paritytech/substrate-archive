@@ -1,8 +1,11 @@
 [workspace]
 members = [
   "substrate-archive",
-  "substrate-archive-backend"
+  "substrate-archive-backend",
+  "test-common",
+  "test-common/test-wasm"
 ]
+
 exclude = [
   "bin/polkadot-archive",
   "bin/node-template-archive"
