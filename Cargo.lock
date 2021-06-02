@@ -6859,7 +6859,7 @@ dependencies = [
 
 [[package]]
 name = "substrate-archive"
-version = "0.6.0"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6911,7 +6911,7 @@ dependencies = [
 
 [[package]]
 name = "substrate-archive-backend"
-version = "0.6.0"
+version = "0.5.2"
 dependencies = [
  "arc-swap",
  "futures 0.3.15",
