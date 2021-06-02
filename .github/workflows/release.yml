@@ -14,10 +14,12 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           profile: minimal
 
       - name: Build Polkadot Archive
+        env:
+          SKIP_WASM_BUILD: 1
         run: cargo build --release --manifest-path bin/polkadot-archive/Cargo.toml
 
       - name: Prepare binary
