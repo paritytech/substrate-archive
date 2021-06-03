@@ -43,12 +43,18 @@ jobs:
         run: |
           mv bin/polkadot-archive/target/release/polkadot-archive ./release/polkadot-archive
 
+      - name: Get version from tag
+        id: tag_name
+        run: |
+          echo ::set-output name=current_version::${GITHUB_REF#refs/tags/v}
+
       - name: Get Archive changelog
         id: changelog_reader
         uses: mindsers/changelog-reader-action@v2
         with:
           validation_depth: 2
           path: ./CHANGELOG.md
+          version: ${{ steps.tag_name.outputs.current_version }}
 
       - name: Get Polkadot Archive changelog
         id: changelog_reader_polkadot
@@ -59,8 +65,10 @@ jobs:
 
       - name: Generate release notes
         run: |
+          echo "# Substrate Archive" > ${{ github.workflow }}-BODY.txt
           echo "${{ steps.changelog_reader.outputs.changes }}" > ${{ github.workflow }}-BODY.txt
           printf "\n" >> ${{ github.workflow }}-BODY.txt
+          echo "# Polkadot Archive" > ${{ github.workflow }}-BODY.txt
           echo "${{ steps.changelog_reader_polkadot.outputs.changes }}" >> ${{ github.workflow }}-BODY.txt
 
       - name: Release
@@ -68,7 +76,7 @@ jobs:
         with:
           tag_name: ${{ steps.changelog_reader.outputs.version }}
           name: Release ${{ steps.changelog_reader.outputs.version }}
-          body: ${{ github.workflow }}-BODY.txt
+          body_path: ${{ github.workflow }}-BODY.txt
           draft: true
           files: |
             ./release/*.tar.gz
