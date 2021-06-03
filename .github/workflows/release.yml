@@ -30,13 +30,15 @@ jobs:
 
       - name: Package for Debian
         if: matrix.os == 'ubuntu-latest'
+        env:
+          SKIP_WASM_BUILD: 1
         run: |
           cargo install cargo-deb
           cargo deb --manifest-path ./bin/polkadot-archive/Cargo.toml
           mv ./bin/polkadot-archive/target/debian/*.deb ./release/polkadot-archive-linux.deb
           tar -C ./bin/polkadot-archive/target/release/ -czvf ./release/polkadot-archive-linux.tar.gz ./polkadot-archive
 
-      - name: Package just binary
+      - name: Package binary
         if: matrix.os == 'ubuntu-latest'
         run: |
           mv bin/polkadot-archive/target/release/polkadot-archive ./release/polkadot-archive
