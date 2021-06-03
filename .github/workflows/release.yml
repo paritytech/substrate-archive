@@ -41,19 +41,26 @@ jobs:
         run: |
           mv bin/polkadot-archive/target/release/polkadot-archive ./release/polkadot-archive
 
-      - name: Get changelog
+      - name: Get Archive changelog
         id: changelog_reader
         uses: mindsers/changelog-reader-action@v2
         with:
           validation_depth: 2
           path: ./CHANGELOG.md
 
+      - name: Get Polkadot Archive changelog
+        id: changelog_reader_polkadot
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_depth: 2
+          path: ./bin/polkadot-archive/CHANGELOG.md
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.changelog_reader.outputs.version }}
           name: Release ${{ steps.changelog_reader.outputs.version }}
-          body: ${{ steps.changelog_reader.outputs.changes }}
+          body: "${{ steps.changelog_reader.outputs.changes }}\n\n${{ steps.changelog_reader_polkadot.outputs.changes }}"
           draft: true
           files: |
             ./release/*.tar.gz

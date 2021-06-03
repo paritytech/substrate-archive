@@ -18,6 +18,8 @@ Here's how to make a new release of `substrate-archive`.
 4. Once reviewed, merge it to `release`. Upon merging, Github Actions will create a draft release and upload
 binaries.
 5. Tag the `release` branch with `git tag vx.y.z` and push the tags with `git push --tags`.
+   - This will trigger the automated release CI which will build the binaries. It can take a bit for this to finish, but once it's done
+   it will create the draft release from the Changelog.
 6. Review the draft release in the github UI.
 7. Get a review of the draft release from the team.
 8. Publish the release from github UI.
