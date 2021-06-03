@@ -885,30 +885,29 @@ dependencies = [
 
 [[package]]
 name = "coil"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bc00e1bd696e321f5afef445b377bcc11b7175a174c61e34ce2bca16a06ee1b"
+version = "0.3.2"
+source = "git+https://github.com/insipx/coil?branch=master#cf0b63313fc3e1111f1ff5787dfddaddd05b51f2"
 dependencies = [
- "async-channel",
  "async-trait",
  "coil_proc_macro",
+ "flume",
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "inventory",
  "itoa",
  "log",
- "rayon",
- "rmp-serde 0.14.4",
+ "num_cpus",
+ "rmp-serde",
  "serde",
  "sqlx",
  "thiserror",
+ "threadpool",
 ]
 
 [[package]]
 name = "coil_proc_macro"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cce31ac045c7da7ea03e04b4c0d35bfdde70c7383c99a77bf337b1da4e593e1"
+source = "git+https://github.com/insipx/coil?branch=master#cf0b63313fc3e1111f1ff5787dfddaddd05b51f2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1451,6 +1450,12 @@ name = "dyn-clone"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee2626afccd7561a06cf1367e2950c4718ea04565e20fb5029b6c7d8ad09abcf"
+
+[[package]]
+name = "easy-parallel"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1dd4afd79212583ff429b913ad6605242ed7eec277e950b1438f300748f948f4"
 
 [[package]]
 name = "ed25519"
@@ -4771,17 +4776,6 @@ dependencies = [
 
 [[package]]
 name = "rmp-serde"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ce7d70c926fe472aed493b902010bccc17fa9f7284145cb8772fd22fdb052d8"
-dependencies = [
- "byteorder",
- "rmp",
- "serde",
-]
-
-[[package]]
-name = "rmp-serde"
 version = "0.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "839395ef53057db96b84c9238ab29e1a13f2e5c8ec9f66bef853ab4197303924"
@@ -6897,6 +6891,7 @@ dependencies = [
  "coil",
  "directories",
  "dotenv",
+ "easy-parallel",
  "fdlimit",
  "fern",
  "flume",
@@ -6912,7 +6907,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pretty_env_logger",
- "rmp-serde 0.15.4",
+ "rmp-serde",
  "sc-chain-spec",
  "sc-client-api",
  "sc-executor",

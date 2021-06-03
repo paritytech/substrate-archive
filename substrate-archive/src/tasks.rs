@@ -41,7 +41,7 @@ use crate::{
 };
 
 /// The environment passed to each task
-pub struct Environment<B: Send + 'static, H: Hash, R, C, D> {
+pub struct Environment<B: Send + 'static, H: Send + Sync + 'static, R, C, D> {
 	// Tracing targets
 	// if `Some` will trace the execution of the block
 	// and traces will be sent to the [`StorageAggregator`].
@@ -53,7 +53,7 @@ pub struct Environment<B: Send + 'static, H: Hash, R, C, D> {
 }
 
 type Env<B, H, R, C, D> = AssertUnwindSafe<Environment<B, H, R, C, D>>;
-impl<B: Send, H: Hash, R, C, D> Environment<B, H, R, C, D> {
+impl<B: Send, H: Send + Sync + 'static, R, C, D> Environment<B, H, R, C, D> {
 	pub fn new(
 		backend: Arc<Backend<B, D>>,
 		client: Arc<C>,

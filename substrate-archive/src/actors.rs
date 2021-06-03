@@ -52,9 +52,6 @@ use crate::{
 };
 use easy_parallel::Parallel;
 
-// TODO: Split this up into two objects
-// System should be a factory that produces objects that should be spawned
-
 /// Provides parameters that are passed in from the user.
 /// Provides context that every actor may use
 pub struct SystemConfig<B, D> {
@@ -223,7 +220,9 @@ where
 			Box::pin(self.metadata.send(Die)),
 			Box::pin(self.db.send(Die)),
 		];
+		log::info!("killing actors...");
 		future::join_all(fut).await;
+		log::info!("Killed Actors");
 		Ok(())
 	}
 }
@@ -296,10 +295,9 @@ where
 			let (left_res, right_res) = Parallel::new()
 				.each(0..conf.control.task_workers, |_| block_on(executor.run(rx_kill_2.recv_async())))
 				.finish(|| block_on(Self::main_loop(conf, rx_kill, client)));
-			match left_res.into_iter().collect::<Result<Vec<()>, flume::RecvError>>() {
-				Err(flume::RecvError::Disconnected) => log::warn!("Senders dropped connection"),
-				_ => (),
-			};
+			if let Err(flume::RecvError::Disconnected) = left_res.into_iter().collect::<Result<Vec<()>, flume::RecvError>>() {
+				log::warn!("Senders dropped connection")
+			}
 			right_res?;
 			Ok(())
 		});
@@ -356,8 +354,7 @@ where
 				Err(e) => log::error!("{:?}", e),
 			}
 		}
-		actors.kill().await?;
-		listener.kill().await;
+		future::join(actors.kill(), listener.kill()).await.0?;
 		Ok(())
 	}
 

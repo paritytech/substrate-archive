@@ -199,6 +199,7 @@ impl Listener {
 
 	pub async fn kill(&self) {
 		let _ = self.tx.send_async(()).await;
+		log::info!("Killed Listener");
 	}
 }
 
