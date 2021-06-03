@@ -15,11 +15,10 @@ Here's how to make a new release of `substrate-archive`.
 		- `diener update --substrate --branch `polkadot-${latest_tag}`
 	- Run all tests: `TEST_DATABASE_URL="postgres://localhost:5432/archive cargo test --all`.
 		- These tests will also be run under CI on branch push.
-4. Push the PR against the `release` branch.
-5. Once reviewed, merge it to `release`. Upon merging, Github Actions will create a draft release and upload
+4. Once reviewed, merge it to `release`. Upon merging, Github Actions will create a draft release and upload
 binaries.
-6. Tag the `release` branch with `git tag vx.y.z` and push the tags with `git push --tags`.
-7. Review the draft release in the github UI.
-8. Get a review of the draft release from the team.
-9. Publish the release from github UI.
-10. Signal to devops that there is a new release available.
+5. Tag the `release` branch with `git tag vx.y.z` and push the tags with `git push --tags`.
+6. Review the draft release in the github UI.
+7. Get a review of the draft release from the team.
+8. Publish the release from github UI.
+9. Signal to devops that there is a new release available.
