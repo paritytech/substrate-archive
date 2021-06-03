@@ -60,13 +60,13 @@ jobs:
           echo "${{ steps.changelog_reader.outputs.changes }}" > ${{ github.workflow }}-BODY.txt
           printf "\n" >> ${{ github.workflow }}-BODY.txt
           echo "${{ steps.changelog_reader_polkadot.outputs.changes }}" >> ${{ github.workflow }}-BODY.txt
-          
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.changelog_reader.outputs.version }}
           name: Release ${{ steps.changelog_reader.outputs.version }}
-          body: {{ github.workflow }}-BODY.txt
+          body: ${{ github.workflow }}-BODY.txt
           draft: true
           files: |
             ./release/*.tar.gz
