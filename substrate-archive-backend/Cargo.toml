@@ -1,6 +1,6 @@
 [package]
 name = "substrate-archive-backend"
-version = "0.1.0"
+version = "0.5.1"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -24,7 +24,7 @@ parity-util-mem = "0.9"
 
 # Substrate
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["wasmtime"] }
+sc-executor = { git = "https://github.com/paritytech/substrate", features = ["wasmtime"] , branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }

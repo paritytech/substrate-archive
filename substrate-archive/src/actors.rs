@@ -364,8 +364,8 @@ where
 	async fn init_listeners(conf: &SystemConfig<B, D>) -> Result<Listener> {
 		Listener::builder(conf.pg_url(), move |notif, conn| {
 			async move {
-				let block = queries::get_full_block_by_number(conn, notif.block_num).await?;
-				let b: (B, u32) = BlockModelDecoder::with_single(block)?;
+				let sql_block = queries::get_full_block_by_number(conn, notif.block_num).await?;
+				let b = sql_block.into_block_and_spec()?;
 				crate::tasks::execute_block::<B, R, C, D>(b.0, PhantomData).enqueue(conn).await?;
 				Ok(())
 			}

@@ -1,0 +1,60 @@
+name: Automated Release CI
+on:
+  push:
+    branches:
+      - release
+jobs:
+  deploy:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Build Polkadot Archive
+        run: cargo build --release --manifest-path bin/polkadot-archive/Cargo.toml
+
+      - name: Prepare binary
+        run: |
+          mkdir -p release
+          strip bin/polkadot-archive/target/release/polkadot-archive
+
+      - name: Package for Debian
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo install cargo-deb
+          cargo deb --manifest-path ./bin/polkadot-archive/Cargo.toml
+          mv ./bin/polkadot-archive/target/debian/*.deb ./release/polkadot-archive-linux.deb
+          tar -C ./bin/polkadot-archive/target/release/ -czvf ./release/polkadot-archive-linux.tar.gz ./polkadot-archive
+
+      - name: Package just binary
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mv bin/polkadot-archive/target/release/polkadot-archive ./release/polkadot-archive
+
+      - name: Get changelog
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_depth: 2
+          path: ./CHANGELOG.md
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.changelog_reader.outputs.version }}
+          name: Release ${{ steps.changelog_reader.outputs.version }}
+          body: ${{ steps.changelog_reader.outputs.changes }}
+          draft: true
+          files: |
+            ./release/*.tar.gz
+            ./release/*.deb
+            ./release/polkadot_archive
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

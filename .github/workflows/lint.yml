@@ -1,0 +1,67 @@
+name: Code Style Check
+
+on:
+  push:
+    branches:
+      - master
+      - release
+  pull_request:
+
+jobs:
+  lints:
+    name: Lints
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Sources
+        uses: actions/checkout@v2
+
+      - name: Install Rust Stable Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Cache Dependencies & Build Outputs
+        uses: actions/cache@v2.1.6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            bin/node-template-archive/target
+            bin/polkadot-archive/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check Code Format
+        uses: actions-rs/cargo@v1
+        env:
+          SKIP_WASM_BUILD: 1
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: Check Code Format For `node-template-archive`
+        uses: actions-rs/cargo@v1
+        env:
+          SKIP_WASM_BUILD: 1
+        with:
+          command: fmt
+          args: --manifest-path bin/node-template-archive/Cargo.toml -- --check
+
+      - name: Check Code Format For `polkadot-archive`
+        uses: actions-rs/cargo@v1
+        env:
+          SKIP_WASM_BUILD: 1
+        with:
+          command: fmt
+          args: --manifest-path bin/polkadot-archive/Cargo.toml -- --check
+
+      - name: Code Lint
+        uses: actions-rs/cargo@v1
+        env:
+          SKIP_WASM_BUILD: 1
+        with:
+          command: clippy
+          args: -- -D warnings

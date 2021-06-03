@@ -14,39 +14,35 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Subscriber implementation for Tracing
+//! The Layer implementation for Tracing
 /// Tracing allows for collecting more detailed information
 /// about the execution of blocks, associated values for extrinsics being executed,
 /// as well as more information about how storage was collected.
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::sync::{
-	atomic::{AtomicU64, Ordering},
-	Arc,
-};
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use sp_tracing::{WASM_NAME_KEY, WASM_TARGET_KEY, WASM_TRACE_IDENTIFIER};
 use tracing::{
+	dispatcher,
 	event::Event,
 	field::{Field, Visit},
 	span::{Attributes, Id, Record},
-	Level, Metadata, Subscriber,
+	Dispatch, Level, Metadata,
 };
-use tracing_subscriber::CurrentSpan;
+use tracing_subscriber::{
+	layer::{Context, SubscriberExt},
+	Layer, Registry,
+};
 
 use crate::error::{Result, TracingError};
-
-/// Generic BlockHash type that can be any length.
-type BlockHash = Vec<u8>;
 
 /// The Event a tracing subscriber collects before sending data to the TracingActor.
 #[derive(Debug)]
 pub struct EventMessage {
-	pub block_num: Option<u32>,
-	pub hash: Option<Vec<u8>>,
 	pub name: String,
 	pub target: String,
 	pub level: Level,
@@ -73,7 +69,7 @@ pub struct SpanMessage {
 }
 
 /// Finished Trace Data Format. Ready for insertion into a relational database.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Traces {
 	block_num: u32,
 	hash: Vec<u8>,
@@ -104,35 +100,29 @@ pub struct SpansAndEvents {
 }
 
 /// Collects traces and filters based on target.
-/// The Subscriber implementation is blocking. It uses Mutex primitives to coalesce traces before
+/// The Layer implementation is blocking. It uses Mutex primitives to coalesce traces before
 /// sending them to the appropriate actor.
 /// Therefore, one must be careful not to block the async executor when adding tracing spans
 /// using this subscriber implementation anywhere inside an async context in substrate-archive.
 pub struct TraceHandler {
-	/// the Block Number this trace set is from
-	block_num: u32,
-	/// Hash of the block for this trace set
-	hash: BlockHash,
 	span_events: Arc<Mutex<SpansAndEvents>>,
 	targets: Vec<(String, Level)>,
-	counter: AtomicU64,
-	current_span: CurrentSpan,
 }
 
 impl TraceHandler {
-	pub fn new(targets: &str, block_num: u32, hash: BlockHash, span_events: Arc<Mutex<SpansAndEvents>>) -> Self {
-		let targets = targets.split(',').map(|s| parse_target(s)).collect();
-		// must start indexing from 1 otherwise `tracing` panics
-		let counter = AtomicU64::new(1);
-		Self { targets, counter, span_events, block_num, hash, current_span: Default::default() }
+	pub fn new(targets: &str, span_events: Arc<Mutex<SpansAndEvents>>) -> Self {
+		let mut targets: Vec<_> = targets.split(',').map(|s| parse_target(s)).collect();
+		targets.push((WASM_TRACE_IDENTIFIER.to_string(), Level::TRACE));
+		Self { span_events, targets }
 	}
 
-	/// Formats an event as an [`EventMessage`] and stores it in the [`SpansAndEvents`] (which is sent to the [`StorageAggregator`] after the block is executed).
-	fn gather_event(&self, event: &Event<'_>, time: DateTime<Utc>) -> Result<()> {
+	/// Formats an event as an [`EventMessage`] and stores it in the [`SpansAndEvents`]
+	/// (which is sent to the [`StorageAggregator`] after the block is executed).
+	fn gather_event(&self, event: &Event<'_>, time: DateTime<Utc>, ctx: &Context<'_, Registry>) -> Result<()> {
 		let meta = event.metadata();
 		let mut values = TraceData::default();
 		event.record(&mut values);
-		let parent_id = event.parent().cloned().or_else(|| self.current_span.id());
+		let parent_id = event.parent().cloned().or_else(|| ctx.lookup_current().map(|c| c.id()));
 
 		// check if WASM traces specify a different name/target.
 		let name = values.0.remove(WASM_NAME_KEY).map(|t| t.to_string()).unwrap_or_else(|| meta.name().to_string());
@@ -146,18 +136,7 @@ impl TraceHandler {
 			_ => Err(TracingError::TypeError),
 		}?;
 
-		let event = EventMessage {
-			level: *meta.level(),
-			target,
-			name,
-			parent_id,
-			values,
-			block_num: Some(self.block_num),
-			hash: Some(self.hash.clone()),
-			time,
-			file,
-			line,
-		};
+		let event = EventMessage { level: *meta.level(), target, name, parent_id, values, time, file, line };
 		self.span_events.lock().events.push(event);
 		Ok(())
 	}
@@ -167,7 +146,6 @@ impl TraceHandler {
 	#[allow(clippy::suspicious_operation_groupings)]
 	fn is_enabled(&self, span: &SpanMessage) -> bool {
 		let wasm_target = span.values.0.get(WASM_TARGET_KEY).map(|s| s.to_string());
-
 		self.targets.iter().filter(|t| t.0.as_str() != "wasm_tracing").any(|t| {
 			let wanted_target = &t.0.as_str();
 			let valid_native_target = span.target.starts_with(wanted_target);
@@ -196,6 +174,21 @@ impl TraceHandler {
 
 		self.span_events.lock().spans.push(span);
 		Ok(())
+	}
+
+	/// Start tracing with the predicate `fun`.
+	/// Consumes this TraceHandler.
+	pub fn scoped_trace<T>(self, fun: impl FnOnce() -> Result<T>) -> Result<(Vec<SpanMessage>, Vec<EventMessage>, T)> {
+		let span_events = self.span_events.clone();
+		let subscriber = Registry::default().with(self);
+		let dispatch = Dispatch::new(subscriber);
+		let res = dispatcher::with_default(&dispatch, fun)?;
+
+		let mut traces = span_events.lock();
+		let spans = traces.spans.drain(..).collect::<Vec<SpanMessage>>();
+		let events = traces.events.drain(..).collect::<Vec<EventMessage>>();
+
+		Ok((spans, events, res))
 	}
 }
 
@@ -251,20 +244,19 @@ impl Visit for TraceData {
 	}
 }
 
-impl Subscriber for TraceHandler {
-	fn enabled(&self, metadata: &Metadata<'_>) -> bool {
+impl Layer<Registry> for TraceHandler {
+	fn enabled(&self, metadata: &Metadata<'_>, _ctx: Context<'_, Registry>) -> bool {
 		self.targets.iter().any(|(t, _l)| metadata.target().starts_with(t.as_str()))
 	}
 
-	fn new_span(&self, attrs: &Attributes<'_>) -> Id {
+	fn new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, Registry>) {
 		let meta = attrs.metadata();
 		let mut values = TraceData::default();
 		attrs.record(&mut values);
 
-		let id = Id::from_u64(self.counter.fetch_add(1, Ordering::Relaxed));
 		let span_message = SpanMessage {
 			id: id.clone(),
-			parent_id: attrs.parent().cloned().or_else(|| self.current_span.id()),
+			parent_id: attrs.parent().cloned().or_else(|| ctx.lookup_current().map(|c| c.id())),
 			name: meta.name().to_string(),
 			target: meta.target().to_string(),
 			level: *meta.level(),
@@ -277,42 +269,26 @@ impl Subscriber for TraceHandler {
 		if self.is_enabled(&span_message) {
 			self.gather_span(span_message).unwrap_or_else(|e| log::error!("{}", e.to_string()));
 		}
-
-		id
 	}
 
-	fn record(&self, id: &Id, values: &Record<'_>) {
+	fn on_record(&self, id: &Id, values: &Record<'_>, _ctx: Context<'_, Registry>) {
 		if let Some(span) = self.span_events.lock().spans.iter_mut().find(|span| &span.id == id) {
 			values.record(&mut span.values);
 		}
 	}
 
-	fn record_follows_from(&self, _: &Id, _: &Id) {
-		log::warn!("Followed span relationship not recorded");
-	}
-
-	fn event(&self, event: &Event<'_>) {
+	fn on_event(&self, event: &Event<'_>, ctx: Context<'_, Registry>) {
 		let time = Utc::now();
-		if let Err(e) = self.gather_event(event, time) {
+		if let Err(e) = self.gather_event(event, time, &ctx) {
 			log::error!("{}", e.to_string());
 		}
 	}
 
-	fn enter(&self, id: &Id) {
-		self.current_span.enter(id.clone());
-	}
-
-	fn exit(&self, _id: &Id) {
-		self.current_span.exit();
-	}
-
-	fn try_close(&self, id: Id) -> bool {
+	fn on_close(&self, id: Id, _ctx: Context<'_, Registry>) {
 		let end_time = Utc::now();
 		if let Some(span) = self.span_events.lock().spans.iter_mut().find(|span| span.id == id) {
 			span.overall_time = end_time - span.start_time;
 		}
-		// try_close returns false by default -- we want to keep this behavior.
-		false
 	}
 }
 
@@ -330,5 +306,56 @@ fn parse_target(s: &str) -> (String, Level) {
 			}
 		}
 		None => (s.to_string(), Level::TRACE),
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use anyhow::Error;
+	use sc_executor::{WasmExecutionMethod, WasmExecutor};
+	use sc_executor_common::runtime_blob::RuntimeBlob;
+	use sp_io::TestExternalities;
+	use sp_wasm_interface::HostFunctions;
+	use test_common::wasm_binary_unwrap;
+
+	const TARGETS: &str = "wasm_tracing,test_wasm";
+
+	#[test]
+	fn should_collect_spans_and_events_in_wasm() -> Result<(), Error> {
+		let mut ext = TestExternalities::default();
+		let mut ext = ext.ext();
+
+		let executor = WasmExecutor::new(
+			WasmExecutionMethod::Compiled,
+			Some(8),
+			sp_io::SubstrateHostFunctions::host_functions(),
+			8,
+			None,
+		);
+
+		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
+		let handler = TraceHandler::new(&TARGETS, span_events.clone());
+		let (spans, events, _) = handler.scoped_trace(|| {
+			executor
+				.uncached_call(
+					RuntimeBlob::uncompress_if_needed(&wasm_binary_unwrap()[..]).unwrap(),
+					&mut ext,
+					true,
+					"test_trace_handler",
+					&[],
+				)
+				.unwrap();
+			Ok(())
+		})?;
+
+		assert_eq!(spans[0].name, "im_a_span");
+		assert_eq!(spans[0].target, "test_wasm");
+		assert_eq!(spans[0].target, "test_wasm");
+		assert_eq!(spans[0].id, Id::from_u64(2));
+		assert_eq!(spans[1].id, Id::from_u64(3));
+		assert_eq!(spans[1].parent_id, Some(Id::from_u64(2)));
+		assert_eq!(events[0].target, "test_wasm");
+		Ok(())
 	}
 }

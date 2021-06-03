@@ -46,6 +46,22 @@ pub struct BlockModel {
 	pub spec: i32,
 }
 
+impl BlockModel {
+	pub fn into_block_and_spec<B: BlockT>(self) -> Result<(B, u32), DecodeError> {
+		let block_num = Decode::decode(&mut (self.block_num as u32).encode().as_slice())?;
+		let extrinsics_root = Decode::decode(&mut self.extrinsics_root.as_slice())?;
+		let state_root = Decode::decode(&mut self.state_root.as_slice())?;
+		let parent_hash = Decode::decode(&mut self.parent_hash.as_slice())?;
+		let digest = Decode::decode(&mut self.digest.as_slice())?;
+		let ext = Decode::decode(&mut self.ext.as_slice())?;
+		let header = <B::Header as HeaderT>::new(block_num, extrinsics_root, state_root, parent_hash, digest);
+
+		let spec = self.spec as u32;
+
+		Ok((B::new(header, ext), spec))
+	}
+}
+
 /// Helper struct for decoding block modeling data into block type.
 pub struct BlockModelDecoder<B: BlockT> {
 	_marker: PhantomData<B>,
@@ -57,26 +73,11 @@ impl<'a, B: BlockT> BlockModelDecoder<B> {
 		blocks
 			.into_iter()
 			.map(|b| {
-				let (block, spec) = Self::with_single(b)?;
+				let (block, spec) = b.into_block_and_spec()?;
 				let block = SignedBlock { block, justifications: None };
 				Ok(Block::new(block, spec))
 			})
 			.collect()
-	}
-
-	/// With a single BlockModel
-	pub fn with_single(block: BlockModel) -> Result<(B, u32), DecodeError> {
-		let block_num = Decode::decode(&mut (block.block_num as u32).encode().as_slice())?;
-		let extrinsics_root = Decode::decode(&mut block.extrinsics_root.as_slice())?;
-		let state_root = Decode::decode(&mut block.state_root.as_slice())?;
-		let parent_hash = Decode::decode(&mut block.parent_hash.as_slice())?;
-		let digest = Decode::decode(&mut block.digest.as_slice())?;
-		let ext = Decode::decode(&mut block.ext.as_slice())?;
-		let header = <B::Header as HeaderT>::new(block_num, extrinsics_root, state_root, parent_hash, digest);
-
-		let spec = block.spec as u32;
-
-		Ok((B::new(header, ext), spec))
 	}
 }
 

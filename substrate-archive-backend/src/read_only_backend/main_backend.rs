@@ -118,6 +118,10 @@ impl<Block: BlockT, D: ReadOnlyDb + 'static> Backend<Block> for ReadOnlyBackend<
 		Err(BlockchainError::Backend("Reverting blocks not supported".into()))
 	}
 
+	fn remove_leaf_block(&self, _hash: &Block::Hash) -> sp_blockchain::Result<()> {
+		Err(BlockchainError::Backend("`remove_leaf_block` not supported with read-only backend".into()))
+	}
+
 	fn get_import_lock(&self) -> &parking_lot::RwLock<()> {
 		panic!("No lock exists for read-only backend");
 	}
