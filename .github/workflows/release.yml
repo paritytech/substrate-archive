@@ -43,11 +43,6 @@ jobs:
         run: |
           mv bin/polkadot-archive/target/release/polkadot-archive ./release/polkadot-archive
 
-      - name: Get version from tag
-        id: tag_name
-        run: |
-          echo ::set-output name=current_version::${GITHUB_REF#refs/tags/v}
-
       - name: Get Archive changelog
         id: changelog_reader
         uses: mindsers/changelog-reader-action@v2
