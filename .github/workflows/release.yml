@@ -55,12 +55,18 @@ jobs:
           validation_depth: 2
           path: ./bin/polkadot-archive/CHANGELOG.md
 
+      - name: Generate release notes
+        run: |
+          echo "${{ steps.changelog_reader.outputs.changes }}" > ${{ github.workflow }}-BODY.txt
+          printf "\n" >> ${{ github.workflow }}-BODY.txt
+          echo "${{ steps.changelog_reader_polkadot.outputs.changes }}" >> ${{ github.workflow }}-BODY.txt
+          
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.changelog_reader.outputs.version }}
           name: Release ${{ steps.changelog_reader.outputs.version }}
-          body: "${{ steps.changelog_reader.outputs.changes }}\n\n${{ steps.changelog_reader_polkadot.outputs.changes }}"
+          body: {{ github.workflow }}-BODY.txt
           draft: true
           files: |
             ./release/*.tar.gz
