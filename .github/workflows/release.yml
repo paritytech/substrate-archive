@@ -78,6 +78,6 @@ jobs:
           files: |
             ./release/*.tar.gz
             ./release/*.deb
-            ./release/polkadot_archive
+            ./release/polkadot-archive
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
