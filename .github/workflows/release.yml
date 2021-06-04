@@ -60,18 +60,20 @@ jobs:
 
       - name: Generate release notes
         run: |
-          echo "# Substrate Archive" > ${{ github.workflow }}-BODY.txt
-          echo "${{ steps.changelog_reader.outputs.changes }}" > ${{ github.workflow }}-BODY.txt
-          printf "\n" >> ${{ github.workflow }}-BODY.txt
-          echo "# Polkadot Archive" > ${{ github.workflow }}-BODY.txt
-          echo "${{ steps.changelog_reader_polkadot.outputs.changes }}" >> ${{ github.workflow }}-BODY.txt
+            cat<<'EOF' > ${{ github.sha }}-BODY.txt
+            # Substrate Archive
+            ${{ steps.changelog_reader.outputs.changes }}
+
+            # Polkadot Archive
+            ${{ steps.changelog_reader_polkadot.outputs.changes }}
+            EOF
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.changelog_reader.outputs.version }}
           name: Release ${{ steps.changelog_reader.outputs.version }}
-          body_path: ${{ github.workflow }}-BODY.txt
+          body_path: ${{ github.sha }}-BODY.txt
           draft: true
           files: |
             ./release/*.tar.gz
