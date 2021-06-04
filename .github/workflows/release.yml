@@ -22,9 +22,7 @@ jobs:
         env:
           SKIP_WASM_BUILD: 1
         run: cargo build --release --manifest-path bin/polkadot-archive/Cargo.toml
-
-      - name: Prepare binary
-        run: |
+- name: Prepare binary run: |
           mkdir -p release
           strip bin/polkadot-archive/target/release/polkadot-archive
 
@@ -61,10 +59,10 @@ jobs:
       - name: Generate release notes
         run: |
             cat<<'EOF' > ${{ github.sha }}-BODY.txt
-            # Substrate Archive
+            # Substrate Archive ${{ steps.changelog_reader.outputs.version }}
             ${{ steps.changelog_reader.outputs.changes }}
 
-            # Polkadot Archive
+            # Polkadot Archive ${{ steps.changelog_reader_polkadot.outputs.version }}
             ${{ steps.changelog_reader_polkadot.outputs.changes }}
             EOF
 
