@@ -22,7 +22,9 @@ jobs:
         env:
           SKIP_WASM_BUILD: 1
         run: cargo build --release --manifest-path bin/polkadot-archive/Cargo.toml
-- name: Prepare binary run: |
+
+      - name: Prepare binary
+        run: |
           mkdir -p release
           strip bin/polkadot-archive/target/release/polkadot-archive
 
