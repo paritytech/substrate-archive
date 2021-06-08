@@ -91,6 +91,10 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<
 	fn indexed_transaction(&self, hash: &Block::Hash) -> ChainResult<Option<Vec<u8>>> {
 		Ok(self.db.get(columns::TRANSACTION, hash.as_ref()))
 	}
+
+	fn block_indexed_body(&self, _id: BlockId<Block>) -> ChainResult<Option<Vec<Vec<u8>>>> {
+		unimplemented!()
+	}
 }
 
 impl<Block: BlockT, D: ReadOnlyDb> HeaderBackend<Block> for ReadOnlyBackend<Block, D> {
