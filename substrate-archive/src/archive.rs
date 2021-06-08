@@ -365,7 +365,7 @@ where
 		logger::init(self.config.log.clone())?;
 		log::debug!("Archive Config: {:?}", self.config);
 
-		// config chain
+		// configure chain
 		const CHAIN_DATA_DB: &str = "CHAIN_DATA_DB";
 		let chain_path = self
 			.config
@@ -379,7 +379,7 @@ where
 		)?;
 		let db = Arc::new(DB::open_database(chain_path, self.config.chain.cache_size, db_path)?);
 
-		// config runtime
+		// configure runtime
 		self.config.runtime.wasm_runtime_overrides = self.config.wasm_tracing.as_ref().and_then(|c| c.folder.clone());
 		if let Some(spec) = self.config.chain.spec {
 			self.config.runtime.set_code_substitutes(spec.as_ref());
@@ -387,7 +387,7 @@ where
 
 		// configure substrate client and backend
 		let client = Arc::new(runtime_api::<B, R, D, DB>(db.clone(), self.config.runtime)?);
-		let backend = Arc::new(ReadOnlyBackend::new(db, true));
+		let backend = Arc::new(ReadOnlyBackend::new(db, true, self.config.runtime.storage_mode));
 		Self::startup_info(&*client, &*backend)?;
 
 		// config postgres database
