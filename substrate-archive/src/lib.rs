@@ -67,7 +67,7 @@ mod test {
 	use std::sync::{Mutex, MutexGuard, Once};
 
 	pub static DATABASE_URL: Lazy<String> =
-		Lazy::new(|| dotenv::var("DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!"));
+		Lazy::new(|| dotenv::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!"));
 
 	pub const DUMMY_HASH: [u8; 2] = [0x13, 0x37];
 

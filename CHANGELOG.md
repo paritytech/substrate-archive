@@ -6,11 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [v0.5.2] - 2021-06-02
 ### Added
-- Tracing Wasm Runtimes `v0.9.0`, `v0.9.1`, `v0.9.2`, `v0.9.3`
+- Test for tracing enabled wasm-blobs `v0.9.0`, `v0.9.1`, `v0.9.2`, `v0.9.3` ([#284](https://github.com/paritytech/substrate-archive/pull/284)) ([cd6a446](https://github.com/paritytech/substrate-archive/commit/cd6a446bc66002d1945cbdf0c1b39957218f90fd))
+- Unit testing CI workflow ([#288](https://github.com/paritytech/substrate-archive/pull/288)) ([482af68](https://github.com/paritytech/substrate-archive/commit/482af68fff515a7e3a34ee0c512d735790193cd6))
 
 ### Changed
-- clarify release checklist
+- Clarify release checklist ([#279](https://github.com/paritytech/substrate-archive/pull/279)) ([9abef6e](https://github.com/paritytech/substrate-archive/commit/9abef6e2bdda4c1492b6e232ec38c8c0d59a3749)) && ([#288](https://github.com/paritytech/substrate-archive/pull/288)) ([482af68](https://github.com/paritytech/substrate-archive/commit/482af68fff515a7e3a34ee0c512d735790193cd6))
+- Update dependencies to match runtime `0.9.3`. 
+- Refactor tracing to work with the latest tracing changes in substrate ([#273](https://github.com/paritytech/substrate-archive/pull/273)) ([b322ded](https://github.com/paritytech/substrate-archive/commit/b322ded5cf683270da6d21478e80c9f4dba706dc))
 
 ### Fixed
 - Re-Compile WASM Runtime v0.8.30 with rust compiler version nightly-02-27-2021 to fix 'Storage Root Mismatch' when syncing.

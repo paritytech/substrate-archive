@@ -1,8 +1,9 @@
-name: Automated Release CI
+name: Publish draft release
 on:
   push:
-    branches:
-      - release
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+*
+
 jobs:
   deploy:
     strategy:
@@ -18,6 +19,8 @@ jobs:
           profile: minimal
 
       - name: Build Polkadot Archive
+        env:
+          SKIP_WASM_BUILD: 1
         run: cargo build --release --manifest-path bin/polkadot-archive/Cargo.toml
 
       - name: Prepare binary
@@ -27,34 +30,54 @@ jobs:
 
       - name: Package for Debian
         if: matrix.os == 'ubuntu-latest'
+        env:
+          SKIP_WASM_BUILD: 1
         run: |
           cargo install cargo-deb
           cargo deb --manifest-path ./bin/polkadot-archive/Cargo.toml
           mv ./bin/polkadot-archive/target/debian/*.deb ./release/polkadot-archive-linux.deb
           tar -C ./bin/polkadot-archive/target/release/ -czvf ./release/polkadot-archive-linux.tar.gz ./polkadot-archive
 
-      - name: Package just binary
+      - name: Package binary
         if: matrix.os == 'ubuntu-latest'
         run: |
           mv bin/polkadot-archive/target/release/polkadot-archive ./release/polkadot-archive
 
-      - name: Get changelog
+      - name: Get Archive changelog
         id: changelog_reader
         uses: mindsers/changelog-reader-action@v2
         with:
           validation_depth: 2
           path: ./CHANGELOG.md
+          version: ${{ steps.tag_name.outputs.current_version }}
+
+      - name: Get Polkadot Archive changelog
+        id: changelog_reader_polkadot
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_depth: 2
+          path: ./bin/polkadot-archive/CHANGELOG.md
+
+      - name: Generate release notes
+        run: |
+            cat<<'EOF' > ${{ github.sha }}-BODY.txt
+            # Substrate Archive ${{ steps.changelog_reader.outputs.version }}
+            ${{ steps.changelog_reader.outputs.changes }}
+
+            # Polkadot Archive ${{ steps.changelog_reader_polkadot.outputs.version }}
+            ${{ steps.changelog_reader_polkadot.outputs.changes }}
+            EOF
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.changelog_reader.outputs.version }}
           name: Release ${{ steps.changelog_reader.outputs.version }}
-          body: ${{ steps.changelog_reader.outputs.changes }}
+          body_path: ${{ github.sha }}-BODY.txt
           draft: true
           files: |
             ./release/*.tar.gz
             ./release/*.deb
-            ./release/polkadot_archive
+            ./release/polkadot-archive
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
