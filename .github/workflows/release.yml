@@ -61,10 +61,10 @@ jobs:
       - name: Generate release notes
         run: |
             cat<<'EOF' > ${{ github.sha }}-BODY.txt
-            # Substrate Archive
+            # Substrate Archive ${{ steps.changelog_reader.outputs.version }}
             ${{ steps.changelog_reader.outputs.changes }}
 
-            # Polkadot Archive
+            # Polkadot Archive ${{ steps.changelog_reader_polkadot.outputs.version }}
             ${{ steps.changelog_reader_polkadot.outputs.changes }}
             EOF
 
@@ -78,6 +78,6 @@ jobs:
           files: |
             ./release/*.tar.gz
             ./release/*.deb
-            ./release/polkadot_archive
+            ./release/polkadot-archive
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
