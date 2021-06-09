@@ -18,7 +18,7 @@
 
 use std::sync::Arc;
 
-use codec::Decode;
+use codec::{Decode, Encode};
 
 use sc_service::TransactionStorageMode;
 use sp_blockchain::{
@@ -39,9 +39,17 @@ use crate::{
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
+#[derive(Debug, Encode, Decode)]
+struct ExtrinsicHeader {
+	hash: sp_core::H256,
+	data: Vec<u8>,
+}
+
 impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<Block, D> {
 	fn body(&self, id: BlockId<Block>) -> ChainResult<Option<Vec<<Block as BlockT>::Extrinsic>>> {
-		let body = match read_db(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)? {
+		let body = match read_db(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
+			.map_err(|e| BlockchainError::Backend(e.to_string()))?
+		{
 			Some(body) => body,
 			None => return Ok(None),
 		};
@@ -52,19 +60,19 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<
 			},
 			TransactionStorageMode::StorageChain => match Vec::<ExtrinsicHeader>::decode(&mut &body[..]) {
 				Ok(index) => {
-					let extrinsics: ClientResult<Vec<Block::Extrinsic>> = index
+					let extrinsics: ChainResult<Vec<Block::Extrinsic>> = index
 						.into_iter()
-						.map(|ExtrinsicHeader { indexed_hash, data }| {
-							let decode_result = if indexed_hash != Default::default() {
-								match self.db.get(columns::TRANSACTION, indexed_hash.as_ref()) {
+						.map(|ExtrinsicHeader { hash, data }| {
+							let decode_result = if hash != Default::default() {
+								match self.db.get(columns::TRANSACTION, hash.as_ref()) {
 									Some(t) => {
-										let mut input = utils::join_input(data.as_ref(), t.as_ref());
-										Block::Extrinsic::decode(&mut input)
+										let input = [&data[..], &t[..]].concat();
+										Block::Extrinsic::decode(&mut input.as_slice())
 									}
 									None => {
 										return Err(BlockchainError::Backend(format!(
 											"Missing indexed transaction {:?}",
-											indexed_hash
+											hash
 										)))
 									}
 								}
@@ -126,21 +134,23 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<
 		match self.storage_mode {
 			TransactionStorageMode::BlockBody => Ok(None),
 			TransactionStorageMode::StorageChain => {
-				let body = match read_db(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)? {
+				let body = match read_db(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
+					.map_err(|e| BlockchainError::Backend(e.to_string()))?
+				{
 					Some(body) => body,
 					None => return Ok(None),
 				};
 				match Vec::<ExtrinsicHeader>::decode(&mut &body[..]) {
 					Ok(index) => {
 						let mut transactions = Vec::new();
-						for ExtrinsicHeader { indexed_hash, .. } in index.into_iter() {
-							if indexed_hash != Default::default() {
-								match self.db.get(columns::TRANSACTION, indexed_hash.as_ref()) {
+						for ExtrinsicHeader { hash, .. } in index.into_iter() {
+							if hash != Default::default() {
+								match self.db.get(columns::TRANSACTION, hash.as_ref()) {
 									Some(t) => transactions.push(t),
 									None => {
 										return Err(BlockchainError::Backend(format!(
 											"Missing indexed transaction {:?}",
-											indexed_hash
+											hash
 										)))
 									}
 								}
@@ -148,7 +158,7 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<
 						}
 						Ok(Some(transactions))
 					}
-					Err(err) => return Err(Blockchain::Error::Backend(format!("Error decoding body list: {}", err))),
+					Err(err) => return Err(BlockchainError::Backend(format!("Error decoding body list: {}", err))),
 				}
 			}
 		}

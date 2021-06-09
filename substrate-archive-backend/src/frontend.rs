@@ -87,7 +87,7 @@ pub struct RuntimeConfig {
 	#[serde(skip)]
 	code_substitutes: HashMap<String, Vec<u8>>,
 	/// Method of storing and retrieving transactions(extrinsics).
-	#[serde(skip)]
+	#[serde(skip, default = "default_storage_mode")]
 	pub storage_mode: TransactionStorageMode,
 }
 

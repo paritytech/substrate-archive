@@ -386,8 +386,8 @@ where
 		}
 
 		// configure substrate client and backend
-		let client = Arc::new(runtime_api::<B, R, D, DB>(db.clone(), self.config.runtime)?);
-		let backend = Arc::new(ReadOnlyBackend::new(db, true, self.config.runtime.storage_mode));
+		let backend = Arc::new(ReadOnlyBackend::new(db.clone(), true, self.config.runtime.storage_mode));
+		let client = Arc::new(runtime_api::<B, R, D, DB>(db, self.config.runtime)?);
 		Self::startup_info(&*client, &*backend)?;
 
 		// config postgres database
