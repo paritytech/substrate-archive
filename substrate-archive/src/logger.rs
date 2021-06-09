@@ -75,6 +75,7 @@ pub fn init(config: LoggerConfig) -> io::Result<()> {
 		.level_for("cranelift_codegen", log::LevelFilter::Warn)
 		.level_for("header", log::LevelFilter::Warn)
 		.level_for("frame_executive", log::LevelFilter::Error)
+		.level_for("regalloc", log::LevelFilter::Warn)
 		.format(move |out, message, record| {
 			out.finish(format_args!(
 				"{} {} {}",
@@ -98,6 +99,7 @@ pub fn init(config: LoggerConfig) -> io::Result<()> {
 			.level_for("staking", log::LevelFilter::Warn)
 			.level_for("cranelift_codegen", log::LevelFilter::Warn)
 			.level_for("wasm-heap", log::LevelFilter::Error)
+			.level_for("regalloc", log::LevelFilter::Warn)
 			.format(move |out, message, record| {
 				out.finish(format_args!(
 					"{} [{}][{}] {}::{};{}",

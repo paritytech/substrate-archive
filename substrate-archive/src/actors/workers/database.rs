@@ -100,13 +100,17 @@ impl DatabaseActor {
 			log::debug!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
 		}
 		let len = block_nums.len();
+		let now = std::time::Instant::now();
 		while queries::has_blocks(block_nums.as_slice(), &mut conn).await?.len() != len {
 			smol::Timer::after(std::time::Duration::from_millis(50)).await;
 		}
+		log::debug!("Insert Integrity Query Check took {:?}", now.elapsed());
 		// we drop the connection early so that the insert() has the use of all db connections
 		std::mem::drop(conn);
 		let storage = Vec::<StorageModel<H>>::from(storages);
+		let now = std::time::Instant::now();
 		self.db.insert(storage).await?;
+		log::debug!("Insert took {:?}", now.elapsed());
 		Ok(())
 	}
 }

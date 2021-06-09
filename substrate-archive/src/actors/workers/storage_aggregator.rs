@@ -42,9 +42,7 @@ impl<H: Hash> StorageAggregator<H> {
 		if !storage.is_empty() {
 			let changes = storage.iter().flat_map(|c| c.changes.iter()).count();
 			log::info!("Indexing {} blocks of storage entries, with {} total changes", storage.len(), changes);
-			let send_result = self.db.send(BatchStorage::new(storage));
-			// handle_while the actual insert is happening, not the send
-			ctx.handle_while(self, send_result).await?;
+			self.db.send(BatchStorage::new(storage)).await?;
 		}
 		Ok(())
 	}
@@ -54,8 +52,7 @@ impl<H: Hash> StorageAggregator<H> {
 		if !traces.is_empty() {
 			log::info!("Inserting {} traces", traces.len());
 			for trace in traces.drain(..) {
-				let send_result = self.db.send(trace);
-				ctx.handle_while(self, send_result).await?;
+				self.db.send(trace).await?;
 			}
 		}
 		std::mem::swap(&mut self.traces, &mut traces);

@@ -28,6 +28,7 @@ use futures::{
 };
 use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
+use smol::Task;
 use xtra::{prelude::*, Disconnected};
 
 use sc_client_api::backend;
@@ -153,6 +154,7 @@ struct Actors<Block: Send + Sync + 'static, H: Send + Sync + 'static, Db: Send +
 	blocks: Address<workers::BlocksIndexer<Block, Db>>,
 	metadata: Address<workers::MetadataActor<Block>>,
 	db: Address<DatabaseActor>,
+	tasks: Vec<Task<()>>,
 }
 
 impl<B: Send + Sync + 'static, H: Send + Sync + 'static, D: Send + Sync + 'static> Clone for Actors<B, H, D> {
@@ -162,6 +164,7 @@ impl<B: Send + Sync + 'static, H: Send + Sync + 'static, D: Send + Sync + 'stati
 			blocks: self.blocks.clone(),
 			metadata: self.metadata.clone(),
 			db: self.db.clone(),
+			tasks: Vec::new(),
 		}
 	}
 }
@@ -174,20 +177,21 @@ where
 	NumberFor<Block>: Into<u32>,
 {
 	async fn spawn(conf: &SystemConfig<Block, Db>) -> Result<Self> {
+		let mut tasks = Vec::new();
 		let db = workers::DatabaseActor::new(conf.pg_url().into(), conf.executor.clone()).await?.create(None);
 		let (db, fut) = db.run();
-		conf.executor.spawn(fut).detach();
+		tasks.push(conf.executor.spawn(fut));
 		let storage = workers::StorageAggregator::new(db.clone()).create(None);
 		let metadata = workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None);
 		let (storage, fut) = storage.run();
-		conf.executor.spawn(fut).detach();
+		tasks.push(conf.executor.spawn(fut));
 		let (metadata, fut) = metadata.run();
-		conf.executor.spawn(fut).detach();
+		tasks.push(conf.executor.spawn(fut));
 		let blocks = workers::BlocksIndexer::new(&conf, db.clone(), metadata.clone()).create(None);
 		let (blocks, fut) = blocks.run();
-		conf.executor.spawn(fut).detach();
+		tasks.push(conf.executor.spawn(fut));
 
-		Ok(Actors { storage, blocks, metadata, db })
+		Ok(Actors { storage, blocks, metadata, db, tasks })
 	}
 
 	// Run a future that sends actors a signal to progress every X seconds
@@ -214,15 +218,9 @@ where
 	}
 
 	async fn kill(self) -> Result<()> {
-		let fut: Vec<BoxFuture<'_, Result<(), Disconnected>>> = vec![
-			Box::pin(self.storage.send(Die)),
-			Box::pin(self.blocks.send(Die)),
-			Box::pin(self.metadata.send(Die)),
-			Box::pin(self.db.send(Die)),
-		];
-		log::info!("killing actors...");
-		future::join_all(fut).await;
-		log::info!("Killed Actors");
+		for task in self.tasks.into_iter() {
+			std::mem::drop(task);
+		}
 		Ok(())
 	}
 }
@@ -295,7 +293,9 @@ where
 			let (left_res, right_res) = Parallel::new()
 				.each(0..conf.control.task_workers, |_| block_on(executor.run(rx_kill_2.recv_async())))
 				.finish(|| block_on(Self::main_loop(conf, rx_kill, client)));
-			if let Err(flume::RecvError::Disconnected) = left_res.into_iter().collect::<Result<Vec<()>, flume::RecvError>>() {
+			if let Err(flume::RecvError::Disconnected) =
+				left_res.into_iter().collect::<Result<Vec<()>, flume::RecvError>>()
+			{
 				log::warn!("Senders dropped connection")
 			}
 			right_res?;
@@ -304,17 +304,7 @@ where
 
 		(tx_start, tx_kill, handle)
 	}
-	/*
-		async fn setup_actors(conf: &SystemConfig<B, D>) -> Result<(Actors<B, B::Hash, D>, PgPool)> {
-			let actors = Actors::spawn(conf).await?;
-			actors.index(conf.executor.clone()).await;
-			let pool = actors.db.send(GetState::Pool).await??.pool();
-			let listener = Self::init_listeners(&conf).await?;
-			let mut conn = pool.acquire().await?;
-			Self::restore_missing_storage(&mut *conn).await?;
-			Ok((actors, pool))
-		}
-	*/
+
 	async fn main_loop(conf: SystemConfig<B, D>, rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
 		let actors = Actors::spawn(&conf).await?;
 		actors.tick_interval(conf.executor.clone()).await?;
@@ -434,19 +424,19 @@ where
 	fn shutdown(self) -> Result<()> {
 		let mut count = 0;
 		loop {
-			match self.kill_tx.send(()) {
-				Err(_) => break, // everyone got the shutdown signal
+			match self.kill_tx.send_timeout((), Duration::from_secs(5)) {
+				Err(_) => break, // everyone got the kill tx
 				Ok(_) => {
 					if count % 2 == 0 {
-						log::info!("Sending!");
+						log::info!("Sending! Count is {}", count);
 					}
-					// some receivers may still be alive
 					std::thread::sleep(std::time::Duration::from_millis(20));
 					count += 1;
 					continue;
 				}
 			}
 		}
+		log::info!("Joining!");
 		self.handle.join()?;
 		Ok(())
 	}
