@@ -4766,9 +4766,9 @@ dependencies = [
 
 [[package]]
 name = "rmp-serde"
-version = "0.15.4"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "839395ef53057db96b84c9238ab29e1a13f2e5c8ec9f66bef853ab4197303924"
+checksum = "723ecff9ad04f4ad92fe1c8ca6c20d2196d9286e9c60727c4cb5511629260e9d"
 dependencies = [
  "byteorder",
  "rmp",
@@ -6912,7 +6912,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pretty_env_logger",
- "rmp-serde 0.15.4",
+ "rmp-serde 0.15.5",
  "sc-chain-spec",
  "sc-client-api",
  "sc-executor",
