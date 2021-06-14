@@ -37,7 +37,7 @@ impl<H: Hash> StorageAggregator<H> {
 		Self { db, storage: Vec::with_capacity(500), traces: Vec::with_capacity(250) }
 	}
 
-	async fn handle_storage(&mut self, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle_storage(&mut self, _ctx: &mut Context<Self>) -> Result<()> {
 		let storage = std::mem::replace(&mut self.storage, Vec::with_capacity(500));
 		if !storage.is_empty() {
 			let changes = storage.iter().flat_map(|c| c.changes.iter()).count();
@@ -47,7 +47,7 @@ impl<H: Hash> StorageAggregator<H> {
 		Ok(())
 	}
 
-	async fn handle_traces(&mut self, ctx: &mut Context<Self>) -> Result<()> {
+	async fn handle_traces(&mut self, _ctx: &mut Context<Self>) -> Result<()> {
 		let mut traces = std::mem::take(&mut self.traces);
 		if !traces.is_empty() {
 			log::info!("Inserting {} traces", traces.len());

@@ -135,7 +135,7 @@ where
 		}
 
 		self.last_max = cur_max;
-		log::info!("{} missing blocks", missing_blocks);
+		log::info!("{} missing blocks, max currently indexed {}", missing_blocks, cur_max);
 
 		Ok(())
 	}

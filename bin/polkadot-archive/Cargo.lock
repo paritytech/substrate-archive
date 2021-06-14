@@ -1129,7 +1129,7 @@ dependencies = [
 [[package]]
 name = "coil"
 version = "0.3.2"
-source = "git+https://github.com/insipx/coil?branch=master#cf0b63313fc3e1111f1ff5787dfddaddd05b51f2"
+source = "git+https://github.com/insipx/coil?branch=master#8386fc49d0dfd374019d4c60d17fb10fb06ab089"
 dependencies = [
  "async-trait",
  "coil_proc_macro",
@@ -1140,8 +1140,8 @@ dependencies = [
  "itoa",
  "log",
  "num_cpus",
- "rmp-serde",
  "serde",
+ "serde_json",
  "sqlx",
  "thiserror",
  "threadpool",
@@ -1150,7 +1150,7 @@ dependencies = [
 [[package]]
 name = "coil_proc_macro"
 version = "0.2.0"
-source = "git+https://github.com/insipx/coil?branch=master#cf0b63313fc3e1111f1ff5787dfddaddd05b51f2"
+source = "git+https://github.com/insipx/coil?branch=master#8386fc49d0dfd374019d4c60d17fb10fb06ab089"
 dependencies = [
  "proc-macro2",
  "quote",

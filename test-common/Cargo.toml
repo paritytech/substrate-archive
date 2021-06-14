@@ -7,3 +7,6 @@ edition = "2018"
 
 [dependencies]
 test-wasm = { path = "test-wasm" }
+csv = "1"
+hex = "0.4"
+anyhow = "1"

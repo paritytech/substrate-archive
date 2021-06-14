@@ -208,14 +208,17 @@ mod tests {
 	use super::*;
 	use futures::{SinkExt, StreamExt};
 	use sqlx::Connection;
+	use std::sync::Arc;
 
 	#[test]
 	fn should_get_notifications() {
 		crate::initialize();
 		let _guard = crate::TestGuard::lock();
-		smol::block_on(async move {
-			let (tx, mut rx) = futures::channel::mpsc::channel(5);
 
+		let executor = Arc::new(smol::Executor::new());
+		let executor0 = executor.clone();
+		let future = async move {
+			let (tx, mut rx) = futures::channel::mpsc::channel(5);
 			let _listener = Builder::new(&crate::DATABASE_URL, move |_, _| {
 				let mut tx1 = tx.clone();
 				async move {
@@ -226,7 +229,7 @@ mod tests {
 				.boxed()
 			})
 			.listen_on(Channel::Blocks)
-			.spawn()
+			.spawn(&executor0)
 			.await
 			.unwrap();
 			let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
@@ -256,7 +259,8 @@ mod tests {
 			}
 
 			assert_eq!(5, counter);
-		});
+		};
+		smol::block_on(executor.run(future));
 	}
 
 	#[test]

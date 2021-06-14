@@ -14,4 +14,42 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use anyhow::Error;
+use std::{fs::File, path::PathBuf};
 pub use test_wasm::wasm_binary_unwrap;
+
+pub struct CsvBlock {
+	pub id: i32,
+	pub parent_hash: Vec<u8>,
+	pub hash: Vec<u8>,
+	pub block_num: i32,
+	pub state_root: Vec<u8>,
+	pub extrinsics_root: Vec<u8>,
+	pub digest: Vec<u8>,
+	pub ext: Vec<u8>,
+	pub spec: i32,
+}
+
+/// Get 10,000 blocks from kusama, starting at block 3000000
+pub fn get_kusama_blocks() -> Result<Vec<CsvBlock>, Error> {
+	let mut dir = PathBuf::from(std::env!("CARGO_MANIFEST_DIR"));
+	dir.extend(["test-data", "10K_ksm_blocks.csv"].iter());
+	let blocks = File::open(dir)?;
+	let mut rdr = csv::ReaderBuilder::new().has_headers(false).delimiter(b'\t').from_reader(blocks);
+	let mut blocks = Vec::new();
+	for line in rdr.records() {
+		let line = line?;
+		let id: i32 = line.get(0).unwrap().parse()?;
+		let parent_hash: Vec<u8> = hex::decode(line.get(1).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let hash: Vec<u8> = hex::decode(line.get(2).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let block_num: i32 = line.get(3).unwrap().parse()?;
+		let state_root: Vec<u8> = hex::decode(line.get(4).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let extrinsics_root: Vec<u8> = hex::decode(line.get(5).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let digest = hex::decode(line.get(6).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let ext: Vec<u8> = hex::decode(line.get(7).unwrap().strip_prefix("\\\\x").unwrap())?;
+		let spec: i32 = line.get(8).unwrap().parse()?;
+		let block = CsvBlock { id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec };
+		blocks.push(block);
+	}
+	Ok(blocks)
+}

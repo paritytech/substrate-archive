@@ -71,13 +71,12 @@ pub(crate) async fn missing_blocks_min_max(
 	Ok(sqlx::query_as!(
 		Series,
 		"SELECT missing_num
-        FROM (SELECT MAX(block_num) AS max_num FROM blocks) max,
-            GENERATE_SERIES($1, max_num) AS missing_num
-        WHERE
-        NOT EXISTS (SELECT id FROM blocks WHERE block_num = missing_num)
-        ORDER BY missing_num ASC
-        LIMIT $2
-        ",
+		FROM (SELECT MAX(block_num) AS max_num FROM blocks) max,
+		GENERATE_SERIES($1, max_num) AS missing_num
+		WHERE
+		NOT EXISTS (SELECT id FROM blocks WHERE block_num = missing_num)
+		ORDER BY missing_num ASC
+		LIMIT $2",
 		min,
 		max_block_load
 	)
@@ -92,26 +91,6 @@ pub(crate) async fn missing_blocks_min_max(
 pub(crate) async fn max_block(conn: &mut PgConnection) -> Result<Option<u32>> {
 	let max = sqlx::query_as!(Max, "SELECT MAX(block_num) FROM blocks").fetch_one(conn).await?;
 	Ok(max.max.map(|v| v as u32))
-}
-
-/// Will get blocks such that they exist in the `blocks` table but they
-/// do not exist in the `storage` table
-/// blocks are ordered by spec version
-///
-/// # Returns full blocks
-pub(crate) async fn blocks_storage_intersection(conn: &mut sqlx::PgConnection) -> Result<Vec<BlockModel>> {
-	#[allow(clippy::toplevel_ref_arg)]
-	sqlx::query_as!(
-		BlockModel,
-		"SELECT *
-        FROM blocks
-        WHERE NOT EXISTS (SELECT * FROM storage WHERE storage.block_num = blocks.block_num)
-        AND blocks.block_num != 0
-        ORDER BY blocks.spec",
-	)
-	.fetch_all(conn)
-	.await
-	.map_err(Into::into)
 }
 
 /// Get a block by id from the relational database
@@ -178,22 +157,82 @@ pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>> {
 		.collect())
 }
 
-/// Get all the blocks queued for execution in the background task queue.
-pub(crate) async fn get_all_blocks<B: BlockT + DeserializeOwned>(
-	conn: &mut PgConnection,
-) -> Result<impl Iterator<Item = Result<B>>> {
-	#[allow(clippy::toplevel_ref_arg)]
-	let blocks = sqlx::query_as!(Bytes, "SELECT data FROM _background_tasks WHERE job_type = 'execute_block'",)
-		.fetch_all(conn)
-		.await?;
+pub(crate) async fn missing_storage_items(conn: &mut sqlx::PgConnection) -> Result<Vec<BlockModel>> {
+	Ok(sqlx::query_as!(
+		BlockModel,
+		"
+		SELECT * FROM blocks WHERE block_num IN (
+			SELECT block_num
+				FROM
+				(SELECT block_num FROM blocks EXCEPT SELECT CAST(data->>'block_num' AS integer) FROM _background_tasks) AS b
+				WHERE NOT EXISTS (SELECT FROM storage WHERE storage.block_num = b.block_num)
+			)
+		ORDER BY block_num"
+	)
+	.fetch_all(conn)
+	.await?
+	.into_iter()
+	.collect())
+}
 
-	// temporary struct to deserialize job
-	#[derive(Deserialize)]
-	struct JobIn<BL: BlockT> {
-		block: BL,
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::{
+		database::{
+			models::{BlockModelDecoder, StorageModel},
+			Database, Insert,
+		},
+		types::BatchBlock,
+		TestGuard,
+	};
+	use sp_api::HeaderT;
+	use sp_storage::StorageKey;
+
+	use polkadot_service::{Block, Hash};
+
+	fn setup_data_scheme() {
+		let mock_bytes: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF];
+
+		let blocks: Vec<BlockModel> =
+			test_common::get_kusama_blocks().unwrap().drain(0..1000).map(BlockModel::from).collect();
+		let blocks = BlockModelDecoder::<Block>::with_vec(blocks).unwrap();
+
+		smol::block_on(async {
+			let database = Database::new(crate::DATABASE_URL.to_string()).await.unwrap();
+			// insert some dummy data to satisfy the foreign key constraint
+			sqlx::query("INSERT INTO metadata (version, meta) VALUES ($1, $2)")
+				.bind(26)
+				.bind(mock_bytes.as_slice())
+				.execute(&mut database.conn().await.unwrap())
+				.await
+				.unwrap();
+			database.insert(BatchBlock::new(blocks.clone())).await.unwrap();
+
+			// blocks 0 - 200 will be missing from the storage table
+			let mock_storage = blocks[200..]
+				.iter()
+				.map(|b| {
+					StorageModel::new(
+						b.inner.block.hash(),
+						*b.inner.block.header().number(),
+						false,
+						StorageKey(mock_bytes.clone()),
+						None,
+					)
+				})
+				.collect::<Vec<StorageModel<Hash>>>();
+
+			database.insert(mock_storage).await.unwrap();
+		});
+		println!("Sleeping...");
+		std::thread::sleep(std::time::Duration::from_secs(5));
 	}
-	Ok(blocks.into_iter().map(|r| {
-		let b: JobIn<B> = rmp_serde::from_read(r.data.as_slice())?;
-		Ok(b.block)
-	}))
+
+	#[test]
+	fn should_get_missing_storage() {
+		crate::initialize();
+		let _guard = TestGuard::lock();
+		let data = setup_data_scheme();
+	}
 }

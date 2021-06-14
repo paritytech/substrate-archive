@@ -208,6 +208,7 @@ where
 						Box::pin(actors.storage.send(SendStorage)),
 						Box::pin(actors.storage.send(SendTraces)),
 					);
+					log::info!("Ticking..");
 					if let (Err(_), Err(_), Err(_)) = future::join3(fut.0, fut.1, fut.2).await {
 						break;
 					}
@@ -311,7 +312,7 @@ where
 		let pool = actors.db.send(GetState::Pool).await??.pool();
 		let listener = Self::init_listeners(&conf).await?;
 		let mut conn = pool.acquire().await?;
-		Self::restore_missing_storage(&mut *conn).await?;
+		// Self::restore_missing_storage(&mut *conn).await?;
 
 		let env = Environment::<B, B::Hash, R, C, D>::new(
 			conf.backend().clone(),
@@ -367,24 +368,11 @@ where
 	/// from the task queue.
 	/// If any are found, they are re-queued.
 	async fn restore_missing_storage(conn: &mut sqlx::PgConnection) -> Result<()> {
-		let blocks: HashSet<u32> = queries::get_all_blocks::<B>(conn)
-			.await?
-			.map(|b| Ok((*b?.header().number()).into()))
-			.collect::<Result<_>>()?;
-		let mut missing_storage_blocks = queries::blocks_storage_intersection(conn).await?;
-		let difference: HashSet<u32> = missing_storage_blocks
-			.iter()
-			.map(|b| b.block_num as u32)
-			.collect::<HashSet<u32>>()
-			.difference(&blocks)
-			.copied()
+		let blocks = queries::missing_storage_items(conn).await?;
+		let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(blocks)?
+			.into_iter()
+			.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 			.collect();
-		missing_storage_blocks.retain(|b| difference.contains(&(b.block_num as u32)));
-		let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> =
-			BlockModelDecoder::with_vec(missing_storage_blocks)?
-				.into_iter()
-				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
-				.collect();
 		log::info!("Restoring {} missing storage entries. This could take a few minutes...", jobs.len());
 		coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
 		log::info!("Storage restored");
@@ -449,27 +437,3 @@ where
 		&self.config
 	}
 }
-/*
-struct Engine<B, C, H, D>
-where
-	B: Send + Sync + 'static,
-	H: Send + Sync + 'static,
-	D: Send + Sync + 'static,
-	C: Send + Sync + 'static,
-{
-	config: SystemConfig<B, D>,
-	actors: Actors<B, H, D>,
-	pool: PgPool,
-}
-
-impl<B, C, H, D> Engine<B, C, H, D> {
-	fn new(conf: SystemConfig<B, D>, client: Arc<C>, pool: PgPool) -> Result<Self> {
-		let actors =
-		Self {
-			conf, client, pool
-		}
-	}
-}
-
-// impl<B, H, D> Engine<B, H, D> {}
-*/
