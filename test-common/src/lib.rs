@@ -30,7 +30,7 @@ pub struct CsvBlock {
 	pub spec: i32,
 }
 
-/// Get 10,000 blocks from kusama, starting at block 3000000
+/// Get 10,000 blocks from kusama, starting at block 3,000,000
 pub fn get_kusama_blocks() -> Result<Vec<CsvBlock>, Error> {
 	let mut dir = PathBuf::from(std::env!("CARGO_MANIFEST_DIR"));
 	dir.extend(["test-data", "10K_ksm_blocks.csv"].iter());

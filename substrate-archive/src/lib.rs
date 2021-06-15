@@ -58,7 +58,7 @@ pub fn substrate_archive_default_dir() -> std::path::PathBuf {
 }
 
 #[cfg(test)]
-use test::{initialize, TestGuard, DATABASE_URL, PG_POOL};
+use test::{initialize, insert_dummy_sql, TestGuard, DATABASE_URL, PG_POOL};
 
 #[cfg(test)]
 mod test {
@@ -115,25 +115,22 @@ mod test {
 
 	static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
-	pub struct TestGuard<'a>(MutexGuard<'a, ()>);
-	impl<'a> TestGuard<'a> {
-		pub(crate) fn lock() -> Self {
-			let guard = TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"));
-			smol::block_on(async {
-				sqlx::query(
-					r#"
+	pub fn insert_dummy_sql() {
+		smol::block_on(async {
+			sqlx::query(
+				r#"
                     INSERT INTO metadata (version, meta)
                     VALUES($1, $2)
                 "#,
-				)
-				.bind(0)
-				.bind(&DUMMY_HASH[0..2])
-				.execute(&*PG_POOL)
-				.await
-				.unwrap();
+			)
+			.bind(0)
+			.bind(&DUMMY_HASH[0..2])
+			.execute(&*PG_POOL)
+			.await
+			.unwrap();
 
-				// insert a dummy block
-				sqlx::query(
+			// insert a dummy block
+			sqlx::query(
                     "
                         INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
                         VALUES($1, $2, $3, $4, $5, $6, $7, $8)
@@ -149,7 +146,13 @@ mod test {
                     .execute(&*PG_POOL)
                     .await
                     .expect("INSERT");
-			});
+		});
+	}
+
+	pub struct TestGuard<'a>(MutexGuard<'a, ()>);
+	impl<'a> TestGuard<'a> {
+		pub(crate) fn lock() -> Self {
+			let guard = TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"));
 			guard
 		}
 	}

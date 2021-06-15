@@ -157,22 +157,33 @@ pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>> {
 		.collect())
 }
 
-pub(crate) async fn missing_storage_items(conn: &mut sqlx::PgConnection) -> Result<Vec<BlockModel>> {
-	Ok(sqlx::query_as!(
-		BlockModel,
+/// Get all blocks that are missing from storage.
+/// Does not count blocks that are queued for execution in _background_tasks.
+pub(crate) async fn missing_storage_items_paginated(
+	conn: &mut sqlx::PgConnection,
+	limit: i64,
+	page: i64,
+) -> Result<Vec<BlockModel>> {
+	Ok(sqlx::query_as!(BlockModel,
 		"
-		SELECT * FROM blocks WHERE block_num IN (
-			SELECT block_num
-				FROM
-				(SELECT block_num FROM blocks EXCEPT SELECT CAST(data->>'block_num' AS integer) FROM _background_tasks) AS b
-				WHERE NOT EXISTS (SELECT FROM storage WHERE storage.block_num = b.block_num)
+			SELECT * FROM blocks WHERE block_num IN -- get all blocks that match the block numbers in the set constructed below
+			(
+				SELECT block_num FROM
+					(SELECT block_num FROM blocks EXCEPT -- All blocks except those that exist in _background_tasks
+						SELECT ('x' || lpad(hex, 16, '0'))::bit(64)::bigint AS block_num FROM (
+							SELECT LTRIM(data->'block'->'header'->>'number', '0x') FROM _background_tasks
+					) t(hex)) AS maybe_missing
+				WHERE NOT EXISTS (SELECT block_num FROM storage WHERE storage.block_num = maybe_missing.block_num) -- blocks that dont exist in storage
 			)
-		ORDER BY block_num"
+			ORDER BY block_num
+			LIMIT $1 OFFSET $2;
+		", limit, page * limit
 	)
-	.fetch_all(conn)
-	.await?
-	.into_iter()
-	.collect())
+	   .fetch_all(conn)
+	   .await?
+	   .into_iter()
+	   .collect()
+	)
 }
 
 #[cfg(test)]
@@ -186,53 +197,64 @@ mod tests {
 		types::BatchBlock,
 		TestGuard,
 	};
+	use anyhow::Error;
 	use sp_api::HeaderT;
 	use sp_storage::StorageKey;
+	use sqlx::{pool::PoolConnection, postgres::Postgres};
 
 	use polkadot_service::{Block, Hash};
 
-	fn setup_data_scheme() {
+	// Setup a data scheme such that:
+	// - blocks 0 - 200 will be missing from the `storage` table
+	// - blocks 100 - 200 will be present in the `_background_tasks` table
+	// - all blocks will be present in the `blocks` table
+	async fn setup_data_scheme() -> Result<PoolConnection<Postgres>, Error> {
 		let mock_bytes: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF];
 
-		let blocks: Vec<BlockModel> =
-			test_common::get_kusama_blocks().unwrap().drain(0..1000).map(BlockModel::from).collect();
-		let blocks = BlockModelDecoder::<Block>::with_vec(blocks).unwrap();
+		let blocks: Vec<BlockModel> = test_common::get_kusama_blocks()?.drain(0..1000).map(BlockModel::from).collect();
+		let blocks = BlockModelDecoder::<Block>::with_vec(blocks)?;
 
-		smol::block_on(async {
-			let database = Database::new(crate::DATABASE_URL.to_string()).await.unwrap();
-			// insert some dummy data to satisfy the foreign key constraint
-			sqlx::query("INSERT INTO metadata (version, meta) VALUES ($1, $2)")
-				.bind(26)
-				.bind(mock_bytes.as_slice())
-				.execute(&mut database.conn().await.unwrap())
-				.await
-				.unwrap();
-			database.insert(BatchBlock::new(blocks.clone())).await.unwrap();
+		let database = Database::new(crate::DATABASE_URL.to_string()).await?;
+		// insert some dummy data to satisfy the foreign key constraint
+		sqlx::query("INSERT INTO metadata (version, meta) VALUES ($1, $2)")
+			.bind(26)
+			.bind(mock_bytes.as_slice())
+			.execute(&mut database.conn().await?)
+			.await?;
+		database.insert(BatchBlock::new(blocks.clone())).await?;
 
-			// blocks 0 - 200 will be missing from the storage table
-			let mock_storage = blocks[200..]
-				.iter()
-				.map(|b| {
-					StorageModel::new(
-						b.inner.block.hash(),
-						*b.inner.block.header().number(),
-						false,
-						StorageKey(mock_bytes.clone()),
-						None,
-					)
-				})
-				.collect::<Vec<StorageModel<Hash>>>();
+		let mock_storage = blocks[200..]
+			.iter()
+			.map(|b| {
+				StorageModel::new(
+					b.inner.block.hash(),
+					*b.inner.block.header().number(),
+					false,
+					StorageKey(mock_bytes.clone()),
+					None,
+				)
+			})
+			.collect::<Vec<StorageModel<Hash>>>();
+		database.insert(mock_storage).await?;
 
-			database.insert(mock_storage).await.unwrap();
-		});
-		println!("Sleeping...");
-		std::thread::sleep(std::time::Duration::from_secs(5));
+		crate::database::tests::enqueue_mock_jobs(&blocks[100..200], &mut database.conn().await.unwrap()).await?;
+		Ok(database.conn().await?)
 	}
 
 	#[test]
-	fn should_get_missing_storage() {
+	fn should_get_missing_storage() -> Result<(), Error> {
 		crate::initialize();
 		let _guard = TestGuard::lock();
-		let data = setup_data_scheme();
+		let mut conn = smol::block_on(setup_data_scheme())?;
+		let items = smol::block_on(missing_storage_items_paginated(&mut conn, 10_000, 0))?
+			.into_iter()
+			.map(|b| b.block_num as u32)
+			.collect::<Vec<u32>>();
+		println!("{:?}", items);
+
+		assert_eq!(items.len(), 100);
+		assert_eq!(items.iter().min(), Some(&3_000_001u32));
+		assert_eq!(items.iter().max(), Some(&3_000_100u32));
+		Ok(())
 	}
 }

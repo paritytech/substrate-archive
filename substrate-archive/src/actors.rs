@@ -21,11 +21,7 @@ mod workers;
 use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
 use coil::Job as _;
-use futures::{
-	executor::block_on,
-	future::{self, BoxFuture},
-	FutureExt,
-};
+use futures::{executor::block_on, future, FutureExt};
 use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
 use smol::Task;
@@ -202,7 +198,6 @@ where
 		let _handle = executor
 			.spawn(async move {
 				loop {
-					// <BoxFuture<'_, Result<(), Disconnected>>>
 					let fut = (
 						Box::pin(actors.blocks.send(Crawl)),
 						Box::pin(actors.storage.send(SendStorage)),
@@ -312,7 +307,7 @@ where
 		let pool = actors.db.send(GetState::Pool).await??.pool();
 		let listener = Self::init_listeners(&conf).await?;
 		let mut conn = pool.acquire().await?;
-		// Self::restore_missing_storage(&mut *conn).await?;
+		Self::restore_missing_storage(&mut *conn).await?;
 
 		let env = Environment::<B, B::Hash, R, C, D>::new(
 			conf.backend().clone(),
@@ -368,13 +363,20 @@ where
 	/// from the task queue.
 	/// If any are found, they are re-queued.
 	async fn restore_missing_storage(conn: &mut sqlx::PgConnection) -> Result<()> {
-		let blocks = queries::missing_storage_items(conn).await?;
-		let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(blocks)?
-			.into_iter()
-			.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
-			.collect();
-		log::info!("Restoring {} missing storage entries. This could take a few minutes...", jobs.len());
-		coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
+		let mut page = 0;
+		loop {
+			let blocks = queries::missing_storage_items_paginated(conn, 10_000, page).await?;
+			if blocks.len() == 0 {
+				break;
+			}
+			page += 1;
+			let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(blocks)?
+				.into_iter()
+				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
+				.collect();
+			log::info!("Restoring {} missing storage entries. This could take a few minutes...", jobs.len());
+			coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
+		}
 		log::info!("Storage restored");
 		Ok(())
 	}

@@ -214,6 +214,7 @@ mod tests {
 	fn should_get_notifications() {
 		crate::initialize();
 		let _guard = crate::TestGuard::lock();
+		crate::insert_dummy_sql();
 
 		let executor = Arc::new(smol::Executor::new());
 		let executor0 = executor.clone();
