@@ -19,10 +19,7 @@
 use std::convert::TryFrom;
 
 use hashbrown::HashSet;
-use serde::{de::DeserializeOwned, Deserialize};
 use sqlx::PgConnection;
-
-use sp_runtime::traits::Block as BlockT;
 
 use crate::{database::models::BlockModel, error::Result};
 
@@ -166,23 +163,20 @@ pub(crate) async fn missing_storage_items_paginated(
 ) -> Result<Vec<BlockModel>> {
 	Ok(sqlx::query_as!(BlockModel,
 		"
-			SELECT * FROM blocks WHERE block_num IN -- get all blocks that match the block numbers in the set constructed below
-			(
-				SELECT block_num FROM
-					(SELECT block_num FROM blocks EXCEPT -- All blocks except those that exist in _background_tasks
-						SELECT ('x' || lpad(hex, 16, '0'))::bit(64)::bigint AS block_num FROM (
-							SELECT LTRIM(data->'block'->'header'->>'number', '0x') FROM _background_tasks
-					) t(hex)) AS maybe_missing
-				WHERE NOT EXISTS (SELECT block_num FROM storage WHERE storage.block_num = maybe_missing.block_num) -- blocks that dont exist in storage
-			)
-			ORDER BY block_num
-			LIMIT $1 OFFSET $2;
+		SELECT * FROM blocks WHERE block_num IN
+		(
+			SELECT block_num FROM
+				(SELECT block_num FROM blocks EXCEPT
+					SELECT (HEX_TO_INT(LTRIM(data->'block'->'header'->>'number', '0x'))) AS block_num FROM _background_tasks) AS maybe_missing
+			WHERE NOT EXISTS
+				(SELECT block_num FROM storage WHERE storage.block_num = maybe_missing.block_num)
+		)
+		ORDER BY block_num
+		LIMIT $1 OFFSET $2;
 		", limit, page * limit
 	)
 	   .fetch_all(conn)
 	   .await?
-	   .into_iter()
-	   .collect()
 	)
 }
 

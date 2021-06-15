@@ -22,15 +22,14 @@ use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duratio
 
 use coil::Job as _;
 use futures::{executor::block_on, future, FutureExt};
-use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
 use smol::Task;
-use xtra::{prelude::*, Disconnected};
+use xtra::prelude::*;
 
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDb};
 
@@ -45,7 +44,6 @@ use crate::{
 	database::{models::BlockModelDecoder, queries, Channel, Listener},
 	error::Result,
 	tasks::Environment,
-	types::Die,
 };
 use easy_parallel::Parallel;
 
