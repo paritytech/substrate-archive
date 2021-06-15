@@ -305,7 +305,7 @@ where
 		let pool = actors.db.send(GetState::Pool).await??.pool();
 		let listener = Self::init_listeners(&conf).await?;
 		let mut conn = pool.acquire().await?;
-		Self::restore_missing_storage(&mut *conn).await?;
+		Self::restore_missing_storage(&mut *conn, &conf).await?;
 
 		let env = Environment::<B, B::Hash, R, C, D>::new(
 			conf.backend().clone(),
@@ -360,10 +360,11 @@ where
 	/// Checks if any blocks that should be executed are missing
 	/// from the task queue.
 	/// If any are found, they are re-queued.
-	async fn restore_missing_storage(conn: &mut sqlx::PgConnection) -> Result<()> {
+	async fn restore_missing_storage(conn: &mut sqlx::PgConnection, conf: &SystemConfig<B, D>) -> Result<()> {
 		let mut page = 0;
 		loop {
-			let blocks = queries::missing_storage_items_paginated(conn, 10_000, page).await?;
+			let blocks =
+				queries::missing_storage_items_paginated(conn, conf.control.max_block_load.into(), page).await?;
 			if blocks.len() == 0 {
 				break;
 			}

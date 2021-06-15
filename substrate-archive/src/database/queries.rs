@@ -182,13 +182,13 @@ mod tests {
 	use crate::{
 		database::{
 			models::{BlockModelDecoder, StorageModel},
-			Database, Insert,
+			Database,
 		},
 		types::BatchBlock,
 		TestGuard,
 	};
 	use anyhow::Error;
-	use sp_api::HeaderT;
+	use sp_api::{BlockT, HeaderT};
 	use sp_storage::StorageKey;
 	use sqlx::{pool::PoolConnection, postgres::Postgres};
 
