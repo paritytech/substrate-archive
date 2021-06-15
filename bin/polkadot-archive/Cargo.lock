@@ -1020,8 +1020,9 @@ dependencies = [
 
 [[package]]
 name = "coil"
-version = "0.3.2"
-source = "git+https://github.com/insipx/coil?branch=master#8386fc49d0dfd374019d4c60d17fb10fb06ab089"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2711de6d907a491a6ac9a5197b5a0d8b249c4b539c9b0ad32fdec011c194da89"
 dependencies = [
  "async-trait",
  "coil_proc_macro",
@@ -1041,8 +1042,9 @@ dependencies = [
 
 [[package]]
 name = "coil_proc_macro"
-version = "0.2.0"
-source = "git+https://github.com/insipx/coil?branch=master#8386fc49d0dfd374019d4c60d17fb10fb06ab089"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6dcb9b2cf620716c0a077ac2fd02f43aa69a07cac300aecd23db32a5ea0d89a2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8355,6 +8357,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "smol-timeout"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "847d777e2c6c166bad26264479e80a9820f3d364fcb4a0e23cd57bbfa8e94961"
+dependencies = [
+ "async-io",
+ "pin-project-lite 0.1.12",
+]
+
+[[package]]
 name = "snow"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9403,6 +9415,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smol",
+ "smol-timeout",
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",

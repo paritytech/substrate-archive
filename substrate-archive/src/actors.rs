@@ -24,6 +24,7 @@ use coil::Job as _;
 use futures::{executor::block_on, future, FutureExt};
 use serde::{de::DeserializeOwned, Deserialize};
 use smol::Task;
+use smol_timeout::TimeoutExt;
 use xtra::prelude::*;
 
 use sc_client_api::backend;
@@ -41,7 +42,7 @@ use self::workers::{
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use crate::{
 	archive::Archive,
-	database::{models::BlockModelDecoder, queries, Channel, Listener},
+	database::{models::BlockModelDecoder, queries, Channel, DbConn, Listener},
 	error::Result,
 	tasks::Environment,
 };
@@ -213,7 +214,7 @@ where
 
 	async fn kill(self) -> Result<()> {
 		for task in self.tasks.into_iter() {
-			std::mem::drop(task);
+			task.cancel().await;
 		}
 		Ok(())
 	}
@@ -304,8 +305,8 @@ where
 		actors.tick_interval(conf.executor.clone()).await?;
 		let pool = actors.db.send(GetState::Pool).await??.pool();
 		let listener = Self::init_listeners(&conf).await?;
-		let mut conn = pool.acquire().await?;
-		Self::restore_missing_storage(&mut *conn, &conf).await?;
+		let conn = pool.acquire().await?;
+		let storage_handle = conf.executor.spawn(Self::restore_missing_storage(conn, conf.clone()));
 
 		let env = Environment::<B, B::Hash, R, C, D>::new(
 			conf.backend().clone(),
@@ -338,6 +339,8 @@ where
 				Err(e) => log::error!("{:?}", e),
 			}
 		}
+
+		storage_handle.timeout(Duration::from_millis(100)).await.transpose()?;
 		future::join(actors.kill(), listener.kill()).await.0?;
 		Ok(())
 	}
@@ -360,11 +363,11 @@ where
 	/// Checks if any blocks that should be executed are missing
 	/// from the task queue.
 	/// If any are found, they are re-queued.
-	async fn restore_missing_storage(conn: &mut sqlx::PgConnection, conf: &SystemConfig<B, D>) -> Result<()> {
+	async fn restore_missing_storage(mut conn: DbConn, conf: SystemConfig<B, D>) -> Result<()> {
 		let mut page = 0;
 		loop {
 			let blocks =
-				queries::missing_storage_items_paginated(conn, conf.control.max_block_load.into(), page).await?;
+				queries::missing_storage_items_paginated(&mut *conn, conf.control.max_block_load.into(), page).await?;
 			if blocks.len() == 0 {
 				break;
 			}
