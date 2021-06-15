@@ -8,7 +8,7 @@ edition = "2018"
 # external
 async-trait = "0.1"
 chrono = "0.4.19"
-coil = { git = "https://github.com/insipx/coil", branch = "master" }
+coil = "0.4"
 dirs = { version = "3", package = "directories" }
 fdlimit = "0.2"
 fern = { version = "0.6", features = ["colored"] }
