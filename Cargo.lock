@@ -1022,7 +1022,8 @@ dependencies = [
 [[package]]
 name = "coil"
 version = "0.4.0"
-source = "git+https://github.com/insipx/coil?branch=master#f598e66b93f478c4d8e6ca06d4c66db02359316b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2711de6d907a491a6ac9a5197b5a0d8b249c4b539c9b0ad32fdec011c194da89"
 dependencies = [
  "async-trait",
  "coil_proc_macro",
@@ -1043,7 +1044,8 @@ dependencies = [
 [[package]]
 name = "coil_proc_macro"
 version = "0.3.0"
-source = "git+https://github.com/insipx/coil?branch=master#f598e66b93f478c4d8e6ca06d4c66db02359316b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6dcb9b2cf620716c0a077ac2fd02f43aa69a07cac300aecd23db32a5ea0d89a2"
 dependencies = [
  "proc-macro2",
  "quote",

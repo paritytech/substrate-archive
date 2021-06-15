@@ -48,11 +48,6 @@ struct BlockNum {
 	block_num: i32,
 }
 
-// Return type of queries that `SELECT data`
-struct Bytes {
-	data: Vec<u8>,
-}
-
 /// Get missing blocks from the relational database between numbers `min` and
 /// MAX(block_num). LIMIT result to length `max_block_load`. The highest effective
 /// value for `min` is i32::MAX.
@@ -161,7 +156,7 @@ pub(crate) async fn missing_storage_items_paginated(
 	limit: i64,
 	page: i64,
 ) -> Result<Vec<BlockModel>> {
-	Ok(sqlx::query_as!(BlockModel,
+	let blocks = sqlx::query_as!(BlockModel,
 		"
 		SELECT * FROM blocks WHERE block_num IN
 		(
@@ -176,8 +171,9 @@ pub(crate) async fn missing_storage_items_paginated(
 		", limit, page * limit
 	)
 	   .fetch_all(conn)
-	   .await?
-	)
+	   .await?;
+
+	Ok(blocks)
 }
 
 #[cfg(test)]
