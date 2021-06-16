@@ -202,7 +202,6 @@ where
 						Box::pin(actors.storage.send(SendStorage)),
 						Box::pin(actors.storage.send(SendTraces)),
 					);
-					log::info!("Ticking..");
 					if let (Err(_), Err(_), Err(_)) = future::join3(fut.0, fut.1, fut.2).await {
 						break;
 					}
@@ -214,7 +213,7 @@ where
 
 	async fn kill(self) -> Result<()> {
 		for task in self.tasks.into_iter() {
-			task.cancel().await;
+			std::mem::drop(task);
 		}
 		Ok(())
 	}
@@ -328,7 +327,7 @@ where
 				Err(flume::TryRecvError::Empty) => (),
 				Err(flume::TryRecvError::Disconnected) => break,
 				Ok(_) => {
-					log::info!("closing main loop");
+					log::info!("Closing main loop..");
 					break;
 				}
 			}
@@ -414,21 +413,15 @@ where
 	}
 
 	fn shutdown(self) -> Result<()> {
-		let mut count = 0;
 		loop {
 			match self.kill_tx.send_timeout((), Duration::from_secs(5)) {
 				Err(_) => break, // everyone got the kill tx
 				Ok(_) => {
-					if count % 2 == 0 {
-						log::info!("Sending! Count is {}", count);
-					}
 					std::thread::sleep(std::time::Duration::from_millis(20));
-					count += 1;
 					continue;
 				}
 			}
 		}
-		log::info!("Joining!");
 		self.handle.join()?;
 		Ok(())
 	}
