@@ -58,5 +58,5 @@ sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = 
 anyhow = "1"
 pretty_env_logger = "0.4.0"
 tempfile = "3.2"
-once_cell = "1.7.2"
+once_cell = "1.8.0"
 dotenv = "0.15.0"
