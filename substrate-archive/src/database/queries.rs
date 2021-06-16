@@ -62,9 +62,10 @@ pub(crate) async fn missing_blocks_min_max(
 	#[allow(clippy::toplevel_ref_arg)]
 	Ok(sqlx::query_as!(
 		Series,
-		"SELECT missing_num
+		"
+		SELECT missing_num
 		FROM (SELECT MAX(block_num) AS max_num FROM blocks) max,
-		GENERATE_SERIES($1, max_num) AS missing_num
+			GENERATE_SERIES($1, max_num) AS missing_num
 		WHERE
 		NOT EXISTS (SELECT id FROM blocks WHERE block_num = missing_num)
 		ORDER BY missing_num ASC
