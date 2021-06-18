@@ -95,11 +95,14 @@ pub fn init(config: LoggerConfig) -> io::Result<()> {
 			.level(file.level)
 			.level_for("substrate_archive", file.level)
 			.level_for("cranelift_wasm", log::LevelFilter::Error)
-			.level_for("sqlx", log::LevelFilter::Warn)
+			.level_for("sqlx", log::LevelFilter::Debug)
 			.level_for("staking", log::LevelFilter::Warn)
 			.level_for("cranelift_codegen", log::LevelFilter::Warn)
 			.level_for("wasm-heap", log::LevelFilter::Error)
 			.level_for("regalloc", log::LevelFilter::Warn)
+			.level_for("tracing", log::LevelFilter::Warn)
+			.level_for("trie", log::LevelFilter::Warn)
+			.level_for("state", log::LevelFilter::Warn)
 			.format(move |out, message, record| {
 				out.finish(format_args!(
 					"{} [{}][{}] {}::{};{}",

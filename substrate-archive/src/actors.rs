@@ -32,7 +32,7 @@ use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
-use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDb};
+use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDb, RuntimeConfig};
 
 use self::workers::{
 	blocks::{Crawl, ReIndex},
@@ -55,6 +55,7 @@ pub struct SystemConfig<B, D> {
 	pub pg_url: String,
 	pub meta: Meta<B>,
 	pub control: ControlConfig,
+	pub runtime: RuntimeConfig,
 	pub tracing_targets: Option<String>,
 	pub executor: Arc<smol::Executor<'static>>,
 }
@@ -66,6 +67,7 @@ impl<B, D> Clone for SystemConfig<B, D> {
 			pg_url: self.pg_url.clone(),
 			meta: self.meta.clone(),
 			control: self.control,
+			runtime: self.runtime.clone(),
 			tracing_targets: self.tracing_targets.clone(),
 			executor: self.executor.clone(),
 		}
@@ -81,9 +83,6 @@ pub struct ControlConfig {
 	/// Times out if tasks don't start execution in the thread pool within `task_timeout` seconds.
 	#[serde(default = "default_task_timeout")]
 	pub(crate) task_timeout: u64,
-	/// Maximum tasks to queue in the threadpool.
-	#[serde(default = "default_task_workers")]
-	pub(crate) max_tasks: usize,
 	/// Maximum amount of blocks to index at once.
 	#[serde(default = "default_max_block_load")]
 	pub(crate) max_block_load: u32,
@@ -94,7 +93,6 @@ impl Default for ControlConfig {
 		Self {
 			task_workers: default_task_workers(),
 			task_timeout: default_task_timeout(),
-			max_tasks: default_max_tasks(),
 			max_block_load: default_max_block_load(),
 		}
 	}
@@ -106,10 +104,6 @@ fn default_task_workers() -> usize {
 
 const fn default_task_timeout() -> u64 {
 	20
-}
-
-const fn default_max_tasks() -> usize {
-	64
 }
 
 const fn default_max_block_load() -> u32 {
@@ -125,10 +119,11 @@ where
 		pg_url: String,
 		meta: Meta<B>,
 		control: ControlConfig,
+		runtime: RuntimeConfig,
 		tracing_targets: Option<String>,
 	) -> Self {
 		let executor = Arc::new(smol::Executor::new());
-		Self { backend, pg_url, meta, control, tracing_targets, executor }
+		Self { backend, pg_url, meta, control, tracing_targets, runtime, executor }
 	}
 
 	pub fn backend(&self) -> &Arc<ReadOnlyBackend<B, D>> {
@@ -177,9 +172,9 @@ where
 		let (db, fut) = db.run();
 		tasks.push(conf.executor.spawn(fut));
 		let storage = workers::StorageAggregator::new(db.clone()).create(None);
-		let metadata = workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None);
 		let (storage, fut) = storage.run();
 		tasks.push(conf.executor.spawn(fut));
+		let metadata = workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None);
 		let (metadata, fut) = metadata.run();
 		tasks.push(conf.executor.spawn(fut));
 		let blocks = workers::BlocksIndexer::new(&conf, db.clone(), metadata.clone()).create(None);
@@ -212,8 +207,13 @@ where
 	}
 
 	async fn kill(self) -> Result<()> {
-		for task in self.tasks.into_iter() {
-			std::mem::drop(task);
+		std::mem::drop(self.db);
+		std::mem::drop(self.storage);
+		std::mem::drop(self.metadata);
+		std::mem::drop(self.blocks);
+		for (i, task) in self.tasks.into_iter().enumerate() {
+			log::info!("Cancelling {}", i);
+			task.cancel().await.unwrap();
 		}
 		Ok(())
 	}
@@ -303,7 +303,7 @@ where
 		let actors = Actors::spawn(&conf).await?;
 		actors.tick_interval(conf.executor.clone()).await?;
 		let pool = actors.db.send(GetState::Pool).await??.pool();
-		let listener = Self::init_listeners(&conf).await?;
+		// let listener = Self::init_listeners(&conf).await?;
 		let conn = pool.acquire().await?;
 		let storage_handle = conf.executor.spawn(Self::restore_missing_storage(conn, conf.clone()));
 
@@ -317,7 +317,7 @@ where
 
 		let runner = coil::Runner::builder(env, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
-			.num_threads(conf.control.task_workers)
+			.num_threads(conf.runtime.block_workers)
 			// times out if tasks don't start execution on the threadpool within 20 seconds.
 			.timeout(Duration::from_secs(conf.control.task_timeout))
 			.build()?;
@@ -339,8 +339,11 @@ where
 			}
 		}
 
+		log::info!("killing storage restore..");
 		storage_handle.timeout(Duration::from_millis(100)).await.transpose()?;
-		future::join(actors.kill(), listener.kill()).await.0?;
+		log::info!("Killing actors..");
+		actors.kill().timeout(Duration::from_millis(500)).await.transpose()?;
+		// future::join(actors.kill(), listener.kill()).await.0?;
 		Ok(())
 	}
 
@@ -364,21 +367,25 @@ where
 	/// If any are found, they are re-queued.
 	async fn restore_missing_storage(mut conn: DbConn, conf: SystemConfig<B, D>) -> Result<()> {
 		let mut page = 0;
+		let nums = queries::missing_storage_blocks(&mut *conn).await?;
+		log::info!("Restoring {} missing storage entries.", nums.len());
 		loop {
 			let blocks =
-				queries::missing_storage_items_paginated(&mut *conn, conf.control.max_block_load.into(), page).await?;
+				queries::blocks_paginated(&mut *conn, nums.as_slice(), conf.control.max_block_load.into(), page)
+					.await?;
+			log::debug!("Blocks.len() == {}", blocks.len());
 			if blocks.len() == 0 {
 				break;
 			}
+			log::debug!("[STORAGE] Inserted {} blocks", blocks.len());
 			page += 1;
 			let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(blocks)?
 				.into_iter()
 				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 				.collect();
-			log::info!("Restoring {} missing storage entries. This could take a few minutes...", jobs.len());
 			coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
 		}
-		log::info!("Storage restored");
+		log::info!("[STORAGE] Storage restored");
 		Ok(())
 	}
 }

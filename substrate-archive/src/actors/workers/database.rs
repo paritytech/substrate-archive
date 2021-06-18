@@ -23,7 +23,7 @@ use xtra::prelude::*;
 use crate::{
 	database::{models::StorageModel, queries, Database, DbConn},
 	error::Result,
-	types::{BatchBlock, BatchStorage, Block, Die, Metadata, Storage},
+	types::{BatchBlock, BatchStorage, Block, Metadata, Storage},
 	wasm_tracing::Traces,
 };
 
@@ -262,12 +262,5 @@ impl Handler<GetState> for DatabaseActor {
 				Ok(StateResponse::Pool(pool))
 			}
 		}
-	}
-}
-
-#[async_trait::async_trait]
-impl Handler<Die> for DatabaseActor {
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
-		ctx.stop();
 	}
 }

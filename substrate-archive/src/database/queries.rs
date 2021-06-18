@@ -131,7 +131,7 @@ pub(crate) async fn has_block<H: AsRef<[u8]>>(hash: H, conn: &mut PgConnection) 
 pub(crate) async fn has_blocks(nums: &[u32], conn: &mut PgConnection) -> Result<Vec<u32>> {
 	let nums: Vec<i32> = nums.iter().filter_map(|n| i32::try_from(*n).ok()).collect();
 	#[allow(clippy::toplevel_ref_arg)]
-	Ok(sqlx::query_as!(BlockNum, "SELECT block_num FROM blocks WHERE block_num = ANY ($1)", &nums,)
+	Ok(sqlx::query_as!(BlockNum, "SELECT block_num FROM blocks WHERE block_num = ANY ($1)", &nums)
 		.fetch_all(conn)
 		.await?
 		.into_iter()
@@ -150,31 +150,40 @@ pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>> {
 		.collect())
 }
 
-/// Get all blocks that are missing from storage.
-/// Does not count blocks that are queued for execution in _background_tasks.
-pub(crate) async fn missing_storage_items_paginated(
+pub(crate) async fn missing_storage_blocks(conn: &mut sqlx::PgConnection) -> Result<Vec<u32>> {
+	let blocks: Vec<u32> = sqlx::query_as!(BlockNum,
+	   r#"SELECT block_num AS "block_num!" FROM
+            (SELECT block_num FROM blocks EXCEPT
+                SELECT (HEX_TO_INT(LTRIM(data->'block'->'header'->>'number', '0x'))) AS block_num FROM _background_tasks WHERE job_type = 'execute_block') AS maybe_missing
+        WHERE NOT EXISTS
+	        (SELECT block_num FROM storage WHERE storage.block_num = maybe_missing.block_num)
+		ORDER BY block_num"#
+	)
+		.fetch_all(conn)
+		.await?
+		.into_iter()
+		.map(|r| r.block_num as u32)
+		.collect();
+	Ok(blocks)
+}
+
+/// Get full blocks in pages
+pub(crate) async fn blocks_paginated(
 	conn: &mut sqlx::PgConnection,
+	nums: &[u32],
 	limit: i64,
 	page: i64,
 ) -> Result<Vec<BlockModel>> {
-	let blocks = sqlx::query_as!(BlockModel,
-		"
-		SELECT * FROM blocks WHERE block_num IN
-		(
-			SELECT block_num FROM
-				(SELECT block_num FROM blocks EXCEPT
-					SELECT (HEX_TO_INT(LTRIM(data->'block'->'header'->>'number', '0x'))) AS block_num FROM _background_tasks) AS maybe_missing
-			WHERE NOT EXISTS
-				(SELECT block_num FROM storage WHERE storage.block_num = maybe_missing.block_num)
-		)
-		ORDER BY block_num
-		LIMIT $1 OFFSET $2;
-		", limit, page * limit
-	)
-	   .fetch_all(conn)
-	   .await?;
-
-	Ok(blocks)
+	let nums: Vec<i32> = nums.iter().filter_map(|n| i32::try_from(*n).ok()).collect();
+	let mut query = String::from("SELECT * FROM blocks WHERE block_num IN (");
+	for (i, num) in nums.iter().enumerate() {
+		itoa::fmt(&mut query, *num)?;
+		if i != nums.len() - 1 {
+			query.push_str(",");
+		}
+	}
+	query.push_str(") ORDER BY block_num LIMIT $1 OFFSET $2");
+	Ok(sqlx::query_as(query.as_str()).bind(limit).bind(page * limit).fetch_all(conn).await?)
 }
 
 #[cfg(test)]
@@ -194,6 +203,9 @@ mod tests {
 	use sqlx::{pool::PoolConnection, postgres::Postgres};
 
 	use polkadot_service::{Block, Hash};
+
+	// kusama block height dataset starts at this number
+	const BLOCK_START: usize = 3_000_000;
 
 	// Setup a data scheme such that:
 	// - blocks 0 - 200 will be missing from the `storage` table
@@ -237,15 +249,46 @@ mod tests {
 		crate::initialize();
 		let _guard = TestGuard::lock();
 		let mut conn = smol::block_on(setup_data_scheme())?;
-		let items = smol::block_on(missing_storage_items_paginated(&mut conn, 10_000, 0))?
-			.into_iter()
-			.map(|b| b.block_num as u32)
-			.collect::<Vec<u32>>();
-		println!("{:?}", items);
+		let items = smol::block_on(missing_storage_blocks(&mut conn))?;
 
 		assert_eq!(items.len(), 100);
 		assert_eq!(items.iter().min(), Some(&3_000_001u32));
 		assert_eq!(items.iter().max(), Some(&3_000_100u32));
 		Ok(())
+	}
+
+	#[test]
+	fn should_paginate_blocks() -> Result<(), Error> {
+		crate::initialize();
+		let _guard = TestGuard::lock();
+		smol::block_on(async {
+			let mut conn = setup_data_scheme().await?;
+			let mut block_nums: Vec<u32> =
+				vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
+			block_nums.iter_mut().for_each(|b| {
+				*b += BLOCK_START as u32;
+			});
+			let blocks = blocks_paginated(&mut conn, block_nums.as_slice(), 7, 0)
+				.await?
+				.iter()
+				.map(|b| (b.block_num - BLOCK_START as i32))
+				.collect::<Vec<i32>>();
+			assert_eq!(vec![1, 2, 3, 4, 5, 6, 7], blocks);
+
+			let blocks = blocks_paginated(&mut conn, block_nums.as_slice(), 7, 1)
+				.await?
+				.iter()
+				.map(|b| b.block_num - BLOCK_START as i32)
+				.collect::<Vec<i32>>();
+			assert_eq!(vec![8, 9, 10, 11, 12, 13, 14], blocks);
+
+			let blocks = blocks_paginated(&mut conn, block_nums.as_slice(), 7, 2)
+				.await?
+				.iter()
+				.map(|b| b.block_num - BLOCK_START as i32)
+				.collect::<Vec<i32>>();
+			assert_eq!(vec![15, 16, 17, 18, 19, 20, 21], blocks);
+			Ok(())
+		})
 	}
 }

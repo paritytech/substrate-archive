@@ -26,7 +26,7 @@ use crate::{
 	actors::workers::database::{DatabaseActor, GetState},
 	database::{queries, DbConn},
 	error::Result,
-	types::{BatchBlock, Block, Die, Metadata},
+	types::{BatchBlock, Block, Metadata},
 };
 
 /// Actor to fetch metadata about a block/blocks from RPC
@@ -103,16 +103,5 @@ where
 		if let Err(e) = self.batch_block_handler(blks).await {
 			log::error!("{}", e.to_string());
 		}
-	}
-}
-
-#[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<Die> for MetadataActor<B>
-where
-	NumberFor<B>: Into<u32>,
-	B::Hash: Unpin,
-{
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
-		ctx.stop();
 	}
 }

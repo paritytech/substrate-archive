@@ -247,15 +247,6 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 		self
 	}
 
-	/// Set the maximum tasks to queue in the threadpool.
-	///
-	/// # Default
-	/// Defaults to 64.
-	pub fn max_tasks(mut self, max: usize) -> Self {
-		self.config.control.max_tasks = max;
-		self
-	}
-
 	/// Set the number of blocks to index at once.
 	///
 	/// # Default
@@ -377,8 +368,8 @@ where
 		}
 
 		// configure substrate client and backend
-		let client = Arc::new(runtime_api::<B, R, D, DB>(db.clone(), self.config.runtime)?);
-		let backend = Arc::new(ReadOnlyBackend::new(db, true));
+		let backend = Arc::new(ReadOnlyBackend::new(db.clone(), true));
+		let client = Arc::new(runtime_api::<B, R, D, DB>(self.config.runtime.clone(), backend.clone())?);
 		Self::startup_info(&*client, &*backend)?;
 
 		// config postgres database
@@ -396,6 +387,7 @@ where
 			pg_url,
 			client.clone(),
 			self.config.control,
+			self.config.runtime,
 			self.config.wasm_tracing.map(|t| t.targets),
 		);
 		let sys = System::<_, R, _, _>::new(client, config)?;

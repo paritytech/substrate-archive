@@ -33,7 +33,7 @@ use crate::{
 	},
 	database::queries,
 	error::{ArchiveError, Result},
-	types::{BatchBlock, Block, Die},
+	types::{BatchBlock, Block},
 };
 type DatabaseAct = Address<DatabaseActor>;
 type MetadataAct<B> = Address<MetadataActor<B>>;
@@ -74,13 +74,21 @@ where
 		let backend = self.backend.clone();
 		let now = std::time::Instant::now();
 		let gather_blocks = move || -> Result<Vec<SignedBlock<B>>> {
-			Ok(backend.iter_blocks(|n| fun(n))?.enumerate().map(|(_, b)| b).collect())
+			log::debug!("gathering blocks");
+			let res = backend.iter_blocks(|n| fun(n))?.collect();
+			log::debug!("Finished gathering");
+			Ok(res)
 		};
+		log::debug!("Here 1");
 		let blocks = smol::unblock(gather_blocks).await?;
+		log::debug!("Here 2");
 		if blocks.len() > 0 {
 			log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
+		} else {
+			return Ok(Vec::new());
 		}
 		let cache = self.rt_cache.clone();
+		log::debug!("Here 3");
 		let blocks = smol::unblock(move || {
 			// Finds the versions of all the blocks, returns a new set of type `Block`.
 			// panics if our search fails to get the version for a block.
@@ -144,6 +152,7 @@ where
 	async fn crawl(&mut self) -> Result<Vec<Block<B>>> {
 		let copied_last_max = self.last_max;
 		let max_to_collect = copied_last_max + self.max_block_load;
+		log::debug!("Collecting Blocks!");
 		let blocks = self
 			.collect_blocks(move |n| {
 				if copied_last_max == 0 {
@@ -154,6 +163,7 @@ where
 				}
 			})
 			.await?;
+		log::debug!("Finished Collecting blocks!");
 		self.last_max = blocks
 			.iter()
 			.map(|b| (*b.inner.block.header().number()).into())
@@ -177,6 +187,7 @@ where
 	B::Hash: Unpin,
 {
 	async fn handle(&mut self, _: Crawl, ctx: &mut Context<Self>) {
+		log::debug!("Handling Crawl!");
 		match self.crawl().await {
 			Err(e) => log::error!("{}", e.to_string()),
 			Ok(b) => {
@@ -185,6 +196,7 @@ where
 				}
 			}
 		}
+		log::debug!("Exiting Crawl!");
 	}
 }
 
@@ -200,22 +212,13 @@ where
 	B::Hash: Unpin,
 {
 	async fn handle(&mut self, _: ReIndex, ctx: &mut Context<Self>) {
+		log::debug!("Handling re_index!");
 		match self.re_index().await {
 			// stop if disconnected from the metadata actor
 			Err(ArchiveError::Disconnected) => ctx.stop(),
 			Ok(()) => {}
 			Err(e) => log::error!("{}", e.to_string()),
 		}
-	}
-}
-
-#[async_trait::async_trait]
-impl<B: BlockT + Unpin, D: ReadOnlyDb + 'static> Handler<Die> for BlocksIndexer<B, D>
-where
-	NumberFor<B>: Into<u32>,
-	B::Hash: Unpin,
-{
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
-		ctx.stop();
+		log::debug!("Exiting re_index!");
 	}
 }
