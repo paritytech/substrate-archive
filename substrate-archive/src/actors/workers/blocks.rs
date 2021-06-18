@@ -77,7 +77,7 @@ where
 			Ok(backend.iter_blocks(|n| fun(n))?.enumerate().map(|(_, b)| b).collect())
 		};
 		let blocks = smol::unblock(gather_blocks).await?;
-		if blocks.len() > 0 {
+		if !blocks.is_empty() {
 			log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
 		}
 		let cache = self.rt_cache.clone();

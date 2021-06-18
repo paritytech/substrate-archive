@@ -182,7 +182,7 @@ where
 		tasks.push(conf.executor.spawn(fut));
 		let (metadata, fut) = metadata.run();
 		tasks.push(conf.executor.spawn(fut));
-		let blocks = workers::BlocksIndexer::new(&conf, db.clone(), metadata.clone()).create(None);
+		let blocks = workers::BlocksIndexer::new(conf, db.clone(), metadata.clone()).create(None);
 		let (blocks, fut) = blocks.run();
 		tasks.push(conf.executor.spawn(fut));
 
@@ -364,21 +364,24 @@ where
 	/// If any are found, they are re-queued.
 	async fn restore_missing_storage(mut conn: DbConn, conf: SystemConfig<B, D>) -> Result<()> {
 		let mut page = 0;
+		let nums = queries::missing_storage_blocks(&mut *conn).await?;
+		log::info!("Restoring {} missing storage entries.", nums.len());
 		loop {
 			let blocks =
-				queries::missing_storage_items_paginated(&mut *conn, conf.control.max_block_load.into(), page).await?;
-			if blocks.len() == 0 {
+				queries::blocks_paginated(&mut *conn, nums.as_slice(), conf.control.max_block_load.into(), page)
+					.await?;
+			if blocks.is_empty() {
 				break;
 			}
+			log::debug!("[STORAGE] Inserted {} blocks", blocks.len());
 			page += 1;
 			let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(blocks)?
 				.into_iter()
 				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 				.collect();
-			log::info!("Restoring {} missing storage entries. This could take a few minutes...", jobs.len());
 			coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
 		}
-		log::info!("Storage restored");
+		log::info!("[STORAGE] Storage restored");
 		Ok(())
 	}
 }
