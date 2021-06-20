@@ -876,30 +876,31 @@ dependencies = [
 
 [[package]]
 name = "coil"
-version = "0.2.2"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bc00e1bd696e321f5afef445b377bcc11b7175a174c61e34ce2bca16a06ee1b"
+checksum = "2711de6d907a491a6ac9a5197b5a0d8b249c4b539c9b0ad32fdec011c194da89"
 dependencies = [
- "async-channel",
  "async-trait",
  "coil_proc_macro",
+ "flume",
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "inventory",
  "itoa",
  "log",
- "rayon",
- "rmp-serde 0.14.4",
+ "num_cpus",
  "serde",
+ "serde_json",
  "sqlx",
  "thiserror",
+ "threadpool",
 ]
 
 [[package]]
 name = "coil_proc_macro"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cce31ac045c7da7ea03e04b4c0d35bfdde70c7383c99a77bf337b1da4e593e1"
+checksum = "6dcb9b2cf620716c0a077ac2fd02f43aa69a07cac300aecd23db32a5ea0d89a2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4739,17 +4740,6 @@ dependencies = [
 
 [[package]]
 name = "rmp-serde"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ce7d70c926fe472aed493b902010bccc17fa9f7284145cb8772fd22fdb052d8"
-dependencies = [
- "byteorder",
- "rmp",
- "serde",
-]
-
-[[package]]
-name = "rmp-serde"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "723ecff9ad04f4ad92fe1c8ca6c20d2196d9286e9c60727c4cb5511629260e9d"
@@ -6896,7 +6886,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pretty_env_logger",
- "rmp-serde 0.15.5",
+ "rmp-serde",
  "sc-chain-spec",
  "sc-client-api",
  "sc-executor",
