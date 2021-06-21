@@ -12,7 +12,7 @@ coil = { path = "../../../coil/coil/" }
 dirs = { version = "3", package = "directories" }
 fdlimit = "0.2"
 fern = { version = "0.6", features = ["colored"] }
-flume = "0.10.5"
+flume = "0.10.7"
 futures = "0.3"
 hashbrown = { version = "0.11", features = ["inline-more"] }
 hex = "0.4"
@@ -61,5 +61,5 @@ polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "m
 anyhow = "1"
 pretty_env_logger = "0.4.0"
 tempfile = "3.2"
-once_cell = "1.7.2"
+once_cell = "1.8.0"
 dotenv = "0.15.0"
