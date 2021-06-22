@@ -16,6 +16,7 @@
 
 use std::{env, fs, io, marker::PhantomData, path::PathBuf, sync::Arc};
 
+use async_std::task;
 use serde::{de::DeserializeOwned, Deserialize};
 
 use sc_chain_spec::ChainSpec;
@@ -229,15 +230,6 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 		self
 	}
 
-	/// Set the  number of threads spawn for task execution.
-	///
-	/// # Default
-	/// Defaults to the number of logical cpus in the system.
-	pub fn task_workers(mut self, workers: usize) -> Self {
-		self.config.control.task_workers = workers;
-		self
-	}
-
 	/// Set the timeout to wait for a task to start execution.
 	///
 	/// # Default
@@ -379,7 +371,7 @@ where
 			.database
 			.map(|config| config.url)
 			.unwrap_or_else(|| env::var(DATABASE_URL).expect("missing DATABASE_URL"));
-		smol::block_on(database::migrate(&pg_url))?;
+		task::block_on(database::migrate(&pg_url))?;
 
 		// config actor system
 		let config = SystemConfig::new(

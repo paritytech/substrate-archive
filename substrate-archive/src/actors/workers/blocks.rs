@@ -15,6 +15,7 @@
 
 use std::sync::Arc;
 
+use async_std::task;
 use xtra::prelude::*;
 
 use sp_runtime::{
@@ -71,25 +72,16 @@ where
 	/// A async wrapper around the backend fn `iter_blocks` which
 	/// runs in a `spawn_blocking` async task (its own thread)
 	async fn collect_blocks(&self, fun: impl Fn(u32) -> bool + Send + 'static) -> Result<Vec<Block<B>>> {
-		let backend = self.backend.clone();
 		let now = std::time::Instant::now();
-		let gather_blocks = move || -> Result<Vec<SignedBlock<B>>> {
-			log::debug!("gathering blocks");
-			let res = backend.iter_blocks(|n| fun(n))?.collect();
-			log::debug!("Finished gathering");
-			Ok(res)
-		};
-		log::debug!("Here 1");
-		let blocks = smol::unblock(gather_blocks).await?;
-		log::debug!("Here 2");
-		if blocks.len() > 0 {
-			log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
-		} else {
-			return Ok(Vec::new());
-		}
+		let backend = self.backend.clone();
 		let cache = self.rt_cache.clone();
-		log::debug!("Here 3");
-		let blocks = smol::unblock(move || {
+		let blocks = task::spawn_blocking(move || {
+			let blocks: Vec<SignedBlock<B>> = backend.iter_blocks(|n| fun(n))?.collect();
+			if blocks.len() > 0 {
+				log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
+			} else {
+				return Ok(Vec::new());
+			}
 			// Finds the versions of all the blocks, returns a new set of type `Block`.
 			// panics if our search fails to get the version for a block.
 			cache.find_versions(&blocks).map(|versions| {
@@ -152,7 +144,6 @@ where
 	async fn crawl(&mut self) -> Result<Vec<Block<B>>> {
 		let copied_last_max = self.last_max;
 		let max_to_collect = copied_last_max + self.max_block_load;
-		log::debug!("Collecting Blocks!");
 		let blocks = self
 			.collect_blocks(move |n| {
 				if copied_last_max == 0 {
@@ -173,7 +164,11 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: Send + Sync, D: Send + Sync> Actor for BlocksIndexer<B, D> {}
+impl<B: Send + Sync, D: Send + Sync> Actor for BlocksIndexer<B, D> {
+	async fn stopped(&mut self) {
+		println!("about to drop!");
+	}
+}
 
 pub struct Crawl;
 impl Message for Crawl {

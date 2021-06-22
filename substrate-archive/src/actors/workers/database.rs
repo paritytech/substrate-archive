@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{sync::Arc, time::Duration};
+use futures_timer::Delay;
+use std::time::Duration;
 
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
@@ -30,12 +31,11 @@ use crate::{
 #[derive(Clone)]
 pub struct DatabaseActor {
 	db: Database,
-	executor: Arc<smol::Executor<'static>>,
 }
 
 impl DatabaseActor {
-	pub async fn new(url: String, executor: Arc<smol::Executor<'static>>) -> Result<Self> {
-		Ok(Self { db: Database::new(url).await?, executor })
+	pub async fn new(url: String) -> Result<Self> {
+		Ok(Self { db: Database::new(url).await? })
 	}
 
 	async fn block_handler<B>(&self, blk: Block<B>) -> Result<()>
@@ -45,7 +45,7 @@ impl DatabaseActor {
 	{
 		let mut conn = self.db.conn().await?;
 		while !queries::check_if_meta_exists(blk.spec, &mut conn).await? {
-			smol::Timer::after(Duration::from_millis(20)).await;
+			Delay::new(Duration::from_millis(20)).await;
 		}
 		std::mem::drop(conn);
 		self.db.insert(blk).await?;
@@ -68,7 +68,7 @@ impl DatabaseActor {
 		let mut conn = self.db.conn().await?;
 		while !Self::db_contains_metadata(blks.inner(), &mut conn).await? {
 			log::info!("Doesn't contain metadata");
-			smol::Timer::after(Duration::from_millis(50)).await;
+			Delay::new(Duration::from_millis(50)).await;
 		}
 		std::mem::drop(conn);
 		self.db.insert(blks).await?;
@@ -81,7 +81,7 @@ impl DatabaseActor {
 	{
 		let mut conn = self.db.conn().await?;
 		while !queries::has_block::<H>(*storage.hash(), &mut conn).await? {
-			smol::Timer::after(Duration::from_millis(10)).await;
+			Delay::new(Duration::from_millis(10)).await;
 		}
 		let storage = Vec::<StorageModel<H>>::from(storage);
 		std::mem::drop(conn);
@@ -102,7 +102,7 @@ impl DatabaseActor {
 		let len = block_nums.len();
 		let now = std::time::Instant::now();
 		while queries::has_blocks(block_nums.as_slice(), &mut conn).await?.len() != len {
-			smol::Timer::after(std::time::Duration::from_millis(50)).await;
+			Delay::new(std::time::Duration::from_millis(50)).await;
 		}
 		log::debug!("Insert Integrity Query Check took {:?}", now.elapsed());
 		// we drop the connection early so that the insert() has the use of all db connections

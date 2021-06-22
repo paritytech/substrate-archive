@@ -53,10 +53,6 @@ std = "DEBUG"
 #
 # Changing these may lead to unexpected results.
 [control]
-# Number of threads to dedicate for executing tasks
-# Optional, default: the number of logical system threads
-task_workers = 8
-
 # Timeout to wait for a task to start execution.
 # Optional, default: 20 seconds
 task_timeout = 20

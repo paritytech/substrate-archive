@@ -21,7 +21,9 @@
 
 use std::{fmt::Display, str::FromStr, time::Duration};
 
+use async_std::task;
 use futures::{future::BoxFuture, FutureExt, StreamExt};
+use futures_timer::Delay;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{
 	postgres::{PgConnection, PgListener, PgNotification},
@@ -116,7 +118,7 @@ where
 	}
 
 	/// Spawns this listener which will work on its assigned tasks in the background
-	pub async fn spawn(self, executor: &smol::Executor<'_>) -> Result<Listener> {
+	pub async fn spawn(self) -> Result<Listener> {
 		let (tx, rx) = flume::bounded(1);
 
 		let mut listener = PgListener::connect(&self.pg_url).await?;
@@ -128,7 +130,6 @@ where
 			let mut listener = listener.into_stream();
 			loop {
 				let mut listen_fut = listener.next().fuse();
-				// pin_mut!(listen_fut);
 
 				futures::select! {
 					notif = listen_fut => {
@@ -158,7 +159,7 @@ where
 			}
 			// collect the rest of the results, before exiting, as long as the collection completes
 			// in a reasonable amount of time
-			let timeout = smol::Timer::after(Duration::from_secs(1));
+			let timeout = Delay::new(Duration::from_secs(1));
 			futures::select! {
 				_ = FutureExt::fuse(timeout) => {},
 				notifs = listener.collect::<Vec<_>>().fuse() => {
@@ -168,8 +169,7 @@ where
 				}
 			}
 		};
-
-		executor.spawn(fut).detach();
+		task::spawn(fut);
 
 		Ok(Listener { tx })
 	}
@@ -216,8 +216,6 @@ mod tests {
 		let _guard = crate::TestGuard::lock();
 		crate::insert_dummy_sql();
 
-		let executor = Arc::new(smol::Executor::new());
-		let executor0 = executor.clone();
 		let future = async move {
 			let (tx, mut rx) = futures::channel::mpsc::channel(5);
 			let _listener = Builder::new(&crate::DATABASE_URL, move |_, _| {
@@ -230,7 +228,7 @@ mod tests {
 				.boxed()
 			})
 			.listen_on(Channel::Blocks)
-			.spawn(&executor0)
+			.spawn()
 			.await
 			.unwrap();
 			let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
@@ -246,12 +244,12 @@ mod tests {
 					.execute(&mut conn)
 					.await
 					.expect("Could not exec notify query");
-				smol::Timer::after(Duration::from_millis(50)).await;
+				Delay::new(Duration::from_millis(50)).await;
 			}
 			let mut counter: usize = 0;
 
 			loop {
-				let timeout = smol::Timer::after(Duration::from_millis(75));
+				let timeout = Delay::new(Duration::from_millis(75));
 				let mut timeout = FutureExt::fuse(timeout);
 				futures::select!(
 					_ = rx.next() => counter += 1,
@@ -261,7 +259,7 @@ mod tests {
 
 			assert_eq!(5, counter);
 		};
-		smol::block_on(executor.run(future));
+		task::block_on(executor.run(future));
 	}
 
 	#[test]

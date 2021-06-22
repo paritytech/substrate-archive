@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use async_std::task;
 use itertools::Itertools;
 use xtra::prelude::*;
 
@@ -49,7 +50,7 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 		if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
 			let meta = self.meta.clone();
 			log::info!("Getting metadata for hash {}, version {}", hex::encode(hash.as_ref()), ver);
-			let meta = smol::unblock(move || meta.metadata(&BlockId::hash(hash))).await?;
+			let meta = task::spawn_blocking(move || meta.metadata(&BlockId::hash(hash))).await?;
 			let meta = Metadata::new(ver, meta.to_vec());
 			self.addr.send(meta).await?;
 		}
