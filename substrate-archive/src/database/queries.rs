@@ -205,6 +205,7 @@ mod tests {
 		TestGuard,
 	};
 	use anyhow::Error;
+	use async_std::task;
 	use futures::StreamExt;
 	use sp_api::{BlockT, HeaderT};
 	use sp_storage::StorageKey;

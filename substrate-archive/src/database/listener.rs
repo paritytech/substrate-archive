@@ -259,7 +259,7 @@ mod tests {
 
 			assert_eq!(5, counter);
 		};
-		task::block_on(executor.run(future));
+		task::block_on(future);
 	}
 
 	#[test]

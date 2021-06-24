@@ -132,7 +132,6 @@ struct Actors<Block: Send + Sync + 'static, H: Send + Sync + 'static, Db: Send +
 	blocks: Address<workers::BlocksIndexer<Block, Db>>,
 	metadata: Address<workers::MetadataActor<Block>>,
 	db: Address<DatabaseActor>,
-	tasks: Vec<JoinHandle<()>>,
 }
 
 impl<B: Send + Sync + 'static, H: Send + Sync + 'static, D: Send + Sync + 'static> Clone for Actors<B, H, D> {
@@ -142,7 +141,6 @@ impl<B: Send + Sync + 'static, H: Send + Sync + 'static, D: Send + Sync + 'stati
 			blocks: self.blocks.clone(),
 			metadata: self.metadata.clone(),
 			db: self.db.clone(),
-			tasks: Vec::new(),
 		}
 	}
 }
@@ -155,21 +153,20 @@ where
 	NumberFor<Block>: Into<u32>,
 {
 	async fn spawn(conf: &SystemConfig<Block, Db>) -> Result<Self> {
-		let mut tasks = Vec::new();
 		let db = workers::DatabaseActor::new(conf.pg_url().into()).await?.create(None);
 		let (db, fut) = db.run();
-		tasks.push(task::spawn(fut));
+		task::spawn(fut);
 		let storage = workers::StorageAggregator::new(db.clone()).create(None);
 		let (storage, fut) = storage.run();
-		tasks.push(task::spawn(fut));
+		task::spawn(fut);
 		let metadata = workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None);
 		let (metadata, fut) = metadata.run();
-		tasks.push(task::spawn(fut));
+		task::spawn(fut);
 		let blocks = workers::BlocksIndexer::new(&conf, db.clone(), metadata.clone()).create(None);
 		let (blocks, fut) = blocks.run();
-		tasks.push(task::spawn(fut));
+		task::spawn(fut);
 
-		Ok(Actors { storage, blocks, metadata, db, tasks })
+		Ok(Actors { storage, blocks, metadata, db })
 	}
 
 	// Run a future that sends actors a signal to progress every X seconds
