@@ -189,7 +189,8 @@ where
 		Ok(Actors { storage, blocks, metadata, db, tasks })
 	}
 
-	// Run a future that sends actors a signal to progress every X seconds
+	// Run a future that sends actors a signal to progress once the previous
+	// messages have been processed.
 	async fn tick_interval(&self, executor: Arc<smol::Executor<'_>>) -> Result<()> {
 		// messages that only need to be sent once
 		self.blocks.send(ReIndex).await?;
