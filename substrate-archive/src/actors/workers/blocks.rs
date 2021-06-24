@@ -163,11 +163,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: Send + Sync, D: Send + Sync> Actor for BlocksIndexer<B, D> {
-	async fn stopped(&mut self) {
-		println!("about to drop!");
-	}
-}
+impl<B: Send + Sync, D: Send + Sync> Actor for BlocksIndexer<B, D> {}
 
 pub struct Crawl;
 impl Message for Crawl {
@@ -181,7 +177,6 @@ where
 	B::Hash: Unpin,
 {
 	async fn handle(&mut self, _: Crawl, ctx: &mut Context<Self>) {
-		log::debug!("Handling Crawl!");
 		match self.crawl().await {
 			Err(e) => log::error!("{}", e.to_string()),
 			Ok(b) => {
@@ -190,7 +185,6 @@ where
 				}
 			}
 		}
-		log::debug!("Exiting Crawl!");
 	}
 }
 
@@ -206,13 +200,11 @@ where
 	B::Hash: Unpin,
 {
 	async fn handle(&mut self, _: ReIndex, ctx: &mut Context<Self>) {
-		log::debug!("Handling re_index!");
 		match self.re_index().await {
 			// stop if disconnected from the metadata actor
 			Err(ArchiveError::Disconnected) => ctx.stop(),
 			Ok(()) => {}
 			Err(e) => log::error!("{}", e.to_string()),
 		}
-		log::debug!("Exiting re_index!");
 	}
 }

@@ -59,6 +59,7 @@ pub struct SystemConfig<B, D> {
 	pub control: ControlConfig,
 	pub runtime: RuntimeConfig,
 	pub tracing_targets: Option<String>,
+	pub executor: Arc<smol::Executor<'static>>,
 }
 
 impl<B, D> Clone for SystemConfig<B, D> {
@@ -70,6 +71,7 @@ impl<B, D> Clone for SystemConfig<B, D> {
 			control: self.control,
 			runtime: self.runtime.clone(),
 			tracing_targets: self.tracing_targets.clone(),
+			executor: self.executor.clone(),
 		}
 	}
 }
@@ -169,7 +171,8 @@ where
 		Ok(Actors { storage, blocks, metadata, db })
 	}
 
-	// Run a future that sends actors a signal to progress every X seconds
+	// Run a future that sends actors a signal to progress once the previous
+	// messages have been processed.
 	async fn tick_interval(&self) -> Result<()> {
 		// messages that only need to be sent once
 		self.blocks.send(ReIndex).await?;
@@ -288,7 +291,7 @@ where
 		let runner = coil::Runner::builder(env, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(self.config.runtime.block_workers)
-			// times out if tasks don't start execution on the threadpool within 20 seconds.
+			// times out if tasks don't start execution on the threadpool within timeout.
 			.timeout(Duration::from_secs(self.config.control.task_timeout))
 			.build()?;
 
@@ -315,7 +318,7 @@ where
 			.boxed()
 		})
 		.listen_on(Channel::Blocks)
-		.spawn()
+		.spawn(&conf.executor)
 		.await
 	}
 

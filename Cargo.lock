@@ -1020,6 +1020,8 @@ dependencies = [
 [[package]]
 name = "coil"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2711de6d907a491a6ac9a5197b5a0d8b249c4b539c9b0ad32fdec011c194da89"
 dependencies = [
  "async-trait",
  "coil_proc_macro",

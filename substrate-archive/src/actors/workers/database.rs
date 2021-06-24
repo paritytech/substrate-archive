@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use futures_timer::Delay;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
