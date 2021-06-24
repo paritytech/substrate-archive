@@ -30,7 +30,7 @@ use sqlx::{
 	prelude::*,
 };
 
-use crate::error::Result;
+use crate::error::{ArchiveError, Result};
 
 /// A notification from Postgres about a new row
 #[derive(PartialEq, Debug, Deserialize)]
@@ -118,15 +118,16 @@ where
 	}
 
 	/// Spawns this listener which will work on its assigned tasks in the background
-	pub async fn spawn(self) -> Result<Listener> {
+	pub fn spawn(self) -> Result<Listener> {
 		let (tx, rx) = flume::bounded(1);
-
-		let mut listener = PgListener::connect(&self.pg_url).await?;
-		let channels = self.channels.iter().map(String::from).collect::<Vec<String>>();
-		listener.listen_all(channels.iter().map(|s| s.as_ref())).await?;
-		let mut conn = PgConnection::connect(&self.pg_url).await.unwrap();
+		let pg_url = self.pg_url.clone();
 
 		let fut = async move {
+			let mut listener = PgListener::connect(&pg_url).await?;
+			let channels = self.channels.iter().map(String::from).collect::<Vec<String>>();
+			listener.listen_all(channels.iter().map(|s| s.as_ref())).await?;
+			let mut conn = PgConnection::connect(&pg_url).await.unwrap();
+
 			let mut listener = listener.into_stream();
 			loop {
 				let mut listen_fut = listener.next().fuse();
@@ -168,6 +169,7 @@ where
 					}
 				}
 			}
+			Ok::<(), ArchiveError>(())
 		};
 		task::spawn(fut);
 
