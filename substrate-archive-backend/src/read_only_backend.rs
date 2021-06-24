@@ -130,9 +130,7 @@ where
 		fun: impl Fn(u32) -> bool + 'a,
 	) -> Result<impl Iterator<Item = SignedBlock<Block>> + 'a> {
 		let readable_db = self.db.clone();
-		log::debug!("iter_blocks here 1");
 		self.db.catch_up_with_primary()?;
-		log::debug!("iter_blocks here 2");
 		Ok(self.db.iter(super::util::columns::KEY_LOOKUP).take_while(|(_, value)| !value.is_empty()).filter_map(
 			move |(key, value)| {
 				let arr: &[u8; 4] = key[0..4].try_into().ok()?;

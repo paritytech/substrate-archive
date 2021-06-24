@@ -332,9 +332,14 @@ where
 		let nums = queries::missing_storage_blocks(&mut *conn).await?;
 		log::info!("Restoring {} missing storage entries.", nums.len());
 		loop {
+			log::info!(
+				"Paginating... block_load={}, page={}, nums={}",
+				config.control.max_block_load,
+				page,
+				nums.len()
+			);
 			let blocks =
-				queries::blocks_paginated(&mut *conn, nums.as_slice(), config.control.max_block_load.into(), page)
-					.await?;
+				queries::blocks_paginated(&mut *conn, nums, config.control.max_block_load.into(), page).await?;
 			log::debug!("Blocks.len() == {}", blocks.len());
 			if blocks.len() == 0 {
 				break;
