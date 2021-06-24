@@ -125,7 +125,7 @@ impl ReadOnlyDb for SecondaryRocksDb {
 			NUM_COLUMNS,
 			other_col_budget,
 		);
-		Self::open(db_config, &path)
+		Self::open(db_config, path)
 	}
 }
 

@@ -18,6 +18,8 @@
 
 use std::convert::TryFrom;
 
+use async_stream::try_stream;
+use futures::Stream;
 use hashbrown::HashSet;
 use sqlx::PgConnection;
 
@@ -168,22 +170,27 @@ pub(crate) async fn missing_storage_blocks(conn: &mut sqlx::PgConnection) -> Res
 }
 
 /// Get full blocks in pages
-pub(crate) async fn blocks_paginated(
-	conn: &mut sqlx::PgConnection,
-	nums: &[u32],
-	limit: i64,
-	page: i64,
-) -> Result<Vec<BlockModel>> {
+pub(crate) fn blocks_paginated<'a>(
+	conn: &'a mut sqlx::PgConnection,
+	nums: &'a [u32],
+	limit: usize,
+) -> impl Stream<Item = Result<Vec<BlockModel>>> + 'a {
 	let nums: Vec<i32> = nums.iter().filter_map(|n| i32::try_from(*n).ok()).collect();
-	let mut query = String::from("SELECT * FROM blocks WHERE block_num IN (");
-	for (i, num) in nums.iter().enumerate() {
-		itoa::fmt(&mut query, *num)?;
-		if i != nums.len() - 1 {
-			query.push_str(",");
+
+	Box::pin(try_stream! {
+		for page in nums.chunks(limit) {
+			let mut query = String::from("SELECT * FROM blocks WHERE block_num IN (");
+			for (i, num) in page.iter().enumerate() {
+				itoa::fmt(&mut query, *num)?;
+				if i != page.len() - 1 {
+					query.push(',');
+				}
+			}
+			query.push_str(") ORDER BY block_num");
+			let blocks = sqlx::query_as(query.as_str()).fetch_all(&mut *conn).await?;
+			yield blocks;
 		}
-	}
-	query.push_str(") ORDER BY block_num LIMIT $1 OFFSET $2");
-	Ok(sqlx::query_as(query.as_str()).bind(limit).bind(page * limit).fetch_all(conn).await?)
+	})
 }
 
 #[cfg(test)]
@@ -198,6 +205,7 @@ mod tests {
 		TestGuard,
 	};
 	use anyhow::Error;
+	use futures::StreamExt;
 	use sp_api::{BlockT, HeaderT};
 	use sp_storage::StorageKey;
 	use sqlx::{pool::PoolConnection, postgres::Postgres};
@@ -264,30 +272,16 @@ mod tests {
 		task::block_on(async {
 			let mut conn = setup_data_scheme().await?;
 			let mut block_nums: Vec<u32> =
-				vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
+				vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
 			block_nums.iter_mut().for_each(|b| {
 				*b += BLOCK_START as u32;
 			});
-			let blocks = blocks_paginated(&mut conn, block_nums.as_slice(), 7, 0)
-				.await?
-				.iter()
-				.map(|b| (b.block_num - BLOCK_START as i32))
-				.collect::<Vec<i32>>();
-			assert_eq!(vec![1, 2, 3, 4, 5, 6, 7], blocks);
+			let mut pages = blocks_paginated(&mut conn, block_nums.as_slice(), 7)
+				.map(|b| (b.unwrap().into_iter().map(|b| b.block_num - BLOCK_START as i32)).collect::<Vec<_>>());
 
-			let blocks = blocks_paginated(&mut conn, block_nums.as_slice(), 7, 1)
-				.await?
-				.iter()
-				.map(|b| b.block_num - BLOCK_START as i32)
-				.collect::<Vec<i32>>();
-			assert_eq!(vec![8, 9, 10, 11, 12, 13, 14], blocks);
-
-			let blocks = blocks_paginated(&mut conn, block_nums.as_slice(), 7, 2)
-				.await?
-				.iter()
-				.map(|b| b.block_num - BLOCK_START as i32)
-				.collect::<Vec<i32>>();
-			assert_eq!(vec![15, 16, 17, 18, 19, 20, 21], blocks);
+			assert_eq!(vec![1, 2, 3, 4, 5, 6, 7], pages.next().await.unwrap());
+			assert_eq!(vec![8, 9, 10, 11, 12, 13, 14], pages.next().await.unwrap());
+			assert_eq!(vec![15, 16, 17, 18, 19, 20, 21], pages.next().await.unwrap());
 			Ok(())
 		})
 	}

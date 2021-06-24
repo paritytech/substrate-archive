@@ -73,8 +73,7 @@ where
 	/// runs in a `spawn_blocking` async task (its own thread)
 	async fn collect_blocks(&self, fun: impl Fn(u32) -> bool + Send + 'static) -> Result<Vec<Block<B>>> {
 		let now = std::time::Instant::now();
-		let backend = self.backend.clone();
-		let cache = self.rt_cache.clone();
+		let (backend, cache) = (self.backend.clone(), self.rt_cache.clone());
 		let blocks = task::spawn_blocking(move || {
 			let blocks: Vec<SignedBlock<B>> = backend.iter_blocks(|n| fun(n))?.collect();
 			if blocks.len() > 0 {

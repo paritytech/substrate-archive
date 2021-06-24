@@ -18,14 +18,14 @@
 
 mod workers;
 
-use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
+use std::{convert::TryInto, marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
 use async_std::{
 	future::timeout,
 	task::{self, JoinHandle},
 };
 use coil::Job as _;
-use futures::{future, FutureExt};
+use futures::{future, FutureExt, StreamExt};
 use futures_timer::Delay;
 use serde::{de::DeserializeOwned, Deserialize};
 use xtra::prelude::*;
@@ -45,7 +45,7 @@ use self::workers::{
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use crate::{
 	archive::Archive,
-	database::{models::BlockModelDecoder, queries, Channel, DbConn, Listener},
+	database::{models::BlockModelDecoder, queries, Channel, Listener},
 	error::Result,
 	tasks::Environment,
 };
@@ -278,10 +278,8 @@ where
 		actors.tick_interval().await?;
 		let pool = actors.db.send(GetState::Pool).await??.pool();
 		// let listener = self.init_listeners().await?;
-		let conn = pool.acquire().await?;
 
-		let storage_handle = Self::restore_missing_storage(self.config.clone(), conn);
-
+		let storage_handle = Self::restore_missing_storage(self.config.clone(), pool.clone());
 		let env = Environment::<B, B::Hash, R, C, D>::new(
 			self.config.backend().clone(),
 			self.client,
@@ -327,32 +325,19 @@ where
 	/// Checks if any blocks that should be executed are missing
 	/// from the task queue.
 	/// If any are found, they are re-queued.
-	async fn restore_missing_storage(config: SystemConfig<B, D>, mut conn: DbConn) -> Result<()> {
-		let mut page = 0;
-		let nums = queries::missing_storage_blocks(&mut *conn).await?;
+	async fn restore_missing_storage(conf: SystemConfig<B, D>, pool: sqlx::PgPool) -> Result<()> {
+		let (mut conn0, mut conn1) = (pool.acquire().await?, pool.acquire().await?);
+		let nums = queries::missing_storage_blocks(&mut *conn0).await?;
 		log::info!("Restoring {} missing storage entries.", nums.len());
-		loop {
-			log::info!(
-				"Paginating... block_load={}, page={}, nums={}",
-				config.control.max_block_load,
-				page,
-				nums.len()
-			);
-			let blocks =
-				queries::blocks_paginated(&mut *conn, nums, config.control.max_block_load.into(), page).await?;
-			log::debug!("Blocks.len() == {}", blocks.len());
-			if blocks.len() == 0 {
-				break;
-			}
-			log::debug!("[STORAGE] Inserted {} blocks", blocks.len());
-			page += 1;
-			let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(blocks)?
+		let mut block_stream =
+			queries::blocks_paginated(&mut *conn0, nums.as_slice(), conf.control.max_block_load.try_into()?);
+		while let Some(Ok(page)) = block_stream.next().await {
+			let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(page)?
 				.into_iter()
 				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 				.collect();
-			coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
+			coil::JobExt::enqueue_batch(jobs, &mut *conn1).await?;
 		}
-		log::info!("[STORAGE] Storage restored");
 		Ok(())
 	}
 }
