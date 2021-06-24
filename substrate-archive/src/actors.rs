@@ -363,7 +363,8 @@ where
 	/// from the task queue.
 	/// If any are found, they are re-queued.
 	async fn restore_missing_storage(conf: SystemConfig<B, D>, pool: sqlx::PgPool) -> Result<()> {
-		let (mut conn0, mut conn1) = (pool.acquire().await?, pool.acquire().await?);
+		let mut conn0 = pool.acquire().await?;
+		let mut conn1 = pool.acquire().await?;
 		let nums = queries::missing_storage_blocks(&mut *conn0).await?;
 		log::info!("Restoring {} missing storage entries.", nums.len());
 		let mut block_stream =
