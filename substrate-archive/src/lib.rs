@@ -164,12 +164,12 @@ mod test {
 				let mut conn = crate::PG_POOL.acquire().await.unwrap();
 				conn.execute(
 					"
-                    TRUNCATE TABLE metadata CASCADE;
-                    TRUNCATE TABLE storage CASCADE;
-                    TRUNCATE TABLE blocks CASCADE;
+					TRUNCATE TABLE metadata CASCADE;
+					TRUNCATE TABLE storage CASCADE;
+					TRUNCATE TABLE blocks CASCADE;
 					TRUNCATE TABLE state_traces CASCADE;
-                    TRUNCATE TABLE _background_tasks;
-                    ",
+					TRUNCATE TABLE _background_tasks;
+					",
 				)
 				.await
 				.unwrap();

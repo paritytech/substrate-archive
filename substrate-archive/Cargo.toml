@@ -33,7 +33,7 @@ tempfile = "3.2.0"
 thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.2"
-xtra = { version = "0.5.0-rc.1", features = ["with-async_std-1"] }
+xtra = { version = "0.5", features = ["with-async_std-1"] }
 async-stream = "0.3"
 
 # Parity
