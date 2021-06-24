@@ -1232,7 +1232,7 @@ dependencies = [
  "cranelift-codegen",
  "cranelift-entity",
  "cranelift-frontend",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "log",
  "serde",
  "smallvec 1.6.1",
@@ -2972,9 +2972,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37d572918e350e82412fe766d24b15e6682fb2ed2bbe018280caa810397cb319"
+checksum = "69ddb889f9d0d08a67338271fa9b62996bc788c7796a5c18cf057420aaed5eaf"
 dependencies = [
  "either",
 ]
@@ -6634,7 +6634,7 @@ checksum = "3bd8f48b2066e9f69ab192797d66da804d1935bf22763204ed3675740cb0f221"
 dependencies = [
  "derive_more",
  "fs-err",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "static_init",
  "thiserror",
 ]
@@ -9227,7 +9227,7 @@ dependencies = [
  "futures 0.3.15",
  "hashbrown 0.11.2",
  "hex",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "itoa",
  "jod-thread",
  "log",
