@@ -153,7 +153,6 @@ where
 				}
 			})
 			.await?;
-		log::debug!("Finished Collecting blocks!");
 		self.last_max = blocks
 			.iter()
 			.map(|b| (*b.inner.block.header().number()).into())
