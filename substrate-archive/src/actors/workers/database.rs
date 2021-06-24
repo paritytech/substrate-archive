@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{marker::PhantomData, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
@@ -28,23 +28,19 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct DatabaseActor<B: BlockT> {
+pub struct DatabaseActor {
 	db: Database,
-	_marker: PhantomData<B>,
+	executor: Arc<smol::Executor<'static>>,
 }
 
-impl<B: BlockT> DatabaseActor<B> {
-	pub async fn new(url: String) -> Result<Self> {
-		Ok(Self { db: Database::new(url).await?, _marker: PhantomData })
+impl DatabaseActor {
+	pub async fn new(url: String, executor: Arc<smol::Executor<'static>>) -> Result<Self> {
+		Ok(Self { db: Database::new(url).await?, executor })
 	}
 
-	#[allow(unused)]
-	pub fn with_db(db: Database) -> Self {
-		Self { db, _marker: PhantomData }
-	}
-
-	async fn block_handler(&self, blk: Block<B>) -> Result<()>
+	async fn block_handler<B>(&self, blk: Block<B>) -> Result<()>
 	where
+		B: BlockT,
 		NumberFor<B>: Into<u32>,
 	{
 		let mut conn = self.db.conn().await?;
@@ -58,14 +54,15 @@ impl<B: BlockT> DatabaseActor<B> {
 
 	// Returns true if all versions are in database
 	// false if versions are missing
-	async fn db_contains_metadata(blocks: &[Block<B>], conn: &mut DbConn) -> Result<bool> {
+	async fn db_contains_metadata<B>(blocks: &[Block<B>], conn: &mut DbConn) -> Result<bool> {
 		let specs: hashbrown::HashSet<u32> = blocks.iter().map(|b| b.spec).collect();
 		let versions: hashbrown::HashSet<u32> = queries::get_versions(conn).await?.into_iter().collect();
 		Ok(specs.is_subset(&versions))
 	}
 
-	async fn batch_block_handler(&self, blks: BatchBlock<B>) -> Result<()>
+	async fn batch_block_handler<B>(&self, blks: BatchBlock<B>) -> Result<()>
 	where
+		B: BlockT,
 		NumberFor<B>: Into<u32>,
 	{
 		let mut conn = self.db.conn().await?;
@@ -78,18 +75,24 @@ impl<B: BlockT> DatabaseActor<B> {
 		Ok(())
 	}
 
-	async fn storage_handler(&self, storage: Storage<B>) -> Result<()> {
+	async fn storage_handler<H>(&self, storage: Storage<H>) -> Result<()>
+	where
+		H: Send + Sync + Copy + AsRef<[u8]> + 'static,
+	{
 		let mut conn = self.db.conn().await?;
-		while !queries::has_block::<B>(*storage.hash(), &mut conn).await? {
+		while !queries::has_block::<H>(*storage.hash(), &mut conn).await? {
 			smol::Timer::after(Duration::from_millis(10)).await;
 		}
-		let storage = Vec::<StorageModel<B>>::from(storage);
+		let storage = Vec::<StorageModel<H>>::from(storage);
 		std::mem::drop(conn);
 		self.db.insert(storage).await?;
 		Ok(())
 	}
 
-	async fn batch_storage_handler(&self, storages: BatchStorage<B>) -> Result<()> {
+	async fn batch_storage_handler<H>(&self, storages: BatchStorage<H>) -> Result<()>
+	where
+		H: Send + Sync + Copy + AsRef<[u8]> + 'static,
+	{
 		let mut conn = self.db.conn().await?;
 		let mut block_nums = storages.inner().iter().map(|s| s.block_num()).collect::<Vec<_>>();
 		block_nums.sort_unstable();
@@ -97,21 +100,25 @@ impl<B: BlockT> DatabaseActor<B> {
 			log::debug!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
 		}
 		let len = block_nums.len();
-		while queries::has_blocks::<B>(block_nums.as_slice(), &mut conn).await?.len() != len {
+		let now = std::time::Instant::now();
+		while queries::has_blocks(block_nums.as_slice(), &mut conn).await?.len() != len {
 			smol::Timer::after(std::time::Duration::from_millis(50)).await;
 		}
+		log::debug!("Insert Integrity Query Check took {:?}", now.elapsed());
 		// we drop the connection early so that the insert() has the use of all db connections
 		std::mem::drop(conn);
-		let storage = Vec::<StorageModel<B>>::from(storages);
+		let storage = Vec::<StorageModel<H>>::from(storages);
+		let now = std::time::Instant::now();
 		self.db.insert(storage).await?;
+		log::debug!("Insert took {:?}", now.elapsed());
 		Ok(())
 	}
 }
 
-impl<B: BlockT> Actor for DatabaseActor<B> {}
+impl Actor for DatabaseActor {}
 
 #[async_trait::async_trait]
-impl<B> Handler<Block<B>> for DatabaseActor<B>
+impl<B> Handler<Block<B>> for DatabaseActor
 where
 	B: BlockT,
 	NumberFor<B>: Into<u32>,
@@ -124,7 +131,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B> Handler<BatchBlock<B>> for DatabaseActor<B>
+impl<B> Handler<BatchBlock<B>> for DatabaseActor
 where
 	B: BlockT,
 	NumberFor<B>: Into<u32>,
@@ -144,7 +151,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<Metadata> for DatabaseActor<B> {
+impl Handler<Metadata> for DatabaseActor {
 	async fn handle(&mut self, meta: Metadata, _ctx: &mut Context<Self>) {
 		if let Err(e) = self.db.insert(meta).await {
 			log::error!("{}", e.to_string());
@@ -153,8 +160,11 @@ impl<B: BlockT> Handler<Metadata> for DatabaseActor<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<Storage<B>> for DatabaseActor<B> {
-	async fn handle(&mut self, storage: Storage<B>, _ctx: &mut Context<Self>) {
+impl<H> Handler<Storage<H>> for DatabaseActor
+where
+	H: Copy + Send + Sync + AsRef<[u8]> + 'static,
+{
+	async fn handle(&mut self, storage: Storage<H>, _ctx: &mut Context<Self>) {
 		if let Err(e) = self.storage_handler(storage).await {
 			log::error!("{}", e.to_string())
 		}
@@ -162,8 +172,11 @@ impl<B: BlockT> Handler<Storage<B>> for DatabaseActor<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<BatchStorage<B>> for DatabaseActor<B> {
-	async fn handle(&mut self, storages: BatchStorage<B>, _ctx: &mut Context<Self>) {
+impl<H> Handler<BatchStorage<H>> for DatabaseActor
+where
+	H: Copy + Send + Sync + AsRef<[u8]> + 'static,
+{
+	async fn handle(&mut self, storages: BatchStorage<H>, _ctx: &mut Context<Self>) {
 		let len = storages.inner.iter().map(|storage| storage.changes.len()).sum::<usize>();
 		let now = std::time::Instant::now();
 		if let Err(e) = self.batch_storage_handler(storages).await {
@@ -178,7 +191,7 @@ impl Message for Traces {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<Traces> for DatabaseActor<B> {
+impl Handler<Traces> for DatabaseActor {
 	async fn handle(&mut self, traces: Traces, _: &mut Context<Self>) {
 		let now = std::time::Instant::now();
 		if let Err(e) = self.db.insert(traces).await {
@@ -237,7 +250,7 @@ impl Message for GetState {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
+impl Handler<GetState> for DatabaseActor {
 	async fn handle(&mut self, msg: GetState, _: &mut Context<Self>) -> Result<StateResponse> {
 		match msg {
 			GetState::Conn => {
@@ -253,11 +266,7 @@ impl<B: BlockT> Handler<GetState> for DatabaseActor<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<Die> for DatabaseActor<B>
-where
-	NumberFor<B>: Into<u32>,
-	B::Hash: Unpin,
-{
+impl Handler<Die> for DatabaseActor {
 	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
 		ctx.stop();
 	}

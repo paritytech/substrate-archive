@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 #![forbid(unsafe_code)]
-#![deny(dead_code)]
+// #![deny(dead_code)]
 
 // Re-Exports
 pub use sc_executor::native_executor_instance;
@@ -58,18 +58,36 @@ pub fn substrate_archive_default_dir() -> std::path::PathBuf {
 }
 
 #[cfg(test)]
-use test::{initialize, TestGuard, DATABASE_URL, PG_POOL};
+use test::{initialize, insert_dummy_sql, TestGuard, DATABASE_URL, PG_POOL};
 
 #[cfg(test)]
 mod test {
+	use crate::database::BlockModel;
 	use once_cell::sync::Lazy;
 	use sqlx::prelude::*;
 	use std::sync::{Mutex, MutexGuard, Once};
+	use test_common::CsvBlock;
 
 	pub static DATABASE_URL: Lazy<String> =
 		Lazy::new(|| dotenv::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!"));
 
 	pub const DUMMY_HASH: [u8; 2] = [0x13, 0x37];
+
+	impl From<test_common::CsvBlock> for BlockModel {
+		fn from(csv: CsvBlock) -> BlockModel {
+			BlockModel {
+				id: csv.id,
+				parent_hash: csv.parent_hash,
+				hash: csv.hash,
+				block_num: csv.block_num,
+				state_root: csv.state_root,
+				extrinsics_root: csv.extrinsics_root,
+				digest: csv.digest,
+				ext: csv.ext,
+				spec: csv.spec,
+			}
+		}
+	}
 
 	pub static PG_POOL: Lazy<sqlx::PgPool> = Lazy::new(|| {
 		smol::block_on(async {
@@ -97,25 +115,22 @@ mod test {
 
 	static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
-	pub struct TestGuard<'a>(MutexGuard<'a, ()>);
-	impl<'a> TestGuard<'a> {
-		pub(crate) fn lock() -> Self {
-			let guard = TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"));
-			smol::block_on(async {
-				sqlx::query(
-					r#"
+	pub fn insert_dummy_sql() {
+		smol::block_on(async {
+			sqlx::query(
+				r#"
                     INSERT INTO metadata (version, meta)
                     VALUES($1, $2)
                 "#,
-				)
-				.bind(0)
-				.bind(&DUMMY_HASH[0..2])
-				.execute(&*PG_POOL)
-				.await
-				.unwrap();
+			)
+			.bind(0)
+			.bind(&DUMMY_HASH[0..2])
+			.execute(&*PG_POOL)
+			.await
+			.unwrap();
 
-				// insert a dummy block
-				sqlx::query(
+			// insert a dummy block
+			sqlx::query(
                     "
                         INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
                         VALUES($1, $2, $3, $4, $5, $6, $7, $8)
@@ -131,7 +146,13 @@ mod test {
                     .execute(&*PG_POOL)
                     .await
                     .expect("INSERT");
-			});
+		});
+	}
+
+	pub struct TestGuard<'a>(MutexGuard<'a, ()>);
+	impl<'a> TestGuard<'a> {
+		pub(crate) fn lock() -> Self {
+			let guard = TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"));
 			guard
 		}
 	}
@@ -142,11 +163,12 @@ mod test {
 				let mut conn = crate::PG_POOL.acquire().await.unwrap();
 				conn.execute(
 					"
-                    TRUNCATE TABLE metadata CASCADE;
-                    TRUNCATE TABLE storage CASCADE;
-                    TRUNCATE TABLE blocks CASCADE;
-                    TRUNCATE TABLE _background_tasks
-                    ",
+					TRUNCATE TABLE metadata CASCADE;
+					TRUNCATE TABLE storage CASCADE;
+					TRUNCATE TABLE blocks CASCADE;
+					TRUNCATE TABLE state_traces CASCADE;
+					TRUNCATE TABLE _background_tasks;
+					",
 				)
 				.await
 				.unwrap();

@@ -16,57 +16,50 @@
 //! Main entrypoint for substrate-archive. `init` will start all actors and begin indexing the
 //! chain defined with the passed-in Client and URL.
 
-mod actor_pool;
 mod workers;
 
-use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
+use std::{convert::TryInto, marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
 use coil::Job as _;
-use futures::{future::BoxFuture, FutureExt};
-use hashbrown::HashSet;
+use futures::{executor::block_on, future, FutureExt, StreamExt};
 use serde::{de::DeserializeOwned, Deserialize};
-use xtra::{prelude::*, spawn::Smol, Disconnected};
+use smol::Task;
+use smol_timeout::TimeoutExt;
+use xtra::prelude::*;
 
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDb};
 
-use self::workers::GetState;
-pub use self::{
-	actor_pool::ActorPool,
-	workers::{BlocksIndexer, DatabaseActor, StorageAggregator},
+use self::workers::{
+	blocks::{Crawl, ReIndex},
+	storage_aggregator::{SendStorage, SendTraces},
+	GetState,
 };
+pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use crate::{
 	archive::Archive,
 	database::{models::BlockModelDecoder, queries, Channel, Listener},
 	error::Result,
-	tasks::{Environment, TaskExecutor},
-	types::Die,
+	tasks::Environment,
 };
-
-// TODO: Split this up into two objects
-// System should be a factory that produces objects that should be spawned
+use easy_parallel::Parallel;
 
 /// Provides parameters that are passed in from the user.
 /// Provides context that every actor may use
-pub struct SystemConfig<B: BlockT + Unpin, D: ReadOnlyDb + 'static>
-where
-	B::Hash: Unpin,
-{
+pub struct SystemConfig<B, D> {
 	pub backend: Arc<ReadOnlyBackend<B, D>>,
 	pub pg_url: String,
 	pub meta: Meta<B>,
 	pub control: ControlConfig,
 	pub tracing_targets: Option<String>,
+	pub executor: Arc<smol::Executor<'static>>,
 }
 
-impl<B: BlockT + Unpin, D: ReadOnlyDb> Clone for SystemConfig<B, D>
-where
-	B::Hash: Unpin,
-{
+impl<B, D> Clone for SystemConfig<B, D> {
 	fn clone(&self) -> SystemConfig<B, D> {
 		SystemConfig {
 			backend: Arc::clone(&self.backend),
@@ -74,20 +67,18 @@ where
 			meta: self.meta.clone(),
 			control: self.control,
 			tracing_targets: self.tracing_targets.clone(),
+			executor: self.executor.clone(),
 		}
 	}
 }
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub struct ControlConfig {
-	/// Number of database actors to be spawned in the actor pool.
-	#[serde(default = "default_db_actor_pool_size")]
-	pub(crate) db_actor_pool_size: usize,
 	/// Number of threads to spawn for task execution.
 	#[serde(default = "default_task_workers")]
 	pub(crate) task_workers: usize,
 	/// Maximum amount of time coil will wait for a task to begin.
-	/// Times out if tasks don't start execution in the threadpool within `task_timeout` seconds.
+	/// Times out if tasks don't start execution in the thread pool within `task_timeout` seconds.
 	#[serde(default = "default_task_timeout")]
 	pub(crate) task_timeout: u64,
 	/// Maximum tasks to queue in the threadpool.
@@ -101,17 +92,12 @@ pub struct ControlConfig {
 impl Default for ControlConfig {
 	fn default() -> Self {
 		Self {
-			db_actor_pool_size: default_db_actor_pool_size(),
 			task_workers: default_task_workers(),
 			task_timeout: default_task_timeout(),
 			max_tasks: default_max_tasks(),
 			max_block_load: default_max_block_load(),
 		}
 	}
-}
-
-const fn default_db_actor_pool_size() -> usize {
-	4
 }
 
 fn default_task_workers() -> usize {
@@ -141,7 +127,8 @@ where
 		control: ControlConfig,
 		tracing_targets: Option<String>,
 	) -> Self {
-		Self { backend, pg_url, meta, control, tracing_targets }
+		let executor = Arc::new(smol::Executor::new());
+		Self { backend, pg_url, meta, control, tracing_targets, executor }
 	}
 
 	pub fn backend(&self) -> &Arc<ReadOnlyBackend<B, D>> {
@@ -157,15 +144,80 @@ where
 	}
 }
 
-struct Actors<B: BlockT + Unpin, D: ReadOnlyDb + 'static>
+struct Actors<Block: Send + Sync + 'static, H: Send + Sync + 'static, Db: Send + Sync + 'static> {
+	storage: Address<workers::StorageAggregator<H>>,
+	blocks: Address<workers::BlocksIndexer<Block, Db>>,
+	metadata: Address<workers::MetadataActor<Block>>,
+	db: Address<DatabaseActor>,
+	tasks: Vec<Task<()>>,
+}
+
+impl<B: Send + Sync + 'static, H: Send + Sync + 'static, D: Send + Sync + 'static> Clone for Actors<B, H, D> {
+	fn clone(&self) -> Self {
+		Self {
+			storage: self.storage.clone(),
+			blocks: self.blocks.clone(),
+			metadata: self.metadata.clone(),
+			db: self.db.clone(),
+			tasks: Vec::new(),
+		}
+	}
+}
+
+impl<Block, Db> Actors<Block, Block::Hash, Db>
 where
-	B::Hash: Unpin,
-	NumberFor<B>: Into<u32>,
+	Block: BlockT + Unpin,
+	Db: ReadOnlyDb + 'static,
+	Block::Hash: Unpin,
+	NumberFor<Block>: Into<u32>,
 {
-	storage: Address<workers::StorageAggregator<B>>,
-	blocks: Address<workers::BlocksIndexer<B, D>>,
-	metadata: Address<workers::MetadataActor<B>>,
-	db_pool: Address<ActorPool<DatabaseActor<B>>>,
+	async fn spawn(conf: &SystemConfig<Block, Db>) -> Result<Self> {
+		let mut tasks = Vec::new();
+		let db = workers::DatabaseActor::new(conf.pg_url().into(), conf.executor.clone()).await?.create(None);
+		let (db, fut) = db.run();
+		tasks.push(conf.executor.spawn(fut));
+		let storage = workers::StorageAggregator::new(db.clone()).create(None);
+		let metadata = workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None);
+		let (storage, fut) = storage.run();
+		tasks.push(conf.executor.spawn(fut));
+		let (metadata, fut) = metadata.run();
+		tasks.push(conf.executor.spawn(fut));
+		let blocks = workers::BlocksIndexer::new(conf, db.clone(), metadata.clone()).create(None);
+		let (blocks, fut) = blocks.run();
+		tasks.push(conf.executor.spawn(fut));
+
+		Ok(Actors { storage, blocks, metadata, db, tasks })
+	}
+
+	// Run a future that sends actors a signal to progress once the previous
+	// messages have been processed.
+	async fn tick_interval(&self, executor: Arc<smol::Executor<'_>>) -> Result<()> {
+		// messages that only need to be sent once
+		self.blocks.send(ReIndex).await?;
+		let actors = self.clone();
+		let _handle = executor
+			.spawn(async move {
+				loop {
+					let fut = (
+						Box::pin(actors.blocks.send(Crawl)),
+						Box::pin(actors.storage.send(SendStorage)),
+						Box::pin(actors.storage.send(SendTraces)),
+					);
+					if let (Err(_), Err(_), Err(_)) = future::join3(fut.0, fut.1, fut.2).await {
+						break;
+					}
+				}
+			})
+			.detach();
+		Ok(())
+	}
+
+	async fn kill(self) -> Result<()> {
+		for task in self.tasks.into_iter() {
+			std::mem::drop(task);
+		}
+		Ok(())
+	}
 }
 
 /// Control the execution of the indexing engine.
@@ -228,11 +280,20 @@ where
 		let (tx_start, rx_start) = flume::bounded(1);
 		let (tx_kill, rx_kill) = flume::bounded(1);
 
+		let executor = conf.executor.clone();
 		let handle = jod_thread::spawn(move || {
 			// block until we receive the message to start
 			let _ = rx_start.recv();
-
-			smol::block_on(Self::main_loop(conf, rx_kill, client))?;
+			let rx_kill_2 = rx_kill.clone();
+			let (left_res, right_res) = Parallel::new()
+				.each(0..conf.control.task_workers, |_| block_on(executor.run(rx_kill_2.recv_async())))
+				.finish(|| block_on(Self::main_loop(conf, rx_kill, client)));
+			if let Err(flume::RecvError::Disconnected) =
+				left_res.into_iter().collect::<Result<Vec<()>, flume::RecvError>>()
+			{
+				log::warn!("Senders dropped connection")
+			}
+			right_res?;
 			Ok(())
 		});
 
@@ -240,12 +301,13 @@ where
 	}
 
 	async fn main_loop(conf: SystemConfig<B, D>, rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
-		let actors = Self::spawn_actors(conf.clone()).await?;
-		let pool = actors.db_pool.send(GetState::Pool.into()).await??.pool();
-		let listener = Self::init_listeners(conf.pg_url()).await?;
-		let mut conn = pool.acquire().await?;
-		Self::restore_missing_storage(&mut *conn).await?;
-		let env = Environment::<B, R, C, D>::new(
+		let actors = Actors::spawn(&conf).await?;
+		actors.tick_interval(conf.executor.clone()).await?;
+		let listener = Self::init_listeners(&conf).await?;
+		let pool = actors.db.send(GetState::Pool).await??.pool();
+		let storage_handle = conf.executor.spawn(Self::restore_missing_storage(conf.clone(), pool.clone()));
+
+		let env = Environment::<B, B::Hash, R, C, D>::new(
 			conf.backend().clone(),
 			client,
 			actors.storage.clone(),
@@ -253,66 +315,39 @@ where
 		);
 		let env = AssertUnwindSafe(env);
 
-		let runner = coil::Runner::builder(env, TaskExecutor, &pool)
+		let runner = coil::Runner::builder(env, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(conf.control.task_workers)
 			// times out if tasks don't start execution on the threadpool within 20 seconds.
 			.timeout(Duration::from_secs(conf.control.task_timeout))
-			.max_tasks(conf.control.max_tasks)
 			.build()?;
 
 		loop {
-			let tasks = runner.run_all_sync_tasks().fuse();
-			futures::pin_mut!(tasks);
-			futures::select! {
-				t = tasks => {
-					match t {
-						Ok(0) => {
-							smol::Timer::after(std::time::Duration::from_millis(500)).await;
-						},
-						Ok(n) => log::debug!("Executed {} tasks successfully", n),
-						Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
-						Err(e) => log::error!("{:?}", e),
-					}
-				},
-				_ = rx.recv_async() => break,
+			match rx.try_recv() {
+				Err(flume::TryRecvError::Empty) => (),
+				Err(flume::TryRecvError::Disconnected) => break,
+				Ok(_) => {
+					log::info!("Closing main loop..");
+					break;
+				}
+			}
+
+			match runner.run_pending_tasks() {
+				Ok(_) => (),
+				Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
+				Err(e) => log::error!("{:?}", e),
 			}
 		}
-		Self::kill_actors(actors).await?;
-		listener.kill_async().await;
+
+		storage_handle.timeout(Duration::from_millis(100)).await.transpose()?;
+		future::join(actors.kill(), listener.kill()).await.0?;
 		Ok(())
 	}
 
-	async fn spawn_actors(conf: SystemConfig<B, D>) -> Result<Actors<B, D>> {
-		let db = workers::DatabaseActor::<B>::new(conf.pg_url().into()).await?;
-		let db_pool =
-			actor_pool::ActorPool::new(db, conf.control.db_actor_pool_size).create(None).spawn(&mut Smol::Global);
-		let storage = workers::StorageAggregator::new(db_pool.clone()).create(None).spawn(&mut Smol::Global);
-		let metadata = workers::MetadataActor::new(db_pool.clone(), conf.meta().clone())
-			.await?
-			.create(None)
-			.spawn(&mut Smol::Global);
-		let blocks =
-			workers::BlocksIndexer::new(&conf, db_pool.clone(), metadata.clone()).create(None).spawn(&mut Smol::Global);
-
-		Ok(Actors { storage, blocks, metadata, db_pool })
-	}
-
-	async fn kill_actors(actors: Actors<B, D>) -> Result<()> {
-		let fut: Vec<BoxFuture<'_, Result<(), Disconnected>>> = vec![
-			Box::pin(actors.storage.send(Die)),
-			Box::pin(actors.blocks.send(Die)),
-			Box::pin(actors.metadata.send(Die)),
-		];
-		futures::future::join_all(fut).await;
-		let _ = actors.db_pool.send(Die.into()).await?;
-		Ok(())
-	}
-
-	async fn init_listeners(pg_url: &str) -> Result<Listener> {
-		Listener::builder(pg_url, move |notif, conn| {
+	async fn init_listeners(conf: &SystemConfig<B, D>) -> Result<Listener> {
+		Listener::builder(conf.pg_url(), move |notif, conn| {
 			async move {
-				let sql_block = queries::get_full_block_by_id(conn, notif.id).await?;
+				let sql_block = queries::get_full_block_by_number(conn, notif.block_num).await?;
 				let b = sql_block.into_block_and_spec()?;
 				crate::tasks::execute_block::<B, R, C, D>(b.0, PhantomData).enqueue(conn).await?;
 				Ok(())
@@ -320,35 +355,27 @@ where
 			.boxed()
 		})
 		.listen_on(Channel::Blocks)
-		.spawn()
+		.spawn(&conf.executor)
 		.await
 	}
 
 	/// Checks if any blocks that should be executed are missing
 	/// from the task queue.
 	/// If any are found, they are re-queued.
-	async fn restore_missing_storage(conn: &mut sqlx::PgConnection) -> Result<()> {
-		let blocks: HashSet<u32> = queries::get_all_blocks::<B>(conn)
-			.await?
-			.map(|b| Ok((*b?.header().number()).into()))
-			.collect::<Result<_>>()?;
-		let mut missing_storage_blocks = queries::blocks_storage_intersection(conn).await?;
-		let difference: HashSet<u32> = missing_storage_blocks
-			.iter()
-			.map(|b| b.block_num as u32)
-			.collect::<HashSet<u32>>()
-			.difference(&blocks)
-			.copied()
-			.collect();
-		missing_storage_blocks.retain(|b| difference.contains(&(b.block_num as u32)));
-		let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> =
-			BlockModelDecoder::with_vec(missing_storage_blocks)?
+	async fn restore_missing_storage(conf: SystemConfig<B, D>, pool: sqlx::PgPool) -> Result<()> {
+		let mut conn0 = pool.acquire().await?;
+		let mut conn1 = pool.acquire().await?;
+		let nums = queries::missing_storage_blocks(&mut *conn0).await?;
+		log::info!("Restoring {} missing storage entries.", nums.len());
+		let mut block_stream =
+			queries::blocks_paginated(&mut *conn0, nums.as_slice(), conf.control.max_block_load.try_into()?);
+		while let Some(Ok(page)) = block_stream.next().await {
+			let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(page)?
 				.into_iter()
 				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 				.collect();
-		log::info!("Restoring {} missing storage entries. This could take a few minutes...", jobs.len());
-		coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
-		log::info!("Storage restored");
+			coil::JobExt::enqueue_batch(jobs, &mut *conn1).await?;
+		}
 		Ok(())
 	}
 }
@@ -383,15 +410,21 @@ where
 	}
 
 	fn shutdown(self) -> Result<()> {
-		let _ = self.kill_tx.send(());
+		loop {
+			match self.kill_tx.send_timeout((), Duration::from_secs(5)) {
+				Err(_) => break, // everyone got the kill tx
+				Ok(_) => {
+					std::thread::sleep(std::time::Duration::from_millis(20));
+					continue;
+				}
+			}
+		}
 		self.handle.join()?;
 		Ok(())
 	}
 
 	fn boxed_shutdown(self: Box<Self>) -> Result<()> {
-		let _ = self.kill_tx.send(());
-		self.handle.join()?;
-		Ok(())
+		self.shutdown()
 	}
 
 	fn context(&self) -> &SystemConfig<B, D> {

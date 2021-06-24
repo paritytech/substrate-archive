@@ -21,6 +21,10 @@ use xtra::Message;
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
 
+pub trait Hash: Copy + Send + Sync + Unpin + AsRef<[u8]> + 'static {}
+
+impl<T> Hash for T where T: Copy + Send + Sync + Unpin + AsRef<[u8]> + 'static {}
+
 #[derive(Debug)]
 pub struct Metadata {
 	version: u32,
@@ -46,7 +50,7 @@ impl Message for Metadata {
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
-pub struct Block<B: BlockT> {
+pub struct Block<B> {
 	pub inner: SignedBlock<B>,
 	pub spec: u32,
 }
@@ -63,7 +67,7 @@ impl<B: BlockT> Message for Block<B> {
 
 /// NewType for committing many blocks to the database at once
 #[derive(Debug)]
-pub struct BatchBlock<B: BlockT> {
+pub struct BatchBlock<B> {
 	pub inner: Vec<Block<B>>,
 }
 
@@ -83,16 +87,16 @@ impl<B: BlockT> Message for BatchBlock<B> {
 
 /// NewType for Storage Data
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Storage<Block: BlockT> {
-	hash: Block::Hash,
+pub struct Storage<Hash> {
+	hash: Hash,
 	block_num: u32,
 	full_storage: bool,
 	pub changes: Vec<(StorageKey, Option<StorageData>)>,
 }
 
-impl<Block: BlockT> Storage<Block> {
+impl<Hash> Storage<Hash> {
 	pub fn new(
-		hash: Block::Hash,
+		hash: Hash,
 		block_num: u32,
 		full_storage: bool,
 		changes: Vec<(StorageKey, Option<StorageData>)>,
@@ -108,7 +112,7 @@ impl<Block: BlockT> Storage<Block> {
 		self.block_num
 	}
 
-	pub fn hash(&self) -> &Block::Hash {
+	pub fn hash(&self) -> &Hash {
 		&self.hash
 	}
 
@@ -117,26 +121,26 @@ impl<Block: BlockT> Storage<Block> {
 	}
 }
 
-impl<Block: BlockT> Message for Storage<Block> {
+impl<Hash: Send + 'static> Message for Storage<Hash> {
 	type Result = ();
 }
 
 #[derive(Debug)]
-pub struct BatchStorage<B: BlockT> {
-	pub inner: Vec<Storage<B>>,
+pub struct BatchStorage<Hash> {
+	pub inner: Vec<Storage<Hash>>,
 }
 
-impl<B: BlockT> BatchStorage<B> {
-	pub fn new(storages: Vec<Storage<B>>) -> Self {
+impl<Hash> BatchStorage<Hash> {
+	pub fn new(storages: Vec<Storage<Hash>>) -> Self {
 		Self { inner: storages }
 	}
 
-	pub fn inner(&self) -> &Vec<Storage<B>> {
+	pub fn inner(&self) -> &Vec<Storage<Hash>> {
 		&self.inner
 	}
 }
 
-impl<B: BlockT> Message for BatchStorage<B> {
+impl<Hash: Send + Sync + 'static> Message for BatchStorage<Hash> {
 	type Result = ();
 }
 

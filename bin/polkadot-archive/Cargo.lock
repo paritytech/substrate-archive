@@ -395,6 +395,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-stream"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "171374e7e3b2504e0e5236e3b59260560f9fe94bfe9ac39ba5e4e929c5590625"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "648ed8c8d2ce5409ccd57453d9d1b214b342a0d69376a6feda1fd6cae3299308"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "async-task"
 version = "4.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1020,30 +1041,31 @@ dependencies = [
 
 [[package]]
 name = "coil"
-version = "0.2.2"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bc00e1bd696e321f5afef445b377bcc11b7175a174c61e34ce2bca16a06ee1b"
+checksum = "2711de6d907a491a6ac9a5197b5a0d8b249c4b539c9b0ad32fdec011c194da89"
 dependencies = [
- "async-channel",
  "async-trait",
  "coil_proc_macro",
+ "flume",
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "inventory",
  "itoa",
  "log",
- "rayon",
- "rmp-serde 0.14.4",
+ "num_cpus",
  "serde",
+ "serde_json",
  "sqlx",
  "thiserror",
+ "threadpool",
 ]
 
 [[package]]
 name = "coil_proc_macro"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cce31ac045c7da7ea03e04b4c0d35bfdde70c7383c99a77bf337b1da4e593e1"
+checksum = "6dcb9b2cf620716c0a077ac2fd02f43aa69a07cac300aecd23db32a5ea0d89a2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1604,6 +1626,12 @@ name = "dyn-clone"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee2626afccd7561a06cf1367e2950c4718ea04565e20fb5029b6c7d8ad09abcf"
+
+[[package]]
+name = "easy-parallel"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1dd4afd79212583ff429b913ad6605242ed7eec277e950b1438f300748f948f4"
 
 [[package]]
 name = "ed25519"
@@ -6911,17 +6939,6 @@ dependencies = [
 
 [[package]]
 name = "rmp-serde"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ce7d70c926fe472aed493b902010bccc17fa9f7284145cb8772fd22fdb052d8"
-dependencies = [
- "byteorder",
- "rmp",
- "serde",
-]
-
-[[package]]
-name = "rmp-serde"
 version = "0.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "839395ef53057db96b84c9238ab29e1a13f2e5c8ec9f66bef853ab4197303924"
@@ -8361,6 +8378,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "smol-timeout"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "847d777e2c6c166bad26264479e80a9820f3d364fcb4a0e23cd57bbfa8e94961"
+dependencies = [
+ "async-io",
+ "pin-project-lite 0.1.12",
+]
+
+[[package]]
 name = "snow"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9384,10 +9411,12 @@ dependencies = [
 name = "substrate-archive"
 version = "0.5.2"
 dependencies = [
+ "async-stream",
  "async-trait",
  "chrono",
  "coil",
  "directories",
+ "easy-parallel",
  "fdlimit",
  "fern",
  "flume",
@@ -9401,13 +9430,14 @@ dependencies = [
  "num_cpus",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "rmp-serde 0.15.4",
+ "rmp-serde",
  "sc-chain-spec",
  "sc-client-api",
  "sc-executor",
  "serde",
  "serde_json",
  "smol",
+ "smol-timeout",
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",

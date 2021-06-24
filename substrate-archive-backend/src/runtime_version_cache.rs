@@ -43,7 +43,7 @@ use crate::{
 	read_only_backend::ReadOnlyBackend,
 };
 
-pub struct RuntimeVersionCache<B: BlockT, D: ReadOnlyDb> {
+pub struct RuntimeVersionCache<B, D> {
 	/// Hash of the WASM Blob -> RuntimeVersion
 	versions: ArcSwap<HashMap<u64, RuntimeVersion>>,
 	backend: Arc<ReadOnlyBackend<B, D>>,

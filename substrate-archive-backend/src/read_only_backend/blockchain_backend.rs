@@ -221,6 +221,7 @@ impl<Block: BlockT, D: ReadOnlyDb> HeaderMetadata<Block> for ReadOnlyBackend<Blo
 mod tests {
 	use codec::Input;
 
+	// Join Input is a struct/fn in [substrate](https://github.com/paritytech/substrate/blob/bab9deca26db20bfc914263e0542a7a1b0d8f174/client/db/src/utils.rs#L462)
 	#[test]
 	fn concat_imitates_join_input() {
 		let buf1 = [1, 2, 3, 4];

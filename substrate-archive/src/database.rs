@@ -210,7 +210,10 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Insert for StorageModel<B> {
+impl<Hash> Insert for StorageModel<Hash>
+where
+	Hash: Send + Sync + AsRef<[u8]> + 'static,
+{
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
 		log::info!("Inserting Single Storage");
 		sqlx::query(
@@ -238,7 +241,10 @@ impl<B: BlockT> Insert for StorageModel<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT> Insert for Vec<StorageModel<B>> {
+impl<Hash> Insert for Vec<StorageModel<Hash>>
+where
+	Hash: Send + Sync + AsRef<[u8]> + 'static,
+{
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
 		let mut batch = Batch::new(
 			"storage",
@@ -391,4 +397,44 @@ impl Insert for Traces {
 // Old time is disabled in chrono by not providing the feature flag in Cargo.toml.
 fn time_to_std(time: chrono::Duration) -> Result<Duration> {
 	time.to_std().map_err(|_| ArchiveError::TimestampOutOfRange)
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+	use super::*;
+
+	pub async fn enqueue_mock_jobs<B: BlockT>(blocks: &[Block<B>], conn: &mut DbConn) -> Result<(), ArchiveError> {
+		let jobs = blocks
+			.iter()
+			.map(|b| {
+				serde_json::json!({
+					"_m": null,
+					"block": &b.inner.block
+				})
+			})
+			.collect::<Vec<serde_json::Value>>();
+
+		let mut batch = Batch::new(
+			"jobs",
+			r#"INSERT INTO "_background_tasks" (
+            job_type, data
+           ) VALUES
+         	"#,
+			r#""#,
+		);
+
+		for job in jobs.into_iter() {
+			batch.reserve(3)?;
+			if batch.current_num_arguments() > 0 {
+				batch.append(",");
+			}
+			batch.append("(");
+			batch.bind("execute_block")?;
+			batch.append(",");
+			batch.bind(sqlx::types::Json(job))?;
+			batch.append(")");
+		}
+		batch.execute(conn).await?;
+		Ok(())
+	}
 }

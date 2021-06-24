@@ -25,7 +25,6 @@ use substrate_archive_backend::{ReadOnlyBackend, ReadOnlyDb, RuntimeVersionCache
 
 use crate::{
 	actors::{
-		actor_pool::ActorPool,
 		workers::{
 			database::{DatabaseActor, GetState},
 			metadata::MetadataActor,
@@ -36,20 +35,13 @@ use crate::{
 	error::{ArchiveError, Result},
 	types::{BatchBlock, Block, Die},
 };
-
-type DatabaseAct<B> = Address<ActorPool<DatabaseActor<B>>>;
+type DatabaseAct = Address<DatabaseActor>;
 type MetadataAct<B> = Address<MetadataActor<B>>;
 
-pub struct BlocksIndexer<B: BlockT, D>
-where
-	D: ReadOnlyDb,
-	NumberFor<B>: Into<u32>,
-	B: Unpin,
-	B::Hash: Unpin,
-{
+pub struct BlocksIndexer<B: Send + 'static, D: Send + 'static> {
 	/// background task to crawl blocks
 	backend: Arc<ReadOnlyBackend<B, D>>,
-	db: DatabaseAct<B>,
+	db: DatabaseAct,
 	meta: MetadataAct<B>,
 	rt_cache: Arc<RuntimeVersionCache<B, D>>,
 	/// the last maximum block number from which we are sure every block before then is indexed
@@ -58,12 +50,14 @@ where
 	max_block_load: u32,
 }
 
-impl<B: BlockT + Unpin, D: ReadOnlyDb + 'static> BlocksIndexer<B, D>
+impl<B, D> BlocksIndexer<B, D>
 where
+	B: BlockT + Unpin,
+	D: ReadOnlyDb + 'static,
 	B::Hash: Unpin,
 	NumberFor<B>: Into<u32>,
 {
-	pub fn new(conf: &SystemConfig<B, D>, db: DatabaseAct<B>, meta: MetadataAct<B>) -> Self {
+	pub fn new(conf: &SystemConfig<B, D>, db: DatabaseAct, meta: MetadataAct<B>) -> Self {
 		Self {
 			rt_cache: Arc::new(RuntimeVersionCache::new(conf.backend.clone())),
 			last_max: 0,
@@ -83,7 +77,9 @@ where
 			Ok(backend.iter_blocks(|n| fun(n))?.enumerate().map(|(_, b)| b).collect())
 		};
 		let blocks = smol::unblock(gather_blocks).await?;
-		log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
+		if !blocks.is_empty() {
+			log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
+		}
 		let cache = self.rt_cache.clone();
 		let blocks = smol::unblock(move || {
 			// Finds the versions of all the blocks, returns a new set of type `Block`.
@@ -116,7 +112,7 @@ where
 	/// gets any blocks that are missing from database and indexes those.
 	/// sets the `last_max` value.
 	async fn re_index(&mut self) -> Result<()> {
-		let mut conn = self.db.send(GetState::Conn.into()).await??.conn();
+		let mut conn = self.db.send(GetState::Conn).await??.conn();
 		let cur_max = if let Some(m) = queries::max_block(&mut conn).await? {
 			m
 		} else {
@@ -139,7 +135,7 @@ where
 		}
 
 		self.last_max = cur_max;
-		log::info!("{} missing blocks", missing_blocks);
+		log::info!("{} missing blocks, max currently indexed {}", missing_blocks, cur_max);
 
 		Ok(())
 	}
@@ -167,30 +163,9 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: BlockT, D: ReadOnlyDb + 'static> Actor for BlocksIndexer<B, D>
-where
-	NumberFor<B>: Into<u32>,
-	B: Unpin,
-	B::Hash: Unpin,
-{
-	async fn started(&mut self, ctx: &mut Context<Self>) {
-		// using this instead of notify_immediately because
-		// ReIndexing is async process
-		let addr = ctx.address().expect("Actor just started");
-		addr.do_send(ReIndex).expect("Actor cannot be disconnected; just started");
+impl<B: Send + Sync, D: Send + Sync> Actor for BlocksIndexer<B, D> {}
 
-		smol::spawn(async move {
-			loop {
-				if addr.send(Crawl).await.is_err() {
-					break;
-				}
-			}
-		})
-		.detach();
-	}
-}
-
-struct Crawl;
+pub struct Crawl;
 impl Message for Crawl {
 	type Result = ();
 }
@@ -213,7 +188,7 @@ where
 	}
 }
 
-struct ReIndex;
+pub struct ReIndex;
 impl Message for ReIndex {
 	type Result = ();
 }
