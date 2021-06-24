@@ -210,7 +210,6 @@ mod tests {
 	use super::*;
 	use futures::{SinkExt, StreamExt};
 	use sqlx::Connection;
-	use std::sync::Arc;
 
 	#[test]
 	fn should_get_notifications() {
@@ -231,7 +230,6 @@ mod tests {
 			})
 			.listen_on(Channel::Blocks)
 			.spawn()
-			.await
 			.unwrap();
 
 			let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
