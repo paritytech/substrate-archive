@@ -96,7 +96,7 @@ impl<B: BlockT, D: ReadOnlyDb + 'static> RuntimeVersionCache<B, D> {
 			let version = decode_version(self.exec.read_runtime_version(&code, &mut ext)?.as_slice())?;
 			log::debug!("Registered a new runtime version: {:?}", version);
 			self.versions.rcu(|cache| {
-				let mut cache = HashMap::clone(&cache);
+				let mut cache = HashMap::clone(cache);
 				cache.insert(code_hash, version.clone());
 				cache
 			});

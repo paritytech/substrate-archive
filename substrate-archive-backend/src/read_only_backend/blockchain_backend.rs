@@ -18,8 +18,9 @@
 
 use std::sync::Arc;
 
-use codec::Decode;
+use codec::{Decode, Encode};
 
+use sc_service::TransactionStorageMode;
 use sp_blockchain::{
 	Backend as BlockchainBackend, BlockStatus, Cache, CachedHeaderMetadata, Error as BlockchainError, HeaderBackend,
 	HeaderMetadata, Info,
@@ -33,22 +34,59 @@ use sp_runtime::{
 use crate::{
 	database::ReadOnlyDb,
 	read_only_backend::ReadOnlyBackend,
-	util::{self, columns},
+	util::{self, columns, read_db},
 };
 
 type ChainResult<T> = Result<T, BlockchainError>;
 
+#[derive(Debug, Encode, Decode)]
+struct ExtrinsicHeader {
+	hash: sp_core::H256,
+	data: Vec<u8>,
+}
+
 impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<Block, D> {
 	fn body(&self, id: BlockId<Block>) -> ChainResult<Option<Vec<<Block as BlockT>::Extrinsic>>> {
-		let res = util::read_db::<Block, D>(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
-			.map_err(|e| BlockchainError::Backend(e.to_string()))?;
-
-		match res {
-			Some(body) => match Decode::decode(&mut &body[..]) {
+		let body = match read_db(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
+			.map_err(|e| BlockchainError::Backend(e.to_string()))?
+		{
+			Some(body) => body,
+			None => return Ok(None),
+		};
+		match self.storage_mode {
+			TransactionStorageMode::BlockBody => match Decode::decode(&mut &body[..]) {
 				Ok(body) => Ok(Some(body)),
-				Err(_) => Err(BlockchainError::Backend("Could not decode extrinsics".into())),
+				Err(err) => return Err(BlockchainError::Backend(format!("Error decoding body: {}", err))),
 			},
-			None => Ok(None),
+			TransactionStorageMode::StorageChain => match Vec::<ExtrinsicHeader>::decode(&mut &body[..]) {
+				Ok(index) => {
+					let extrinsics: ChainResult<Vec<Block::Extrinsic>> = index
+						.into_iter()
+						.map(|ExtrinsicHeader { hash, data }| {
+							let decode_result = if hash != Default::default() {
+								match self.db.get(columns::TRANSACTION, hash.as_ref()) {
+									Some(t) => {
+										let input = [&data[..], &t[..]].concat();
+										Block::Extrinsic::decode(&mut input.as_slice())
+									}
+									None => {
+										return Err(BlockchainError::Backend(format!(
+											"Missing indexed transaction {:?}",
+											hash
+										)))
+									}
+								}
+							} else {
+								Block::Extrinsic::decode(&mut data.as_ref())
+							};
+							decode_result
+								.map_err(|err| BlockchainError::Backend(format!("Error decoding extrinsic: {}", err)))
+						})
+						.collect();
+					Ok(Some(extrinsics?))
+				}
+				Err(err) => return Err(BlockchainError::Backend(format!("Error decoding body list: {}", err))),
+			},
 		}
 	}
 
@@ -92,8 +130,38 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<
 		Ok(self.db.get(columns::TRANSACTION, hash.as_ref()))
 	}
 
-	fn block_indexed_body(&self, _id: BlockId<Block>) -> ChainResult<Option<Vec<Vec<u8>>>> {
-		unimplemented!()
+	fn block_indexed_body(&self, id: BlockId<Block>) -> ChainResult<Option<Vec<Vec<u8>>>> {
+		match self.storage_mode {
+			TransactionStorageMode::BlockBody => Ok(None),
+			TransactionStorageMode::StorageChain => {
+				let body = match read_db(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
+					.map_err(|e| BlockchainError::Backend(e.to_string()))?
+				{
+					Some(body) => body,
+					None => return Ok(None),
+				};
+				match Vec::<ExtrinsicHeader>::decode(&mut &body[..]) {
+					Ok(index) => {
+						let mut transactions = Vec::new();
+						for ExtrinsicHeader { hash, .. } in index.into_iter() {
+							if hash != Default::default() {
+								match self.db.get(columns::TRANSACTION, hash.as_ref()) {
+									Some(t) => transactions.push(t),
+									None => {
+										return Err(BlockchainError::Backend(format!(
+											"Missing indexed transaction {:?}",
+											hash
+										)))
+									}
+								}
+							}
+						}
+						Ok(Some(transactions))
+					}
+					Err(err) => return Err(BlockchainError::Backend(format!("Error decoding body list: {}", err))),
+				}
+			}
+		}
 	}
 }
 
@@ -150,4 +218,28 @@ impl<Block: BlockT, D: ReadOnlyDb> HeaderMetadata<Block> for ReadOnlyBackend<Blo
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+	use codec::Input;
+
+	#[test]
+	fn concat_imitates_join_input() {
+		let buf1 = [1, 2, 3, 4];
+		let buf2 = [5, 6, 7, 8];
+		let mut test = [0, 0, 0];
+		let joined = [buf1.as_ref(), buf2.as_ref()].concat();
+		let mut joined = joined.as_slice();
+		assert_eq!(joined.remaining_len().unwrap(), Some(8));
+
+		joined.read(&mut test).unwrap();
+		assert_eq!(test, [1, 2, 3]);
+		assert_eq!(joined.remaining_len().unwrap(), Some(5));
+
+		joined.read(&mut test).unwrap();
+		assert_eq!(test, [4, 5, 6]);
+		assert_eq!(joined.remaining_len().unwrap(), Some(2));
+
+		joined.read(&mut test[0..2]).unwrap();
+		assert_eq!(test, [7, 8, 6]);
+		assert_eq!(joined.remaining_len().unwrap(), Some(0));
+	}
+}

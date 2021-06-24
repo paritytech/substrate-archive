@@ -175,7 +175,7 @@ where
 
 	fn execute(self) -> Result<BlockChanges<Block>, ArchiveError> {
 		let BlockPrep { block, state, hash, parent_hash, number } =
-			Self::prepare_block(self.block, &self.backend, &self.id)?;
+			Self::prepare_block(self.block, self.backend, &self.id)?;
 
 		self.api.execute_block(&self.id, block)?;
 		let storage_changes =
@@ -191,10 +191,10 @@ where
 
 	fn execute_with_tracing(self, targets: &str) -> Result<(BlockChanges<Block>, Traces), ArchiveError> {
 		let BlockExecutor { block, backend, id, api } = self;
-		let BlockPrep { block, state, hash, parent_hash, number } = Self::prepare_block(block, &backend, &id)?;
+		let BlockPrep { block, state, hash, parent_hash, number } = Self::prepare_block(block, backend, &id)?;
 
 		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
-		let handler = TraceHandler::new(&targets, span_events);
+		let handler = TraceHandler::new(targets, span_events);
 		let dispatcher_span = tracing::debug_span!(
 			target: "state_tracing",
 			"execute_block",
