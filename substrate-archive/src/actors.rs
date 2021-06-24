@@ -59,7 +59,6 @@ pub struct SystemConfig<B, D> {
 	pub control: ControlConfig,
 	pub runtime: RuntimeConfig,
 	pub tracing_targets: Option<String>,
-	pub executor: Arc<smol::Executor<'static>>,
 }
 
 impl<B, D> Clone for SystemConfig<B, D> {
@@ -71,7 +70,6 @@ impl<B, D> Clone for SystemConfig<B, D> {
 			control: self.control,
 			runtime: self.runtime.clone(),
 			tracing_targets: self.tracing_targets.clone(),
-			executor: self.executor.clone(),
 		}
 	}
 }
@@ -318,7 +316,7 @@ where
 			.boxed()
 		})
 		.listen_on(Channel::Blocks)
-		.spawn(&conf.executor)
+		.spawn()
 		.await
 	}
 
