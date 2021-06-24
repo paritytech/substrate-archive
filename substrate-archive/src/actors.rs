@@ -18,10 +18,10 @@
 
 mod workers;
 
-use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
+use std::{convert::TryInto, marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
 use coil::Job as _;
-use futures::{executor::block_on, future, FutureExt};
+use futures::{executor::block_on, future, FutureExt, StreamExt};
 use serde::{de::DeserializeOwned, Deserialize};
 use smol::Task;
 use smol_timeout::TimeoutExt;
@@ -42,7 +42,7 @@ use self::workers::{
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use crate::{
 	archive::Archive,
-	database::{models::BlockModelDecoder, queries, Channel, DbConn, Listener},
+	database::{models::BlockModelDecoder, queries, Channel, Listener},
 	error::Result,
 	tasks::Environment,
 };
@@ -302,10 +302,9 @@ where
 	async fn main_loop(conf: SystemConfig<B, D>, rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
 		let actors = Actors::spawn(&conf).await?;
 		actors.tick_interval(conf.executor.clone()).await?;
-		let pool = actors.db.send(GetState::Pool).await??.pool();
 		let listener = Self::init_listeners(&conf).await?;
-		let conn = pool.acquire().await?;
-		let storage_handle = conf.executor.spawn(Self::restore_missing_storage(conn, conf.clone()));
+		let pool = actors.db.send(GetState::Pool).await??.pool();
+		let storage_handle = conf.executor.spawn(Self::restore_missing_storage(conf.clone(), pool.clone()));
 
 		let env = Environment::<B, B::Hash, R, C, D>::new(
 			conf.backend().clone(),
@@ -362,26 +361,19 @@ where
 	/// Checks if any blocks that should be executed are missing
 	/// from the task queue.
 	/// If any are found, they are re-queued.
-	async fn restore_missing_storage(mut conn: DbConn, conf: SystemConfig<B, D>) -> Result<()> {
-		let mut page = 0;
-		let nums = queries::missing_storage_blocks(&mut *conn).await?;
+	async fn restore_missing_storage(conf: SystemConfig<B, D>, pool: sqlx::PgPool) -> Result<()> {
+		let (mut conn0, mut conn1) = (pool.acquire().await?, pool.acquire().await?);
+		let nums = queries::missing_storage_blocks(&mut *conn0).await?;
 		log::info!("Restoring {} missing storage entries.", nums.len());
-		loop {
-			let blocks =
-				queries::blocks_paginated(&mut *conn, nums.as_slice(), conf.control.max_block_load.into(), page)
-					.await?;
-			if blocks.is_empty() {
-				break;
-			}
-			log::debug!("[STORAGE] Inserted {} blocks", blocks.len());
-			page += 1;
-			let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(blocks)?
+		let mut block_stream =
+			queries::blocks_paginated(&mut *conn0, nums.as_slice(), conf.control.max_block_load.try_into()?);
+		while let Some(Ok(page)) = block_stream.next().await {
+			let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(page)?
 				.into_iter()
 				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 				.collect();
-			coil::JobExt::enqueue_batch(jobs, &mut *conn).await?;
+			coil::JobExt::enqueue_batch(jobs, &mut *conn1).await?;
 		}
-		log::info!("[STORAGE] Storage restored");
 		Ok(())
 	}
 }
