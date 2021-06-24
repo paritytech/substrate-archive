@@ -73,9 +73,6 @@ pub enum ArchiveError {
 	#[error("Tracing: {0}")]
 	Trace(#[from] TracingError),
 
-	#[error("{0}")]
-	Shutdown(String),
-
 	#[error("Rust Standard Library does not support negative durations")]
 	TimestampOutOfRange,
 }
