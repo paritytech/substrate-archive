@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: PostgreSQL `_background_tasks` table stores data as `jsonb` rather than `bytea`. Upgrading should happen
   automatically when running v0.6.0, but you will not be able to revert to any previous version of archive.
   ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
-- When restoring storage, blocks are paginated down to `max_block_load` parameter. This should cut memory usage down
-where lots of blocks are missing from storage at one time. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
+- When restoring storage, blocks are paginated using the `max_block_load` parameter. This cuts memory usage down
+when many blocks are missing from storage. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
 - Update dependencies to match runtime `0.9.6`.
 
 ### Removed
