@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use `async-std` instead of `smol` for async tasks. ([#301](https://github.com/paritytech/substrate-archive/commit/f2a4b408123c5e64be04e70a890b1354475d812d))
 - Additional tests for missing storage & pagination query. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
 - Storage Chain Support ([#292](https://github.com/paritytech/substrate-archive/commit/70ea92187ed68aee9c9cc8de757b1b86bb7ab408))
-- `v0.9.5`, `v0.9.6` wasm tracing runtimes
+- `v0.9.5`, `v0.9.6`, `v0.9.7` wasm tracing runtimes
 
 ### Changed
 - **BREAKING**: PostgreSQL `_background_tasks` table stores data as `jsonb` rather than `bytea`. Upgrading should happen
@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
 - When restoring storage, blocks are paginated using the `max_block_load` parameter. This cuts memory usage down
 when many blocks are missing from storage. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
-- Update dependencies to match runtime `0.9.6`.
+- Update dependencies to match client `0.9.6`.
 
 ### Removed
 - **BREAKING** `db_actor_pool_size` is no longer configurable on the builder. Actor pool no longer exists. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
