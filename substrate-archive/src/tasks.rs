@@ -19,6 +19,7 @@
 
 use std::{marker::PhantomData, panic::AssertUnwindSafe, sync::Arc};
 
+use async_std::task;
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use xtra::prelude::*;
@@ -215,18 +216,18 @@ pub struct TaskExecutor;
 
 impl futures::task::Spawn for TaskExecutor {
 	fn spawn_obj(&self, future: futures::task::FutureObj<'static, ()>) -> Result<(), futures::task::SpawnError> {
-		smol::spawn(future).detach();
+		task::spawn(future);
 		Ok(())
 	}
 }
 
 impl sp_core::traits::SpawnNamed for TaskExecutor {
 	fn spawn_blocking(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
-		smol::spawn(async move { smol::unblock(|| fut).await.await }).detach();
+		task::spawn_blocking(|| async move { fut.await });
 	}
 
 	fn spawn(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
-		smol::spawn(fut).detach()
+		task::spawn(fut);
 	}
 }
 
@@ -275,10 +276,10 @@ where
 	log::debug!("Took {:?} to execute block", now.elapsed());
 
 	let now = std::time::Instant::now();
-	smol::block_on(env.storage.send(Storage::from(storage)))?;
+	task::block_on(env.storage.send(Storage::from(storage)))?;
 	if !traces.events.is_empty() || !traces.spans.is_empty() {
 		log::info!("Sending {} events and {} spans", traces.events.len(), traces.spans.len());
-		smol::block_on(env.storage.send(traces))?;
+		task::block_on(env.storage.send(traces))?;
 	}
 	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())

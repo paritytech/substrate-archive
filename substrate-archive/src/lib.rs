@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 #![forbid(unsafe_code)]
-// #![deny(dead_code)]
+#![deny(dead_code)]
 
 // Re-Exports
 pub use sc_executor::native_executor_instance;
@@ -63,6 +63,7 @@ use test::{initialize, insert_dummy_sql, TestGuard, DATABASE_URL, PG_POOL};
 #[cfg(test)]
 mod test {
 	use crate::database::BlockModel;
+	use async_std::task;
 	use once_cell::sync::Lazy;
 	use sqlx::prelude::*;
 	use std::sync::{Mutex, MutexGuard, Once};
@@ -90,7 +91,7 @@ mod test {
 	}
 
 	pub static PG_POOL: Lazy<sqlx::PgPool> = Lazy::new(|| {
-		smol::block_on(async {
+		task::block_on(async {
 			let pool = sqlx::postgres::PgPoolOptions::new()
 				.min_connections(4)
 				.max_connections(8)
@@ -107,7 +108,7 @@ mod test {
 		INIT.call_once(|| {
 			pretty_env_logger::init();
 			let url: &str = &DATABASE_URL;
-			smol::block_on(async {
+			task::block_on(async {
 				crate::database::migrate(url).await.unwrap();
 			});
 		});
@@ -116,7 +117,7 @@ mod test {
 	static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 	pub fn insert_dummy_sql() {
-		smol::block_on(async {
+		task::block_on(async {
 			sqlx::query(
 				r#"
                     INSERT INTO metadata (version, meta)
@@ -159,7 +160,7 @@ mod test {
 
 	impl<'a> Drop for TestGuard<'a> {
 		fn drop(&mut self) {
-			smol::block_on(async move {
+			task::block_on(async move {
 				let mut conn = crate::PG_POOL.acquire().await.unwrap();
 				conn.execute(
 					"

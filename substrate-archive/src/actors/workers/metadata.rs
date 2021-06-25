@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
+use async_std::task;
 use itertools::Itertools;
 use xtra::prelude::*;
 
@@ -26,7 +27,7 @@ use crate::{
 	actors::workers::database::{DatabaseActor, GetState},
 	database::{queries, DbConn},
 	error::Result,
-	types::{BatchBlock, Block, Die, Metadata},
+	types::{BatchBlock, Block, Metadata},
 };
 
 /// Actor to fetch metadata about a block/blocks from RPC
@@ -49,7 +50,7 @@ impl<B: BlockT + Unpin> MetadataActor<B> {
 		if !queries::check_if_meta_exists(ver, &mut self.conn).await? {
 			let meta = self.meta.clone();
 			log::info!("Getting metadata for hash {}, version {}", hex::encode(hash.as_ref()), ver);
-			let meta = smol::unblock(move || meta.metadata(&BlockId::hash(hash))).await?;
+			let meta = task::spawn_blocking(move || meta.metadata(&BlockId::hash(hash))).await?;
 			let meta = Metadata::new(ver, meta.to_vec());
 			self.addr.send(meta).await?;
 		}
@@ -103,16 +104,5 @@ where
 		if let Err(e) = self.batch_block_handler(blks).await {
 			log::error!("{}", e.to_string());
 		}
-	}
-}
-
-#[async_trait::async_trait]
-impl<B: BlockT + Unpin> Handler<Die> for MetadataActor<B>
-where
-	NumberFor<B>: Into<u32>,
-	B::Hash: Unpin,
-{
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
-		ctx.stop();
 	}
 }
