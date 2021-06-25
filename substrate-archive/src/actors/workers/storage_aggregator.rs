@@ -22,7 +22,7 @@ use xtra::prelude::*;
 use crate::{
 	actors::workers::database::DatabaseActor,
 	error::Result,
-	types::{BatchStorage, Die, Hash, Storage},
+	types::{BatchStorage, Hash, Storage},
 	wasm_tracing::Traces,
 };
 
@@ -102,12 +102,5 @@ impl<H: Hash> Handler<Storage<H>> for StorageAggregator<H> {
 impl<H: Hash> Handler<Traces> for StorageAggregator<H> {
 	async fn handle(&mut self, t: Traces, _: &mut Context<Self>) {
 		self.traces.push(t)
-	}
-}
-
-#[async_trait::async_trait]
-impl<H: Hash> Handler<Die> for StorageAggregator<H> {
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
-		ctx.stop();
 	}
 }

@@ -20,19 +20,22 @@ mod workers;
 
 use std::{convert::TryInto, marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
+use async_std::{
+	future::timeout,
+	task::{self, JoinHandle},
+};
 use coil::Job as _;
-use futures::{executor::block_on, future, FutureExt, StreamExt};
+use futures::{future, FutureExt, StreamExt};
+use futures_timer::Delay;
 use serde::{de::DeserializeOwned, Deserialize};
-use smol::Task;
-use smol_timeout::TimeoutExt;
-use xtra::prelude::*;
+use xtra::{prelude::*, spawn::AsyncStd};
 
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
-use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDb};
+use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDb, RuntimeConfig};
 
 use self::workers::{
 	blocks::{Crawl, ReIndex},
@@ -46,7 +49,6 @@ use crate::{
 	error::Result,
 	tasks::Environment,
 };
-use easy_parallel::Parallel;
 
 /// Provides parameters that are passed in from the user.
 /// Provides context that every actor may use
@@ -55,8 +57,8 @@ pub struct SystemConfig<B, D> {
 	pub pg_url: String,
 	pub meta: Meta<B>,
 	pub control: ControlConfig,
+	pub runtime: RuntimeConfig,
 	pub tracing_targets: Option<String>,
-	pub executor: Arc<smol::Executor<'static>>,
 }
 
 impl<B, D> Clone for SystemConfig<B, D> {
@@ -66,24 +68,18 @@ impl<B, D> Clone for SystemConfig<B, D> {
 			pg_url: self.pg_url.clone(),
 			meta: self.meta.clone(),
 			control: self.control,
+			runtime: self.runtime.clone(),
 			tracing_targets: self.tracing_targets.clone(),
-			executor: self.executor.clone(),
 		}
 	}
 }
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub struct ControlConfig {
-	/// Number of threads to spawn for task execution.
-	#[serde(default = "default_task_workers")]
-	pub(crate) task_workers: usize,
 	/// Maximum amount of time coil will wait for a task to begin.
 	/// Times out if tasks don't start execution in the thread pool within `task_timeout` seconds.
 	#[serde(default = "default_task_timeout")]
 	pub(crate) task_timeout: u64,
-	/// Maximum tasks to queue in the threadpool.
-	#[serde(default = "default_task_workers")]
-	pub(crate) max_tasks: usize,
 	/// Maximum amount of blocks to index at once.
 	#[serde(default = "default_max_block_load")]
 	pub(crate) max_block_load: u32,
@@ -91,25 +87,12 @@ pub struct ControlConfig {
 
 impl Default for ControlConfig {
 	fn default() -> Self {
-		Self {
-			task_workers: default_task_workers(),
-			task_timeout: default_task_timeout(),
-			max_tasks: default_max_tasks(),
-			max_block_load: default_max_block_load(),
-		}
+		Self { task_timeout: default_task_timeout(), max_block_load: default_max_block_load() }
 	}
-}
-
-fn default_task_workers() -> usize {
-	num_cpus::get()
 }
 
 const fn default_task_timeout() -> u64 {
 	20
-}
-
-const fn default_max_tasks() -> usize {
-	64
 }
 
 const fn default_max_block_load() -> u32 {
@@ -125,10 +108,10 @@ where
 		pg_url: String,
 		meta: Meta<B>,
 		control: ControlConfig,
+		runtime: RuntimeConfig,
 		tracing_targets: Option<String>,
 	) -> Self {
-		let executor = Arc::new(smol::Executor::new());
-		Self { backend, pg_url, meta, control, tracing_targets, executor }
+		Self { backend, pg_url, meta, control, runtime, tracing_targets }
 	}
 
 	pub fn backend(&self) -> &Arc<ReadOnlyBackend<B, D>> {
@@ -149,7 +132,6 @@ struct Actors<Block: Send + Sync + 'static, H: Send + Sync + 'static, Db: Send +
 	blocks: Address<workers::BlocksIndexer<Block, Db>>,
 	metadata: Address<workers::MetadataActor<Block>>,
 	db: Address<DatabaseActor>,
-	tasks: Vec<Task<()>>,
 }
 
 impl<B: Send + Sync + 'static, H: Send + Sync + 'static, D: Send + Sync + 'static> Clone for Actors<B, H, D> {
@@ -159,7 +141,6 @@ impl<B: Send + Sync + 'static, H: Send + Sync + 'static, D: Send + Sync + 'stati
 			blocks: self.blocks.clone(),
 			metadata: self.metadata.clone(),
 			db: self.db.clone(),
-			tasks: Vec::new(),
 		}
 	}
 }
@@ -172,50 +153,33 @@ where
 	NumberFor<Block>: Into<u32>,
 {
 	async fn spawn(conf: &SystemConfig<Block, Db>) -> Result<Self> {
-		let mut tasks = Vec::new();
-		let db = workers::DatabaseActor::new(conf.pg_url().into(), conf.executor.clone()).await?.create(None);
-		let (db, fut) = db.run();
-		tasks.push(conf.executor.spawn(fut));
-		let storage = workers::StorageAggregator::new(db.clone()).create(None);
-		let metadata = workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None);
-		let (storage, fut) = storage.run();
-		tasks.push(conf.executor.spawn(fut));
-		let (metadata, fut) = metadata.run();
-		tasks.push(conf.executor.spawn(fut));
-		let blocks = workers::BlocksIndexer::new(conf, db.clone(), metadata.clone()).create(None);
-		let (blocks, fut) = blocks.run();
-		tasks.push(conf.executor.spawn(fut));
+		let db = workers::DatabaseActor::new(conf.pg_url().into()).await?.create(None).spawn(&mut AsyncStd);
+		let storage = workers::StorageAggregator::new(db.clone()).create(None).spawn(&mut AsyncStd);
+		let metadata =
+			workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None).spawn(&mut AsyncStd);
+		let blocks = workers::BlocksIndexer::new(conf, db.clone(), metadata.clone()).create(None).spawn(&mut AsyncStd);
 
-		Ok(Actors { storage, blocks, metadata, db, tasks })
+		Ok(Actors { storage, blocks, metadata, db })
 	}
 
 	// Run a future that sends actors a signal to progress once the previous
 	// messages have been processed.
-	async fn tick_interval(&self, executor: Arc<smol::Executor<'_>>) -> Result<()> {
+	async fn tick_interval(&self) -> Result<()> {
 		// messages that only need to be sent once
 		self.blocks.send(ReIndex).await?;
 		let actors = self.clone();
-		let _handle = executor
-			.spawn(async move {
-				loop {
-					let fut = (
-						Box::pin(actors.blocks.send(Crawl)),
-						Box::pin(actors.storage.send(SendStorage)),
-						Box::pin(actors.storage.send(SendTraces)),
-					);
-					if let (Err(_), Err(_), Err(_)) = future::join3(fut.0, fut.1, fut.2).await {
-						break;
-					}
+		task::spawn(async move {
+			loop {
+				let fut = (
+					Box::pin(actors.blocks.send(Crawl)),
+					Box::pin(actors.storage.send(SendStorage)),
+					Box::pin(actors.storage.send(SendTraces)),
+				);
+				if let (Err(_), Err(_), Err(_)) = future::join3(fut.0, fut.1, fut.2).await {
+					break;
 				}
-			})
-			.detach();
-		Ok(())
-	}
-
-	async fn kill(self) -> Result<()> {
-		for task in self.tasks.into_iter() {
-			std::mem::drop(task);
-		}
+			}
+		});
 		Ok(())
 	}
 }
@@ -230,11 +194,10 @@ where
 	NumberFor<B>: Into<u32>,
 {
 	config: SystemConfig<B, D>,
-	start_tx: flume::Sender<()>,
-	kill_tx: flume::Sender<()>,
 	/// handle to the futures runtime indexing the running chain
-	handle: jod_thread::JoinHandle<Result<()>>,
-	_marker: PhantomData<(B, R, C, D)>,
+	handle: Option<JoinHandle<Result<()>>>,
+	client: Arc<C>,
+	_marker: PhantomData<(B, R, D)>,
 }
 
 impl<B, R, C, D> System<B, R, C, D>
@@ -260,92 +223,83 @@ where
 	pub fn new(
 		// one client per-threadpool. This way we don't have conflicting cache resources
 		// for WASM runtime-instances
-		client_api: Arc<C>,
+		client: Arc<C>,
 		config: SystemConfig<B, D>,
 	) -> Result<Self> {
-		let (start_tx, kill_tx, handle) = Self::start(config.clone(), client_api);
-
-		Ok(Self { config, start_tx, kill_tx, handle, _marker: PhantomData })
+		Ok(Self { handle: None, config, client, _marker: PhantomData })
 	}
 
-	fn drive(&self) {
-		self.start_tx.send(()).expect("Could not start actors");
+	fn drive(&mut self) -> Result<()> {
+		let instance = SystemInstance::new(self.config.clone(), self.client.clone())?;
+		let handle = task::spawn(instance.work());
+		self.handle.replace(handle);
+		Ok(())
+	}
+}
+
+pub struct SystemInstance<B, R, D, C> {
+	config: SystemConfig<B, D>,
+	client: Arc<C>,
+	listener: Listener,
+	_marker: PhantomData<R>,
+}
+
+impl<B, R, D, C> SystemInstance<B, R, D, C>
+where
+	D: ReadOnlyDb + 'static,
+	B: BlockT + Unpin + DeserializeOwned,
+	R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
+	R::RuntimeApi: BlockBuilderApi<B>
+		+ sp_api::Metadata<B>
+		+ ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B, D>, B>>
+		+ Send
+		+ Sync
+		+ 'static,
+	C: ApiAccess<B, ReadOnlyBackend<B, D>, R> + 'static,
+	NumberFor<B>: Into<u32> + From<u32> + Unpin,
+	B::Hash: Unpin,
+	B::Header: serde::de::DeserializeOwned,
+{
+	fn new(config: SystemConfig<B, D>, client: Arc<C>) -> Result<Self> {
+		let listener = Self::init_listeners(&config)?;
+		Ok(Self { config, client, listener, _marker: PhantomData })
 	}
 
-	/// Start the actors and begin driving their execution
-	pub fn start(
-		conf: SystemConfig<B, D>,
-		client: Arc<C>,
-	) -> (flume::Sender<()>, flume::Sender<()>, jod_thread::JoinHandle<Result<()>>) {
-		let (tx_start, rx_start) = flume::bounded(1);
-		let (tx_kill, rx_kill) = flume::bounded(1);
-
-		let executor = conf.executor.clone();
-		let handle = jod_thread::spawn(move || {
-			// block until we receive the message to start
-			let _ = rx_start.recv();
-			let rx_kill_2 = rx_kill.clone();
-			let (left_res, right_res) = Parallel::new()
-				.each(0..conf.control.task_workers, |_| block_on(executor.run(rx_kill_2.recv_async())))
-				.finish(|| block_on(Self::main_loop(conf, rx_kill, client)));
-			if let Err(flume::RecvError::Disconnected) =
-				left_res.into_iter().collect::<Result<Vec<()>, flume::RecvError>>()
-			{
-				log::warn!("Senders dropped connection")
-			}
-			right_res?;
-			Ok(())
-		});
-
-		(tx_start, tx_kill, handle)
-	}
-
-	async fn main_loop(conf: SystemConfig<B, D>, rx: flume::Receiver<()>, client: Arc<C>) -> Result<()> {
-		let actors = Actors::spawn(&conf).await?;
-		actors.tick_interval(conf.executor.clone()).await?;
-		let listener = Self::init_listeners(&conf).await?;
+	async fn work(self) -> Result<()> {
+		let actors = Actors::spawn(&self.config).await?;
+		actors.tick_interval().await?;
 		let pool = actors.db.send(GetState::Pool).await??.pool();
-		let storage_handle = conf.executor.spawn(Self::restore_missing_storage(conf.clone(), pool.clone()));
 
+		let storage_handle = Self::restore_missing_storage(self.config.clone(), pool.clone());
 		let env = Environment::<B, B::Hash, R, C, D>::new(
-			conf.backend().clone(),
-			client,
+			self.config.backend().clone(),
+			self.client.clone(),
 			actors.storage.clone(),
-			conf.tracing_targets.clone(),
+			self.config.tracing_targets.clone(),
 		);
 		let env = AssertUnwindSafe(env);
 
 		let runner = coil::Runner::builder(env, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
-			.num_threads(conf.control.task_workers)
-			// times out if tasks don't start execution on the threadpool within 20 seconds.
-			.timeout(Duration::from_secs(conf.control.task_timeout))
+			.num_threads(self.config.runtime.block_workers)
+			// times out if tasks don't start execution on the threadpool within timeout.
+			.timeout(Duration::from_secs(self.config.control.task_timeout))
 			.build()?;
 
-		loop {
-			match rx.try_recv() {
-				Err(flume::TryRecvError::Empty) => (),
-				Err(flume::TryRecvError::Disconnected) => break,
-				Ok(_) => {
-					log::info!("Closing main loop..");
-					break;
-				}
-			}
-
+		let task_loop = task::spawn_blocking(move || loop {
 			match runner.run_pending_tasks() {
 				Ok(_) => (),
 				Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
 				Err(e) => log::error!("{:?}", e),
 			}
-		}
+		});
 
-		storage_handle.timeout(Duration::from_millis(100)).await.transpose()?;
-		future::join(actors.kill(), listener.kill()).await.0?;
+		futures::join!(storage_handle, task_loop).0?;
 		Ok(())
 	}
 
-	async fn init_listeners(conf: &SystemConfig<B, D>) -> Result<Listener> {
-		Listener::builder(conf.pg_url(), move |notif, conn| {
+	fn init_listeners(config: &SystemConfig<B, D>) -> Result<Listener> {
+		Listener::builder(config.pg_url(), move |notif, conn| {
 			async move {
 				let sql_block = queries::get_full_block_by_number(conn, notif.block_num).await?;
 				let b = sql_block.into_block_and_spec()?;
@@ -355,8 +309,7 @@ where
 			.boxed()
 		})
 		.listen_on(Channel::Blocks)
-		.spawn(&conf.executor)
-		.await
+		.spawn()
 	}
 
 	/// Checks if any blocks that should be executed are missing
@@ -380,6 +333,12 @@ where
 	}
 }
 
+impl<B, R, D, C> Drop for SystemInstance<B, R, D, C> {
+	fn drop(&mut self) {
+		task::block_on(async { self.listener.kill().await })
+	}
+}
+
 #[async_trait::async_trait(?Send)]
 impl<B, R, C, D> Archive<B, D> for System<B, R, C, D>
 where
@@ -399,27 +358,26 @@ where
 	B::Header: serde::de::DeserializeOwned,
 {
 	fn drive(&mut self) -> Result<()> {
-		System::drive(self);
+		System::drive(self)?;
 		Ok(())
 	}
 
 	async fn block_until_stopped(&self) {
 		loop {
-			smol::Timer::after(std::time::Duration::from_secs(1)).await;
+			Delay::new(std::time::Duration::from_secs(1)).await;
 		}
 	}
 
 	fn shutdown(self) -> Result<()> {
-		loop {
-			match self.kill_tx.send_timeout((), Duration::from_secs(5)) {
-				Err(_) => break, // everyone got the kill tx
-				Ok(_) => {
-					std::thread::sleep(std::time::Duration::from_millis(20));
-					continue;
+		let now = std::time::Instant::now();
+		if let Some(h) = self.handle {
+			task::block_on(async {
+				if timeout(Duration::from_secs(1), h.cancel()).await.is_err() {
+					log::warn!("shutdown timed out...");
 				}
-			}
+			})
 		}
-		self.handle.join()?;
+		log::debug!("Shutdown took {:?}", now.elapsed());
 		Ok(())
 	}
 

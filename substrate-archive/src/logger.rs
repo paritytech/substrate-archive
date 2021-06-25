@@ -100,6 +100,9 @@ pub fn init(config: LoggerConfig) -> io::Result<()> {
 			.level_for("cranelift_codegen", log::LevelFilter::Warn)
 			.level_for("wasm-heap", log::LevelFilter::Error)
 			.level_for("regalloc", log::LevelFilter::Warn)
+			.level_for("tracing", log::LevelFilter::Warn)
+			.level_for("trie", log::LevelFilter::Warn)
+			.level_for("state", log::LevelFilter::Warn)
 			.format(move |out, message, record| {
 				out.finish(format_args!(
 					"{} [{}][{}] {}::{};{}",

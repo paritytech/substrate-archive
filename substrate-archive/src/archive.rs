@@ -16,6 +16,7 @@
 
 use std::{env, fs, io, marker::PhantomData, path::PathBuf, sync::Arc};
 
+use async_std::task;
 use serde::{de::DeserializeOwned, Deserialize};
 
 use sc_chain_spec::ChainSpec;
@@ -229,30 +230,12 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 		self
 	}
 
-	/// Set the  number of threads spawn for task execution.
-	///
-	/// # Default
-	/// Defaults to the number of logical cpus in the system.
-	pub fn task_workers(mut self, workers: usize) -> Self {
-		self.config.control.task_workers = workers;
-		self
-	}
-
 	/// Set the timeout to wait for a task to start execution.
 	///
 	/// # Default
 	/// Defaults to 20 seconds.
 	pub fn task_timeout(mut self, timeout: u64) -> Self {
 		self.config.control.task_timeout = timeout;
-		self
-	}
-
-	/// Set the maximum tasks to queue in the threadpool.
-	///
-	/// # Default
-	/// Defaults to 64.
-	pub fn max_tasks(mut self, max: usize) -> Self {
-		self.config.control.max_tasks = max;
 		self
 	}
 
@@ -377,8 +360,8 @@ where
 		}
 
 		// configure substrate client and backend
-		let backend = Arc::new(ReadOnlyBackend::new(db.clone(), true, self.config.runtime.storage_mode));
-		let client = Arc::new(runtime_api::<B, R, D, DB>(db, self.config.runtime)?);
+		let backend = Arc::new(ReadOnlyBackend::new(db, true, self.config.runtime.storage_mode));
+		let client = Arc::new(runtime_api::<B, R, D, DB>(self.config.runtime.clone(), backend.clone())?);
 		Self::startup_info(&*client, &*backend)?;
 
 		// config postgres database
@@ -388,7 +371,7 @@ where
 			.database
 			.map(|config| config.url)
 			.unwrap_or_else(|| env::var(DATABASE_URL).expect("missing DATABASE_URL"));
-		smol::block_on(database::migrate(&pg_url))?;
+		task::block_on(database::migrate(&pg_url))?;
 
 		// config actor system
 		let config = SystemConfig::new(
@@ -396,6 +379,7 @@ where
 			pg_url,
 			client.clone(),
 			self.config.control,
+			self.config.runtime,
 			self.config.wasm_tracing.map(|t| t.targets),
 		);
 		let sys = System::<_, R, _, _>::new(client, config)?;

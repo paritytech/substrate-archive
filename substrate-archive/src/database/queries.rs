@@ -205,6 +205,7 @@ mod tests {
 		TestGuard,
 	};
 	use anyhow::Error;
+	use async_std::task;
 	use futures::StreamExt;
 	use sp_api::{BlockT, HeaderT};
 	use sp_storage::StorageKey;
@@ -256,8 +257,8 @@ mod tests {
 	fn should_get_missing_storage() -> Result<(), Error> {
 		crate::initialize();
 		let _guard = TestGuard::lock();
-		let mut conn = smol::block_on(setup_data_scheme())?;
-		let items = smol::block_on(missing_storage_blocks(&mut conn))?;
+		let mut conn = task::block_on(setup_data_scheme())?;
+		let items = task::block_on(missing_storage_blocks(&mut conn))?;
 
 		assert_eq!(items.len(), 100);
 		assert_eq!(items.iter().min(), Some(&3_000_001u32));
@@ -269,7 +270,7 @@ mod tests {
 	fn should_paginate_blocks() -> Result<(), Error> {
 		crate::initialize();
 		let _guard = TestGuard::lock();
-		smol::block_on(async {
+		task::block_on(async {
 			let mut conn = setup_data_scheme().await?;
 			let mut block_nums: Vec<u32> =
 				vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];

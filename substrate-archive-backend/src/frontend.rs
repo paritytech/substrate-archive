@@ -148,8 +148,8 @@ where
 }
 
 pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDb + 'static>(
-	db: Arc<D>,
 	config: RuntimeConfig,
+	backend: Arc<ReadOnlyBackend<Block, D>>,
 ) -> Result<TArchiveClient<Block, Runtime, Dispatch, D>, BackendError>
 where
 	Block: BlockT,
@@ -162,8 +162,6 @@ where
 	Dispatch: NativeExecutionDispatch + 'static,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
-	let backend = Arc::new(ReadOnlyBackend::new(db, true, config.storage_mode));
-
 	let executor = NativeExecutor::<Dispatch>::new(config.exec_method.into(), config.wasm_pages, config.block_workers);
 	let executor =
 		LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.try_into()?)?;

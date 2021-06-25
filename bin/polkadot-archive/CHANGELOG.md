@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - remove `db_actor_pool_size` as an option from configuration file. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
+- `max_tasks` from toml configuration file. ([#301](https://github.com/paritytech/substrate-archive/commit/f2a4b408123c5e64be04e70a890b1354475d812d))
+- `task_workers` from toml configuration file. ([#301](https://github.com/paritytech/substrate-archive/commit/f2a4b408123c5e64be04e70a890b1354475d812d))
 
 ## [0.2.4] - 2021-06-02
 ### Changed

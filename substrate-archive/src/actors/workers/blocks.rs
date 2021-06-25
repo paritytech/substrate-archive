@@ -15,6 +15,7 @@
 
 use std::sync::Arc;
 
+use async_std::task;
 use xtra::prelude::*;
 
 use sp_runtime::{
@@ -33,7 +34,7 @@ use crate::{
 	},
 	database::queries,
 	error::{ArchiveError, Result},
-	types::{BatchBlock, Block, Die},
+	types::{BatchBlock, Block},
 };
 type DatabaseAct = Address<DatabaseActor>;
 type MetadataAct<B> = Address<MetadataActor<B>>;
@@ -71,17 +72,15 @@ where
 	/// A async wrapper around the backend fn `iter_blocks` which
 	/// runs in a `spawn_blocking` async task (its own thread)
 	async fn collect_blocks(&self, fun: impl Fn(u32) -> bool + Send + 'static) -> Result<Vec<Block<B>>> {
-		let backend = self.backend.clone();
 		let now = std::time::Instant::now();
-		let gather_blocks = move || -> Result<Vec<SignedBlock<B>>> {
-			Ok(backend.iter_blocks(|n| fun(n))?.enumerate().map(|(_, b)| b).collect())
-		};
-		let blocks = smol::unblock(gather_blocks).await?;
-		if !blocks.is_empty() {
-			log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
-		}
-		let cache = self.rt_cache.clone();
-		let blocks = smol::unblock(move || {
+		let (backend, cache) = (self.backend.clone(), self.rt_cache.clone());
+		let blocks = task::spawn_blocking(move || {
+			let blocks: Vec<SignedBlock<B>> = backend.iter_blocks(|n| fun(n))?.collect();
+			if !blocks.is_empty() {
+				log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
+			} else {
+				return Ok(Vec::new());
+			}
 			// Finds the versions of all the blocks, returns a new set of type `Block`.
 			// panics if our search fails to get the version for a block.
 			cache.find_versions(&blocks).map(|versions| {
@@ -206,16 +205,5 @@ where
 			Ok(()) => {}
 			Err(e) => log::error!("{}", e.to_string()),
 		}
-	}
-}
-
-#[async_trait::async_trait]
-impl<B: BlockT + Unpin, D: ReadOnlyDb + 'static> Handler<Die> for BlocksIndexer<B, D>
-where
-	NumberFor<B>: Into<u32>,
-	B::Hash: Unpin,
-{
-	async fn handle(&mut self, _: Die, ctx: &mut Context<Self>) {
-		ctx.stop();
 	}
 }
