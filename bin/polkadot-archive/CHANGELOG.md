@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.0.0] - 2021-06-24
 ### Changed
-- bump polkadot to `v0.9.6`
+- bump polkadot to `v0.9.7`
 
 ### Removed
 - remove `db_actor_pool_size` as an option from configuration file. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
