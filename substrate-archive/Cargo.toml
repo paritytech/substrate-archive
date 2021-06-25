@@ -37,26 +37,26 @@ async-stream = "0.3"
 
 # Parity
 codec = { package = "parity-scale-codec", version = "2.0", default-features = false, features = ["derive", "full"] }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git ="https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git ="https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-tracing = { git ="https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-storage = { git ="https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
 
 # Workspace
 substrate-archive-backend = { path = '../substrate-archive-backend' }
 
 [dev-dependencies]
 test-common = { path = "../test-common/" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
-polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master", package = "polkadot-service" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+polkadot-service = { git = "https://github.com/paritytech/polkadot", package = "polkadot-service" , tag = "v0.9.7" }
 anyhow = "1"
 pretty_env_logger = "0.4.0"
 tempfile = "3.2"

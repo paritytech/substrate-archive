@@ -13,7 +13,7 @@ serde = "1.0"
 structopt = { version = "0.3", features = ["suggestions", "color"] }
 toml = "0.5"
 
-node-template-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-node-template = { git = "https://github.com/paritytech/substrate", branch = "master" }
+node-template-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.7" }
+node-template = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
 
 substrate-archive = { path = "../../substrate-archive" }
