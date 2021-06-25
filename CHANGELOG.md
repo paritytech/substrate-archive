@@ -8,18 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ## [v0.6.0] - 2021-06-24
 ### Added
-- Threaded Async Executor for smol ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
+- Threaded Async Executor for smol. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
 - Additional tests for missing storage & pagination query. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
-- Storage Chain Support
-  ([#292](https://github.com/paritytech/substrate-archive/commit/70ea92187ed68aee9c9cc8de757b1b86bb7ab408))
--
+- Storage Chain Support ([#292](https://github.com/paritytech/substrate-archive/commit/70ea92187ed68aee9c9cc8de757b1b86bb7ab408))
+- `v0.9.5`, `v0.9.6` wasm tracing runtimes
+
 ### Changed
 - **BREAKING**: PostgreSQL `_background_tasks` table stores data as `jsonb` rather than bytea. Upgrading should happen
   automatically when running v0.6.0, but you will not be able to revert to any previous version of archive.
   ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
-- When restoring storage, blocks are paginated down to `max_block_load` parameter. This should cut memory usage
+- When restoring storage, blocks are paginated down to `max_block_load` parameter. This should cut memory usage down
 where lots of blocks were missing from storage at one time. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
+- Update dependencies to match runtime `0.9.6`.
 
+### Removed
+- **BREAKING** `db_actor_pool_size` is no longer configurable on the builder. Actor pool no longer exists. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
 
 ## [v0.5.2] - 2021-06-02
 ### Added
