@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
 - When restoring storage, blocks are paginated using the `max_block_load` parameter. This cuts memory usage down
 when many blocks are missing from storage. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
-- Update dependencies to match client `0.9.6`.
+- Update dependencies to match client `0.9.7`.
 
 ### Removed
 - **BREAKING** `db_actor_pool_size` is no longer configurable on the builder. Actor pool no longer exists. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
