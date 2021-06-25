@@ -157,7 +157,7 @@ where
 		let storage = workers::StorageAggregator::new(db.clone()).create(None).spawn(&mut AsyncStd);
 		let metadata =
 			workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None).spawn(&mut AsyncStd);
-		let blocks = workers::BlocksIndexer::new(&conf, db.clone(), metadata.clone()).create(None).spawn(&mut AsyncStd);
+		let blocks = workers::BlocksIndexer::new(conf, db.clone(), metadata.clone()).create(None).spawn(&mut AsyncStd);
 
 		Ok(Actors { storage, blocks, metadata, db })
 	}
@@ -370,13 +370,13 @@ where
 
 	fn shutdown(self) -> Result<()> {
 		let now = std::time::Instant::now();
-		self.handle.map(|h| {
+		if let Some(h) = self.handle {
 			task::block_on(async {
-				if let Err(_) = timeout(Duration::from_secs(1), h.cancel()).await {
+				if timeout(Duration::from_secs(1), h.cancel()).await.is_err() {
 					log::warn!("shutdown timed out...");
 				}
 			})
-		});
+		}
 		log::debug!("Shutdown took {:?}", now.elapsed());
 		Ok(())
 	}
