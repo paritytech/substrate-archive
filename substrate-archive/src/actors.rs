@@ -111,7 +111,7 @@ where
 		runtime: RuntimeConfig,
 		tracing_targets: Option<String>,
 	) -> Self {
-		Self { backend, pg_url, meta, control, tracing_targets, runtime }
+		Self { backend, pg_url, meta, control, runtime, tracing_targets }
 	}
 
 	pub fn backend(&self) -> &Arc<ReadOnlyBackend<B, D>> {
