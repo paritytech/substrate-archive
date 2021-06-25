@@ -143,6 +143,8 @@ where
 			offchain_indexing_api: false,
 			wasm_runtime_overrides: config.wasm_runtime_overrides,
 			wasm_runtime_substitutes,
+			// we do not support 'no_genesis', so this value is inconsiquential
+			no_genesis: false,
 		})
 	}
 }
