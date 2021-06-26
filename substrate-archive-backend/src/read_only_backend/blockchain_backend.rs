@@ -181,7 +181,7 @@ impl<Block: BlockT, D: ReadOnlyDb> HeaderBackend<Block> for ReadOnlyBackend<Bloc
 			genesis_hash: meta.genesis_hash,
 			finalized_hash: meta.finalized_hash,
 			finalized_number: meta.finalized_number,
-			finalized_state: meta.finalized_state
+			finalized_state: meta.finalized_state,
 			number_leaves: 0,
 		}
 	}
