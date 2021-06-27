@@ -5,3 +5,5 @@ target
 *.nix
 .tmp/
 dev_conf.toml
+**/.DS_Store
+**/.vscode
