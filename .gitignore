@@ -7,3 +7,4 @@ target
 dev_conf.toml
 **/.DS_Store
 **/.vscode
+**/*.log
