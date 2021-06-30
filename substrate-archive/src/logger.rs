@@ -55,7 +55,9 @@ fn default_file_log_level() -> log::LevelFilter {
 }
 
 fn default_file_log_name() -> String {
-	"substrate-archive.log".into()
+	let mut file_name = chrono::Utc::now().to_rfc3339();
+	file_name.push_str(".log");
+	file_name
 }
 
 pub fn init(config: LoggerConfig) -> io::Result<()> {

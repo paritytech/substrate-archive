@@ -46,7 +46,7 @@ std = "DEBUG"
 #level = "DEBUG"
 # Optional log file directory path, default: "/<local>/substrate_archive/"
 #dir = "./output/"
-# Optional log file name, default: "archive.log"
+# Optional log file name, default: current time in UTC + ".log"
 #name = "archive.log"
 
 # Advanced options
