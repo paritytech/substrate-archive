@@ -18,9 +18,9 @@ thiserror = "1.0"
 # Parity
 codec = { package = "parity-scale-codec", version = "2.0", default-features = false, features = ["derive", "full"] }
 hash-db = "0.15"
-kvdb = "0.9"
-kvdb-rocksdb = "0.11"
-parity-util-mem = "0.9"
+kvdb = "0.10"
+kvdb-rocksdb = "0.12"
+parity-util-mem = "0.10"
 
 # Substrate
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
