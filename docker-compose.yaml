@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  # container name is:
+  substrate-archive-pg:
+    image: 'postgres:latest'
+    ports:
+      - 5432:5432 # localhost_port:container_port ; don't change container_port
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123 # change me
+      POSTGRES_DB: kusama # default db name
