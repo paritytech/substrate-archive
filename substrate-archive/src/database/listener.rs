@@ -143,10 +143,7 @@ where
 				futures::select! {
 					notif = listen_fut => {
 						match notif {
-							Some(Ok(v)) => {
-								let fut = self.handle_listen_event(v, &mut conn);
-								fut.await;
-							},
+							Some(Ok(v)) => self.handle_listen_event(v, &mut conn).await?,
 							Some(Err(e)) => {
 								log::error!("{:?}", e);
 							},
@@ -170,9 +167,8 @@ where
 			// collect the rest of the results, before exiting, as long as the collection completes
 			// in a reasonable amount of time
 			let gather_unfinished = || async {
-				let notifs = listener.collect::<Vec<_>>().await;
-				for msg in notifs {
-					self.handle_listen_event(msg?, &mut conn).await;
+				for msg in listener.collect::<Vec<_>>().await {
+					self.handle_listen_event(msg?, &mut conn).await?;
 				}
 				Ok::<(), ArchiveError>(())
 			};
@@ -187,9 +183,10 @@ where
 	}
 
 	/// Handle a listen event from Postgres
-	async fn handle_listen_event(&self, notif: PgNotification, conn: &mut PgConnection) {
-		let payload: Notif = serde_json::from_str(notif.payload()).unwrap();
-		(self.task)(payload, conn).await.unwrap();
+	async fn handle_listen_event(&self, notif: PgNotification, conn: &mut PgConnection) -> Result<()> {
+		let payload: Notif = serde_json::from_str(notif.payload())?;
+		(self.task)(payload, conn).await?;
+		Ok(())
 	}
 }
 
