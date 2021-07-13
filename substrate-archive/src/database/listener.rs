@@ -120,18 +120,15 @@ where
 	}
 
 	/// Spawns this listener which will work on its assigned tasks in the background
-	pub fn spawn(self) -> Result<Listener> {
+	pub async fn spawn(self) -> Result<Listener> {
 		let (tx, rx) = flume::bounded(1);
 		let pg_url = self.pg_url.clone();
 
 		// NOTE: this part is not included in the main future in order to prevent missing messages.
 		// Otherwise, it would be possible to spawn, immediately send a notification, which would be missed if we are not connected/listening yet.
-		let listener = task::block_on(async {
-			let mut listener = PgListener::connect(&pg_url).await?;
-			let channels = self.channels.iter().map(String::from).collect::<Vec<String>>();
-			listener.listen_all(channels.iter().map(|s| s.as_ref())).await?;
-			Ok::<PgListener, ArchiveError>(listener)
-		})?;
+		let mut listener = PgListener::connect(&pg_url).await?;
+		let channels = self.channels.iter().map(String::from).collect::<Vec<String>>();
+		listener.listen_all(channels.iter().map(|s| s.as_ref())).await?;
 
 		let fut = async move {
 			let mut conn = PgConnection::connect(&pg_url).await.unwrap();
@@ -241,7 +238,8 @@ mod tests {
 				.boxed()
 			})
 			.listen_on(Channel::Blocks)
-			.spawn()?;
+			.spawn()
+			.await?;
 
 			let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
 			let json = serde_json::json!({
