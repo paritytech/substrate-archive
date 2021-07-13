@@ -261,7 +261,7 @@ where
 	B::Header: serde::de::DeserializeOwned,
 {
 	fn new(config: SystemConfig<B, D>, client: Arc<C>) -> Result<Self> {
-		let listener = Self::init_listeners(&config)?;
+		let listener = task::block_on(Self::init_listeners(&config))?;
 		Ok(Self { config, client, listener, _marker: PhantomData })
 	}
 
@@ -298,7 +298,7 @@ where
 		Ok(())
 	}
 
-	fn init_listeners(config: &SystemConfig<B, D>) -> Result<Listener> {
+	async fn init_listeners(config: &SystemConfig<B, D>) -> Result<Listener> {
 		Listener::builder(config.pg_url(), move |notif, conn| {
 			async move {
 				let sql_block = queries::get_full_block_by_number(conn, notif.block_num).await?;
@@ -310,6 +310,7 @@ where
 		})
 		.listen_on(Channel::Blocks)
 		.spawn()
+		.await
 	}
 
 	/// Checks if any blocks that should be executed are missing
@@ -335,7 +336,9 @@ where
 
 impl<B, R, D, C> Drop for SystemInstance<B, R, D, C> {
 	fn drop(&mut self) {
-		task::block_on(async { self.listener.kill().await })
+		if let Err(e) = task::block_on(self.listener.kill()) {
+			log::error!("{}", e)
+		}
 	}
 }
 

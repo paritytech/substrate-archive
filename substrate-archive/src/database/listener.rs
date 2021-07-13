@@ -21,9 +21,11 @@
 
 use std::{fmt::Display, str::FromStr, time::Duration};
 
-use async_std::task;
+use async_std::{
+	future::timeout,
+	task::{self, JoinHandle},
+};
 use futures::{future::BoxFuture, FutureExt, StreamExt};
-use futures_timer::Delay;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{
 	postgres::{PgConnection, PgListener, PgNotification},
@@ -118,27 +120,27 @@ where
 	}
 
 	/// Spawns this listener which will work on its assigned tasks in the background
-	pub fn spawn(self) -> Result<Listener> {
+	pub async fn spawn(self) -> Result<Listener> {
 		let (tx, rx) = flume::bounded(1);
 		let pg_url = self.pg_url.clone();
 
-		let fut = async move {
-			let mut listener = PgListener::connect(&pg_url).await?;
-			let channels = self.channels.iter().map(String::from).collect::<Vec<String>>();
-			listener.listen_all(channels.iter().map(|s| s.as_ref())).await?;
-			let mut conn = PgConnection::connect(&pg_url).await.unwrap();
+		// NOTE: this part is not included in the main future in order to prevent missing messages.
+		// Otherwise, it would be possible to spawn, immediately send a notification, which would be missed if we are not connected/listening yet.
+		let mut listener = PgListener::connect(&pg_url).await?;
+		let channels = self.channels.iter().map(String::from).collect::<Vec<String>>();
+		listener.listen_all(channels.iter().map(|s| s.as_ref())).await?;
 
+		let fut = async move {
+			let mut conn = PgConnection::connect(&pg_url).await.unwrap();
 			let mut listener = listener.into_stream();
+
 			loop {
 				let mut listen_fut = listener.next().fuse();
 
 				futures::select! {
 					notif = listen_fut => {
 						match notif {
-							Some(Ok(v)) => {
-								let fut = self.handle_listen_event(v, &mut conn);
-								fut.await;
-							},
+							Some(Ok(v)) => self.handle_listen_event(v, &mut conn).await?,
 							Some(Err(e)) => {
 								log::error!("{:?}", e);
 							},
@@ -158,28 +160,30 @@ where
 					complete => break,
 				};
 			}
+
 			// collect the rest of the results, before exiting, as long as the collection completes
 			// in a reasonable amount of time
-			let timeout = Delay::new(Duration::from_secs(1));
-			futures::select! {
-				_ = FutureExt::fuse(timeout) => {},
-				notifs = listener.collect::<Vec<_>>().fuse() => {
-					for msg in notifs {
-						self.handle_listen_event(msg.unwrap(), &mut conn).await;
-					}
+			let gather_unfinished = || async {
+				for msg in listener.collect::<Vec<_>>().await {
+					self.handle_listen_event(msg?, &mut conn).await?;
 				}
+				Ok::<(), ArchiveError>(())
+			};
+			if timeout(Duration::from_secs(1), gather_unfinished()).await.is_err() {
+				log::warn!("clean-up notification collection timed out")
 			}
 			Ok::<(), ArchiveError>(())
 		};
-		task::spawn(fut);
 
-		Ok(Listener { tx })
+		let handle = Some(task::spawn(fut));
+		Ok(Listener { tx, handle })
 	}
 
 	/// Handle a listen event from Postgres
-	async fn handle_listen_event(&self, notif: PgNotification, conn: &mut PgConnection) {
-		let payload: Notif = serde_json::from_str(notif.payload()).unwrap();
-		(self.task)(payload, conn).await.unwrap();
+	async fn handle_listen_event(&self, notif: PgNotification, conn: &mut PgConnection) -> Result<()> {
+		let payload: Notif = serde_json::from_str(notif.payload())?;
+		(self.task)(payload, conn).await?;
+		Ok(())
 	}
 }
 
@@ -189,6 +193,7 @@ where
 pub struct Listener {
 	// Shutdown signal
 	tx: flume::Sender<()>,
+	handle: Option<JoinHandle<Result<()>>>,
 }
 
 impl Listener {
@@ -199,38 +204,42 @@ impl Listener {
 		Builder::new(pg_url, f)
 	}
 
-	pub async fn kill(&self) {
+	pub async fn kill(&mut self) -> Result<()> {
 		let _ = self.tx.send_async(()).await;
+		if let Some(handle) = self.handle.take() {
+			handle.await?;
+		}
 		log::info!("Killed Listener");
+		Ok(())
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::{SinkExt, StreamExt};
+	use futures::StreamExt;
 	use sqlx::Connection;
 
 	#[test]
-	fn should_get_notifications() {
+	fn should_get_notifications() -> Result<()> {
 		crate::initialize();
 		let _guard = crate::TestGuard::lock();
 		crate::insert_dummy_sql();
 
 		let future = async move {
-			let (tx, mut rx) = futures::channel::mpsc::channel(5);
-			let _listener = Builder::new(&crate::DATABASE_URL, move |_, _| {
-				let mut tx1 = tx.clone();
+			let (tx, rx) = flume::bounded(5);
+			let mut listener = Builder::new(&crate::DATABASE_URL, move |_, _| {
+				let tx1 = tx.clone();
 				async move {
 					log::info!("Hello");
-					tx1.send(()).await.unwrap();
+					tx1.send_async(()).await.unwrap();
 					Ok(())
 				}
 				.boxed()
 			})
 			.listen_on(Channel::Blocks)
 			.spawn()
-			.unwrap();
+			.await?;
 
 			let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
 			let json = serde_json::json!({
@@ -245,22 +254,22 @@ mod tests {
 					.execute(&mut conn)
 					.await
 					.expect("Could not exec notify query");
-				Delay::new(Duration::from_millis(50)).await;
 			}
 			let mut counter: usize = 0;
 
+			let mut rx = rx.into_stream();
 			loop {
-				let timeout = Delay::new(Duration::from_millis(75));
-				let mut timeout = FutureExt::fuse(timeout);
-				futures::select!(
-					_ = rx.next() => counter += 1,
-					_ = timeout => break,
-				)
+				if timeout(Duration::from_millis(25), rx.next()).await.is_err() {
+					break;
+				}
+				counter += 1;
 			}
-
 			assert_eq!(5, counter);
+			listener.kill().await?;
+
+			Ok::<(), ArchiveError>(())
 		};
-		task::block_on(future);
+		task::block_on(future)
 	}
 
 	#[test]
