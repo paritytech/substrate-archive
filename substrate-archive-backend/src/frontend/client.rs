@@ -27,15 +27,9 @@ use codec::{Decode, Encode};
 
 use sc_client_api::{backend::Backend as _, execution_extensions::ExecutionExtensions, CallExecutor};
 use sc_executor::RuntimeVersion;
-use sp_api::{
-	ApiError, ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Core as CoreApi, Metadata, ProvideRuntimeApi,
-};
-use sp_blockchain::HeaderBackend as _;
+use sp_api::{ApiError, ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Metadata, ProvideRuntimeApi};
 use sp_core::NativeOrEncoded;
-use sp_runtime::{
-	generic::BlockId,
-	traits::{Block as BlockT, Header as HeaderT, One},
-};
+use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use sp_version::{GetRuntimeVersion, NativeVersion};
 
 use crate::{
@@ -88,17 +82,6 @@ where
 	/// get the backend for this client instance
 	pub fn backend(&self) -> Arc<ReadOnlyBackend<Block, D>> {
 		self.backend.clone()
-	}
-
-	fn prepare_environment_block(&self, parent: &BlockId<Block>) -> sp_blockchain::Result<Block::Header> {
-		let parent_header = self.backend.blockchain().expect_header(*parent)?;
-		Ok(<<Block as BlockT>::Header as HeaderT>::new(
-			self.backend.blockchain().expect_block_number_from_id(parent)? + One::one(),
-			Default::default(),
-			Default::default(),
-			parent_header.hash(),
-			Default::default(),
-		))
 	}
 }
 
@@ -156,29 +139,22 @@ where
 	fn call_api_at<
 		R: Encode + Decode + PartialEq,
 		NC: FnOnce() -> std::result::Result<R, ApiError> + UnwindSafe,
-		C: CoreApi<Block>,
+		// C: CoreApi<Block>,
 	>(
 		&self,
-		params: CallApiAtParams<Block, C, NC, TrieState<Block, D>>,
+		params: CallApiAtParams<Block, NC, TrieState<Block, D>>,
 	) -> Result<NativeOrEncoded<R>, ApiError> {
-		let core_api = params.core_api;
 		let at = params.at;
 
 		let (manager, extensions) = self.execution_extensions.manager_and_extensions(at, params.context);
 
 		self.executor
-			.contextual_call::<_, fn(_, _) -> _, _, _>(
-				|| {
-					core_api
-						.initialize_block(at, &self.prepare_environment_block(at)?)
-						.map_err(sp_blockchain::Error::RuntimeApiError)
-				},
+			.contextual_call::<fn(_, _) -> _, _, _>(
 				at,
 				params.function,
 				&params.arguments,
 				params.overlayed_changes,
 				Some(params.storage_transaction_cache),
-				params.initialize_block,
 				manager,
 				params.native_call,
 				params.recorder,

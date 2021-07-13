@@ -65,6 +65,8 @@ pub mod meta_keys {
 	pub const BEST_BLOCK: &[u8; 4] = b"best";
 	/// Last finalized block key.
 	pub const FINALIZED_BLOCK: &[u8; 5] = b"final";
+	/// Last finalized state key.
+	pub const FINALIZED_STATE: &[u8; 6] = b"fstate";
 	/// Meta information prefix for list-based caches.
 	pub const CACHE_META_PREFIX: &[u8; 5] = b"cache";
 	/// Meta information for changes tries key.
@@ -137,6 +139,8 @@ pub struct Meta<N, H> {
 	pub finalized_number: N,
 	/// Hash of the genesis block.
 	pub genesis_hash: H,
+	/// Finalized state, if any
+	pub finalized_state: Option<(H, N)>,
 }
 
 /// Read meta from the database.
@@ -156,6 +160,7 @@ where
 				finalized_hash: Default::default(),
 				finalized_number: Zero::zero(),
 				genesis_hash: Default::default(),
+				finalized_state: Default::default(),
 			})
 		}
 	};
@@ -175,8 +180,14 @@ where
 
 	let (best_hash, best_number) = load_meta_block("best", meta_keys::BEST_BLOCK)?;
 	let (finalized_hash, finalized_number) = load_meta_block("final", meta_keys::FINALIZED_BLOCK)?;
+	let (finalized_state_hash, finalized_state_number) = load_meta_block("final_state", meta_keys::FINALIZED_STATE)?;
+	let finalized_state = if finalized_state_hash != Default::default() {
+		Some((finalized_state_hash, finalized_state_number))
+	} else {
+		None
+	};
 
-	Ok(Meta { best_hash, best_number, finalized_hash, finalized_number, genesis_hash })
+	Ok(Meta { best_hash, best_number, finalized_hash, finalized_number, genesis_hash, finalized_state })
 }
 
 /// Read genesis hash from database.
