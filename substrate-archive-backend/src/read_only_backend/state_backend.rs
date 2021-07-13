@@ -138,6 +138,17 @@ impl<B: BlockT, D: ReadOnlyDb> StateBackend<HashFor<B>> for TrieState<B, D> {
 		self.state.for_key_values_with_prefix(prefix, f)
 	}
 
+	fn apply_to_key_values_while<F: FnMut(Vec<u8>, Vec<u8>) -> bool>(
+		&self,
+		child_info: Option<&ChildInfo>,
+		prefix: Option<&[u8]>,
+		start_at: Option<&[u8]>,
+		f: F,
+		allow_missing: bool,
+	) -> Result<bool, Self::Error> {
+		self.state.apply_to_key_values_while(child_info, prefix, start_at, f, allow_missing)
+	}
+
 	fn for_child_keys_with_prefix<F: FnMut(&[u8])>(&self, child_info: &ChildInfo, prefix: &[u8], f: F) {
 		self.state.for_child_keys_with_prefix(child_info, prefix, f)
 	}
