@@ -335,7 +335,9 @@ where
 
 impl<B, R, D, C> Drop for SystemInstance<B, R, D, C> {
 	fn drop(&mut self) {
-		task::block_on(async { self.listener.kill().await })
+		if let Err(e) = task::block_on(async { self.listener.kill().await }) {
+			log::error!("{}", e)
+		}
 	}
 }
 
