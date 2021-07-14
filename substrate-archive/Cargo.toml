@@ -1,6 +1,6 @@
 [package]
 name = "substrate-archive"
-version = "0.5.2"
+version = "0.6.0"
 authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
 edition = "2018"
 
@@ -23,7 +23,6 @@ jod-thread = "0.1.2"
 log = { version = "0.4", features = ["serde"] }
 num_cpus = "1.13"
 parking_lot = "0.11"
-rmp-serde = "0.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 async-std = "1.9"

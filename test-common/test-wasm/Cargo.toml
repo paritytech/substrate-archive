@@ -9,9 +9,9 @@ publish = false
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dependencies]
-sp-core = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 tracing = { version = "0.1.26", default-features = false }
 
 [features]

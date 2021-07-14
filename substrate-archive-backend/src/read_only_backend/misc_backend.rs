@@ -70,6 +70,11 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockImportOperation<Block> for RealBlockImpo
 		Ok(())
 	}
 
+	fn set_genesis_state(&mut self, _storage: Storage, _commit: bool) -> sp_blockchain::Result<Block::Hash> {
+		log::warn!("Cannot set state of a read only backend. Genesis not set");
+		Ok(Default::default())
+	}
+
 	fn reset_storage(&mut self, _reset: Storage) -> ChainResult<Block::Hash> {
 		log::warn!("Cannot modify storage of a read only backend. Storage not reset.");
 		Ok(Default::default())

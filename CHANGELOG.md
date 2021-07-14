@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.6.0] - 2021-06-24
+### Added
+- Use `async-std` instead of `smol` for async tasks. ([#301](https://github.com/paritytech/substrate-archive/commit/f2a4b408123c5e64be04e70a890b1354475d812d))
+- Additional tests for missing storage & pagination query. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
+- Storage Chain Support ([#292](https://github.com/paritytech/substrate-archive/commit/70ea92187ed68aee9c9cc8de757b1b86bb7ab408))
+- `v0.9.5`, `v0.9.6`, `v0.9.7` wasm tracing runtimes
+
+### Changed
+- **BREAKING**: PostgreSQL `_background_tasks` table stores data as `jsonb` rather than `bytea`. Upgrading should happen
+  automatically when running v0.6.0, but you will not be able to revert to any previous version of archive.
+  ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
+- When restoring storage, blocks are paginated using the `max_block_load` parameter. This cuts memory usage down
+when many blocks are missing from storage. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
+- Update dependencies to match client `0.9.7`.
+
+### Removed
+- **BREAKING** `db_actor_pool_size` is no longer configurable on the builder. Actor pool no longer exists. ([#254](https://github.com/paritytech/substrate-archive/commit/36d955d379b1fdfb0ff063dce394d8a4d6430323))
+- **BREAKING** `max_tasks` from builder. Max tasks will always be the number of CPUS on the system. ([#301](https://github.com/paritytech/substrate-archive/commit/f2a4b408123c5e64be04e70a890b1354475d812d))
+- **BREAKING** `task_workers` from builder. Task workers will always be number of CPUS on the system. ([#301](https://github.com/paritytech/substrate-archive/commit/f2a4b408123c5e64be04e70a890b1354475d812d))
+
+### Fixed
+- archive no longer hangs on Ctrl-C. ([#301](https://github.com/paritytech/substrate-archive/commit/f2a4b408123c5e64be04e70a890b1354475d812d))
+
 ## [v0.5.2] - 2021-06-02
 ### Added
 - Test for tracing enabled wasm-blobs `v0.9.0`, `v0.9.1`, `v0.9.2`, `v0.9.3` ([#284](https://github.com/paritytech/substrate-archive/pull/284)) ([cd6a446](https://github.com/paritytech/substrate-archive/commit/cd6a446bc66002d1945cbdf0c1b39957218f90fd))
@@ -13,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Clarify release checklist ([#279](https://github.com/paritytech/substrate-archive/pull/279)) ([9abef6e](https://github.com/paritytech/substrate-archive/commit/9abef6e2bdda4c1492b6e232ec38c8c0d59a3749)) && ([#288](https://github.com/paritytech/substrate-archive/pull/288)) ([482af68](https://github.com/paritytech/substrate-archive/commit/482af68fff515a7e3a34ee0c512d735790193cd6))
-- Update dependencies to match runtime `0.9.3`. 
+- Update dependencies to match runtime `0.9.3`.
 - Refactor tracing to work with the latest tracing changes in substrate ([#273](https://github.com/paritytech/substrate-archive/pull/273)) ([b322ded](https://github.com/paritytech/substrate-archive/commit/b322ded5cf683270da6d21478e80c9f4dba706dc))
 
 ### Fixed

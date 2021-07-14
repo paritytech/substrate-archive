@@ -76,7 +76,7 @@ where
 		let (backend, cache) = (self.backend.clone(), self.rt_cache.clone());
 		let blocks = task::spawn_blocking(move || {
 			let blocks: Vec<SignedBlock<B>> = backend.iter_blocks(|n| fun(n))?.collect();
-			if blocks.len() > 0 {
+			if !blocks.is_empty() {
 				log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
 			} else {
 				return Ok(Vec::new());
@@ -163,11 +163,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: Send + Sync, D: Send + Sync> Actor for BlocksIndexer<B, D> {
-	async fn stopped(&mut self) {
-		println!("about to drop!");
-	}
-}
+impl<B: Send + Sync, D: Send + Sync> Actor for BlocksIndexer<B, D> {}
 
 pub struct Crawl;
 impl Message for Crawl {
@@ -213,6 +209,5 @@ where
 			Ok(()) => {}
 			Err(e) => log::error!("{}", e.to_string()),
 		}
-		log::debug!("Exiting re_index!");
 	}
 }

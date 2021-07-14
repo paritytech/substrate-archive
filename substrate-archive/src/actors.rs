@@ -28,7 +28,7 @@ use coil::Job as _;
 use futures::{future, FutureExt, StreamExt};
 use futures_timer::Delay;
 use serde::{de::DeserializeOwned, Deserialize};
-use xtra::prelude::*;
+use xtra::{prelude::*, spawn::AsyncStd};
 
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
@@ -111,7 +111,7 @@ where
 		runtime: RuntimeConfig,
 		tracing_targets: Option<String>,
 	) -> Self {
-		Self { backend, pg_url, meta, control, tracing_targets, runtime }
+		Self { backend, pg_url, meta, control, runtime, tracing_targets }
 	}
 
 	pub fn backend(&self) -> &Arc<ReadOnlyBackend<B, D>> {
@@ -153,23 +153,31 @@ where
 	NumberFor<Block>: Into<u32>,
 {
 	async fn spawn(conf: &SystemConfig<Block, Db>) -> Result<Self> {
-		let db = workers::DatabaseActor::new(conf.pg_url().into()).await?.create(None);
-		let (db, fut) = db.run();
-		task::spawn(fut);
-		let storage = workers::StorageAggregator::new(db.clone()).create(None);
-		let (storage, fut) = storage.run();
-		task::spawn(fut);
-		let metadata = workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None);
-		let (metadata, fut) = metadata.run();
-		task::spawn(fut);
-		let blocks = workers::BlocksIndexer::new(&conf, db.clone(), metadata.clone()).create(None);
-		let (blocks, fut) = blocks.run();
-		task::spawn(fut);
+		/*
+			let db = workers::DatabaseActor::new(conf.pg_url().into()).await?.create(None);
+			let (db, fut) = db.run();
+			task::spawn(fut);
+			let storage = workers::StorageAggregator::new(db.clone()).create(None);
+			let (storage, fut) = storage.run();
+			task::spawn(fut);
+			let metadata = workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None);
+			let (metadata, fut) = metadata.run();
+			task::spawn(fut);
+			let blocks = workers::BlocksIndexer::new(&conf, db.clone(), metadata.clone()).create(None);
+			let (blocks, fut) = blocks.run();
+			task::spawn(fut);
+		*/
+		let db = workers::DatabaseActor::new(conf.pg_url().into()).await?.create(None).spawn(&mut AsyncStd);
+		let storage = workers::StorageAggregator::new(db.clone()).create(None).spawn(&mut AsyncStd);
+		let metadata =
+			workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None).spawn(&mut AsyncStd);
+		let blocks = workers::BlocksIndexer::new(conf, db.clone(), metadata.clone()).create(None).spawn(&mut AsyncStd);
 
 		Ok(Actors { storage, blocks, metadata, db })
 	}
 
-	// Run a future that sends actors a signal to progress every X seconds
+	// Run a future that sends actors a signal to progress once the previous
+	// messages have been processed.
 	async fn tick_interval(&self) -> Result<()> {
 		// messages that only need to be sent once
 		self.blocks.send(ReIndex).await?;
@@ -235,23 +243,19 @@ where
 		Ok(Self { handle: None, config, client, _marker: PhantomData })
 	}
 
-	fn drive(&mut self) {
-		let instance = SystemInstance::new(self.config.clone(), self.client.clone());
+	fn drive(&mut self) -> Result<()> {
+		let instance = SystemInstance::new(self.config.clone(), self.client.clone())?;
 		let handle = task::spawn(instance.work());
 		self.handle.replace(handle);
+		Ok(())
 	}
 }
 
 pub struct SystemInstance<B, R, D, C> {
 	config: SystemConfig<B, D>,
 	client: Arc<C>,
+	listener: Listener,
 	_marker: PhantomData<R>,
-}
-
-impl<B, R, D, C> SystemInstance<B, R, D, C> {
-	fn new(config: SystemConfig<B, D>, client: Arc<C>) -> Self {
-		Self { config, client, _marker: PhantomData }
-	}
 }
 
 impl<B, R, D, C> SystemInstance<B, R, D, C>
@@ -270,16 +274,20 @@ where
 	B::Hash: Unpin,
 	B::Header: serde::de::DeserializeOwned,
 {
+	fn new(config: SystemConfig<B, D>, client: Arc<C>) -> Result<Self> {
+		let listener = task::block_on(Self::init_listeners(&config))?;
+		Ok(Self { config, client, listener, _marker: PhantomData })
+	}
+
 	async fn work(self) -> Result<()> {
 		let actors = Actors::spawn(&self.config).await?;
 		actors.tick_interval().await?;
 		let pool = actors.db.send(GetState::Pool).await??.pool();
-		// let listener = self.init_listeners().await?;
 
 		let storage_handle = Self::restore_missing_storage(self.config.clone(), pool.clone());
 		let env = Environment::<B, B::Hash, R, C, D>::new(
 			self.config.backend().clone(),
-			self.client,
+			self.client.clone(),
 			actors.storage.clone(),
 			self.config.tracing_targets.clone(),
 		);
@@ -288,7 +296,7 @@ where
 		let runner = coil::Runner::builder(env, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(self.config.runtime.block_workers)
-			// times out if tasks don't start execution on the threadpool within 20 seconds.
+			// times out if tasks don't start execution on the threadpool within timeout.
 			.timeout(Duration::from_secs(self.config.control.task_timeout))
 			.build()?;
 
@@ -304,8 +312,8 @@ where
 		Ok(())
 	}
 
-	async fn init_listeners(&self) -> Result<Listener> {
-		Listener::builder(self.config.pg_url(), move |notif, conn| {
+	async fn init_listeners(config: &SystemConfig<B, D>) -> Result<Listener> {
+		Listener::builder(config.pg_url(), move |notif, conn| {
 			async move {
 				let sql_block = queries::get_full_block_by_number(conn, notif.block_num).await?;
 				let b = sql_block.into_block_and_spec()?;
@@ -340,6 +348,14 @@ where
 	}
 }
 
+impl<B, R, D, C> Drop for SystemInstance<B, R, D, C> {
+	fn drop(&mut self) {
+		if let Err(e) = task::block_on(self.listener.kill()) {
+			log::error!("{}", e)
+		}
+	}
+}
+
 #[async_trait::async_trait(?Send)]
 impl<B, R, C, D> Archive<B, D> for System<B, R, C, D>
 where
@@ -359,7 +375,7 @@ where
 	B::Header: serde::de::DeserializeOwned,
 {
 	fn drive(&mut self) -> Result<()> {
-		System::drive(self);
+		System::drive(self)?;
 		Ok(())
 	}
 
@@ -371,13 +387,13 @@ where
 
 	fn shutdown(self) -> Result<()> {
 		let now = std::time::Instant::now();
-		self.handle.map(|h| {
+		if let Some(h) = self.handle {
 			task::block_on(async {
-				if let Err(_) = timeout(Duration::from_secs(1), h.cancel()).await {
+				if timeout(Duration::from_secs(1), h.cancel()).await.is_err() {
 					log::warn!("shutdown timed out...");
 				}
 			})
-		});
+		}
 		log::debug!("Shutdown took {:?}", now.elapsed());
 		Ok(())
 	}

@@ -50,8 +50,6 @@ pub enum ArchiveError {
 	BgJobGen(#[from] coil::Error),
 	#[error("Failed getting background task {0}")]
 	BgJobGet(#[from] coil::FetchError),
-	#[error("Error while decoding job data {0}")]
-	De(#[from] rmp_serde::decode::Error),
 
 	// actor and channel error
 	#[error("Trying to send to disconnected actor")]
