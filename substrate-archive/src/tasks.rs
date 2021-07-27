@@ -252,7 +252,8 @@ where
 	RA::RuntimeApi: BlockBuilderApi<B> + ApiExt<B, StateBackend = backend::StateBackendFor<Backend<B, D>, B>>,
 	Api: ApiAccess<B, Backend<B, D>, RA> + 'static,
 {
-	let api = env.client.runtime_api();
+    puffin::profile_function!();
+    let api = env.client.runtime_api();
 
 	if *block.header().parent_hash() == Default::default() {
 		return Ok(());

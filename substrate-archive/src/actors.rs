@@ -164,8 +164,8 @@ where
 
 	// Run a future that sends actors a signal to progress once the previous
 	// messages have been processed.
-	async fn tick_interval(&self) -> Result<()> {
-		// messages that only need to be sent once
+    async fn tick_interval(&self) -> Result<()> {
+        // messages that only need to be sent once
 		self.blocks.send(ReIndex).await?;
 		let actors = self.clone();
 		task::spawn(async move {
@@ -264,9 +264,9 @@ where
 		let listener = task::block_on(Self::init_listeners(&config))?;
 		Ok(Self { config, client, listener, _marker: PhantomData })
 	}
-
+    
 	async fn work(self) -> Result<()> {
-		let actors = Actors::spawn(&self.config).await?;
+        let actors = Actors::spawn(&self.config).await?;
 		actors.tick_interval().await?;
 		let pool = actors.db.send(GetState::Pool).await??.pool();
 
@@ -287,12 +287,13 @@ where
 			.build()?;
 
 		let task_loop = task::spawn_blocking(move || loop {
-            profiling::scope!("Tasks Loop"); 
+            puffin::profile_scope!("Tasks Loop");
             match runner.run_pending_tasks() {
 				Ok(_) => (),
 				Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
 				Err(e) => log::error!("{:?}", e),
 			}
+            puffin::GlobalProfiler::lock().new_frame();
 		});
 
 		futures::join!(storage_handle, task_loop).0?;

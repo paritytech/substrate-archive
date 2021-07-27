@@ -14,37 +14,33 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 use eframe::{egui, epi};
-use profiling::puffin;
-use anyhow::Result;
 use substrate_archive::{Archive, ArchiveConfig, ReadOnlyDb};
 use polkadot_service::Block;
 
-pub struct PolkadotArchive<D: ReadOnlyDb + 'static> {
+
+pub struct Profiler<D: ReadOnlyDb + 'static> {
     archive: Box<dyn Archive<Block, D>>
 }
 
-
-impl<D: ReadOnlyDb + 'static> PolkadotArchive<D> {
-    pub fn new(chain_spec: &str, config: Option<ArchiveConfig>) -> Result<Self> {
-        let mut archive = super::run_archive(chain_spec, config)?;
-        archive.drive()?;
-        Ok(Self { archive })
+impl<D: ReadOnlyDb + 'static> Profiler<D> {
+    pub fn new(archive: Box<dyn Archive<Block, D>>) -> Self {
+        Self { archive }
     }
 }
 
-impl<D: ReadOnlyDb + 'static> epi::App for PolkadotArchive<D> {
+
+impl<D: ReadOnlyDb + 'static> epi::App for Profiler<D> {
     fn name(&self) -> &str {
         "profiling egui eframe for Polkadot Archive"     
     }
     
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
         puffin_egui::profiler_window(ctx);        
-        puffin::GlobalProfiler::lock().new_frame();
     }
-
+    
     fn on_exit(&mut self) {
-       if let Err(e) = self.archive.shutdown() {
-            log::error!("{:?}", e);
-       }
+        if let Err(e) = self.archive.shutdown() {
+            log::error!("{:?}", e); 
+        }
     }
 }

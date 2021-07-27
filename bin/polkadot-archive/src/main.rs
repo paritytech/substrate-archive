@@ -76,9 +76,11 @@ fn run(chain_spec: &str, config: Option<ArchiveConfig>) -> Result<()> {
 
 #[cfg(feature = "profile")]
 fn run(chain_spec: &str, config: Option<ArchiveConfig>) -> Result<()> {
+    puffin::set_scopes_on(true);
+    let mut archive = run_archive::<SecondaryRocksDb>(chain_spec, config)?;
+	archive.drive()?;
     log::info!("archive profiling commencing..");
-    profiling::puffin::set_scopes_on(true);
-    let app = profile::PolkadotArchive::<SecondaryRocksDb>::new(chain_spec, config)?;
+    let app = profile::Profiler::new(archive);
     let options = Default::default();
     eframe::run_native(Box::new(app), options);
 }
