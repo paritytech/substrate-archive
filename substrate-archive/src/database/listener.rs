@@ -26,7 +26,6 @@ use async_std::{
 	task::{self, JoinHandle},
 };
 use futures::{future::BoxFuture, FutureExt, StreamExt};
-use futures_timer::Delay;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{
 	postgres::{PgConnection, PgListener, PgNotification},

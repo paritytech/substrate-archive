@@ -125,10 +125,7 @@ where
 	async fn block_until_stopped(&self);
 
 	/// shutdown the system
-	fn shutdown(self) -> Result<()>;
-
-	/// Shutdown the system when self is boxed (useful when erasing the types of the runtime)
-	fn boxed_shutdown(self: Box<Self>) -> Result<()>;
+	fn shutdown(&mut self) -> Result<()>;
 
 	/// Get a reference to the context the actors are using
 	fn context(&self) -> &SystemConfig<B, D>;

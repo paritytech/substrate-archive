@@ -14,6 +14,8 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 mod cli_opts;
+#[cfg(feature = "profile")]
+mod profile;
 
 use std::sync::{
 	atomic::{AtomicBool, Ordering},
@@ -53,8 +55,13 @@ native_executor_instance!(
 pub fn main() -> Result<()> {
 	let cli = cli_opts::CliOpts::init();
 	let config = cli.parse()?;
+    run(&cli.chain_spec, config)?;
+	Ok(())
+}
 
-	let mut archive = run_archive::<SecondaryRocksDb>(&cli.chain_spec, config)?;
+#[cfg(not(feature = "profile"))]
+fn run(chain_spec: &str, config: Option<ArchiveConfig>) -> Result<()> {
+    let mut archive = run_archive::<SecondaryRocksDb>(chain_spec, config)?;
 	archive.drive()?;
 	let running = Arc::new(AtomicBool::new(true));
 	let r = running.clone();
@@ -64,9 +71,16 @@ pub fn main() -> Result<()> {
 	})
 	.expect("Error setting Ctrl-C handler");
 	while running.load(Ordering::SeqCst) {}
-	archive.boxed_shutdown()?;
+	archive.shutdown()?;
+}
 
-	Ok(())
+#[cfg(feature = "profile")]
+fn run(chain_spec: &str, config: Option<ArchiveConfig>) -> Result<()> {
+    log::info!("archive profiling commencing..");
+    profiling::puffin::set_scopes_on(true);
+    let app = profile::PolkadotArchive::<SecondaryRocksDb>::new(chain_spec, config)?;
+    let options = Default::default();
+    eframe::run_native(Box::new(app), options);
 }
 
 fn run_archive<D: ReadOnlyDb + 'static>(

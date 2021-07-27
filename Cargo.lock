@@ -997,6 +997,7 @@ dependencies = [
  "itoa",
  "log",
  "num_cpus",
+ "profiling",
  "serde",
  "serde_json",
  "sqlx",
@@ -6289,6 +6290,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "profiling"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87dfd5592a8eed7e74f56ad7b125f8234763b805c30f0c7c95c486920026a6ec"
+dependencies = [
+ "profiling-procmacros",
+ "puffin",
+]
+
+[[package]]
+name = "profiling-procmacros"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9dc92bed14cc1433694b0ee18dfb3c219bf182019b0daf7b017f7a9f1e280ac"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "prometheus"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6360,6 +6381,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21ff0279b4a85e576b97e4a21d13e437ebcd56612706cde5d3f0d5c9399490c0"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "puffin"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "298fd52e432bba94b023a7c1e9cd8ac4dfb53088afeb2b8551ec16c629b3e2a8"
+dependencies = [
+ "byteorder",
+ "once_cell",
 ]
 
 [[package]]
@@ -9084,6 +9115,7 @@ dependencies = [
  "parking_lot 0.11.1",
  "polkadot-service",
  "pretty_env_logger",
+ "profiling",
  "sc-chain-spec",
  "sc-client-api",
  "sc-executor",

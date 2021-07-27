@@ -153,20 +153,6 @@ where
 	NumberFor<Block>: Into<u32>,
 {
 	async fn spawn(conf: &SystemConfig<Block, Db>) -> Result<Self> {
-		/*
-			let db = workers::DatabaseActor::new(conf.pg_url().into()).await?.create(None);
-			let (db, fut) = db.run();
-			task::spawn(fut);
-			let storage = workers::StorageAggregator::new(db.clone()).create(None);
-			let (storage, fut) = storage.run();
-			task::spawn(fut);
-			let metadata = workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None);
-			let (metadata, fut) = metadata.run();
-			task::spawn(fut);
-			let blocks = workers::BlocksIndexer::new(&conf, db.clone(), metadata.clone()).create(None);
-			let (blocks, fut) = blocks.run();
-			task::spawn(fut);
-		*/
 		let db = workers::DatabaseActor::new(conf.pg_url().into()).await?.create(None).spawn(&mut AsyncStd);
 		let storage = workers::StorageAggregator::new(db.clone()).create(None).spawn(&mut AsyncStd);
 		let metadata =
@@ -301,7 +287,8 @@ where
 			.build()?;
 
 		let task_loop = task::spawn_blocking(move || loop {
-			match runner.run_pending_tasks() {
+            profiling::scope!("Tasks Loop"); 
+            match runner.run_pending_tasks() {
 				Ok(_) => (),
 				Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
 				Err(e) => log::error!("{:?}", e),
@@ -385,9 +372,10 @@ where
 		}
 	}
 
-	fn shutdown(self) -> Result<()> {
-		let now = std::time::Instant::now();
-		if let Some(h) = self.handle {
+	fn shutdown(&mut self) -> Result<()> {
+        let now = std::time::Instant::now();
+        let handle = self.handle.take();
+		if let Some(h) = handle {
 			task::block_on(async {
 				if timeout(Duration::from_secs(1), h.cancel()).await.is_err() {
 					log::warn!("shutdown timed out...");
@@ -396,10 +384,6 @@ where
 		}
 		log::debug!("Shutdown took {:?}", now.elapsed());
 		Ok(())
-	}
-
-	fn boxed_shutdown(self: Box<Self>) -> Result<()> {
-		self.shutdown()
 	}
 
 	fn context(&self) -> &SystemConfig<B, D> {

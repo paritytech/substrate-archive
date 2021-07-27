@@ -13,8 +13,17 @@ log = "0.4"
 serde = "1.0"
 structopt = { version = "0.3", features = ["suggestions", "color"] }
 toml = "0.5"
+profiling = "1.0"
+puffin_egui = { version = "0.4", optional = true }
+eframe = "0.13"
 
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master", features = ["kusama-native", "westend-native"] }
 
 substrate-archive = { path = "../../substrate-archive" }
+
+[features]
+default = [ "profile" ]
+profile = [ "profiling/profile-with-puffin", "substrate-archive/profile", "puffin_egui" ]
+
+
