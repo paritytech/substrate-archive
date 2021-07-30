@@ -2,6 +2,7 @@
 members = [
   "substrate-archive",
   "substrate-archive-backend",
+  "work-queue",
   "test-common",
   "test-common/test-wasm"
 ]
