@@ -32,11 +32,13 @@ use std::{
 use lapin::{Connection, ConnectionProperties, Channel, Queue, ExchangeKind};
 use async_amqp::*;
 use channel::Sender;
-use ::threadpool::ThreadPool;
 use async_std::task;
 
-use crate::job::Job;
-use crate::{error::*, registry::Registry};
+use crate::{
+    job::Job,
+    error::*,
+    registry::Registry,
+};
 
 const TASK_QUEUE: &str = "TASK_QUEUE";
 
