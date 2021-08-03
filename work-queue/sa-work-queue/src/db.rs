@@ -17,6 +17,10 @@
 use crate::error::{EnqueueError, Error, PerformError};
 use crate::job::Job;
 
+use serde::{Serialize, Deserialize};
+
+
+#[derive(Serialize, Deserialize)]
 pub struct BackgroundJob {
     /// Where this job comes from (generally the name of the job function from the proc-macro)
     pub job_type: String,
@@ -39,11 +43,6 @@ pub async fn enqueue_jobs_batch<T: Job + Send>(
     jobs: Vec<T>,
 ) -> Result<(), EnqueueError> {
     todo!()
-}
-
-/// Get the next unlocked job.
-pub async fn find_next_unlocked_job(chann: lapin::Channel) -> Result<Option<BackgroundJob>, lapin::Error> {
-    todo!();
 }
 
 /// Gets jobs which failed

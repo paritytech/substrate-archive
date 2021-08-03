@@ -45,11 +45,11 @@ pub enum ArchiveError {
 
 	/// background job error
 	#[error("Background job err {0}")]
-	BgJob(#[from] coil::EnqueueError),
+	BgJob(#[from] work_queue::EnqueueError),
 	#[error("Background Job {0}")]
-	BgJobGen(#[from] coil::Error),
+	BgJobGen(#[from] work_queue::Error),
 	#[error("Failed getting background task {0}")]
-	BgJobGet(#[from] coil::FetchError),
+	BgJobGet(#[from] work_queue::FetchError),
 
 	// actor and channel error
 	#[error("Trying to send to disconnected actor")]

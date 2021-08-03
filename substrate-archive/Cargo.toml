@@ -33,6 +33,7 @@ tracing = "0.1"
 tracing-subscriber = "0.2"
 xtra = { version = "0.5", features = ["with-async_std-1"] }
 async-stream = "0.3"
+work-queue = { path = "../work-queue", package = "sa-work-queue" }
 
 # Parity
 codec = { package = "parity-scale-codec", version = "2.0", default-features = false, features = ["derive", "full"] }

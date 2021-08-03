@@ -43,6 +43,8 @@ pub enum FetchError {
     Timeout,
     #[error("Couldn't load job from storage {0}")]
     FailedLoadingJob(#[from] lapin::Error),
+    #[error("Failed to decode job {0}")]
+    FailedDecode(#[from] serde_json::Error)
 }
 
 #[derive(Debug, Error)]

@@ -1,0 +1,18 @@
+[package]
+name = "coil_proc_macro"
+version = "0.3.0"
+authors = ["Andrew Plaza <andrew.plaza@parity.io"]
+description = "This library should not be used directly, it is re-exported through coil"
+license = "GPL-3.0"
+edition = "2018"
+
+[dependencies]
+syn = { version = "1.0", features = ["full", "extra-traits"] }
+quote = "1.0"
+proc-macro2 = "1.0"
+
+[lib]
+proc-macro = true
+
+[features]
+nightly = []

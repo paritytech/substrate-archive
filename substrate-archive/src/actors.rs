@@ -24,7 +24,7 @@ use async_std::{
 	future::timeout,
 	task::{self, JoinHandle},
 };
-use coil::Job as _;
+use work_queue::Job as _;
 use futures::{future, FutureExt, StreamExt};
 use futures_timer::Delay;
 use serde::{de::DeserializeOwned, Deserialize};
@@ -76,7 +76,7 @@ impl<B, D> Clone for SystemConfig<B, D> {
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub struct ControlConfig {
-	/// Maximum amount of time coil will wait for a task to begin.
+	/// Maximum amount of time the work queue will wait for a task to begin.
 	/// Times out if tasks don't start execution in the thread pool within `task_timeout` seconds.
 	#[serde(default = "default_task_timeout")]
 	pub(crate) task_timeout: u64,
@@ -279,7 +279,7 @@ where
 		);
 		let env = AssertUnwindSafe(env);
 
-		let runner = coil::Runner::builder(env, &pool)
+		let runner = work_queue::Runner::builder(env, &pool)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(self.config.runtime.block_workers)
 			// times out if tasks don't start execution on the threadpool within timeout.
@@ -289,7 +289,7 @@ where
 		let task_loop = task::spawn_blocking(move || loop {
 			match runner.run_pending_tasks() {
 				Ok(_) => (),
-				Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
+				Err(work_queue::FetchError::Timeout) => log::warn!("Tasks timed out"),
 				Err(e) => log::error!("{:?}", e),
 			}
 		});
@@ -328,7 +328,7 @@ where
 				.into_iter()
 				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 				.collect();
-			coil::JobExt::enqueue_batch(jobs, &mut *conn1).await?;
+			work_queue::JobExt::enqueue_batch(jobs, &mut *conn1).await?;
 		}
 		Ok(())
 	}

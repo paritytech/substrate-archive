@@ -13,14 +13,6 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive. If not, see <http://www.gnu.org/licenses/>.
-#[allow(warnings, unused)]
-
-mod registry;
-mod job;
-mod types;
-mod error;
-mod db;
-mod threadpool;
 
 use std::{
     any::Any,
@@ -29,18 +21,19 @@ use std::{
     time::Duration,
 };
 
-use lapin::{Connection, ConnectionProperties, Channel, Queue, ExchangeKind};
+use lapin::{Connection, Consumer, ConnectionProperties, Channel, Queue, ExchangeKind};
 use async_amqp::*;
-use channel::Sender;
 use async_std::task;
+use futures::{Stream, StreamExt};
+use channel::Sender;
 
 use crate::{
     job::Job,
+    db::BackgroundJob,
     error::*,
     registry::Registry,
+    threadpool::ThreadPoolMq
 };
-
-const TASK_QUEUE: &str = "TASK_QUEUE";
 
 /// Builder pattern struct for the Runner
 pub struct Builder<Env> {
@@ -106,10 +99,11 @@ impl<Env: 'static> Builder<Env> {
 
     /// Build the runner
     pub fn build(self) -> Result<Runner<Env>, Error> {
-        let threadpool = ThreadPool::with_name(
-            "coil-worker".to_string(),
+        let threadpool = ThreadPoolMq::with_name(
+            "coil-worker",
             self.num_threads.unwrap_or(num_cpus::get()),
-        );
+            &self.addr
+        )?;
 
         let timeout = self
             .timeout
@@ -133,8 +127,8 @@ impl<Env: 'static> Builder<Env> {
 /// Runner for background tasks.
 /// Synchronous tasks are run in a threadpool.
 pub struct Runner<Env> {
-    threadpool: ThreadPool,
-    conn: lapin::Connection, 
+    threadpool: ThreadPoolMq,
+    conn: Connection, 
     // queue: QueueHandle,
     environment: Arc<Env>,
     registry: Arc<Registry<Env>>,
@@ -148,7 +142,7 @@ pub enum Event {
     /// No more jobs available in queue
     NoJobAvailable,
     /// An error occurred loading the job from the database
-    ErrorLoadingJob(lapin::Error),
+    ErrorLoadingJob(FetchError),
 }
 
 struct QueueHandle {
@@ -160,7 +154,7 @@ impl QueueHandle {
     fn new(connection: Connection) -> Self {
         let channel = connection.create_channel().wait().unwrap();
         let queue = channel.queue_declare(
-            &TASK_QUEUE,
+            &crate::TASK_QUEUE,
             Default::default(),
             Default::default()
         ).wait().unwrap();
@@ -171,7 +165,7 @@ impl QueueHandle {
     /// Push to the RabbitMQ
     fn push(&self, payload: Vec<u8>) -> Result<(), lapin::Error> {
         self.channel.exchange_declare("", ExchangeKind::Direct, Default::default(), Default::default()).wait()?;
-        self.channel.basic_publish("", TASK_QUEUE, Default::default(), payload, Default::default()).wait()?;
+        self.channel.basic_publish("", crate::TASK_QUEUE, Default::default(), payload, Default::default()).wait()?;
         Ok(())
     }
 
@@ -188,7 +182,7 @@ impl<Env: 'static> Runner<Env> {
     }
 
     /// Get a Pool Connection from the pool that the runner is using.
-    pub async fn connection(&self) -> &lapin::Connection {
+    pub fn connection(&self) -> &Connection {
         &self.conn
     }
 }
@@ -200,7 +194,6 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
     /// Returns how many tasks are running as a result
     pub fn run_pending_tasks(&self) -> Result<(), FetchError> {
         let max_threads = self.threadpool.max_count();
-        let (tx, rx) = channel::bounded(max_threads);
         tracing::trace!("Max Threads: {}", max_threads);
 
         let mut pending_messages = 0;
@@ -214,14 +207,14 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
             };
 
             for _ in 0..jobs_to_queue {
-                self.run_single_sync_job(tx.clone())
+                self.run_single_sync_job()
             }
 
             pending_messages += jobs_to_queue;
-            match rx.recv_timeout(self.timeout) {
+            match self.threadpool.events().recv_timeout(self.timeout) {
                 Ok(Event::Working) => pending_messages -= 1,
                 Ok(Event::NoJobAvailable) => return Ok(()),
-                Ok(Event::ErrorLoadingJob(e)) => return Err(FetchError::FailedLoadingJob(e)),
+                Ok(Event::ErrorLoadingJob(e)) => return Err(e),
                 Err(channel::RecvTimeoutError::Timeout) => return Err(FetchError::Timeout.into()),
                 Err(channel::RecvTimeoutError::Disconnected) => {
                     tracing::warn!("Job sender disconnected!");
@@ -231,11 +224,11 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
         }
     }
     
-    fn run_single_sync_job(&self, tx: Sender<Event>) {
+    fn run_single_sync_job(&self) {
         let env = Arc::clone(&self.environment);
         let registry = Arc::clone(&self.registry);
 
-        self.get_single_job(tx, move |job| {
+        self.get_single_job(move |job| {
             let perform_fn = registry
                 .get(&job.job_type)
                 .ok_or_else(|| PerformError::from(format!("Unknown job type {}", job.job_type)))?;
@@ -243,116 +236,16 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
         });
     }
     
-    fn get_single_job<F>(&self, tx: Sender<Event>, fun: F)
+    fn get_single_job<F>(&self, fun: F)
     where
-        F: FnOnce(db::BackgroundJob) -> Result<(), PerformError> + Send + UnwindSafe + 'static,
+        F: FnOnce(BackgroundJob) -> Result<(), PerformError> + Send + UnwindSafe + 'static,
     {
-        self.threadpool.execute(move || {
-            match (|| {
-                let job = Self::next_job(tx.clone()).ok_or(Error::Msg("Failed to get unlocked job".into()))?;
-                catch_unwind(|| fun(job))
-                    .map_err(|e| try_to_extract_panic_info(&e))
-                    .and_then(|r| r)
-            })() {
-                Ok(_) => { 
-                    tracing::trace!("Job Success");
-                    // send ACK, allowing job to be dropped from queue
-                },
-                Err(e) => {
-                    tracing::error!("Job failed to run {}", e);
-                    eprintln!("Job failed to run: {}", e);
-                    // ACK
-                    // re-queue the JOB after incrementing `retries`
-                    // db::requeue_failed_job();
-                    // panic!("Failed to update job: {:?}", e);
-                }
-            }
+        self.threadpool.execute(move |job| {
+            catch_unwind(|| fun(job)) 
+                .map_err(|e| try_to_extract_panic_info(&e))
+                .and_then(|r| r)
         })
     }
-
-/* 
-    fn get_single_job<F>(&self, tx: Sender<Event>, fun: F)
-    where
-        F: FnOnce(db::BackgroundJob) -> Result<(), PerformError> + Send + UnwindSafe + 'static,
-    {
-        
-        let pg_pool = self.pg_pool.clone();
-        self.threadpool.execute(move || {
-            let res = move || -> Result<(), PerformError> {
-                let (mut transaction, job) =
-                    if let Some((t, j)) = block_on(Self::get_next_job(tx, &pg_pool)) {
-                        (t, j)
-                    } else {
-                        return Ok(());
-                    };
-                let job_id = job.id;
-                let result = catch_unwind(|| fun(job))
-                    .map_err(|e| try_to_extract_panic_info(&e))
-                    .and_then(|r| r);
-                match result {
-                    Ok(_) => block_on(db::delete_successful_job(&mut transaction, job_id))?,
-                    Err(e) => {
-                        eprintln!("Job {} failed to run: {}", job_id, e);
-                        block_on(db::update_failed_job(&mut transaction, job_id))?
-                    }
-                }
-                block_on(transaction.commit())?;
-                Ok(())
-            };
-
-            match res() {
-                Ok(_) => {}
-                Err(e) => {
-                    panic!("Failed to update job: {:?}", e);
-                }
-            }
-        });
-    }
-   */ 
-    
-    fn next_job(tx: Sender<Event>) -> Option<db::BackgroundJob> {
-        todo!();     
-    }
-
-    /*
-    /// returns a transaction/job pair for the next Job
-    async fn get_next_job(tx: Sender<Event>, pg_pool: &PgPool) -> TxJobPair {
-        puffin::profile_function!(); 
-        let now = std::time::Instant::now();
-        let mut transaction = match pg_pool.begin().await {
-            Ok(t) => t,
-            Err(e) => {
-                let _ = tx.send(Event::ErrorLoadingJob(e));
-                return None;
-            }
-        };
-        if now.elapsed() > Duration::from_secs(1) {
-            log::warn!("Took {:?} to start a transaction!!!", now.elapsed());
-        }
-
-        let job = match db::find_next_unlocked_job(&mut transaction).await {
-            Ok(Some(j)) => {
-                let _ = tx.send(Event::Working);
-                j
-            }
-            Ok(None) => {
-                let _ = tx.send(Event::NoJobAvailable);
-                return None;
-            }
-            Err(e) => {
-                let _ = tx.send(Event::ErrorLoadingJob(e));
-                return None;
-            }
-        };
-        if now.elapsed() > Duration::from_secs(1) {
-            log::warn!(
-                "Took {:?} to start a transaction and find a job",
-                now.elapsed()
-            );
-        }
-        Some((transaction, job))
-    }
-    */
 }
 
 fn try_to_extract_panic_info(info: &(dyn Any + Send + 'static)) -> PerformError {
