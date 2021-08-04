@@ -38,6 +38,7 @@ pub struct Builder<Env> {
     num_threads: Option<usize>,
     addr: String,
     registry: Registry<Env>,
+    queue_name: Option<String>,
     /// Amount of time to wait until job is deemed a failure
     timeout: Option<Duration>,
 }
@@ -93,6 +94,12 @@ impl<Env: 'static> Builder<Env> {
         self.timeout = Some(timeout);
         self
     }
+    
+    /// Set the name for the queue to use.
+    /// Default: `TASK_QUEUE`
+    pub fn queue_name(mut self, name: String) -> Self {
+        self.queue_name = Some(name);
+    }
 
     /// Build the runner
     pub fn build(self) -> Result<Runner<Env>, Error> {
@@ -111,6 +118,8 @@ impl<Env: 'static> Builder<Env> {
             ConnectionProperties::default().with_async_std(),
         ).wait()?;
         
+        let queue_name = 
+
         let handle = QueueHandle::new(&conn)?;
 
         Ok(Runner {
@@ -132,6 +141,7 @@ pub struct Runner<Env> {
     handle: QueueHandle,
     environment: Arc<Env>,
     registry: Arc<Registry<Env>>,
+    queue_name: String,
     timeout: Duration,
 }
 
@@ -170,11 +180,11 @@ impl QueueHandle {
     }
     
     /// Push to the RabbitMQ
-    pub(crate) fn push(&self, payload: Vec<u8>) -> Result<(), lapin::Error> {
+    pub(crate) async fn push(&self, payload: Vec<u8>) -> Result<(), lapin::Error> {
         let properties = BasicProperties::default()
             // two means persist delivery to disk
             .with_delivery_mode(2);
-        self.channel.basic_publish("", crate::TASK_QUEUE, Default::default(), payload, properties).wait()?;
+        self.channel.basic_publish("", crate::TASK_QUEUE, Default::default(), payload, properties).await?;
         Ok(())
     }
 
@@ -321,6 +331,7 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use async_std::task;
 
     #[test]
     fn sync_jobs_are_locked_when_fetched() {
@@ -350,7 +361,7 @@ mod test {
             data: serde_json::from_str("[1, 2, 3, 4, 5, 6, 7, 8]").unwrap(),
         };
         let handle = runner.handle();
-        handle.push(serde_json::to_vec(&job).unwrap()).unwrap();
+        task::block_on(handle.push(serde_json::to_vec(&job).unwrap())).unwrap();
     }
    
     fn runner() -> Runner<()> {

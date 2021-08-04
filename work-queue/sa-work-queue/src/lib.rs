@@ -29,8 +29,6 @@ pub use crate::job::*;
 pub use runner::{Event, Builder, Runner, QueueHandle};
 pub use sa_work_queue_proc_macro::*;
 
-const TASK_QUEUE: &str = "TASK_QUEUE";
-
 
 #[cfg(test)]
 pub fn initialize() {

@@ -36,7 +36,7 @@ pub async fn enqueue_job<T: Job + Send>(
         job_type: T::JOB_TYPE.to_string(),
         data: serde_json::to_value(&job)?
     };
-    conn.push(serde_json::to_vec(&job)?)?;
+    conn.push(serde_json::to_vec(&job)?).await?;
     Ok(())
 }
 
