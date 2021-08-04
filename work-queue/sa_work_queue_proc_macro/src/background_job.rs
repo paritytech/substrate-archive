@@ -1,9 +1,14 @@
 use crate::diagnostic_shim::*;
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::borrow::Cow;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
+
+fn wrap_body(body: Vec<syn::Stmt>) -> TokenStream {
+        let body = quote!(#(#body)*);
+        // can wrap conection if we want to do fancy stuff in the future
+        body
+}
 
 pub fn expand(item: syn::ItemFn) -> Result<TokenStream, Diagnostic> {
     let job = BackgroundJob::try_from(item)?;
@@ -14,15 +19,12 @@ pub fn expand(item: syn::ItemFn) -> Result<TokenStream, Diagnostic> {
     let name = job.name;
     let env_pat = &job.args.env_arg.pat;
     let env_type = &job.args.env_arg.ty;
-    let connection_arg = &job.args.connection_arg;
-    let pool_pat = connection_arg.pool_pat();
-    let pool_ty = connection_arg.pool_ty();
     let fn_args = job.args.iter();
     let struct_def = job.args.struct_def();
     let struct_assign = job.args.struct_assign();
     let arg_names_0 = job.args.names();
     let return_type = job.return_type;
-    let body = connection_arg.wrap(job.body);
+    let body = wrap_body(job.body);
     let (impl_generics, ty_generics, where_clause) = job.generics.split_for_impl();
 
     // FIXME: this proc-macro needs some love ...
@@ -39,12 +41,12 @@ pub fn expand(item: syn::ItemFn) -> Result<TokenStream, Diagnostic> {
                 }
             }
 
-            #[coil::async_trait::async_trait]
-            impl #impl_generics coil::Job for #name :: Job #ty_generics #where_clause {
+            #[sa_work_queue::async_trait::async_trait]
+            impl #impl_generics sa_work_queue::Job for #name :: Job #ty_generics #where_clause {
                 type Environment = #env_type;
                 const JOB_TYPE: &'static str = stringify!(#name);
 
-                #fn_token perform(self, #env_pat: &Self::Environment, #pool_pat: &#pool_ty) #return_type {
+                #fn_token perform(self, #env_pat: &Self::Environment) #return_type {
                     let Self { #(#arg_names_0),* } = self;
                     #body
                 }
@@ -53,8 +55,8 @@ pub fn expand(item: syn::ItemFn) -> Result<TokenStream, Diagnostic> {
             pub(crate) mod #name {
                 use super::*;
 
-                #[derive(coil::Serialize, coil::Deserialize)]
-                #[serde(crate = "coil::serde")]
+                #[derive(sa_work_queue::Serialize, sa_work_queue::Deserialize)]
+                #[serde(crate = "sa_work_queue::serde")]
                 pub struct Job #ty_generics {
                     #(#struct_def),*
                 }
@@ -69,12 +71,12 @@ pub fn expand(item: syn::ItemFn) -> Result<TokenStream, Diagnostic> {
                 }
             }
 
-            #[coil::async_trait::async_trait]
-            impl coil::Job for #name :: Job {
+            #[sa_work_queue::async_trait::async_trait]
+            impl sa_work_queue::Job for #name :: Job {
                 type Environment = #env_type;
                 const JOB_TYPE: &'static str = stringify!(#name);
 
-                #fn_token perform(self, #env_pat: &Self::Environment, #pool_pat: &#pool_ty) #return_type {
+                #fn_token perform(self, #env_pat: &Self::Environment) #return_type {
                     let Self { #(#arg_names_0),* } = self;
                     #body
                 }
@@ -83,13 +85,13 @@ pub fn expand(item: syn::ItemFn) -> Result<TokenStream, Diagnostic> {
             pub(crate) mod #name {
                 use super::*;
 
-                #[derive(coil::Serialize, coil::Deserialize)]
-                #[serde(crate = "coil::serde")]
+                #[derive(sa_work_queue::Serialize, sa_work_queue::Deserialize)]
+                #[serde(crate = "sa_work_queue::serde")]
                 pub struct Job {
                     #(#struct_def),*
                 }
 
-                coil::register_job!(Job);
+                sa_work_queue::register_job!(Job);
             }
         }
     };
@@ -122,19 +124,19 @@ impl BackgroundJob {
         if let Some(constness) = sig.constness {
             return Err(constness
                 .span
-                .error("#[coil::background_job] cannot be used on const functions"));
+                .error("#[sa_work_queue::background_job] cannot be used on const functions"));
         }
 
         if let Some(unsafety) = sig.unsafety {
             return Err(unsafety
                 .span
-                .error("#[coil::background_job] cannot be used on unsafe functions"));
+                .error("#[sa_work_queue::background_job] cannot be used on unsafe functions"));
         }
 
         if let Some(abi) = sig.abi {
             return Err(abi
                 .span()
-                .error("#[coil::background_job] cannot be used on functions with an abi"));
+                .error("#[sa_work_queue::background_job] cannot be used on functions with an abi"));
         }
 
         if !sig.generics.params.is_empty() {
@@ -143,7 +145,7 @@ impl BackgroundJob {
         /*
             if let Some(where_clause) = sig.generics.where_clause {
                 return Err(where_clause.where_token.span.error(
-                    "#[coil::background_job] cannot be used on functions with a where clause",
+                    "#[sa_work_queue::background_job] cannot be used on functions with a where clause",
                 ));
             }
         */
@@ -169,7 +171,6 @@ impl BackgroundJob {
 
 struct JobArgs {
     env_arg: EnvArg,
-    connection_arg: ConnectionArg,
     args: Punctuated<syn::PatType, syn::Token![,]>,
 }
 
@@ -180,7 +181,6 @@ impl JobArgs {
 
     fn try_from(decl: syn::Signature) -> Result<Self, Diagnostic> {
         let mut env_arg = None;
-        let mut connection_arg = ConnectionArg::None;
         let mut args = Punctuated::new();
 
         for fn_arg in decl.inputs {
@@ -202,32 +202,23 @@ impl JobArgs {
                 return Err(pat_type
                     .pat
                     .span()
-                    .error("#[coil::background_job] cannot yet handle patterns"));
+                    .error("#[sa_work_queue::background_job] cannot yet handle patterns"));
             }
 
             let span = pat_type.span();
-            match (&env_arg, &connection_arg, Arg::try_from(pat_type)?) {
-                (None, _, Arg::Env(arg)) => env_arg = Some(arg),
-                (Some(_), _, Arg::Env(_)) => {
+            match (&env_arg, Arg::try_from(pat_type)?) {
+                (None, Arg::Env(arg)) => env_arg = Some(arg),
+                (Some(_), Arg::Env(_)) => {
                     return Err(
                         span.error("Background jobs cannot take references as arguments")
-                            .help("If this argument is a database connection, the type must be `&PgConnection`")
                     );
                 }
-                (_, ConnectionArg::None, Arg::Connection(arg)) => connection_arg = arg,
-                (_, _, Arg::Connection(_)) => {
-                    return Err(
-                        span.error("Multiple database connection arguments")
-                            .help("To take a connection pool as an argument instead of a single connection, use the type `&dyn coil::db::DieselPoolObj`")
-                    );
-                }
-                (_, _, Arg::Normal(pat_type)) => args.push(pat_type),
+                (_, Arg::Normal(pat_type)) => args.push(pat_type),
             }
         }
 
         Ok(Self {
             env_arg: env_arg.unwrap_or_default(),
-            connection_arg,
             args,
         })
     }
@@ -259,7 +250,6 @@ impl<'a> IntoIterator for &'a JobArgs {
 
 enum Arg {
     Env(EnvArg),
-    Connection(ConnectionArg),
     Normal(syn::PatType),
 }
 
@@ -271,11 +261,7 @@ impl Arg {
             }
             let pat = pat_type.pat;
             let ty = type_ref.elem;
-            if ConnectionArg::is_connection_arg(&ty) {
-                Ok(Arg::Connection(ConnectionArg::from_arg(pat, ty)))
-            } else {
-                Ok(Arg::Env(EnvArg { pat, ty }))
-            }
+            Ok(Arg::Env(EnvArg { pat, ty }))
         } else {
             Ok(Arg::Normal(pat_type))
         }
@@ -296,58 +282,3 @@ impl Default for EnvArg {
     }
 }
 
-enum ConnectionArg {
-    None,
-    Pool(Box<syn::Pat>, Box<syn::Type>),
-}
-
-impl ConnectionArg {
-    fn is_pool(ty: &syn::Type) -> bool {
-        if let syn::Type::Path(syn::TypePath { path, .. }) = ty {
-            path_ends_with(path, "PgPool")
-        } else {
-            false
-        }
-    }
-
-    fn is_connection_arg(ty: &syn::Type) -> bool {
-        /* Self::is_single_connection(ty) ||*/
-        Self::is_pool(ty)
-    }
-
-    fn from_arg(pat: Box<syn::Pat>, ty: Box<syn::Type>) -> Self {
-        if Self::is_pool(&ty) {
-            ConnectionArg::Pool(pat, ty)
-        } else {
-            ConnectionArg::None
-        }
-    }
-
-    fn pool_pat(&self) -> Cow<'_, syn::Pat> {
-        match self {
-            ConnectionArg::None => Cow::Owned(syn::parse_quote!(_)),
-            ConnectionArg::Pool(pat, _) => Cow::Borrowed(pat),
-        }
-    }
-
-    fn pool_ty(&self) -> Cow<'_, syn::Type> {
-        if let ConnectionArg::Pool(_, ty) = self {
-            Cow::Borrowed(ty)
-        } else {
-            Cow::Owned(syn::parse_quote!(sqlx::PgPool))
-        }
-    }
-
-    fn wrap(&self, body: Vec<syn::Stmt>) -> TokenStream {
-        let body = quote!(#(#body)*);
-        // can wrap conection if we want to do fancy stuff in the future
-        body
-    }
-}
-
-fn path_ends_with(path: &syn::Path, needle: &str) -> bool {
-    path.segments
-        .last()
-        .map(|s| s.arguments.is_empty() && s.ident == needle)
-        .unwrap_or(false)
-}

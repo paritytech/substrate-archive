@@ -25,6 +25,7 @@ use async_std::{
 	future::timeout,
 	task::{self, JoinHandle},
 };
+use sa_work_queue::QueueHandle;
 use futures::{future::BoxFuture, FutureExt, StreamExt};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{
@@ -99,19 +100,20 @@ struct ListenEvent {
 
 pub struct Builder<F>
 where
-	F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection) -> BoxFuture<'a, Result<()>>,
+	F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection, &'a QueueHandle) -> BoxFuture<'a, Result<()>>,
 {
 	task: F,
 	channels: Vec<Channel>,
 	pg_url: String,
+    queue_handle: QueueHandle,
 }
 
 impl<F> Builder<F>
 where
-	F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection) -> BoxFuture<'a, Result<()>>,
+	F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection, &'a QueueHandle) -> BoxFuture<'a, Result<()>>,
 {
-	pub fn new(url: &str, f: F) -> Self {
-		Self { task: f, channels: Vec::new(), pg_url: url.to_string() }
+	pub fn new(url: &str, queue_handle: QueueHandle, f: F) -> Self {
+		Self { task: f, channels: Vec::new(), pg_url: url.to_string(), queue_handle, }
 	}
 
 	pub fn listen_on(mut self, channel: Channel) -> Self {
@@ -140,7 +142,7 @@ where
 				futures::select! {
 					notif = listen_fut => {
 						match notif {
-							Some(Ok(v)) => self.handle_listen_event(v, &mut conn).await?,
+							Some(Ok(v)) => self.handle_listen_event(v, &mut conn, &self.queue_handle).await?,
 							Some(Err(e)) => {
 								log::error!("{:?}", e);
 							},
@@ -165,7 +167,7 @@ where
 			// in a reasonable amount of time
 			let gather_unfinished = || async {
 				for msg in listener.collect::<Vec<_>>().await {
-					self.handle_listen_event(msg?, &mut conn).await?;
+					self.handle_listen_event(msg?, &mut conn, &self.queue_handle).await?;
 				}
 				Ok::<(), ArchiveError>(())
 			};
@@ -176,13 +178,13 @@ where
 		};
 
 		let handle = Some(task::spawn(fut));
-		Ok(Listener { tx, handle })
+		Ok(Listener { tx, handle  })
 	}
 
 	/// Handle a listen event from Postgres
-	async fn handle_listen_event(&self, notif: PgNotification, conn: &mut PgConnection) -> Result<()> {
+	async fn handle_listen_event(&self, notif: PgNotification, conn: &mut PgConnection, queue_handle: &QueueHandle) -> Result<()> {
 		let payload: Notif = serde_json::from_str(notif.payload())?;
-		(self.task)(payload, conn).await?;
+		(self.task)(payload, conn, queue_handle).await?;
 		Ok(())
 	}
 }
@@ -197,11 +199,11 @@ pub struct Listener {
 }
 
 impl Listener {
-	pub fn builder<F>(pg_url: &str, f: F) -> Builder<F>
+	pub fn builder<F>(pg_url: &str, queue_handle: QueueHandle, f: F) -> Builder<F>
 	where
-		F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection) -> BoxFuture<'a, Result<()>>,
+		F: 'static + Send + Sync + for<'a> Fn(Notif, &'a mut PgConnection, &'a QueueHandle) -> BoxFuture<'a, Result<()>>,
 	{
-		Builder::new(pg_url, f)
+		Builder::new(pg_url, queue_handle, f)
 	}
 
 	pub async fn kill(&mut self) -> Result<()> {
@@ -212,6 +214,14 @@ impl Listener {
 		log::info!("Killed Listener");
 		Ok(())
 	}
+}
+
+impl Drop for Listener {
+    fn drop(&mut self) {
+        if let Err(e) = task::block_on(self.kill()) {
+            log::error!("{}", e)     
+        }
+    }
 }
 
 #[cfg(test)]

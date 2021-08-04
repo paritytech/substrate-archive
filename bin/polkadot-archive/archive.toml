@@ -61,6 +61,8 @@ task_timeout = 20
 # Useful for controlling memory usage.
 # Optional, defaults: 100,000
 max_block_load = 100000
+# URL for RabbitMQ. Default is localhost:5672
+# task_url = "http://localhost:5672"
 
 [wasm_tracing]
 # Targets for tracing.

@@ -16,16 +16,13 @@
 
 use std::{
     any::Any,
-    panic::{catch_unwind, AssertUnwindSafe, PanicInfo, RefUnwindSafe, UnwindSafe},
+    panic::{catch_unwind, PanicInfo, RefUnwindSafe, UnwindSafe},
     sync::Arc,
     time::Duration,
 };
 
-use lapin::{Connection, Consumer, ConnectionProperties, Channel, Queue, ExchangeKind};
+use lapin::{Connection, ConnectionProperties, Channel, Queue, BasicProperties, options::{QueueDeclareOptions, BasicQosOptions}};
 use async_amqp::*;
-use async_std::task;
-use futures::{Stream, StreamExt};
-use channel::Sender;
 
 use crate::{
     job::Job,
@@ -113,10 +110,13 @@ impl<Env: 'static> Builder<Env> {
             &self.addr,
             ConnectionProperties::default().with_async_std(),
         ).wait()?;
+        
+        let handle = QueueHandle::new(&conn)?;
 
         Ok(Runner {
             threadpool,
             conn, 
+            handle,
             environment: Arc::new(self.environment),
             registry: Arc::new(self.registry),
             timeout,
@@ -129,7 +129,7 @@ impl<Env: 'static> Builder<Env> {
 pub struct Runner<Env> {
     threadpool: ThreadPoolMq,
     conn: Connection, 
-    // queue: QueueHandle,
+    handle: QueueHandle,
     environment: Arc<Env>,
     registry: Arc<Registry<Env>>,
     timeout: Duration,
@@ -145,27 +145,36 @@ pub enum Event {
     ErrorLoadingJob(FetchError),
 }
 
-struct QueueHandle {
+/// Thin wrapper over a 'Channel'
+#[derive(Clone)]
+pub struct QueueHandle {
     channel: Channel,
     queue: Queue
 }
 
 impl QueueHandle {
-    fn new(connection: Connection) -> Self {
+    /// Create a new QueueHandle.
+    fn new(connection: &Connection) -> Result<Self, Error> {
         let channel = connection.create_channel().wait().unwrap();
+        channel.basic_qos(1, BasicQosOptions::default()).wait()?;
         let queue = channel.queue_declare(
             &crate::TASK_QUEUE,
-            Default::default(),
+            QueueDeclareOptions {
+                durable: true,
+                ..Default::default()
+            },
             Default::default()
-        ).wait().unwrap();
+        ).wait()?;
         
-        Self { channel, queue }
+        Ok(Self { channel, queue })
     }
     
     /// Push to the RabbitMQ
-    fn push(&self, payload: Vec<u8>) -> Result<(), lapin::Error> {
-        self.channel.exchange_declare("", ExchangeKind::Direct, Default::default(), Default::default()).wait()?;
-        self.channel.basic_publish("", crate::TASK_QUEUE, Default::default(), payload, Default::default()).wait()?;
+    pub(crate) fn push(&self, payload: Vec<u8>) -> Result<(), lapin::Error> {
+        let properties = BasicProperties::default()
+            // two means persist delivery to disk
+            .with_delivery_mode(2);
+        self.channel.basic_publish("", crate::TASK_QUEUE, Default::default(), payload, properties).wait()?;
         Ok(())
     }
 
@@ -181,7 +190,7 @@ impl<Env: 'static> Runner<Env> {
         Builder::new(env, conn)
     }
 
-    /// Get a Pool Connection from the pool that the runner is using.
+    /// Get a RabbitMq Connection from the pool that the runner is using.
     pub fn connection(&self) -> &Connection {
         &self.conn
     }
@@ -194,7 +203,7 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
     /// Returns how many tasks are running as a result
     pub fn run_pending_tasks(&self) -> Result<(), FetchError> {
         let max_threads = self.threadpool.max_count();
-        tracing::trace!("Max Threads: {}", max_threads);
+        log::debug!("Max Threads: {}", max_threads);
 
         let mut pending_messages = 0;
         loop {
@@ -217,13 +226,23 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
                 Ok(Event::ErrorLoadingJob(e)) => return Err(e),
                 Err(channel::RecvTimeoutError::Timeout) => return Err(FetchError::Timeout.into()),
                 Err(channel::RecvTimeoutError::Disconnected) => {
-                    tracing::warn!("Job sender disconnected!");
+                    log::warn!("Job sender disconnected!");
                     return Err(FetchError::Timeout.into());
                 }
             }
         }
     }
     
+    /// Get a reference back to the handler held by `Runner`
+    pub fn handle(&self) -> &QueueHandle {
+        &self.handle
+    }
+    
+    /// Create a new handle, using the same connection as `Runner`
+    pub fn unique_handle(&self) -> Result<QueueHandle, Error> {
+        QueueHandle::new(&self.conn)
+    }
+
     fn run_single_sync_job(&self) {
         let env = Arc::clone(&self.environment);
         let registry = Arc::clone(&self.registry);
@@ -232,7 +251,7 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
             let perform_fn = registry
                 .get(&job.job_type)
                 .ok_or_else(|| PerformError::from(format!("Unknown job type {}", job.job_type)))?;
-            perform_fn.perform(job.data, &env, &"Connection goes here".to_string())
+            perform_fn.perform(job.data, &env)
         });
     }
     
@@ -260,12 +279,23 @@ fn try_to_extract_panic_info(info: &(dyn Any + Send + 'static)) -> PerformError 
     }
 }
 
-/*
+
 #[cfg(any(test, feature = "test_components"))]
 impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
     /// Wait for tasks to finish based on timeout
     /// this is mostly used for internal tests
-    fn wait_for_all_tasks(&self) -> Result<(), String> {
+    fn wait_for_all_tasks(&self, num_tasks: usize) -> Result<(), String> {
+        let mut counter = 0; 
+        while counter < num_tasks { 
+            match self.threadpool.events().recv_timeout(std::time::Duration::from_secs(5)) {
+                Ok(o) => log::info!("{:?}", o),
+                Err(channel::RecvTimeoutError::Disconnected) => break,
+                Err(channel::RecvTimeoutError::Timeout) => {
+                    panic!("Tasks timed out");
+                }
+            }
+            counter += 1
+        }
         self.threadpool.join();
         let panic_count = self.threadpool.panic_count();
         if panic_count == 0 {
@@ -274,7 +304,7 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
             Err(format!("{} threads panicked", panic_count).into())
         }
     }
-
+/*
     /// Check for any jobs that may have failed
     pub async fn check_for_failed_jobs(&self) -> Result<(), FailedJobsError> {
         self.wait_for_all_tasks().unwrap();
@@ -285,7 +315,49 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
             Err(FailedJobsError::JobsFailed(num_failed))
         }
     }
+    */
 }
 
-*/
+#[cfg(test)]
+mod test {
+    use super::*;
 
+    #[test]
+    fn sync_jobs_are_locked_when_fetched() {
+        crate::initialize();
+        // let _guard = TestGuard::lock();
+        let runner = runner();
+        create_dummy_job(&runner, "1");
+        create_dummy_job(&runner, "2");
+        
+        runner.get_single_job(move |job| {
+            assert_eq!(job.job_type, "1");
+            Ok(())
+        });
+        
+        runner.get_single_job(move |job| {
+            assert_eq!(job.job_type, "2");
+            Ok(())
+        });
+        runner.wait_for_all_tasks(2).unwrap();
+    }
+
+    // we just use the job_type field as ID for testing purposes
+    // in reality `job_type` is the name of the function 
+    fn create_dummy_job(runner: &Runner<()>, id: &str) {
+        let job = BackgroundJob {
+            job_type: id.to_string(),
+            data: serde_json::from_str("[1, 2, 3, 4, 5, 6, 7, 8]").unwrap(),
+        };
+        let handle = runner.handle();
+        handle.push(serde_json::to_vec(&job).unwrap()).unwrap();
+    }
+   
+    fn runner() -> Runner<()> {
+        crate::Runner::builder((), "amqp://localhost:5672")
+            .num_threads(2)
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap()
+    }
+}

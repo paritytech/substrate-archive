@@ -234,15 +234,15 @@ impl sp_core::traits::SpawnNamed for TaskExecutor {
 // FIXME:
 // we need PhantomData here so that the proc_macro correctly puts PhantomData into the `Job` struct
 // + DeserializeOwned so that the types work.
-// This is a little bit wonky (and entirely confusing), could be fixed with a better proc-macro in `work_queue`
+// This is a little bit wonky (and entirely confusing), could be fixed with a better proc-macro in `sa_work_queue`
 // TODO: We should detect when the chain is behind our node, and not execute blocks in this case.
 /// Execute a block, and send it to the database actor
-#[coil::background_job]
+#[sa_work_queue::background_job]
 pub fn execute_block<B, RA, Api, D>(
 	env: &Env<B, B::Hash, RA, Api, D>,
 	block: B,
 	_m: PhantomData<(RA, Api, D)>,
-) -> Result<(), work_queue::PerformError>
+) -> Result<(), sa_work_queue::PerformError>
 where
 	D: ReadOnlyDb + 'static,
 	B: BlockT + DeserializeOwned + Unpin,

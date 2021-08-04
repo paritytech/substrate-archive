@@ -14,35 +14,38 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive. If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::{EnqueueError, Error, PerformError};
-use crate::job::Job;
+use crate::error::EnqueueError;
+use crate::{job::Job, runner::QueueHandle};
 
 use serde::{Serialize, Deserialize};
 
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BackgroundJob {
     /// Where this job comes from (generally the name of the job function from the proc-macro)
     pub job_type: String,
     /// Raw function data
     pub data: serde_json::Value,
-    /// How many times have we retried this task, if any
-    pub retries: usize,
-    
 }
 
 pub async fn enqueue_job<T: Job + Send>(
-    conn: lapin::Connection,
+    conn: &QueueHandle,
     job: T,
 ) -> Result<(), EnqueueError> {
-    todo!();
+    let job = BackgroundJob {
+        job_type: T::JOB_TYPE.to_string(),
+        data: serde_json::to_value(&job)?
+    };
+    conn.push(serde_json::to_vec(&job)?)?;
+    Ok(())
 }
 
 pub async fn enqueue_jobs_batch<T: Job + Send>(
-    conn: lapin::Connection,
-    jobs: Vec<T>,
+    _conn: &QueueHandle,
+    _jobs: Vec<T>,
 ) -> Result<(), EnqueueError> {
-    todo!()
+    println!("Not implemented yet :)");
+    Ok(())
 }
 
 /// Gets jobs which failed

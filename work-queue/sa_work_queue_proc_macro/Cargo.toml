@@ -1,8 +1,8 @@
 [package]
-name = "coil_proc_macro"
-version = "0.3.0"
+name = "sa_work_queue_proc_macro"
+version = "0.1.0"
 authors = ["Andrew Plaza <andrew.plaza@parity.io"]
-description = "This library should not be used directly, it is re-exported through coil"
+description = "This library should not be used directly, it is re-exported through sa_work_queue"
 license = "GPL-3.0"
 edition = "2018"
 

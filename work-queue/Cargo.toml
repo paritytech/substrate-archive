@@ -1,5 +1,0 @@
-[workspace]
-members = [
-  "sa-work-queue",
-  "sa_work_queue_proc_macro"
-]

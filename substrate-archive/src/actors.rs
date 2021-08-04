@@ -1,5 +1,5 @@
 // Copyright 2017-2021 Parity Technologies (UK) Ltd.
-// This file is part of substrate-archive.
+// This fin/le is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ use async_std::{
 	future::timeout,
 	task::{self, JoinHandle},
 };
-use work_queue::Job as _;
+use sa_work_queue::{Job as _, QueueHandle, Runner};
 use futures::{future, FutureExt, StreamExt};
 use futures_timer::Delay;
 use serde::{de::DeserializeOwned, Deserialize};
@@ -67,14 +67,14 @@ impl<B, D> Clone for SystemConfig<B, D> {
 			backend: Arc::clone(&self.backend),
 			pg_url: self.pg_url.clone(),
 			meta: self.meta.clone(),
-			control: self.control,
+			control: self.control.clone(),
 			runtime: self.runtime.clone(),
 			tracing_targets: self.tracing_targets.clone(),
 		}
 	}
 }
 
-#[derive(Copy, Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ControlConfig {
 	/// Maximum amount of time the work queue will wait for a task to begin.
 	/// Times out if tasks don't start execution in the thread pool within `task_timeout` seconds.
@@ -83,12 +83,19 @@ pub struct ControlConfig {
 	/// Maximum amount of blocks to index at once.
 	#[serde(default = "default_max_block_load")]
 	pub(crate) max_block_load: u32,
+    /// RabbitMq URL. default: `http://localhost:5672`
+    #[serde(default = "default_task_url")]
+    pub(crate) task_url: String
 }
 
 impl Default for ControlConfig {
 	fn default() -> Self {
-		Self { task_timeout: default_task_timeout(), max_block_load: default_max_block_load() }
+		Self { task_timeout: default_task_timeout(), max_block_load: default_max_block_load(), task_url: default_task_url() }
 	}
+}
+
+fn default_task_url() -> String {
+    "amqp://localhost:5672".into()    
 }
 
 const fn default_task_timeout() -> u64 {
@@ -231,7 +238,8 @@ where
 
 	fn drive(&mut self) -> Result<()> {
 		let instance = SystemInstance::new(self.config.clone(), self.client.clone())?;
-		let handle = task::spawn(instance.work());
+	    // task::block_on(instance.work())?;
+        let handle = task::spawn(instance.work());
 		self.handle.replace(handle);
 		Ok(())
 	}
@@ -240,7 +248,6 @@ where
 pub struct SystemInstance<B, R, D, C> {
 	config: SystemConfig<B, D>,
 	client: Arc<C>,
-	listener: Listener,
 	_marker: PhantomData<R>,
 }
 
@@ -261,17 +268,35 @@ where
 	B::Header: serde::de::DeserializeOwned,
 {
 	fn new(config: SystemConfig<B, D>, client: Arc<C>) -> Result<Self> {
-		let listener = task::block_on(Self::init_listeners(&config))?;
-		Ok(Self { config, client, listener, _marker: PhantomData })
+	    Ok(Self { config, client, _marker: PhantomData })
 	}
 
 	async fn work(self) -> Result<()> {
 		let actors = Actors::spawn(&self.config).await?;
 		actors.tick_interval().await?;
 		let pool = actors.db.send(GetState::Pool).await??.pool();
+       
+        let runner = self.start_queue(&actors)?;
+        let handle = runner.unique_handle()?;
+        let mut listener = self.init_listeners(handle.clone()).await?;
+        // let storage_handle = Self::restore_missing_storage(self.config.clone(), pool.clone(), handle.clone());
+		
+        let task_loop = task::spawn_blocking(move || loop {
+			match runner.run_pending_tasks() {
+				Ok(_) => (),
+				Err(sa_work_queue::FetchError::Timeout) => log::warn!("Tasks timed out"),
+				Err(e) => log::error!("{:?}", e),
+			}
+		});
+		
+        // futures::join!(storage_handle, task_loop).0?;
+        task_loop.await;  
+        listener.kill().await?;
+		Ok(())
+	}
 
-		let storage_handle = Self::restore_missing_storage(self.config.clone(), pool.clone());
-		let env = Environment::<B, B::Hash, R, C, D>::new(
+    fn start_queue(&self, actors: &Actors<B, B::Hash, D>) -> Result<Runner<AssertUnwindSafe<Environment<B, B::Hash, R, C, D>>>> { 
+        let env = Environment::<B, B::Hash, R, C, D>::new(
 			self.config.backend().clone(),
 			self.client.clone(),
 			actors.storage.clone(),
@@ -279,31 +304,22 @@ where
 		);
 		let env = AssertUnwindSafe(env);
 
-		let runner = work_queue::Runner::builder(env, &pool)
+	    let runner = sa_work_queue::Runner::builder(env, &self.config.control.task_url)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(self.config.runtime.block_workers)
 			// times out if tasks don't start execution on the threadpool within timeout.
 			.timeout(Duration::from_secs(self.config.control.task_timeout))
 			.build()?;
+        
+        Ok(runner)
+    }
 
-		let task_loop = task::spawn_blocking(move || loop {
-			match runner.run_pending_tasks() {
-				Ok(_) => (),
-				Err(work_queue::FetchError::Timeout) => log::warn!("Tasks timed out"),
-				Err(e) => log::error!("{:?}", e),
-			}
-		});
-
-		futures::join!(storage_handle, task_loop).0?;
-		Ok(())
-	}
-
-	async fn init_listeners(config: &SystemConfig<B, D>) -> Result<Listener> {
-		Listener::builder(config.pg_url(), move |notif, conn| {
+    async fn init_listeners(&self, handle: QueueHandle) -> Result<Listener> {
+		Listener::builder(self.config.pg_url(), handle, move |notif, conn, handle| {
 			async move {
 				let sql_block = queries::get_full_block_by_number(conn, notif.block_num).await?;
 				let b = sql_block.into_block_and_spec()?;
-				crate::tasks::execute_block::<B, R, C, D>(b.0, PhantomData).enqueue(conn).await?;
+				crate::tasks::execute_block::<B, R, C, D>(b.0, PhantomData).enqueue(handle).await?;
 				Ok(())
 			}
 			.boxed()
@@ -312,13 +328,12 @@ where
 		.spawn()
 		.await
 	}
-
-	/// Checks if any blocks that should be executed are missing
+	
+    /// Checks if any blocks that should be executed are missing
 	/// from the task queue.
 	/// If any are found, they are re-queued.
-	async fn restore_missing_storage(conf: SystemConfig<B, D>, pool: sqlx::PgPool) -> Result<()> {
+	async fn restore_missing_storage(conf: SystemConfig<B, D>, pool: sqlx::PgPool, handle: QueueHandle) -> Result<()> {
 		let mut conn0 = pool.acquire().await?;
-		let mut conn1 = pool.acquire().await?;
 		let nums = queries::missing_storage_blocks(&mut *conn0).await?;
 		log::info!("Restoring {} missing storage entries.", nums.len());
 		let mut block_stream =
@@ -328,17 +343,9 @@ where
 				.into_iter()
 				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
 				.collect();
-			work_queue::JobExt::enqueue_batch(jobs, &mut *conn1).await?;
+			sa_work_queue::JobExt::enqueue_batch(jobs, &handle).await?;
 		}
 		Ok(())
-	}
-}
-
-impl<B, R, D, C> Drop for SystemInstance<B, R, D, C> {
-	fn drop(&mut self) {
-		if let Err(e) = task::block_on(self.listener.kill()) {
-			log::error!("{}", e)
-		}
 	}
 }
 

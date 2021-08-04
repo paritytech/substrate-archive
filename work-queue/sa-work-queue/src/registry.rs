@@ -13,9 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with sa-work-queue.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::PerformError;
-use crate::job::Job;
-use tracing::{info, warn};
+use crate::{
+    error::PerformError,
+    job::Job,
+};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -34,7 +35,7 @@ impl<Env: 'static> Registry<Env> {
         if TypeId::of::<T::Environment>() == TypeId::of::<Env>() {
             self.jobs.insert(T::JOB_TYPE, JobVTable::from_job::<T>());
         } else {
-            warn!("could not register job {}", T::JOB_TYPE);
+            log::warn!("could not register job {}", T::JOB_TYPE);
         }
     }
 
@@ -79,7 +80,7 @@ macro_rules! register_job {
 pub struct JobVTable {
     env_type: TypeId,
     job_type: &'static str,
-    perform: fn(serde_json::Value, &dyn Any, &String) -> Result<(), PerformError>,
+    perform: fn(serde_json::Value, &dyn Any) -> Result<(), PerformError>,
 }
 
 inventory::collect!(JobVTable);
@@ -97,7 +98,6 @@ impl JobVTable {
 fn perform_job<T: Job>(
     data: serde_json::Value,
     env: &dyn Any,
-    conn: &String,
 ) -> Result<(), PerformError> {
     let environment = env.downcast_ref().ok_or_else::<PerformError, _>(|| {
         "Incorrect environment type. This should never happen. \
@@ -105,7 +105,7 @@ fn perform_job<T: Job>(
             .into()
     })?;
     let data = serde_json::from_value(data)?;
-    T::perform(data, environment, conn)
+    T::perform(data, environment)
 }
 
 pub struct PerformJob<Env> {
@@ -119,8 +119,7 @@ impl<Env: 'static + Send + Sync> PerformJob<Env> {
         &self,
         data: serde_json::Value,
         env: &Env,
-        conn: &String,
     ) -> Result<(), PerformError> {
-        (self.vtable.perform)(data, env, conn)
+        (self.vtable.perform)(data, env)
     }
 }

@@ -7039,14 +7039,24 @@ dependencies = [
  "inventory",
  "itoa",
  "lapin",
+ "log",
  "num_cpus",
  "pretty_env_logger",
+ "sa_work_queue_proc_macro",
  "serde",
  "serde_json",
  "smol",
  "thiserror",
  "threadpool",
- "tracing",
+]
+
+[[package]]
+name = "sa_work_queue_proc_macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

@@ -35,11 +35,6 @@ impl Diagnostic {
             message: msg.into(),
         }
     }
-
-    pub(crate) fn help<T: Into<String>>(mut self, msg: T) -> Self {
-        self.message += &format!("\nhelp: {}", msg.into());
-        self
-    }
 }
 
 pub trait DiagnosticExt {

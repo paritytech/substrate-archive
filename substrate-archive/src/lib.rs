@@ -15,7 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 #![forbid(unsafe_code)]
-#![deny(dead_code)]
+// #![deny(dead_code)]
 
 // Re-Exports
 pub use sc_executor::native_executor_instance;

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with coil.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::{EnqueueError, PerformError};
+use crate::{error::{EnqueueError, PerformError}, runner::QueueHandle};
 use serde::{de::DeserializeOwned, Serialize};
 
 /// Background job
@@ -29,17 +29,17 @@ pub trait Job: Serialize + DeserializeOwned {
     /// The key to use for storing this job.
     /// Typically this is the name of your struct in `snake_case`.
     const JOB_TYPE: &'static str;
+    
     #[doc(hidden)]
-
     /// inserts the job into the Postgres Database
-    async fn enqueue<'a>(self, conn: lapin::Connection) -> Result<(), EnqueueError>
+    async fn enqueue(self, conn: &QueueHandle) -> Result<(), EnqueueError>
     {
         crate::db::enqueue_job(conn, self).await
     }
 
     /// Logic for running a synchronous job
     #[doc(hidden)]
-    fn perform(self, _: &Self::Environment, _: &String) -> Result<(), PerformError> {
+    fn perform(self, _: &Self::Environment) -> Result<(), PerformError> {
         panic!("Running Sync job when it should be async!");
     }
 }
@@ -48,8 +48,10 @@ pub trait Job: Serialize + DeserializeOwned {
 pub trait JobExt: Job {
     async fn enqueue_batch(
         data: Vec<Self>,
-        conn: &mut lapin::Connection,
+        conn: &QueueHandle,
     ) -> Result<(), EnqueueError> {
-        todo!();
+        todo!() 
     }
 }
+
+impl<T> JobExt for T where T: Job {}

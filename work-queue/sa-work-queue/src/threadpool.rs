@@ -21,14 +21,14 @@
 use std::{cell::RefCell, sync::Arc};
 
 use lapin::{
-    Channel, Connection, Consumer, ConnectionProperties, 
-    options::{BasicConsumeOptions, BasicAckOptions, BasicNackOptions}, 
+    Connection, Consumer, ConnectionProperties, 
+    options::{BasicConsumeOptions, BasicAckOptions, BasicNackOptions, BasicQosOptions}, 
     types::FieldTable, message::Delivery,
 };
 use channel::{Sender, Receiver};
 use async_amqp::LapinAsyncStdExt;
 use async_std::task;
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
 use threadpool::ThreadPool;
 
 use crate::{error::*, db::BackgroundJob, runner::Event};
@@ -61,7 +61,9 @@ impl ThreadPoolMq {
         let conn = self.conn.clone();
         let tx = self.tx.clone();
         self.pool.execute(move || {
-            run_job(&conn, tx, job)
+            if let Err(e) = run_job(&conn, tx, job) {
+                log::error!("{:?}", e);
+            }
         })
     }
 
@@ -79,10 +81,20 @@ impl ThreadPoolMq {
     pub fn events(&self) -> &Receiver<Event> {
         &self.rx
     }
+    
+    #[cfg(test)]
+    pub fn join(&self) {
+        self.pool.join()
+    }
+    
+    #[cfg(test)]
+    pub fn panic_count(&self) -> usize {
+        self.pool.panic_count() 
+    }
 }
 
 /// initialize thread-local variables if uninitialized
-fn run_job<F>(conn: &lapin::Connection, tx: Sender<Event>, job: F) 
+fn run_job<F>(conn: &lapin::Connection, tx: Sender<Event>, job: F) -> Result<(), Error>
 where
     F: Send + 'static + FnOnce(BackgroundJob) -> Result<(), PerformError>
 {
@@ -92,6 +104,7 @@ where
         let mut consumer = c.borrow_mut();
         let mut consumer = consumer.get_or_insert_with(|| {
             let chan = conn.create_channel().wait().ok().expect("Channel Creation should be flawless");
+            chan.basic_qos(1, BasicQosOptions::default()).wait().expect("prototype");
             chan 
                 .basic_consume(crate::TASK_QUEUE, "", BasicConsumeOptions::default(), FieldTable::default())
                 .wait()
@@ -102,27 +115,28 @@ where
         if let Some((data, delivery)) = next_job(tx, &mut consumer) {
              match job(data) {
                 Ok(_) => {
-                    tracing::trace!("Job Success");
-                    task::block_on(delivery.acker.ack(BasicAckOptions::default()));
+                    task::block_on(delivery.acker.ack(BasicAckOptions::default()))?;
                 },
                 Err(e) => {
                     task::block_on(delivery.acker.nack(BasicNackOptions {
                         requeue: true,
                         ..Default::default()
-                    }));
-                    tracing::error!("Job failed to run {}", e);
+                    }))?;
+                    log::error!("Job failed to run {}", e);
                     eprintln!("Job failed to run: {}", e);
                 }
             }
         }
-    })
+        Ok::<(), Error>(())
+    })?;
+    Ok(())
 }
 
 
 fn next_job(tx: Sender<Event>, consumer: &mut Consumer) -> Option<(BackgroundJob, Delivery)> {
     match get_next_job(consumer) {
         Ok(Some(d)) => { 
-            tx.send(Event::Working);
+            let _ = tx.send(Event::Working);
             Some(d)
         },
         Ok(None) => {
@@ -143,7 +157,3 @@ fn get_next_job(consumer: &mut Consumer) -> Result<Option<(BackgroundJob, Delive
 }
 
 
-#[cfg(test)]
-mod tests {
-    use super::*; 
-}

@@ -38,7 +38,7 @@ pub fn background_job(attr: TokenStream, item: TokenStream) -> TokenStream {
     if !attr.is_empty() {
         return syn::Error::new(
             Span::call_site(),
-            "coil::background_job does not take arguments",
+            "sa_work_queue::background_job does not take arguments",
         )
         .to_compile_error()
         .into();
