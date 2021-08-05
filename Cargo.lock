@@ -3124,6 +3124,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "kvdb-rocksdb"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b1b6ea8f2536f504b645ad78419c8246550e19d2c3419a167080ce08edee35a"
+dependencies = [
+ "fs-swap",
+ "kvdb",
+ "log",
+ "num_cpus",
+ "owning_ref",
+ "parity-util-mem",
+ "parking_lot 0.11.1",
+ "regex",
+ "rocksdb",
+ "smallvec 1.6.1",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6038,7 +6056,7 @@ dependencies = [
  "futures 0.3.16",
  "hex-literal",
  "kvdb",
- "kvdb-rocksdb",
+ "kvdb-rocksdb 0.12.1",
  "pallet-babe",
  "pallet-im-online",
  "pallet-mmr-primitives",
@@ -6981,7 +6999,7 @@ dependencies = [
  "hash-db",
  "kvdb",
  "kvdb-memorydb",
- "kvdb-rocksdb",
+ "kvdb-rocksdb 0.12.1",
  "linked-hash-map",
  "log",
  "parity-db",
@@ -9110,7 +9128,7 @@ dependencies = [
  "hash-db",
  "hashbrown 0.11.2",
  "kvdb",
- "kvdb-rocksdb",
+ "kvdb-rocksdb 0.14.0",
  "log",
  "num_cpus",
  "parity-scale-codec",
