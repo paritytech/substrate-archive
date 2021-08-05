@@ -153,17 +153,18 @@ pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>> {
 }
 
 pub(crate) async fn missing_storage_blocks(conn: &mut sqlx::PgConnection) -> Result<Vec<u32>> {
-	let blocks: Vec<u32> = sqlx::query_as!(BlockNum,
-	   r#"SELECT block_num AS "block_num!" FROM blocks
+	let blocks: Vec<u32> = sqlx::query_as!(
+		BlockNum,
+		r#"SELECT block_num AS "block_num!" FROM blocks
         WHERE NOT EXISTS
 	        (SELECT block_num FROM storage WHERE storage.block_num = block_num)
 		ORDER BY block_num"#
 	)
-		.fetch_all(conn)
-		.await?
-		.into_iter()
-		.map(|r| r.block_num as u32)
-		.collect();
+	.fetch_all(conn)
+	.await?
+	.into_iter()
+	.map(|r| r.block_num as u32)
+	.collect();
 	Ok(blocks)
 }
 

@@ -2,8 +2,6 @@
 // #![deny(dead_code)]
 
 #[allow(warnings, unused)]
-
-
 #[doc(hidden)]
 pub extern crate async_trait;
 #[doc(hidden)]
@@ -16,22 +14,19 @@ pub use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[doc(hidden)]
 pub use registry::JobVTable;
 
-
-mod registry;
-mod job;
-mod error;
 mod db;
-mod threadpool;
+mod error;
+mod job;
+mod registry;
 mod runner;
+mod threadpool;
 
 pub use crate::error::*;
 pub use crate::job::*;
-pub use runner::{Event, Builder, Runner, QueueHandle};
+pub use runner::{Builder, Event, QueueHandle, Runner};
 pub use sa_work_queue_proc_macro::*;
-
 
 #[cfg(test)]
 pub fn initialize() {
-    pretty_env_logger::try_init().unwrap()
+	pretty_env_logger::try_init().unwrap()
 }
-

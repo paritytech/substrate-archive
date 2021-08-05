@@ -14,57 +14,58 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive. If not, see <http://www.gnu.org/licenses/>.
 
-
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    /// Error Enqueing a task for execution later
-    #[error(transparent)]
-    Enqueue(#[from] EnqueueError),
-    /// Error performing a task
-    #[error(transparent)]
-    Perform(#[from] PerformError),
-    /// Error Fetching a task for execution on a threadpool/executor
-    #[error(transparent)]
-    Fetch(#[from] FetchError),
-    /// Error executing SQL
-    #[error(transparent)]
-    Mq(#[from] lapin::Error),
-    #[error("{0}")]
-    Msg(String)
+	/// Error Enqueing a task for execution later
+	#[error(transparent)]
+	Enqueue(#[from] EnqueueError),
+	/// Error performing a task
+	#[error(transparent)]
+	Perform(#[from] PerformError),
+	/// Error Fetching a task for execution on a threadpool/executor
+	#[error(transparent)]
+	Fetch(#[from] FetchError),
+	/// Error executing SQL
+	#[error(transparent)]
+	Mq(#[from] lapin::Error),
+	#[error(transparent)]
+	Env(#[from] std::env::VarError),
+	#[error("{0}")]
+	Msg(String),
 }
 
 #[derive(Debug, Error)]
 pub enum FetchError {
-    #[error("Got no response from worker")]
-    NoMessage,
-    #[error("Timeout reached while waiting for worker to finish")]
-    Timeout,
-    #[error("Couldn't load job from storage {0}")]
-    FailedLoadingJob(#[from] lapin::Error),
-    #[error("Failed to decode job {0}")]
-    FailedDecode(#[from] serde_json::Error)
+	#[error("Got no response from worker")]
+	NoMessage,
+	#[error("Timeout reached while waiting for worker to finish")]
+	Timeout,
+	#[error("Couldn't load job from storage {0}")]
+	FailedLoadingJob(#[from] lapin::Error),
+	#[error("Failed to decode job {0}")]
+	FailedDecode(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Error)]
 pub enum EnqueueError {
-    /// An error occurred while trying to insert the task into Postgres
-    #[error("Error inserting task {0}")]
-    Sql(#[from] lapin::Error),
-    /// Error encoding job arguments
-    #[error("Error encoding task for insertion {0}")]
-    Encode(#[from] serde_json::Error),
-    #[error("Error enqueuing batch tasks")]
-    Batch(#[from] BatchInsertError),
+	/// An error occurred while trying to insert the task into Postgres
+	#[error("Error inserting task {0}")]
+	Sql(#[from] lapin::Error),
+	/// Error encoding job arguments
+	#[error("Error encoding task for insertion {0}")]
+	Encode(#[from] serde_json::Error),
+	#[error("Error enqueuing batch tasks")]
+	Batch(#[from] BatchInsertError),
 }
 
 #[derive(Debug, Error)]
 pub enum BatchInsertError {
-    #[error("Error converting between integer and ascii")]
-    Itoa(#[from] std::fmt::Error),
-    #[error("Error inserting task {0}")]
-    Sql(#[from] lapin::Error),
+	#[error("Error converting between integer and ascii")]
+	Itoa(#[from] std::fmt::Error),
+	#[error("Error inserting task {0}")]
+	Sql(#[from] lapin::Error),
 }
 
 /// Catch-all error for jobs
@@ -74,15 +75,15 @@ pub type PerformError = Box<dyn std::error::Error + Send + Sync>;
 #[cfg(any(test, feature = "test_components"))]
 #[derive(Debug, PartialEq)]
 pub enum FailedJobsError {
-    /// Jobs that failed to run
-    JobsFailed(
-        /// Number of failed jobs
-        i64,
-    ),
+	/// Jobs that failed to run
+	JobsFailed(
+		/// Number of failed jobs
+		i64,
+	),
 }
 
 impl From<String> for Error {
-    fn from(err: String) -> Error {
-        Error::Msg(err)     
-    }
+	fn from(err: String) -> Error {
+		Error::Msg(err)
+	}
 }

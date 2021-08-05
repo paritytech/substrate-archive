@@ -35,21 +35,16 @@ use diagnostic_shim::*;
 /// ````
 #[proc_macro_attribute]
 pub fn background_job(attr: TokenStream, item: TokenStream) -> TokenStream {
-    if !attr.is_empty() {
-        return syn::Error::new(
-            Span::call_site(),
-            "sa_work_queue::background_job does not take arguments",
-        )
-        .to_compile_error()
-        .into();
-    }
+	if !attr.is_empty() {
+		return syn::Error::new(Span::call_site(), "sa_work_queue::background_job does not take arguments")
+			.to_compile_error()
+			.into();
+	}
 
-    let item = parse_macro_input!(item as ItemFn);
-    emit_errors(background_job::expand(item))
+	let item = parse_macro_input!(item as ItemFn);
+	emit_errors(background_job::expand(item))
 }
 
 fn emit_errors(result: Result<proc_macro2::TokenStream, Diagnostic>) -> TokenStream {
-    result
-        .map(Into::into)
-        .unwrap_or_else(|e| e.to_compile_error().into())
+	result.map(Into::into).unwrap_or_else(|e| e.to_compile_error().into())
 }

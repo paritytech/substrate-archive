@@ -17,40 +17,29 @@
 use crate::error::EnqueueError;
 use crate::{job::Job, runner::QueueHandle};
 
-use serde::{Serialize, Deserialize};
-
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BackgroundJob {
-    /// Where this job comes from (generally the name of the job function from the proc-macro)
-    pub job_type: String,
-    /// Raw function data
-    pub data: serde_json::Value,
+	/// Where this job comes from (generally the name of the job function from the proc-macro)
+	pub job_type: String,
+	/// Raw function data
+	pub data: serde_json::Value,
 }
 
-pub async fn enqueue_job<T: Job + Send>(
-    conn: &QueueHandle,
-    job: T,
-) -> Result<(), EnqueueError> {
-    let job = BackgroundJob {
-        job_type: T::JOB_TYPE.to_string(),
-        data: serde_json::to_value(&job)?
-    };
-    conn.push(serde_json::to_vec(&job)?).await?;
-    Ok(())
+pub async fn enqueue_job<T: Job + Send>(conn: &QueueHandle, job: T) -> Result<(), EnqueueError> {
+	let job = BackgroundJob { job_type: T::JOB_TYPE.to_string(), data: serde_json::to_value(&job)? };
+	conn.push(serde_json::to_vec(&job)?).await?;
+	Ok(())
 }
 
-pub async fn enqueue_jobs_batch<T: Job + Send>(
-    _conn: &QueueHandle,
-    _jobs: Vec<T>,
-) -> Result<(), EnqueueError> {
-    println!("Not implemented yet :)");
-    Ok(())
+pub async fn enqueue_jobs_batch<T: Job + Send>(_conn: &QueueHandle, _jobs: Vec<T>) -> Result<(), EnqueueError> {
+	println!("Not implemented yet :)");
+	Ok(())
 }
 
 /// Gets jobs which failed
 #[cfg(any(test, feature = "test_components"))]
 pub async fn failed_job_count(conn: lapin::Connection) -> Result<i64, lapin::Error> {
-    todo!()
+	todo!()
 }
-

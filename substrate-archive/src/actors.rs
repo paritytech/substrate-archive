@@ -24,9 +24,9 @@ use async_std::{
 	future::timeout,
 	task::{self, JoinHandle},
 };
-use sa_work_queue::{Job as _, QueueHandle, Runner};
 use futures::{future, FutureExt, StreamExt};
 use futures_timer::Delay;
+use sa_work_queue::{Job as _, QueueHandle, Runner};
 use serde::{de::DeserializeOwned, Deserialize};
 use xtra::{prelude::*, spawn::AsyncStd};
 
@@ -83,19 +83,23 @@ pub struct ControlConfig {
 	/// Maximum amount of blocks to index at once.
 	#[serde(default = "default_max_block_load")]
 	pub(crate) max_block_load: u32,
-    /// RabbitMq URL. default: `http://localhost:5672`
-    #[serde(default = "default_task_url")]
-    pub(crate) task_url: String
+	/// RabbitMq URL. default: `http://localhost:5672`
+	#[serde(default = "default_task_url")]
+	pub(crate) task_url: String,
 }
 
 impl Default for ControlConfig {
 	fn default() -> Self {
-		Self { task_timeout: default_task_timeout(), max_block_load: default_max_block_load(), task_url: default_task_url() }
+		Self {
+			task_timeout: default_task_timeout(),
+			max_block_load: default_max_block_load(),
+			task_url: default_task_url(),
+		}
 	}
 }
 
 fn default_task_url() -> String {
-    "amqp://localhost:5672".into()    
+	"amqp://localhost:5672".into()
 }
 
 const fn default_task_timeout() -> u64 {
@@ -238,8 +242,8 @@ where
 
 	fn drive(&mut self) -> Result<()> {
 		let instance = SystemInstance::new(self.config.clone(), self.client.clone())?;
-	    // task::block_on(instance.work())?;
-        let handle = task::spawn(instance.work());
+		// task::block_on(instance.work())?;
+		let handle = task::spawn(instance.work());
 		self.handle.replace(handle);
 		Ok(())
 	}
@@ -268,35 +272,38 @@ where
 	B::Header: serde::de::DeserializeOwned,
 {
 	fn new(config: SystemConfig<B, D>, client: Arc<C>) -> Result<Self> {
-	    Ok(Self { config, client, _marker: PhantomData })
+		Ok(Self { config, client, _marker: PhantomData })
 	}
 
 	async fn work(self) -> Result<()> {
 		let actors = Actors::spawn(&self.config).await?;
 		actors.tick_interval().await?;
 		let pool = actors.db.send(GetState::Pool).await??.pool();
-       
-        let runner = self.start_queue(&actors)?;
-        let handle = runner.unique_handle()?;
-        let mut listener = self.init_listeners(handle.clone()).await?;
-        // let storage_handle = Self::restore_missing_storage(self.config.clone(), pool.clone(), handle.clone());
-		
-        let task_loop = task::spawn_blocking(move || loop {
+
+		let runner = self.start_queue(&actors)?;
+		let handle = runner.unique_handle()?;
+		let mut listener = self.init_listeners(handle.clone()).await?;
+		// let storage_handle = Self::restore_missing_storage(self.config.clone(), pool.clone(), handle.clone());
+
+		let task_loop = task::spawn_blocking(move || loop {
 			match runner.run_pending_tasks() {
 				Ok(_) => (),
 				Err(sa_work_queue::FetchError::Timeout) => log::warn!("Tasks timed out"),
 				Err(e) => log::error!("{:?}", e),
 			}
 		});
-		
-        // futures::join!(storage_handle, task_loop).0?;
-        task_loop.await;  
-        listener.kill().await?;
+
+		// futures::join!(storage_handle, task_loop).0?;
+		task_loop.await;
+		listener.kill().await?;
 		Ok(())
 	}
 
-    fn start_queue(&self, actors: &Actors<B, B::Hash, D>) -> Result<Runner<AssertUnwindSafe<Environment<B, B::Hash, R, C, D>>>> { 
-        let env = Environment::<B, B::Hash, R, C, D>::new(
+	fn start_queue(
+		&self,
+		actors: &Actors<B, B::Hash, D>,
+	) -> Result<Runner<AssertUnwindSafe<Environment<B, B::Hash, R, C, D>>>> {
+		let env = Environment::<B, B::Hash, R, C, D>::new(
 			self.config.backend().clone(),
 			self.client.clone(),
 			actors.storage.clone(),
@@ -304,17 +311,17 @@ where
 		);
 		let env = AssertUnwindSafe(env);
 
-	    let runner = sa_work_queue::Runner::builder(env, &self.config.control.task_url)
+		let runner = sa_work_queue::Runner::builder(env, &self.config.control.task_url)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(self.config.runtime.block_workers)
 			// times out if tasks don't start execution on the threadpool within timeout.
 			.timeout(Duration::from_secs(self.config.control.task_timeout))
 			.build()?;
-        
-        Ok(runner)
-    }
 
-    async fn init_listeners(&self, handle: QueueHandle) -> Result<Listener> {
+		Ok(runner)
+	}
+
+	async fn init_listeners(&self, handle: QueueHandle) -> Result<Listener> {
 		Listener::builder(self.config.pg_url(), handle, move |notif, conn, handle| {
 			async move {
 				let sql_block = queries::get_full_block_by_number(conn, notif.block_num).await?;
@@ -328,8 +335,8 @@ where
 		.spawn()
 		.await
 	}
-	
-    /// Checks if any blocks that should be executed are missing
+
+	/// Checks if any blocks that should be executed are missing
 	/// from the task queue.
 	/// If any are found, they are re-queued.
 	async fn restore_missing_storage(conf: SystemConfig<B, D>, pool: sqlx::PgPool, handle: QueueHandle) -> Result<()> {
