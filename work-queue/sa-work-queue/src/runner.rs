@@ -44,10 +44,10 @@ impl<Env: 'static> Builder<Env> {
 	/// Instantiate a new instance of the Builder
 	pub fn new<S: Into<String>>(environment: Env, addr: S) -> Self {
 		let addr: String = addr.into();
-		Self { environment, addr, num_threads: None, registry: Registry::load(), timeout: None }
+		Self { environment, addr, num_threads: None, registry: Registry::load(), queue_name: None, timeout: None }
 	}
-
-	///  Register a job that hasn't or can't be registered by invoking the `register_job!` macro
+	
+    ///  Register a job that hasn't or can't be registered by invoking the `register_job!` macro
 	///
 	/// Jobs that include generics must use this function in order to be registered with a runner.
 	/// Jobs must be registered with every generic that is used.
@@ -90,20 +90,17 @@ impl<Env: 'static> Builder<Env> {
 	/// Default: `TASK_QUEUE`
 	pub fn queue_name(mut self, name: String) -> Self {
 		self.queue_name = Some(name);
+        self
 	}
 
 	/// Build the runner
 	pub fn build(self) -> Result<Runner<Env>, Error> {
-		let threadpool =
-			ThreadPoolMq::with_name("coil-worker", self.num_threads.unwrap_or(num_cpus::get()), &self.addr)?;
-
 		let timeout = self.timeout.unwrap_or_else(|| std::time::Duration::from_secs(5));
-
 		let conn = Connection::connect(&self.addr, ConnectionProperties::default().with_async_std()).wait()?;
-
-		let queue_name = self.queue_name.ok_or_else(|| std::env::var("AMQP_URL"))?;
-
-		let handle = QueueHandle::new(&conn)?;
+		let queue_name = Arc::new(self.queue_name.unwrap_or("TASK_QUEUE".to_string()));
+		let handle = QueueHandle::new(&conn, &queue_name)?;
+    	let threadpool =
+			ThreadPoolMq::with_name("coil-worker", self.num_threads.unwrap_or(num_cpus::get()), &self.addr, queue_name.clone())?;
 
 		Ok(Runner {
 			threadpool,
@@ -111,6 +108,7 @@ impl<Env: 'static> Builder<Env> {
 			handle,
 			environment: Arc::new(self.environment),
 			registry: Arc::new(self.registry),
+            queue_name,
 			timeout,
 		})
 	}
@@ -124,7 +122,7 @@ pub struct Runner<Env> {
 	handle: QueueHandle,
 	environment: Arc<Env>,
 	registry: Arc<Registry<Env>>,
-	queue_name: String,
+	queue_name: Arc<String>,
 	timeout: Duration,
 }
 
@@ -147,12 +145,12 @@ pub struct QueueHandle {
 
 impl QueueHandle {
 	/// Create a new QueueHandle.
-	fn new(connection: &Connection) -> Result<Self, Error> {
+	fn new(connection: &Connection, queue: &str) -> Result<Self, Error> {
 		let channel = connection.create_channel().wait().unwrap();
 		channel.basic_qos(1, BasicQosOptions::default()).wait()?;
 		let queue = channel
 			.queue_declare(
-				&crate::TASK_QUEUE,
+				queue,
 				QueueDeclareOptions { durable: true, ..Default::default() },
 				Default::default(),
 			)
@@ -166,12 +164,8 @@ impl QueueHandle {
 		let properties = BasicProperties::default()
 			// two means persist delivery to disk
 			.with_delivery_mode(2);
-		self.channel.basic_publish("", crate::TASK_QUEUE, Default::default(), payload, properties).await?;
+		self.channel.basic_publish("", self.queue.name().as_str(), Default::default(), payload, properties).await?;
 		Ok(())
-	}
-
-	fn pop(&self) -> Result<Vec<u8>, lapin::Error> {
-		todo!();
 	}
 }
 
@@ -221,15 +215,23 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 		}
 	}
 
-	/// Get a reference back to the handler held by `Runner`
+	/// Get a reference to the handler held by `Runner`
 	pub fn handle(&self) -> &QueueHandle {
 		&self.handle
 	}
 
-	/// Create a new handle, using the same connection as `Runner`
+	/// Create a new handle, using the same connection as `Runner`, but on a unique channel.
 	pub fn unique_handle(&self) -> Result<QueueHandle, Error> {
-		QueueHandle::new(&self.conn)
+		QueueHandle::new(&self.conn, &self.queue_name)
 	}
+
+    pub fn job_count(&self) -> u32 {
+        self.handle.queue.message_count() 
+    }
+
+    pub fn max_jobs(&self) -> usize {
+        self.threadpool.max_count()     
+    }
 
 	fn run_single_sync_job(&self) {
 		let env = Arc::clone(&self.environment);
@@ -307,27 +309,7 @@ mod test {
 	use super::*;
 	use async_std::task;
 
-	#[test]
-	fn sync_jobs_are_locked_when_fetched() {
-		crate::initialize();
-		// let _guard = TestGuard::lock();
-		let runner = runner();
-		create_dummy_job(&runner, "1");
-		create_dummy_job(&runner, "2");
-
-		runner.get_single_job(move |job| {
-			assert_eq!(job.job_type, "1");
-			Ok(())
-		});
-
-		runner.get_single_job(move |job| {
-			assert_eq!(job.job_type, "2");
-			Ok(())
-		});
-		runner.wait_for_all_tasks(2).unwrap();
-	}
-
-	// we just use the job_type field as ID for testing purposes
+    // we just use the job_type field as ID for testing purposes
 	// in reality `job_type` is the name of the function
 	fn create_dummy_job(runner: &Runner<()>, id: &str) {
 		let job =
@@ -343,4 +325,36 @@ mod test {
 			.build()
 			.unwrap()
 	}
+    
+	#[test]
+	fn sync_jobs_are_locked_when_fetched() {
+		crate::initialize();
+		
+        let runner = runner();
+		create_dummy_job(&runner, "1");
+		create_dummy_job(&runner, "2");
+
+		runner.get_single_job(move |job| {
+			assert_eq!(job.job_type, "1");
+			Ok(())
+		});
+
+		runner.get_single_job(move |job| {
+			assert_eq!(job.job_type, "2");
+			Ok(())
+		});
+		runner.wait_for_all_tasks(2).unwrap();
+	}
+    
+    #[test]
+    fn jobs_are_deleted_when_successful() {
+        crate::initialize();
+
+        let runner = runner();
+        create_dummy_job(&runner, "1");
+        runner.get_single_job(tx.clone(), move |_| Ok(()));
+        runner.wait_for_all_tasks(1).unwrap();
+        let remaining_jobs = runner.handle().queue.message_count();
+        assert_eq!(0, remaining_jobs);
+    }
 }

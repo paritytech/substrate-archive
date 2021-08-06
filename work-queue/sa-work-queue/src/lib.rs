@@ -30,3 +30,4 @@ pub use sa_work_queue_proc_macro::*;
 pub fn initialize() {
 	pretty_env_logger::try_init().unwrap()
 }
+
