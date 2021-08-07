@@ -14,11 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with coil.  If not, see <http://www.gnu.org/licenses/>.
 
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use futures::stream::{self, StreamExt, TryStreamExt};
+
 use crate::{
 	error::{EnqueueError, PerformError},
 	runner::QueueHandle,
 };
-use serde::{de::DeserializeOwned, Serialize};
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BackgroundJob {
+	/// Where this job comes from (generally the name of the job function from the proc-macro)
+	pub job_type: String,
+	/// Raw function data
+	pub data: serde_json::Value,
+}
 
 /// Background job
 #[async_trait::async_trait]
@@ -36,8 +47,11 @@ pub trait Job: Serialize + DeserializeOwned {
 	#[doc(hidden)]
 	/// inserts the job into the Postgres Database
 	async fn enqueue(self, conn: &QueueHandle) -> Result<(), EnqueueError> {
-		crate::db::enqueue_job(conn, self).await
-	}
+        let job = BackgroundJob { job_type: Self::JOB_TYPE.to_string(), data: serde_json::to_value(&self)? };
+        let job = serde_json::to_vec(&job)?;
+        conn.push(job).await?;
+        Ok(())
+    }
 
 	/// Logic for running a synchronous job
 	#[doc(hidden)]
@@ -48,9 +62,10 @@ pub trait Job: Serialize + DeserializeOwned {
 
 #[async_trait::async_trait]
 pub trait JobExt: Job {
-	async fn enqueue_batch(data: Vec<Self>, conn: &QueueHandle) -> Result<(), EnqueueError> {
-		todo!()
-	}
+	async fn enqueue_batch(conn: &QueueHandle, jobs: Vec<Self>) -> Result<(), EnqueueError> {
+        stream::iter(jobs).map(Ok).try_for_each_concurrent(16, |job| job.enqueue(conn)).await?;
+        Ok(())
+    }
 }
 
 impl<T> JobExt for T where T: Job {}

@@ -14,7 +14,6 @@ pub use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[doc(hidden)]
 pub use registry::JobVTable;
 
-mod db;
 mod error;
 mod job;
 mod registry;

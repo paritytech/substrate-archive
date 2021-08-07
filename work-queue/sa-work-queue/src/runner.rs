@@ -23,11 +23,12 @@ use std::{
 
 use async_amqp::*;
 use lapin::{
-	options::{BasicQosOptions, QueueDeclareOptions},
-	BasicProperties, Channel, Connection, ConnectionProperties, Queue,
+	options::QueueDeclareOptions,
+	Channel, Connection, ConnectionProperties, Queue, 
+    types::{FieldTable, AMQPValue}
 };
 
-use crate::{db::BackgroundJob, error::*, job::Job, registry::Registry, threadpool::ThreadPoolMq};
+use crate::{job::{BackgroundJob, Job}, error::*, registry::Registry, threadpool::ThreadPoolMq};
 
 /// Builder pattern struct for the Runner
 pub struct Builder<Env> {
@@ -146,14 +147,16 @@ pub struct QueueHandle {
 impl QueueHandle {
 	/// Create a new QueueHandle.
 	fn new(connection: &Connection, queue: &str) -> Result<Self, Error> {
-		let channel = connection.create_channel().wait().unwrap();
-		channel.basic_qos(1, BasicQosOptions::default()).wait()?;
-		let queue = channel
+		let channel = connection.create_channel().wait()?;
+		// channel.basic_qos(1, BasicQosOptions::default()).wait()?;
+	    let mut table = FieldTable::default();
+        table.insert("x-queue-mode".into(), AMQPValue::LongString("lazy".into()));
+        let queue = channel
 			.queue_declare(
 				queue,
 				QueueDeclareOptions { durable: true, ..Default::default() },
-				Default::default(),
-			)
+		        table	
+            )
 			.wait()?;
 
 		Ok(Self { channel, queue })
@@ -161,10 +164,7 @@ impl QueueHandle {
 
 	/// Push to the RabbitMQ
 	pub(crate) async fn push(&self, payload: Vec<u8>) -> Result<(), lapin::Error> {
-		let properties = BasicProperties::default()
-			// two means persist delivery to disk
-			.with_delivery_mode(2);
-		self.channel.basic_publish("", self.queue.name().as_str(), Default::default(), payload, properties).await?;
+		self.channel.basic_publish("", self.queue.name().as_str(), Default::default(), payload, Default::default()).await?;
 		Ok(())
 	}
 }
@@ -290,18 +290,6 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 			Err(format!("{} threads panicked", panic_count).into())
 		}
 	}
-	/*
-	/// Check for any jobs that may have failed
-	pub async fn check_for_failed_jobs(&self) -> Result<(), FailedJobsError> {
-		self.wait_for_all_tasks().unwrap();
-		let num_failed = db::failed_job_count(&self.pg_pool).await.unwrap();
-		if num_failed == 0 {
-			Ok(())
-		} else {
-			Err(FailedJobsError::JobsFailed(num_failed))
-		}
-	}
-	*/
 }
 
 #[cfg(test)]

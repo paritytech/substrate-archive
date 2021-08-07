@@ -357,7 +357,7 @@ where
                     .into_iter()
                     .map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
                     .collect();
-                sa_work_queue::JobExt::enqueue_batch(jobs, &handle).await?;
+                sa_work_queue::JobExt::enqueue_batch(&handle, jobs).await?;
             }
         }
 	}

@@ -32,7 +32,7 @@ use lapin::{
 };
 use threadpool::ThreadPool;
 
-use crate::{db::BackgroundJob, error::*, runner::Event};
+use crate::{job::BackgroundJob, error::*, runner::Event};
 
 thread_local!(static CONSUMER: RefCell<Option<Consumer>> = Default::default());
 
@@ -114,8 +114,9 @@ where
 		// finicky with this Option<>, but it works fine afaict.
 		let mut consumer = c.borrow_mut();
 		let mut consumer = consumer.get_or_insert_with(|| {
-			let chan = conn.create_channel().wait().ok().expect("Channel Creation should be flawless");
-			chan.basic_qos(1, BasicQosOptions::default()).wait().expect("prototype");
+		    // TODO: remove `expects`	
+            let chan = conn.create_channel().wait().ok().expect("Channel Creation should be flawless");
+			chan.basic_qos(64, BasicQosOptions::default()).wait().expect("prototype");
 			chan.basic_consume(queue, "", BasicConsumeOptions::default(), FieldTable::default())
 				.wait()
 				.ok()
@@ -130,7 +131,6 @@ where
 				Err(e) => {
 					task::block_on(delivery.acker.nack(BasicNackOptions { requeue: true, ..Default::default() }))?;
 					log::error!("Job failed to run {}", e);
-					eprintln!("Job failed to run: {}", e);
 				}
 			}
 		}
