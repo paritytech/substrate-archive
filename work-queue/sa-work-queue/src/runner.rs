@@ -192,7 +192,23 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 
 		let mut pending_messages = 0;
 		loop {
-			let available_threads = max_threads - self.threadpool.active_count();
+            let available_threads = max_threads - self.threadpool.active_count();
+        	log::debug!("========================= START LOOP
+                        pending_messages={},
+                        available_threads={},
+                        queue_messages={},
+                        consumers={},
+                        threadpool_queued={}
+                        threadpool_active={}
+                        =============================
+                        ",
+                         &pending_messages,
+                         &available_threads,
+                         self.handle().queue.message_count(),
+                         self.handle().queue.consumer_count(),
+                         self.threadpool.queued_count(),
+                         self.threadpool.active_count(),
+            );
 
 			let jobs_to_queue =
 				if pending_messages == 0 { std::cmp::max(available_threads, 1) } else { available_threads };
@@ -202,7 +218,24 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 			}
 
 			pending_messages += jobs_to_queue;
-			match self.threadpool.events().recv_timeout(self.timeout) {
+			log::debug!("========================= END LOOP
+                        pending_messages={},
+                         jobs_to_queue={},
+                         queue_messages={},
+                         consumers={},
+                         threadpool_queued={}
+                         threadpool_active={}
+                        =============================
+",
+                         &pending_messages,
+                         &jobs_to_queue,
+                         self.handle().queue.message_count(),
+                         self.handle().queue.consumer_count(),
+                         self.threadpool.queued_count(),
+                         self.threadpool.active_count(),
+            );
+
+            match self.threadpool.events().recv_timeout(self.timeout) {
 				Ok(Event::Working) => pending_messages -= 1,
 				Ok(Event::NoJobAvailable) => return Ok(()),
 				Ok(Event::ErrorLoadingJob(e)) => return Err(e),

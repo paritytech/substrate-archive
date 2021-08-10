@@ -77,6 +77,10 @@ impl ThreadPoolMq {
 		self.pool.active_count()
 	}
 
+    pub fn queued_count(&self) -> usize {
+        self.pool.queued_count()
+    }
+
 	// TODO: could wrap this so we're not exposing underlying details and just returning a raw
 	// receiver
 	/// get the receiving end of events sent from the threadpool
@@ -115,7 +119,7 @@ impl ConsumerHandle {
             return Ok(())
         }
         let chan = conn.create_channel().wait()?;
-		chan.basic_qos(64, BasicQosOptions::default()).wait()?;
+		chan.basic_qos(5000, BasicQosOptions::default()).wait()?;
 		let consumer = chan.basic_consume(queue, "", BasicConsumeOptions::default(), FieldTable::default()).wait()?;
         this.insert(consumer);
         Ok(())

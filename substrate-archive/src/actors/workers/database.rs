@@ -97,7 +97,7 @@ impl DatabaseActor {
 		let mut block_nums = storages.inner().iter().map(|s| s.block_num()).collect::<Vec<_>>();
 		block_nums.sort_unstable();
 		if !block_nums.is_empty() {
-			log::debug!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
+			log::info!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
 		}
 		let len = block_nums.len();
 		let now = std::time::Instant::now();
@@ -110,7 +110,7 @@ impl DatabaseActor {
 		let storage = Vec::<StorageModel<H>>::from(storages);
 		let now = std::time::Instant::now();
 		self.db.insert(storage).await?;
-		log::debug!("Insert took {:?}", now.elapsed());
+		log::debug!("[Batch Storage Insert] took {:?}", now.elapsed());
 		Ok(())
 	}
 }
