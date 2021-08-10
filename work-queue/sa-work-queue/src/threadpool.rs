@@ -18,7 +18,7 @@
 //! Each thread in the pool gets its own RabbitMq Channel/Consumer.
 //! Each instance of a threadpool shares one RabbitMq connection amongst all of its threads.
 
-use std::{cell::RefCell, sync::Arc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use async_amqp::LapinAsyncStdExt;
 use async_std::task;
@@ -34,10 +34,10 @@ use threadpool::ThreadPool;
 
 use crate::{job::BackgroundJob, error::*, runner::Event};
 
-thread_local!(static CONSUMER: RefCell<Option<Consumer>> = Default::default());
+thread_local!(static CONSUMER: ConsumerHandle = Default::default());
 
 pub struct ThreadPoolMq {
-	conn: Arc<lapin::Connection>,
+	conn: Arc<Connection>,
     queue_name: Arc<String>,
 	pool: ThreadPool,
 	tx: Sender<Event>,
@@ -96,6 +96,32 @@ impl ThreadPoolMq {
 }
 
 
+// A handle to a consumer that by default is not initalized.
+// mostly for convenience + clarity.
+#[derive(Default, Clone)]
+struct ConsumerHandle {
+    inner: Rc<RefCell<Option<Consumer>>>,
+}
+
+impl ConsumerHandle {
+    fn current() -> ConsumerHandle {
+        CONSUMER.with(|c| c.clone())
+    }
+
+    /// initialize the consumer if it is not already.
+    fn init(&self, conn: &Connection, queue: &str) -> Result<(), Error> {
+        let mut this = self.inner.borrow_mut(); 
+        if this.is_some() {
+            return Ok(())
+        }
+        let chan = conn.create_channel().wait()?;
+		chan.basic_qos(64, BasicQosOptions::default()).wait()?;
+		let consumer = chan.basic_consume(queue, "", BasicConsumeOptions::default(), FieldTable::default()).wait()?;
+        this.insert(consumer);
+        Ok(())
+    }
+}
+
 // FIXME: There may be a better way to do this that avoids sending in the 'queue_name' as a string.
 // This is part of the reason the string is stored as Arc<String>, to cut down on memory-storage
 // since string would have to be clone on every thread `execute`, despite only needing the string
@@ -105,37 +131,26 @@ impl ThreadPoolMq {
 //
 //
 /// Run the job, initializing the thread-local consumer if it has not been initialized
-fn run_job<F>(conn: &lapin::Connection, queue: &str, tx: Sender<Event>, job: F) -> Result<(), Error>
+fn run_job<F>(conn: &Connection, queue: &str, tx: Sender<Event>, job: F) -> Result<(), Error>
 where
 	F: Send + 'static + FnOnce(BackgroundJob) -> Result<(), PerformError>,
 {
-	CONSUMER.with(|c| {
-		// FIXME: not entirely sure if this is safe or the best way to do this. Seems pretty
-		// finicky with this Option<>, but it works fine afaict.
-		let mut consumer = c.borrow_mut();
-		let mut consumer = consumer.get_or_insert_with(|| {
-		    // TODO: remove `expects`	
-            let chan = conn.create_channel().wait().ok().expect("Channel Creation should be flawless");
-			chan.basic_qos(64, BasicQosOptions::default()).wait().expect("prototype");
-			chan.basic_consume(queue, "", BasicConsumeOptions::default(), FieldTable::default())
-				.wait()
-				.ok()
-				.expect("prototyping")
-		});
+    let handle = ConsumerHandle::current(); 
+    handle.init(conn, queue)?;
+    let mut consumer = handle.inner.borrow_mut();
+    let mut consumer = consumer.as_mut().expect("Initialized handle must be Some; qed");
 
-		if let Some((data, delivery)) = next_job(tx, &mut consumer) {
-			match job(data) {
-				Ok(_) => {
-					task::block_on(delivery.acker.ack(BasicAckOptions::default()))?;
-				}
-				Err(e) => {
-					task::block_on(delivery.acker.nack(BasicNackOptions { requeue: true, ..Default::default() }))?;
-					log::error!("Job failed to run {}", e);
-				}
-			}
-		}
-		Ok::<(), Error>(())
-	})?;
+    if let Some((data, delivery)) = next_job(tx, &mut consumer) {
+        match job(data) {
+            Ok(_) => {
+                task::block_on(delivery.acker.ack(BasicAckOptions::default()))?;
+            }
+            Err(e) => {
+                task::block_on(delivery.acker.nack(BasicNackOptions { requeue: true, ..Default::default() }))?;
+                log::error!("Job failed to run {}", e);
+            }
+        }
+    }
 	Ok(())
 }
 
