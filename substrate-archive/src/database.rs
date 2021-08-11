@@ -76,8 +76,8 @@ impl Database {
 	/// Connect to the database
 	pub async fn new(url: String) -> Result<Self> {
 		let pool = PgPoolOptions::new()
-			.min_connections(4)
-			.max_connections(28)
+			.min_connections(16)
+			.max_connections(32)
 			.idle_timeout(Duration::from_millis(3600)) // kill connections after 3.6 seconds of idle
 			.connect(url.as_str())
 			.await?;
@@ -90,12 +90,16 @@ impl Database {
 		Self { pool, url }
 	}
 
-	#[allow(unused)]
 	pub async fn insert(&self, data: impl Insert) -> Result<u64> {
 		let mut conn = self.pool.acquire().await?;
 		let res = data.insert(&mut conn).await?;
 		Ok(res)
 	}
+
+    pub async fn concurrent_insert(&self, data: impl Insert) -> Result<u64> {
+        log::debug!("Inserting concurrently"); 
+        data.concurrent_insert(self.pool.clone()).await
+    }
 
 	pub async fn conn(&self) -> Result<DbConn> {
 		self.pool.acquire().await.map_err(Into::into)
@@ -112,6 +116,11 @@ pub type DbConn = PoolConnection<Postgres>;
 #[async_trait::async_trait]
 pub trait Insert: Send + Sized {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn;
+    /// Like insert, but allows using multiple Db Connections at the same time.
+    /// Useful for large batch requests.
+    async fn concurrent_insert(mut self, conn: PgPool) -> DbReturn {
+        self.insert(&mut conn.acquire().await?).await
+    }
 }
 
 #[async_trait::async_trait]
@@ -240,47 +249,58 @@ where
 	}
 }
 
+
+fn build_storage_batch<H: AsRef<[u8]>>(storage: Vec<StorageModel<H>>) -> Result<Batch> {
+    let mut batch = Batch::new(
+        "storage",
+        r#"
+        INSERT INTO "storage" (
+            block_num, hash, is_full, key, storage
+        ) VALUES
+        "#,
+        r#"
+        ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
+            hash = EXCLUDED.hash,
+            key = EXCLUDED.key,
+            storage = EXCLUDED.storage,
+            is_full = EXCLUDED.is_full
+        "#,
+    );
+
+    for s in storage {
+        batch.reserve(5)?;
+        if batch.current_num_arguments() > 0 {
+            batch.append(",");
+        }
+        batch.append("(");
+        batch.bind(s.block_num())?;
+        batch.append(",");
+        batch.bind(s.hash().as_ref())?;
+        batch.append(",");
+        batch.bind(s.is_full())?;
+        batch.append(",");
+        batch.bind(s.key().0.as_slice())?;
+        batch.append(",");
+        batch.bind(s.data().map(|d| d.0.as_slice()))?;
+        batch.append(")");
+    }
+    Ok(batch)
+}
+
 #[async_trait::async_trait]
 impl<Hash> Insert for Vec<StorageModel<Hash>>
 where
 	Hash: Send + Sync + AsRef<[u8]> + 'static,
 {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
-		let mut batch = Batch::new(
-			"storage",
-			r#"
-            INSERT INTO "storage" (
-                block_num, hash, is_full, key, storage
-            ) VALUES
-            "#,
-			r#"
-            ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
-                hash = EXCLUDED.hash,
-                key = EXCLUDED.key,
-                storage = EXCLUDED.storage,
-                is_full = EXCLUDED.is_full
-            "#,
-		);
-
-		for s in self {
-			batch.reserve(5)?;
-			if batch.current_num_arguments() > 0 {
-				batch.append(",");
-			}
-			batch.append("(");
-			batch.bind(s.block_num())?;
-			batch.append(",");
-			batch.bind(s.hash().as_ref())?;
-			batch.append(",");
-			batch.bind(s.is_full())?;
-			batch.append(",");
-			batch.bind(s.key().0.as_slice())?;
-			batch.append(",");
-			batch.bind(s.data().map(|d| d.0.as_slice()))?;
-			batch.append(")");
-		}
+	    let batch = build_storage_batch(self)?;
 		Ok(batch.execute(conn).await?)
 	}
+
+    async fn concurrent_insert(mut self, conn: PgPool) -> DbReturn {
+        let batch = build_storage_batch(self)?;
+        batch.execute_concurrent(conn).await
+    }
 }
 
 #[async_trait::async_trait]

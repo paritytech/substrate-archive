@@ -20,15 +20,22 @@
 //! and `Quaint` switches to SQLx as a backend: https://github.com/prisma/quaint/issues/138
 
 use sqlx::{
+    Executor,
 	encode::Encode,
-	postgres::{PgArguments, PgConnection, Postgres},
+	postgres::{PgArguments, PgConnection, Postgres, PgPool},
 	prelude::*,
 	Arguments,
 };
+use futures::{stream, StreamExt, TryStreamExt};
 
-use crate::error::Result;
+use std::{
+    sync::atomic::{AtomicUsize, Ordering},
+    convert::TryInto
+};
 
-const CHUNK_MAX: usize = 30_000;
+use crate::error::{Result, ArchiveError};
+
+const CHUNK_MAX: usize = 5_000;
 
 pub struct Chunk {
 	query: String,
@@ -62,7 +69,10 @@ impl Chunk {
 		Ok(())
 	}
 
-	async fn execute(self, conn: &mut PgConnection) -> Result<u64> {
+	async fn execute<'a, E>(self, conn: E) -> Result<u64> 
+        where
+            E: Executor<'a, Database=Postgres>
+    {
 		let done = sqlx::query_with(&*self.query, self.arguments.into_arguments()).execute(conn).await?;
 		Ok(done.rows_affected())
 	}
@@ -147,13 +157,30 @@ impl Batch {
 		if self.len > 0 {
 			for mut chunk in self.chunks {
 				chunk.append(&self.trailing);
-				let done = chunk.execute(conn).await?;
+				let done = chunk.execute(&mut *conn).await?;
 				rows_affected += done;
 			}
 		}
 
 		Ok(rows_affected)
 	}
+
+    pub async fn execute_concurrent(self, conn: PgPool) -> Result<u64> {
+        let rows_affected = AtomicUsize::new(0);
+        let trailing = self.trailing.clone();
+        if self.len > 0 {
+            stream::iter(self.chunks).map(Ok).try_for_each_concurrent(
+                None,
+                |mut chunk| async {
+                    chunk.append(&trailing);
+                    let done = chunk.execute(&conn.clone()).await?;
+                    rows_affected.fetch_add(done.try_into()?, Ordering::Relaxed);
+                    Ok::<(), ArchiveError>(())
+                }
+            ).await?;
+        }
+        Ok(rows_affected.into_inner().try_into()?)
+    }
 
 	// TODO: Better name?
 	pub fn current_num_arguments(&self) -> usize {

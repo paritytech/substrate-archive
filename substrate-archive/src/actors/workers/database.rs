@@ -109,7 +109,7 @@ impl DatabaseActor {
 		std::mem::drop(conn);
 		let storage = Vec::<StorageModel<H>>::from(storages);
 		let now = std::time::Instant::now();
-		self.db.insert(storage).await?;
+		self.db.concurrent_insert(storage).await?;
 		log::debug!("[Batch Storage Insert] took {:?}", now.elapsed());
 		Ok(())
 	}
@@ -182,7 +182,10 @@ where
 		if let Err(e) = self.batch_storage_handler(storages).await {
 			log::error!("{}", e.to_string());
 		}
-		log::debug!("Took {:?} to insert {} storage entries", now.elapsed(), len);
+
+        if now.elapsed() > std::time::Duration::from_millis(5000) {
+            log::warn!("Took {:?} to insert {} storage entries", now.elapsed(), len);
+        }
 	}
 }
 
