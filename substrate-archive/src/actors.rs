@@ -30,11 +30,11 @@ use sa_work_queue::{Job as _, QueueHandle, Runner};
 use serde::{de::DeserializeOwned, Deserialize};
 use xtra::{prelude::*, spawn::AsyncStd};
 
+use flume::Receiver;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
-use flume::Receiver;
 
 use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDb, RuntimeConfig};
 
@@ -46,7 +46,10 @@ use self::workers::{
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use crate::{
 	archive::Archive,
-	database::{models::{BlockModelDecoder, PersistentConfig}, queries, Channel, Listener},
+	database::{
+		models::{BlockModelDecoder, PersistentConfig},
+		queries, Channel, Listener,
+	},
 	error::Result,
 	tasks::Environment,
 };
@@ -277,32 +280,32 @@ where
 	}
 
 	async fn work(self) -> Result<()> {
-	    let config = self.config.clone();	
-        let actors = Actors::spawn(&self.config).await?;
-	    let pool = actors.db.send(GetState::Pool).await??.pool();
-        let persistent_config = PersistentConfig::fetch_and_update(&mut *pool.acquire().await?).await?; 
+		let config = self.config.clone();
+		let actors = Actors::spawn(&self.config).await?;
+		let pool = actors.db.send(GetState::Pool).await??.pool();
+		let persistent_config = PersistentConfig::fetch_and_update(&mut *pool.acquire().await?).await?;
 
-        actors.tick_interval().await?;
-		
+		actors.tick_interval().await?;
+
 		let runner = self.start_queue(&actors)?;
 		let handle = runner.unique_handle()?;
 		let mut listener = self.init_listeners(handle.clone()).await?;
-	    let (storage_tx, storage_rx) = flume::bounded(1);
-        let storage_handle = Self::restore_missing_storage(storage_rx, config.clone(), pool.clone(), handle.clone());
+		let (storage_tx, storage_rx) = flume::bounded(1);
+		let storage_handle = Self::restore_missing_storage(storage_rx, config.clone(), pool.clone(), handle.clone());
 
 		let task_loop = task::spawn_blocking(move || loop {
 			match runner.run_pending_tasks() {
 				Ok(_) => {
-                    if runner.job_count() < config.control.max_block_load {
-                        let _ = storage_tx.send(());
-                    }
-                },
+					if runner.job_count() < config.control.max_block_load {
+						let _ = storage_tx.send(());
+					}
+				}
 				Err(sa_work_queue::FetchError::Timeout) => log::warn!("Tasks timed out"),
 				Err(e) => log::error!("{:?}", e),
 			}
 		});
-		
-        futures::join!(storage_handle, task_loop).0?;
+
+		futures::join!(storage_handle, task_loop).0?;
 		listener.kill().await?;
 		Ok(())
 	}
@@ -347,22 +350,27 @@ where
 	/// Checks if any blocks that should be executed are missing
 	/// from the task queue.
 	/// If any are found, they are re-queued.
-	async fn restore_missing_storage(signal: Receiver<()>, conf: SystemConfig<B, D>, pool: sqlx::PgPool, handle: QueueHandle) -> Result<()> {
-	    loop {
-            let _ = signal.recv_async().await; // signal to restore storage
-            let mut conn0 = pool.acquire().await?;
-            let nums = queries::missing_storage_blocks(&mut *conn0).await?;
-            log::info!("Restoring {} missing storage entries.", nums.len());
-            let mut block_stream =
-                queries::blocks_paginated(&mut *conn0, nums.as_slice(), conf.control.max_block_load.try_into()?);
-            while let Some(Ok(page)) = block_stream.next().await {
-                let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(page)?
-                    .into_iter()
-                    .map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
-                    .collect();
-                sa_work_queue::JobExt::enqueue_batch(&handle, jobs).await?;
-            }
-        }
+	async fn restore_missing_storage(
+		signal: Receiver<()>,
+		conf: SystemConfig<B, D>,
+		pool: sqlx::PgPool,
+		handle: QueueHandle,
+	) -> Result<()> {
+		loop {
+			let _ = signal.recv_async().await; // signal to restore storage
+			let mut conn0 = pool.acquire().await?;
+			let nums = queries::missing_storage_blocks(&mut *conn0).await?;
+			log::info!("Restoring {} missing storage entries.", nums.len());
+			let mut block_stream =
+				queries::blocks_paginated(&mut *conn0, nums.as_slice(), conf.control.max_block_load.try_into()?);
+			while let Some(Ok(page)) = block_stream.next().await {
+				let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(page)?
+					.into_iter()
+					.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
+					.collect();
+				sa_work_queue::JobExt::enqueue_batch(&handle, jobs).await?;
+			}
+		}
 	}
 }
 

@@ -49,25 +49,25 @@ impl<Env: 'static> Builder<Env> {
 	}
 	
     ///  Register a job that hasn't or can't be registered by invoking the `register_job!` macro
-	///
-	/// Jobs that include generics must use this function in order to be registered with a runner.
-	/// Jobs must be registered with every generic that is used.
-	/// Jobs are available in the format `my_function_name::Job`.
-	///
-	///  # Example
-	///  ```ignore
-	///  RunnerBuilder::new(env, conn)
-	///      .register_job::<resize_image::Job<String>>()
-	///  ```
-	///  Different jobs must be registered with different generics if they exist.
-	///
-	///  ```ignore
-	///  RunnerBuilder::new((), conn)
-	///     .register_job::<resize_image::Job<String>>()
-	///     .register_job::<resize_image::Job<u32>>()
-	///     .register_job::<resize_image::Job<MyStruct>()
-	///  ```
-	///
+    ///
+    /// Jobs that include generics must use this function in order to be registered with a runner.
+    /// Jobs must be registered with every generic that is used.
+    /// Jobs are available in the format `my_function_name::Job`.
+    ///
+    ///  # Example
+    ///  ```ignore
+    ///  RunnerBuilder::new(env, conn)
+    ///      .register_job::<resize_image::Job<String>>()
+    ///  ```
+    ///  Different jobs must be registered with different generics if they exist.
+    ///
+    ///  ```ignore
+    ///  RunnerBuilder::new((), conn)
+    ///     .register_job::<resize_image::Job<String>>()
+    ///     .register_job::<resize_image::Job<u32>>()
+    ///     .register_job::<resize_image::Job<MyStruct>()
+    ///  ```
+    ///
 	pub fn register_job<T: Job + 'static + Send>(mut self) -> Self {
 		self.registry.register_job::<T>();
 		self

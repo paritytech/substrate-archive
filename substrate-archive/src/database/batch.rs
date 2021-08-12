@@ -19,26 +19,22 @@
 //! This is sort of temporary until SQLx develops their dynamic query builder: https://github.com/launchbadge/sqlx/issues/291
 //! and `Quaint` switches to SQLx as a backend: https://github.com/prisma/quaint/issues/138
 
+use async_std::{future::timeout, task};
+use futures::{future, stream, StreamExt, TryFutureExt, TryStreamExt};
 use sqlx::{
-    Executor,
 	encode::Encode,
-	postgres::{PgArguments, PgConnection, Postgres, PgPool},
+	postgres::{PgArguments, PgConnection, PgPool, Postgres},
 	prelude::*,
-	Arguments,
+	Arguments, Executor,
 };
-use async_std::{
-    future::timeout,
-    task,
-};
-use futures::{stream, future, StreamExt, TryStreamExt, TryFutureExt};
 
 use std::{
-    sync::atomic::{AtomicUsize, Ordering},
-    convert::TryInto,
-    time::Duration,
+	convert::TryInto,
+	sync::atomic::{AtomicUsize, Ordering},
+	time::Duration,
 };
 
-use crate::error::{Result, ArchiveError};
+use crate::error::{ArchiveError, Result};
 
 const CHUNK_MAX: usize = 5_000;
 
@@ -74,10 +70,10 @@ impl Chunk {
 		Ok(())
 	}
 
-	async fn execute<'a, E>(self, conn: E) -> Result<u64> 
-        where
-            E: Executor<'a, Database=Postgres>
-    {
+	async fn execute<'a, E>(self, conn: E) -> Result<u64>
+	where
+		E: Executor<'a, Database = Postgres>,
+	{
 		let done = sqlx::query_with(&*self.query, self.arguments.into_arguments()).execute(conn).await?;
 		Ok(done.rows_affected())
 	}
@@ -169,31 +165,35 @@ impl Batch {
 
 		Ok(rows_affected)
 	}
-    
-    /// Execute a batch concurrently. If a batch size is greater than CHUNK_MAX,
-    /// the query will be executed in multiple independent futures.
-    /// The amount of futures is controlled with `limit`. A limit of `None`
-    /// will limit this function to the number of idle database connections.
-    pub async fn execute_concurrent(self, conn: PgPool, limit: Option<usize>) -> Result<u64> {
-        let rows_affected = AtomicUsize::new(0);
-        let trailing = self.trailing.clone();
-        let num_idle = |_| async {
-            let c = conn.clone(); 
-            Some(timeout(Duration::from_millis(100), task::spawn_blocking(move || c.clone().num_idle())).await).transpose()
-        };
-        if self.len > 0 {
-            stream::iter(self.chunks).map(Ok).try_for_each_concurrent(
-                future::ok::<_, ()>(limit).or_else(num_idle).await.unwrap_or(Some(2)), 
-                |mut chunk| async {
-                    chunk.append(&trailing);
-                    let done = chunk.execute(&conn.clone()).await?;
-                    rows_affected.fetch_add(done.try_into()?, Ordering::Relaxed);
-                    Ok::<(), ArchiveError>(())
-                }
-            ).await?;
-        }
-        Ok(rows_affected.into_inner().try_into()?)
-    }
+
+	/// Execute a batch concurrently. If a batch size is greater than CHUNK_MAX,
+	/// the query will be executed in multiple independent futures.
+	/// The amount of futures is controlled with `limit`. A limit of `None`
+	/// will limit this function to the number of idle database connections.
+	pub async fn execute_concurrent(self, conn: PgPool, limit: Option<usize>) -> Result<u64> {
+		let rows_affected = AtomicUsize::new(0);
+		let trailing = self.trailing.clone();
+		let num_idle = |_| async {
+			let c = conn.clone();
+			Some(timeout(Duration::from_millis(100), task::spawn_blocking(move || c.clone().num_idle())).await)
+				.transpose()
+		};
+		if self.len > 0 {
+			stream::iter(self.chunks)
+				.map(Ok)
+				.try_for_each_concurrent(
+					future::ok::<_, ()>(limit).or_else(num_idle).await.unwrap_or(Some(2)),
+					|mut chunk| async {
+						chunk.append(&trailing);
+						let done = chunk.execute(&conn.clone()).await?;
+						rows_affected.fetch_add(done.try_into()?, Ordering::Relaxed);
+						Ok::<(), ArchiveError>(())
+					},
+				)
+				.await?;
+		}
+		Ok(rows_affected.into_inner().try_into()?)
+	}
 
 	// TODO: Better name?
 	pub fn current_num_arguments(&self) -> usize {

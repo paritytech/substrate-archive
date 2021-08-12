@@ -96,9 +96,9 @@ impl Database {
 		Ok(res)
 	}
 
-    pub async fn concurrent_insert(&self, data: impl Insert) -> Result<u64> {
-        data.concurrent_insert(self.pool.clone()).await
-    }
+	pub async fn concurrent_insert(&self, data: impl Insert) -> Result<u64> {
+		data.concurrent_insert(self.pool.clone()).await
+	}
 
 	pub async fn conn(&self) -> Result<DbConn> {
 		self.pool.acquire().await.map_err(Into::into)
@@ -115,9 +115,9 @@ pub type DbConn = PoolConnection<Postgres>;
 #[async_trait::async_trait]
 pub trait Insert: Send + Sized {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn;
-    async fn concurrent_insert(mut self, conn: PgPool) -> DbReturn {
-        self.insert(&mut conn.acquire().await?).await
-    }
+	async fn concurrent_insert(mut self, conn: PgPool) -> DbReturn {
+		self.insert(&mut conn.acquire().await?).await
+	}
 }
 
 #[async_trait::async_trait]
@@ -246,42 +246,41 @@ where
 	}
 }
 
-
 fn build_storage_batch<H: AsRef<[u8]>>(storage: Vec<StorageModel<H>>) -> Result<Batch> {
-    let mut batch = Batch::new(
-        "storage",
-        r#"
+	let mut batch = Batch::new(
+		"storage",
+		r#"
         INSERT INTO "storage" (
             block_num, hash, is_full, key, storage
         ) VALUES
         "#,
-        r#"
+		r#"
         ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
             hash = EXCLUDED.hash,
             key = EXCLUDED.key,
             storage = EXCLUDED.storage,
             is_full = EXCLUDED.is_full
         "#,
-    );
+	);
 
-    for s in storage {
-        batch.reserve(5)?;
-        if batch.current_num_arguments() > 0 {
-            batch.append(",");
-        }
-        batch.append("(");
-        batch.bind(s.block_num())?;
-        batch.append(",");
-        batch.bind(s.hash().as_ref())?;
-        batch.append(",");
-        batch.bind(s.is_full())?;
-        batch.append(",");
-        batch.bind(s.key().0.as_slice())?;
-        batch.append(",");
-        batch.bind(s.data().map(|d| d.0.as_slice()))?;
-        batch.append(")");
-    }
-    Ok(batch)
+	for s in storage {
+		batch.reserve(5)?;
+		if batch.current_num_arguments() > 0 {
+			batch.append(",");
+		}
+		batch.append("(");
+		batch.bind(s.block_num())?;
+		batch.append(",");
+		batch.bind(s.hash().as_ref())?;
+		batch.append(",");
+		batch.bind(s.is_full())?;
+		batch.append(",");
+		batch.bind(s.key().0.as_slice())?;
+		batch.append(",");
+		batch.bind(s.data().map(|d| d.0.as_slice()))?;
+		batch.append(")");
+	}
+	Ok(batch)
 }
 
 #[async_trait::async_trait]
@@ -290,14 +289,14 @@ where
 	Hash: Send + Sync + AsRef<[u8]> + 'static,
 {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
-	    let batch = build_storage_batch(self)?;
+		let batch = build_storage_batch(self)?;
 		Ok(batch.execute(conn).await?)
 	}
 
-    async fn concurrent_insert(mut self, conn: PgPool) -> DbReturn {
-        let batch = build_storage_batch(self)?;
-        batch.execute_concurrent(conn, None).await
-    }
+	async fn concurrent_insert(mut self, conn: PgPool) -> DbReturn {
+		let batch = build_storage_batch(self)?;
+		batch.execute_concurrent(conn, None).await
+	}
 }
 
 #[async_trait::async_trait]

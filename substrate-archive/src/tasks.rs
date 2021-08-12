@@ -257,12 +257,12 @@ where
 	if *block.header().parent_hash() == Default::default() {
 		return Ok(());
 	}
-    
-    let (hash, number) = (block.header().hash(), block.header().number().clone());
+
+	let (hash, number) = (block.header().hash(), block.header().number().clone());
 	log::debug!(
 		"Executing Block: {}:{}, version {}",
 		number,
-        hash,
+		hash,
 		env.client.runtime_version_at(&BlockId::Hash(block.hash())).map_err(|e| format!("{:?}", e))?.spec_version,
 	);
 
@@ -274,10 +274,10 @@ where
 	} else {
 		(block.execute()?, Default::default())
 	};
-    let elapsed = now.elapsed();
-    if now.elapsed() > std::time::Duration::from_millis(1000) {
-        log::warn!("Took {:?} to execute block {} of hash {}", elapsed, number, hash);
-    } 
+	let elapsed = now.elapsed();
+	if now.elapsed() > std::time::Duration::from_millis(1000) {
+		log::warn!("Took {:?} to execute block {} of hash {}", elapsed, number, hash);
+	}
 
 	let now = std::time::Instant::now();
 	task::block_on(env.storage.send(Storage::from(storage)))?;

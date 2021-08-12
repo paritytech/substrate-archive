@@ -183,9 +183,9 @@ where
 			log::error!("{}", e.to_string());
 		}
 
-        if now.elapsed() > std::time::Duration::from_millis(5000) {
-            log::warn!("Took {:?} to insert {} storage entries", now.elapsed(), len);
-        }
+		if now.elapsed() > std::time::Duration::from_millis(5000) {
+			log::warn!("Took {:?} to insert {} storage entries", now.elapsed(), len);
+		}
 	}
 }
 
