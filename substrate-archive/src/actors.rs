@@ -46,7 +46,7 @@ use self::workers::{
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use crate::{
 	archive::Archive,
-	database::{models::BlockModelDecoder, queries, Channel, Listener},
+	database::{models::{BlockModelDecoder, PersistentConfig}, queries, Channel, Listener},
 	error::Result,
 	tasks::Environment,
 };
@@ -277,20 +277,23 @@ where
 	}
 
 	async fn work(self) -> Result<()> {
-		let actors = Actors::spawn(&self.config).await?;
-		actors.tick_interval().await?;
-		let pool = actors.db.send(GetState::Pool).await??.pool();
+	    let config = self.config.clone();	
+        let actors = Actors::spawn(&self.config).await?;
+	    let pool = actors.db.send(GetState::Pool).await??.pool();
+        let persistent_config = PersistentConfig::fetch_and_update(&mut *pool.acquire().await?).await?; 
 
+        actors.tick_interval().await?;
+		
 		let runner = self.start_queue(&actors)?;
 		let handle = runner.unique_handle()?;
 		let mut listener = self.init_listeners(handle.clone()).await?;
 	    let (storage_tx, storage_rx) = flume::bounded(1);
-        let storage_handle = Self::restore_missing_storage(storage_rx, self.config.clone(), pool.clone(), handle.clone());
+        let storage_handle = Self::restore_missing_storage(storage_rx, config.clone(), pool.clone(), handle.clone());
 
 		let task_loop = task::spawn_blocking(move || loop {
 			match runner.run_pending_tasks() {
 				Ok(_) => {
-                    if runner.job_count() < runner.max_jobs() as u32 {
+                    if runner.job_count() < config.control.max_block_load {
                         let _ = storage_tx.send(());
                     }
                 },

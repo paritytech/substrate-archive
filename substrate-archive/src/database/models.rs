@@ -22,7 +22,8 @@ use std::marker::PhantomData;
 
 use codec::{Decode, Encode, Error as DecodeError};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
+use sqlx::{Postgres, FromRow, PgConnection};
+use chrono::{DateTime, Utc};
 
 use sp_runtime::{
 	generic::SignedBlock,
@@ -30,7 +31,7 @@ use sp_runtime::{
 };
 use sp_storage::{StorageData, StorageKey};
 
-use crate::types::*;
+use crate::{types::*, error::Result};
 
 /// Struct modeling data returned from database when querying for a block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
@@ -134,3 +135,59 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 		original.inner.into_iter().flat_map(Vec::<StorageModel<Hash>>::from).collect()
 	}
 }
+
+/// Config that is stored/restored in 
+/// Postgres on every run.
+#[derive(FromRow, Debug, Clone)]
+pub struct PersistentConfig {
+    id: i32, 
+    /// RabbitMQ Queue Name
+    task_queue: String,
+    /// Last time the archive was run
+    last_run: DateTime<Utc>,
+    /// last version of the archive 
+    last_version: f32,
+}
+
+impl PersistentConfig {
+    /// Get the config if it exists, and if not initialize it and return it.
+    pub async fn fetch_and_update(conn: &mut PgConnection) -> Result<Self> {
+        #[derive(FromRow)] 
+        struct DbName {
+            name: String, 
+        }
+
+        // FIXME: No `query_as!` macro until https://github.com/launchbadge/sqlx/issues/1294#issuecomment-866618995
+        let conf = sqlx::query_as::<Postgres, Self>(r#"SELECT * as "conf!" FROM _sa_config LIMIT 1 ORDER BY id"#)
+            .fetch_optional(&mut *conn)
+            .await?;
+       
+
+        let task_queue = if conf.is_none() {
+            let mut task_queue: String = sqlx::query_as::<Postgres, DbName>(r#"SELECT current_database()"#).fetch_one(&mut *conn).await?.name;
+            // queue name is a combination of: database name, "-queue" and the current UTC timestamp.
+            // This is to ensure some level of uniqueness.
+             task_queue.push_str(&format!("queue-{}", Utc::now()));
+             task_queue
+        } else {
+            conf.as_ref().map(|c| c.task_queue.as_str()).expect("Checked for none; qed").to_string()
+        };
+
+        let now = Utc::now();
+        let version = env!("CARGO_PKG_VERSION");
+        sqlx::query(r#"UPDATE _sa_config SET (task_queue, last_run, last_version) VALUES($1, $2, $3)"#)
+            .bind(task_queue)
+            .bind(now)
+            .bind(version)
+            .execute(&mut *conn);
+        
+        Ok(Self {
+            id: 0,
+            task_queue: "S".into(),
+            last_run: Utc::now(),
+            last_version: 0.0
+        })
+    }
+}
+
+

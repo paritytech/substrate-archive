@@ -26,11 +26,16 @@ use sqlx::{
 	prelude::*,
 	Arguments,
 };
-use futures::{stream, StreamExt, TryStreamExt};
+use async_std::{
+    future::timeout,
+    task,
+};
+use futures::{stream, future, StreamExt, TryStreamExt, TryFutureExt};
 
 use std::{
     sync::atomic::{AtomicUsize, Ordering},
-    convert::TryInto
+    convert::TryInto,
+    time::Duration,
 };
 
 use crate::error::{Result, ArchiveError};
@@ -164,13 +169,21 @@ impl Batch {
 
 		Ok(rows_affected)
 	}
-
-    pub async fn execute_concurrent(self, conn: PgPool) -> Result<u64> {
+    
+    /// Execute a batch concurrently. If a batch size is greater than CHUNK_MAX,
+    /// the query will be executed in multiple independent futures.
+    /// The amount of futures is controlled with `limit`. A limit of `None`
+    /// will limit this function to the number of idle database connections.
+    pub async fn execute_concurrent(self, conn: PgPool, limit: Option<usize>) -> Result<u64> {
         let rows_affected = AtomicUsize::new(0);
         let trailing = self.trailing.clone();
+        let num_idle = |_| async {
+            let c = conn.clone(); 
+            Some(timeout(Duration::from_millis(100), task::spawn_blocking(move || c.clone().num_idle())).await).transpose()
+        };
         if self.len > 0 {
             stream::iter(self.chunks).map(Ok).try_for_each_concurrent(
-                None,
+                future::ok::<_, ()>(limit).or_else(num_idle).await.unwrap_or(Some(2)), 
                 |mut chunk| async {
                     chunk.append(&trailing);
                     let done = chunk.execute(&conn.clone()).await?;

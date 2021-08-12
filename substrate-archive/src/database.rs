@@ -97,7 +97,6 @@ impl Database {
 	}
 
     pub async fn concurrent_insert(&self, data: impl Insert) -> Result<u64> {
-        log::debug!("Inserting concurrently"); 
         data.concurrent_insert(self.pool.clone()).await
     }
 
@@ -116,8 +115,6 @@ pub type DbConn = PoolConnection<Postgres>;
 #[async_trait::async_trait]
 pub trait Insert: Send + Sized {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn;
-    /// Like insert, but allows using multiple Db Connections at the same time.
-    /// Useful for large batch requests.
     async fn concurrent_insert(mut self, conn: PgPool) -> DbReturn {
         self.insert(&mut conn.acquire().await?).await
     }
@@ -299,7 +296,7 @@ where
 
     async fn concurrent_insert(mut self, conn: PgPool) -> DbReturn {
         let batch = build_storage_batch(self)?;
-        batch.execute_concurrent(conn).await
+        batch.execute_concurrent(conn, None).await
     }
 }
 
