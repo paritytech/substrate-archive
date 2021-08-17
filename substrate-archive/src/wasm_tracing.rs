@@ -349,7 +349,6 @@ mod tests {
 				.unwrap();
 			Ok(())
 		})?;
-        println!("{:?}, {:?}", spans, events);
 		assert_eq!(spans[0].name, "im_a_span");
 		assert_eq!(spans[0].target, "test_wasm");
 		assert_eq!(spans[0].target, "test_wasm");
