@@ -99,42 +99,6 @@
       ]
     }
   },
-  "7bae45decf23fd8d33eb2723daa658a8870ec5fd383f47f229b68fe4e7c35724": {
-    "query": "SELECT * FROM _sa_config LIMIT 1",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Int4"
-        },
-        {
-          "ordinal": 1,
-          "name": "task_queue",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 2,
-          "name": "last_run",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 3,
-          "name": "last_version",
-          "type_info": "Float4"
-        }
-      ],
-      "parameters": {
-        "Left": []
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false
-      ]
-    }
-  },
   "a9d252f26fa788b73258414b2b029b9f0326729e6ceb53135a6a7274dc8e6ad6": {
     "query": " \n         SELECT block_num FROM blocks \n         WHERE NOT EXISTS\n            (SELECT block_num FROM storage WHERE storage.block_num = blocks.block_num)\n        ORDER BY block_num;\n        ",
     "describe": {
