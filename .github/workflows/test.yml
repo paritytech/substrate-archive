@@ -55,4 +55,5 @@ jobs:
         env:
           # Tests get the pg url from the environment directly
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          AMQP_URL: amqp://localhost:5672
           RUST_LOG: debug
