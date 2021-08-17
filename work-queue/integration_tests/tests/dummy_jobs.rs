@@ -20,16 +20,16 @@ use sa_work_queue::PerformError;
 
 #[sa_work_queue::background_job]
 pub fn barrier_job(env: &Barrier) -> Result<(), PerformError> {
-    env.wait();
-    Ok(())
+	env.wait();
+	Ok(())
 }
 
 #[sa_work_queue::background_job]
 pub fn failure_job() -> Result<(), PerformError> {
-    Err(PerformError::from("fail on purpose".to_string()))
+	Err(PerformError::from("fail on purpose".to_string()))
 }
 
 #[sa_work_queue::background_job]
 pub fn panic_job() -> Result<(), PerformError> {
-    panic!()
+	panic!()
 }

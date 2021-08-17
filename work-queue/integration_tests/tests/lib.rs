@@ -31,104 +31,66 @@ use std::sync::Once;
 static INIT: Once = Once::new();
 
 pub fn initialize() {
-    INIT.call_once(|| {
-        pretty_env_logger::init();
-    });
+	INIT.call_once(|| {
+		pretty_env_logger::init();
+	});
 }
 
 #[derive(Serialize, Deserialize)]
 struct Size {
-    height: u32,
-    width: u32,
+	height: u32,
+	width: u32,
 }
 
 #[sa_work_queue::background_job]
 fn resize_image(_name: String) -> Result<(), sa_work_queue::PerformError> {
-    std::thread::sleep(std::time::Duration::from_millis(150));
-    Ok(())
+	std::thread::sleep(std::time::Duration::from_millis(150));
+	Ok(())
 }
 
 #[sa_work_queue::background_job]
 fn resize_image_gen<E: Serialize + DeserializeOwned + Send + std::fmt::Display>(
-    _some: E,
+	_some: E,
 ) -> Result<(), sa_work_queue::PerformError> {
-    Ok(())
+	Ok(())
 }
 
 #[test]
 fn enqueue_8_jobs_limited_size() {
-    initialize();
-    let runner = TestGuard::runner(());
-    log::info!("RUNNING `enqueue_8_jobs_limited_size`");
+	initialize();
+	let runner = TestGuard::runner(());
+	log::info!("RUNNING `enqueue_8_jobs_limited_size`");
 
-    let handle = runner.handle();
-    smol::block_on(async {
-        resize_image("lightsource".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-        resize_image("gambit".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-        resize_image("chess".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-        resize_image("checkers".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-        resize_image("L".to_string()).enqueue(&handle).await.unwrap();
-        resize_image("sinks".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-        resize_image("polkadot".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-        resize_image("kusama".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-    });
+	let handle = runner.handle();
+	smol::block_on(async {
+		resize_image("lightsource".to_string()).enqueue(&handle).await.unwrap();
+		resize_image("gambit".to_string()).enqueue(&handle).await.unwrap();
+		resize_image("chess".to_string()).enqueue(&handle).await.unwrap();
+		resize_image("checkers".to_string()).enqueue(&handle).await.unwrap();
+		resize_image("L".to_string()).enqueue(&handle).await.unwrap();
+		resize_image("sinks".to_string()).enqueue(&handle).await.unwrap();
+		resize_image("polkadot".to_string()).enqueue(&handle).await.unwrap();
+		resize_image("kusama".to_string()).enqueue(&handle).await.unwrap();
+	});
 
-    runner.run_pending_tasks().unwrap();
-    runner.wait_for_all_tasks().unwrap();
+	runner.run_pending_tasks().unwrap();
+	runner.wait_for_all_tasks().unwrap();
 }
 
 #[test]
 fn generic_jobs_can_be_enqueued() {
-    initialize();
-    let runner = TestGuard::builder(())
-        .register_job::<resize_image_gen::Job<String>>()
-        .build();
-    log::info!("RUNNING `generic_jobs_can_be_enqueued`");
-    let handle = runner.handle();
+	initialize();
+	let runner = TestGuard::builder(()).register_job::<resize_image_gen::Job<String>>().build();
+	log::info!("RUNNING `generic_jobs_can_be_enqueued`");
+	let handle = runner.handle();
 
-    smol::block_on(async {
-        resize_image_gen("koala".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-        resize_image_gen("cool_pic_no_2".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-        resize_image_gen("electric".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-        resize_image_gen("letter".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-        resize_image_gen("L".to_string())
-            .enqueue(&handle)
-            .await
-            .unwrap();
-        runner.run_pending_tasks().unwrap();
-        runner.wait_for_all_tasks().unwrap();
-    });
+	smol::block_on(async {
+		resize_image_gen("koala".to_string()).enqueue(&handle).await.unwrap();
+		resize_image_gen("cool_pic_no_2".to_string()).enqueue(&handle).await.unwrap();
+		resize_image_gen("electric".to_string()).enqueue(&handle).await.unwrap();
+		resize_image_gen("letter".to_string()).enqueue(&handle).await.unwrap();
+		resize_image_gen("L".to_string()).enqueue(&handle).await.unwrap();
+		runner.run_pending_tasks().unwrap();
+		runner.wait_for_all_tasks().unwrap();
+	});
 }

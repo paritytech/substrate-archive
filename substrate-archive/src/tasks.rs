@@ -258,7 +258,7 @@ where
 		return Ok(());
 	}
 
-	let (hash, number) = (block.header().hash(), block.header().number().clone());
+	let (hash, number) = (block.header().hash(), *block.header().number());
 	log::debug!(
 		"Executing Block: {}:{}, version {}",
 		number,

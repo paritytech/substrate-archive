@@ -327,7 +327,7 @@ where
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(self.config.runtime.block_workers)
 			.queue_name(queue)
-            .prefetch(5000)
+			.prefetch(5000)
 			// times out if tasks don't start execution on the threadpool within timeout.
 			.timeout(Duration::from_secs(self.config.control.task_timeout))
 			.build()?;

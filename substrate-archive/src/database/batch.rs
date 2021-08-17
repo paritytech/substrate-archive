@@ -175,7 +175,7 @@ impl Batch {
 		let trailing = self.trailing.clone();
 		let num_idle = |_| async {
 			let c = conn.clone();
-			Some(timeout(Duration::from_millis(100), task::spawn_blocking(move || c.clone().num_idle())).await)
+			Some(timeout(Duration::from_millis(100), task::spawn_blocking(move || c.num_idle())).await)
 				.transpose()
 		};
 		if self.len > 0 {

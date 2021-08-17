@@ -14,25 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive. If not, see <http://www.gnu.org/licenses/>.
 
-
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::{Arc, Barrier as StdBarrier, BarrierWaitResult};
 
 #[derive(Clone)]
 pub struct Barrier {
-    inner: Arc<StdBarrier>,
+	inner: Arc<StdBarrier>,
 }
 
 impl Barrier {
-    pub fn new(n: usize) -> Self {
-        Self {
-            inner: Arc::new(StdBarrier::new(n)),
-        }
-    }
+	pub fn new(n: usize) -> Self {
+		Self { inner: Arc::new(StdBarrier::new(n)) }
+	}
 
-    pub fn wait(&self) -> BarrierWaitResult {
-        self.inner.wait()
-    }
+	pub fn wait(&self) -> BarrierWaitResult {
+		self.inner.wait()
+	}
 }
 
 impl UnwindSafe for Barrier {}
