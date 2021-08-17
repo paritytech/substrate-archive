@@ -1,4 +1,6 @@
 #![deny(warnings)]
+#![forbid(unsafe_code)]
+#![deny(dead_code)]
 #![recursion_limit = "128"]
 #![cfg_attr(feature = "nightly", feature(proc_macro_diagnostic))]
 

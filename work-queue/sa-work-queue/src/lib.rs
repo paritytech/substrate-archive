@@ -1,7 +1,8 @@
 // #![forbid(unsafe_code)]
 // #![deny(dead_code)]
 
-#[allow(warnings, unused)]
+#[deny(warnings, unused, dead_code)]
+#[forbid(unsafe_code)]
 #[doc(hidden)]
 pub extern crate async_trait;
 #[doc(hidden)]
@@ -27,6 +28,6 @@ pub use sa_work_queue_proc_macro::*;
 
 #[cfg(test)]
 pub fn initialize() {
-	pretty_env_logger::try_init().unwrap()
+	let _ = pretty_env_logger::try_init();
 }
 

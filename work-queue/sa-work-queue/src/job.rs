@@ -12,7 +12,7 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with coil.  If not, see <http://www.gnu.org/licenses/>.
+// along with sa-work-queue.  If not, see <http://www.gnu.org/licenses/>.
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use futures::stream::{self, StreamExt, TryStreamExt};
@@ -46,10 +46,10 @@ pub trait Job: Serialize + DeserializeOwned {
 
 	#[doc(hidden)]
 	/// inserts the job into the Postgres Database
-	async fn enqueue(self, conn: &QueueHandle) -> Result<(), EnqueueError> {
+	async fn enqueue(self, handle: &QueueHandle) -> Result<(), EnqueueError> {
         let job = BackgroundJob { job_type: Self::JOB_TYPE.to_string(), data: serde_json::to_value(&self)? };
         let job = serde_json::to_vec(&job)?;
-        conn.push(job).await?;
+        handle.push(job).await?;
         Ok(())
     }
 
@@ -63,7 +63,10 @@ pub trait Job: Serialize + DeserializeOwned {
 #[async_trait::async_trait]
 pub trait JobExt: Job {
 	async fn enqueue_batch(conn: &QueueHandle, jobs: Vec<Self>) -> Result<(), EnqueueError> {
-        stream::iter(jobs).map(Ok).try_for_each_concurrent(16, |job| job.enqueue(conn)).await?;
+        stream::iter(jobs).map(Ok).try_for_each_concurrent(16, |job| { 
+            job.enqueue(conn)
+        }).await?;
+        
         Ok(())
     }
 }

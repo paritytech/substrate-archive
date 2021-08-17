@@ -25,7 +25,8 @@ use async_amqp::*;
 use lapin::{
 	options::QueueDeclareOptions,
 	Channel, Connection, ConnectionProperties, Queue, 
-    types::{FieldTable, AMQPValue}
+    types::{FieldTable, AMQPValue},
+    publisher_confirm::PublisherConfirm,
 };
 
 use crate::{job::{BackgroundJob, Job}, error::*, registry::Registry, threadpool::ThreadPoolMq};
@@ -33,19 +34,22 @@ use crate::{job::{BackgroundJob, Job}, error::*, registry::Registry, threadpool:
 /// Builder pattern struct for the Runner
 pub struct Builder<Env> {
 	environment: Env,
-	num_threads: Option<usize>,
+	num_threads: usize,
 	addr: String,
 	registry: Registry<Env>,
-	queue_name: Option<String>,
+	queue_name: String,
+    prefetch: u16,
 	/// Amount of time to wait until job is deemed a failure
 	timeout: Option<Duration>,
 }
 
 impl<Env: 'static> Builder<Env> {
 	/// Instantiate a new instance of the Builder
-	pub fn new<S: Into<String>>(environment: Env, addr: S) -> Self {
-		let addr: String = addr.into();
-		Self { environment, addr, num_threads: None, registry: Registry::load(), queue_name: None, timeout: None }
+	pub fn new<S: AsRef<str>>(environment: Env, addr: S) -> Self {
+		let addr: String = addr.as_ref().into();
+        let num_threads = num_cpus::get();
+        let queue_name = "TASK_QUEUE".to_string();
+		Self { environment, addr, num_threads, registry: Registry::load(), queue_name, timeout: None, prefetch: 1 }
 	}
 	
     ///  Register a job that hasn't or can't be registered by invoking the `register_job!` macro
@@ -75,12 +79,12 @@ impl<Env: 'static> Builder<Env> {
 
 	/// specify the amount of threads to run the threadpool with
 	pub fn num_threads(mut self, threads: usize) -> Self {
-		self.num_threads = Some(threads);
+		self.num_threads = threads;
 		self
 	}
 
 	/// Set a timeout in seconds.
-	/// This timeout is the maximum amount of time coil will wait for a job to begin
+	/// This timeout is the maximum amount of time the queue will wait for a job to begin
 	/// before returning an error.
 	pub fn timeout(mut self, timeout: Duration) -> Self {
 		self.timeout = Some(timeout);
@@ -89,27 +93,37 @@ impl<Env: 'static> Builder<Env> {
 
 	/// Set the name for the queue to use.
 	/// Default: `TASK_QUEUE`
-	pub fn queue_name(mut self, name: String) -> Self {
-		self.queue_name = Some(name);
+	pub fn queue_name<S: AsRef<str>>(mut self, name: S) -> Self {
+		self.queue_name = name.as_ref().to_string();
         self
 	}
+
+    pub fn prefetch(mut self, prefetch: u16) -> Self {
+        self.prefetch = prefetch;
+        self
+    }
 
 	/// Build the runner
 	pub fn build(self) -> Result<Runner<Env>, Error> {
 		let timeout = self.timeout.unwrap_or_else(|| std::time::Duration::from_secs(5));
 		let conn = Connection::connect(&self.addr, ConnectionProperties::default().with_async_std()).wait()?;
-		let queue_name = Arc::new(self.queue_name.unwrap_or("TASK_QUEUE".to_string()));
-		let handle = QueueHandle::new(&conn, &queue_name)?;
-    	let threadpool =
-			ThreadPoolMq::with_name("coil-worker", self.num_threads.unwrap_or(num_cpus::get()), &self.addr, queue_name.clone())?;
-
+		let handle = QueueHandle::new(&conn, &self.queue_name)?;
+        let num_threads = self.num_threads;
+        let threadpool = ThreadPoolMq::builder()
+            .name("sa-queue-worker")
+            .queue_name(&self.queue_name)
+            .threads(num_threads)
+            .addr(&self.addr)
+            .prefetch(self.prefetch)
+            .build()?;
+       
 		Ok(Runner {
 			threadpool,
 			conn,
 			handle,
 			environment: Arc::new(self.environment),
 			registry: Arc::new(self.registry),
-            queue_name,
+            queue_name: self.queue_name,
 			timeout,
 		})
 	}
@@ -123,7 +137,7 @@ pub struct Runner<Env> {
 	handle: QueueHandle,
 	environment: Arc<Env>,
 	registry: Arc<Registry<Env>>,
-	queue_name: Arc<String>,
+	queue_name: String,
 	timeout: Duration,
 }
 
@@ -146,9 +160,8 @@ pub struct QueueHandle {
 
 impl QueueHandle {
 	/// Create a new QueueHandle.
-	fn new(connection: &Connection, queue: &str) -> Result<Self, Error> {
+	pub fn new(connection: &Connection, queue: &str) -> Result<Self, Error> {
 		let channel = connection.create_channel().wait()?;
-		// channel.basic_qos(1, BasicQosOptions::default()).wait()?;
 	    let mut table = FieldTable::default();
         table.insert("x-queue-mode".into(), AMQPValue::LongString("lazy".into()));
         let queue = channel
@@ -163,10 +176,19 @@ impl QueueHandle {
 	}
 
 	/// Push to the RabbitMQ
-	pub(crate) async fn push(&self, payload: Vec<u8>) -> Result<(), lapin::Error> {
-		self.channel.basic_publish("", self.queue.name().as_str(), Default::default(), payload, Default::default()).await?;
-		Ok(())
+	pub(crate) async fn push(&self, payload: Vec<u8>) -> Result<PublisherConfirm, lapin::Error> {
+		let confirm = self.channel.basic_publish("", self.queue.name().as_str(), Default::default(), payload, Default::default()).await?;
+		Ok(confirm)
 	}
+    
+    /// Name of the queue this handle holds.
+    pub fn name(&self) -> &str {
+        self.queue.name().as_str()
+    }
+
+    pub fn channel(&self) -> &Channel {
+        &self.channel
+    }
 }
 
 // Methods which don't require `RefUnwindSafe`
@@ -180,9 +202,30 @@ impl<Env: 'static> Runner<Env> {
 	pub fn connection(&self) -> &Connection {
 		&self.conn
 	}
+
+    /// Get a reference to the handler held by `Runner`
+	pub fn handle(&self) -> &QueueHandle {
+		&self.handle
+	}
+
+	/// Create a new handle, using the same connection as `Runner`, but on a unique channel.
+	pub fn unique_handle(&self) -> Result<QueueHandle, Error> {
+		QueueHandle::new(&self.conn, &self.queue_name)
+	}
+ 
+    pub fn queued_job_count(&self) -> usize {
+        self.threadpool.queued_count()  
+    }
+
+    pub fn job_count(&self) -> usize {
+        self.handle.queue.message_count() as usize
+    }
+
+    pub fn max_jobs(&self) -> usize {
+        self.threadpool.max_count()     
+    }
 }
 
-/// NOTE: need to consume here
 impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 	/// Runs all the pending tasks in a loop
 	/// Returns how many tasks are running as a result
@@ -193,7 +236,7 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 		let mut pending_messages = 0;
 		loop {
             let available_threads = max_threads - self.threadpool.active_count();
-        	log::trace!("
+        	log::debug!("
                         pending_messages={},
                         available_threads={},
                         queue_messages={},
@@ -221,33 +264,15 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 				Ok(Event::Working) => pending_messages -= 1,
 				Ok(Event::NoJobAvailable) => return Ok(()),
 				Ok(Event::ErrorLoadingJob(e)) => return Err(e),
-				Err(channel::RecvTimeoutError::Timeout) => return Err(FetchError::Timeout.into()),
-				Err(channel::RecvTimeoutError::Disconnected) => {
+				Err(flume::RecvTimeoutError::Timeout) => return Err(FetchError::Timeout.into()),
+				Err(flume::RecvTimeoutError::Disconnected) => {
 					log::warn!("Job sender disconnected!");
 					return Err(FetchError::Timeout.into());
 				}
 			}
 		}
 	}
-
-	/// Get a reference to the handler held by `Runner`
-	pub fn handle(&self) -> &QueueHandle {
-		&self.handle
-	}
-
-	/// Create a new handle, using the same connection as `Runner`, but on a unique channel.
-	pub fn unique_handle(&self) -> Result<QueueHandle, Error> {
-		QueueHandle::new(&self.conn, &self.queue_name)
-	}
-
-    pub fn job_count(&self) -> u32 {
-        self.handle.queue.message_count() 
-    }
-
-    pub fn max_jobs(&self) -> usize {
-        self.threadpool.max_count()     
-    }
-
+   
 	fn run_single_sync_job(&self) {
 		let env = Arc::clone(&self.environment);
 		let registry = Arc::clone(&self.registry);
@@ -285,19 +310,8 @@ fn try_to_extract_panic_info(info: &(dyn Any + Send + 'static)) -> PerformError 
 impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 	/// Wait for tasks to finish based on timeout
 	/// this is mostly used for internal tests
-	fn wait_for_all_tasks(&self, num_tasks: usize) -> Result<(), String> {
-		let mut counter = 0;
-		while counter < num_tasks {
-			match self.threadpool.events().recv_timeout(std::time::Duration::from_secs(5)) {
-				Ok(o) => log::info!("{:?}", o),
-				Err(channel::RecvTimeoutError::Disconnected) => break,
-				Err(channel::RecvTimeoutError::Timeout) => {
-					panic!("Tasks timed out");
-				}
-			}
-			counter += 1
-		}
-		self.threadpool.join();
+	pub fn wait_for_all_tasks(&self) -> Result<(), String> {
+	    self.threadpool.join();
 		let panic_count = self.threadpool.panic_count();
 		if panic_count == 0 {
 			Ok(())
@@ -310,13 +324,26 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 #[cfg(test)]
 mod test {
 	use super::*;
+    use std::sync::{Arc, Mutex};
 	use async_std::task;
+    use test_common::TestGuard;
+    use serde::{Serialize, Deserialize};
+    use serde_json::json;
+    
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct Id {
+        id: String,
+    }
 
     // we just use the job_type field as ID for testing purposes
 	// in reality `job_type` is the name of the function
 	fn create_dummy_job(runner: &Runner<()>, id: &str) {
+        let data = json!({
+            "id": id,
+        });
+        
 		let job =
-			BackgroundJob { job_type: id.to_string(), data: serde_json::from_str("[1, 2, 3, 4, 5, 6, 7, 8]").unwrap() };
+			BackgroundJob { job_type: "TEST_JOB".into(), data: serde_json::from_value(data).unwrap() };
 		let handle = runner.handle();
 		task::block_on(handle.push(serde_json::to_vec(&job).unwrap())).unwrap();
 	}
@@ -325,38 +352,52 @@ mod test {
 		crate::Runner::builder((), "amqp://localhost:5672")
 			.num_threads(2)
 			.timeout(std::time::Duration::from_secs(5))
-			.build()
+            .queue_name(test_common::TASK_QUEUE)
+            .prefetch(1) // high prefetch values will screw tests up 			
+            .build()
 			.unwrap()
 	}
     
 	#[test]
-	fn sync_jobs_are_locked_when_fetched() {
-		crate::initialize();
-		
+	fn jobs_are_unique() {
+		let _guard = TestGuard::lock();
+        crate::initialize();
+       
+        let processed: Arc<Mutex<Vec<Id>>> = Arc::new(Mutex::new(Vec::new()));
         let runner = runner();
 		create_dummy_job(&runner, "1");
 		create_dummy_job(&runner, "2");
 
-		runner.get_single_job(move |job| {
-			assert_eq!(job.job_type, "1");
+        let job1_processed = processed.clone();
+        runner.get_single_job(move |job| {
+		    println!("Hello, I am in the job!");	
+            job1_processed.lock().unwrap().push(serde_json::from_value(job.data).unwrap());
 			Ok(())
 		});
-
-		runner.get_single_job(move |job| {
-			assert_eq!(job.job_type, "2");
+        let job2_processed = processed.clone();
+        runner.get_single_job(move |job| {
+            println!("Hello I am in the second job"); 
+            job2_processed.lock().unwrap().push(serde_json::from_value(job.data).unwrap());
 			Ok(())
 		});
-		runner.wait_for_all_tasks(2).unwrap();
+        println!("{}", runner.job_count());
+        println!("{}", runner.queued_job_count());
+        runner.wait_for_all_tasks().unwrap();
+        
+        let mut processed = processed.lock().unwrap();
+        processed.dedup();
+        assert_eq!(processed.len(), 2);
 	}
     
     #[test]
     fn jobs_are_deleted_when_successful() {
+        let _guard = TestGuard::lock();
         crate::initialize();
-
+        
         let runner = runner();
         create_dummy_job(&runner, "1");
-        runner.get_single_job(tx.clone(), move |_| Ok(()));
-        runner.wait_for_all_tasks(1).unwrap();
+        runner.get_single_job(move |_| Ok(()));
+        runner.wait_for_all_tasks().unwrap();
         let remaining_jobs = runner.handle().queue.message_count();
         assert_eq!(0, remaining_jobs);
     }

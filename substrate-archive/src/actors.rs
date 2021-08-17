@@ -287,7 +287,7 @@ where
 
 		actors.tick_interval().await?;
 
-		let runner = self.start_queue(&actors)?;
+		let runner = self.start_queue(&actors, &persistent_config.task_queue)?;
 		let handle = runner.unique_handle()?;
 		let mut listener = self.init_listeners(handle.clone()).await?;
 		let (storage_tx, storage_rx) = flume::bounded(1);
@@ -296,7 +296,7 @@ where
 		let task_loop = task::spawn_blocking(move || loop {
 			match runner.run_pending_tasks() {
 				Ok(_) => {
-					if runner.job_count() < config.control.max_block_load {
+					if runner.job_count() < config.control.max_block_load as usize {
 						let _ = storage_tx.send(());
 					}
 				}
@@ -313,6 +313,7 @@ where
 	fn start_queue(
 		&self,
 		actors: &Actors<B, B::Hash, D>,
+		queue: &str,
 	) -> Result<Runner<AssertUnwindSafe<Environment<B, B::Hash, R, C, D>>>> {
 		let env = Environment::<B, B::Hash, R, C, D>::new(
 			self.config.backend().clone(),
@@ -325,6 +326,8 @@ where
 		let runner = sa_work_queue::Runner::builder(env, &self.config.control.task_url)
 			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
 			.num_threads(self.config.runtime.block_workers)
+			.queue_name(queue)
+            .prefetch(5000)
 			// times out if tasks don't start execution on the threadpool within timeout.
 			.timeout(Duration::from_secs(self.config.control.task_timeout))
 			.build()?;

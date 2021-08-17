@@ -45,11 +45,11 @@ pub enum ArchiveError {
 
 	/// background job error
 	#[error("Background job err {0}")]
-	BgJob(#[from] sa_work_queue::EnqueueError),
+	Job(#[from] sa_work_queue::EnqueueError),
 	#[error("Background Job {0}")]
-	BgJobGen(#[from] sa_work_queue::Error),
+	JobGen(#[from] sa_work_queue::Error),
 	#[error("Failed getting background task {0}")]
-	BgJobGet(#[from] sa_work_queue::FetchError),
+	JobGet(#[from] sa_work_queue::FetchError),
 
 	// actor and channel error
 	#[error("Trying to send to disconnected actor")]
@@ -73,6 +73,9 @@ pub enum ArchiveError {
 
 	#[error("Rust Standard Library does not support negative durations")]
 	TimestampOutOfRange,
+
+	#[error("{0}")]
+	Msg(String),
 }
 
 #[derive(Error, Debug)]
@@ -102,5 +105,17 @@ impl From<xtra::Disconnected> for ArchiveError {
 impl<T> From<flume::SendError<T>> for ArchiveError {
 	fn from(_: flume::SendError<T>) -> Self {
 		Self::Channel
+	}
+}
+
+impl From<String> for ArchiveError {
+	fn from(s: String) -> ArchiveError {
+		ArchiveError::Msg(s)
+	}
+}
+
+impl From<&str> for ArchiveError {
+	fn from(s: &str) -> ArchiveError {
+		ArchiveError::Msg(s.to_string())
 	}
 }

@@ -169,6 +169,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "antidote"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34fde25430d87a9388dadbe6e34d7f72a462c8b43ac8d309b42b0a8505d7e2a5"
+
+[[package]]
 name = "anyhow"
 version = "1.0.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2922,6 +2928,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "276ec31bcb4a9ee45f58bec6f9ec700ae4cf4f4f8f2fa7e06cb406bd5ffdd770"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "integration_tests"
+version = "0.1.0"
+dependencies = [
+ "antidote",
+ "anyhow",
+ "assert_matches",
+ "flume",
+ "futures 0.3.15",
+ "futures-timer 3.0.2",
+ "log",
+ "once_cell",
+ "pretty_env_logger",
+ "sa-work-queue",
+ "serde",
+ "smol",
+ "test-common",
 ]
 
 [[package]]
@@ -7046,6 +7071,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smol",
+ "test-common",
  "thiserror",
  "threadpool",
 ]
@@ -9347,7 +9373,6 @@ dependencies = [
  "async-trait",
  "chrono",
  "directories",
- "dotenv",
  "fdlimit",
  "fern",
  "flume",
@@ -9584,8 +9609,13 @@ name = "test-common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-amqp",
+ "async-std",
  "csv",
  "hex",
+ "lapin",
+ "once_cell",
+ "sqlx",
  "test-wasm",
 ]
 

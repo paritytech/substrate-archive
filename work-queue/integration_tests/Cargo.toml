@@ -1,0 +1,31 @@
+[package]
+name = "integration_tests"
+version = "0.1.0"
+authors = ["Andrew Plaza <aplaza@liquidthink.net>"]
+edition = "2018"
+autotests = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sa-work-queue = { path = "../sa-work-queue", features = ["test_components"] }
+test-common = { path = "../../test-common" }
+# lapin = "1.7"
+serde = { version = "1.0", features = ["derive"] }
+smol = "1.2.5"
+futures = "0.3.5"
+pretty_env_logger = "0.4.0"
+log = "0.4.11"
+once_cell = "1.4.0"
+assert_matches = "1.3.0"
+anyhow = "1.0.32"
+antidote = "1.0.0"
+flume = "0.10"
+timer = { version = "3.0", package = "futures-timer" }
+
+[[test]]
+name = "integration_tests"
+path = "tests/lib.rs"
+harness = true
+
+[features]

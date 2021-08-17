@@ -32,6 +32,8 @@ pub enum Error {
 	Mq(#[from] lapin::Error),
 	#[error(transparent)]
 	Env(#[from] std::env::VarError),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 	#[error("{0}")]
 	Msg(String),
 }

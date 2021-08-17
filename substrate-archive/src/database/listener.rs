@@ -236,17 +236,19 @@ impl Drop for Listener {
 mod tests {
 	use super::*;
 	use futures::StreamExt;
+	use sa_work_queue::QueueHandle;
 	use sqlx::Connection;
 
 	#[test]
 	fn should_get_notifications() -> Result<()> {
 		crate::initialize();
-		let _guard = crate::TestGuard::lock();
-		crate::insert_dummy_sql();
+		let _guard = test_common::TestGuard::lock();
+		test_common::insert_dummy_sql();
+		let queue_handle = QueueHandle::new(&test_common::AMQP_CONN, test_common::TASK_QUEUE).unwrap();
 
 		let future = async move {
 			let (tx, rx) = flume::bounded(5);
-			let mut listener = Builder::new(&crate::DATABASE_URL, move |_, _| {
+			let mut listener = Builder::new(&test_common::DATABASE_URL, queue_handle, move |_, _, _| {
 				let tx1 = tx.clone();
 				async move {
 					log::info!("Hello");
@@ -259,7 +261,7 @@ mod tests {
 			.spawn()
 			.await?;
 
-			let mut conn = sqlx::PgConnection::connect(&crate::DATABASE_URL).await.expect("Connection dead");
+			let mut conn = sqlx::PgConnection::connect(&test_common::DATABASE_URL).await.expect("Connection dead");
 			let json = serde_json::json!({
 				"table": "blocks",
 				"action": "INSERT",

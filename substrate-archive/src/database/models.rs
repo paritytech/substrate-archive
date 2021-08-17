@@ -18,7 +18,7 @@
 //! Only some types implemented, for convenience most types are already in their database model
 //! equivalents
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use codec::{Decode, Encode, Error as DecodeError};
@@ -31,7 +31,10 @@ use sp_runtime::{
 };
 use sp_storage::{StorageData, StorageKey};
 
-use crate::{error::Result, types::*};
+use crate::{
+	error::{ArchiveError, Result},
+	types::*,
+};
 
 /// Struct modeling data returned from database when querying for a block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
@@ -140,21 +143,27 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 /// Postgres on every run.
 #[derive(FromRow, Debug, Clone)]
 pub struct PersistentConfig {
+	// internal SQL identifier
 	id: i32,
 	/// RabbitMQ Queue Name
-	task_queue: String,
+	pub task_queue: String,
 	/// Last time the archive was run
-	last_run: DateTime<Utc>,
+	pub last_run: DateTime<Utc>,
 	/// last version of the archive
-	last_version: f32,
+	pub last_version: f32,
 }
 
 impl PersistentConfig {
-	/// Get the config if it exists, and if not initialize it and return it.
+	/// Get the config and update it if it exists. If not initialize config and return it.
 	pub async fn fetch_and_update(conn: &mut PgConnection) -> Result<Self> {
 		#[derive(FromRow)]
 		struct DbName {
 			name: String,
+		}
+
+		#[derive(FromRow)]
+		struct Id {
+			id: i32,
 		}
 
 		// FIXME: No `query_as!` macro until https://github.com/launchbadge/sqlx/issues/1294#issuecomment-866618995
@@ -162,25 +171,35 @@ impl PersistentConfig {
 			.fetch_optional(&mut *conn)
 			.await?;
 
-		let task_queue = if conf.is_none() {
+		let last_version = FromStr::from_str(env!("CARGO_PKG_VERSION"))
+			.map_err(|e| ArchiveError::from(format!("Env Version is not a valid floating point number. {}", e)))?;
+		let last_run = Utc::now();
+
+		if conf.is_none() {
 			let mut task_queue: String =
 				sqlx::query_as::<Postgres, DbName>(r#"SELECT current_database()"#).fetch_one(&mut *conn).await?.name;
 			// queue name is a combination of: database name, "-queue" and the current UTC timestamp.
 			// This is to ensure some level of uniqueness.
 			task_queue.push_str(&format!("queue-{}", Utc::now()));
-			task_queue
+
+			let id = sqlx::query_as::<Postgres, Id>(
+				r#"INSERT INTO _sa_config (task_queue, last_run, last_version) VALUES($1, $2, $3) RETURNING id"#,
+			)
+			.bind(&task_queue)
+			.bind(last_run)
+			.bind(last_version)
+			.fetch_one(&mut *conn)
+			.await?
+			.id;
+
+			Ok(Self { id, task_queue, last_run, last_version })
 		} else {
-			conf.as_ref().map(|c| c.task_queue.as_str()).expect("Checked for none; qed").to_string()
-		};
-
-		let now = Utc::now();
-		let version = env!("CARGO_PKG_VERSION");
-		sqlx::query(r#"UPDATE _sa_config SET (task_queue, last_run, last_version) VALUES($1, $2, $3)"#)
-			.bind(task_queue)
-			.bind(now)
-			.bind(version)
-			.execute(&mut *conn);
-
-		Ok(Self { id: 0, task_queue: "S".into(), last_run: Utc::now(), last_version: 0.0 })
+			sqlx::query(r#"UPDATE _sa_config SET (last_run, last_version) VALUES($1, $2)"#)
+				.bind(last_run)
+				.bind(last_version)
+				.execute(&mut *conn)
+				.await?;
+			Ok(conf.expect("Checked for none; qed"))
+		}
 	}
 }
