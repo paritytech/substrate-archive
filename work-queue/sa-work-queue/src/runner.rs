@@ -57,7 +57,7 @@ impl<Env: 'static> Builder<Env> {
 		Self { environment, addr, num_threads, registry: Registry::load(), queue_name, timeout: None, prefetch: 1 }
 	}
 
-	///  Register a job that hasn't or can't be registered by invoking the `register_job!` macro
+	///  Register a job that cannot be registered by invoking the `register_job!` macro.
 	///
 	/// Jobs that include generics must use this function in order to be registered with a runner.
 	/// Jobs must be registered with every generic that is used.
@@ -65,13 +65,13 @@ impl<Env: 'static> Builder<Env> {
 	///
 	///  # Example
 	///  ```ignore
-	///  RunnerBuilder::new(env, conn)
-	///      .register_job::<resize_image::Job<String>>()
+	///  Runner::builder(env, conn)
+	///     .register_job::<resize_image::Job<String>>()
 	///  ```
-	///  Different jobs must be registered with different generics if they exist.
+	///  Different jobs may be registered with different generics.
 	///
 	///  ```ignore
-	///  RunnerBuilder::new((), conn)
+	///  Runner::builder((), conn)
 	///     .register_job::<resize_image::Job<String>>()
 	///     .register_job::<resize_image::Job<u32>>()
 	///     .register_job::<resize_image::Job<MyStruct>()
@@ -82,7 +82,7 @@ impl<Env: 'static> Builder<Env> {
 		self
 	}
 
-	/// specify the amount of threads to run the threadpool with
+	/// Amount of threads to run the threadpool with.
 	pub fn num_threads(mut self, threads: usize) -> Self {
 		self.num_threads = threads;
 		self
@@ -102,7 +102,10 @@ impl<Env: 'static> Builder<Env> {
 		self.queue_name = name.as_ref().to_string();
 		self
 	}
-
+    
+    /// Set the prefetch value for task items.
+    /// This is the number of tasks that will be in-cache
+    /// per-thread to pick from at runtime.
 	pub fn prefetch(mut self, prefetch: u16) -> Self {
 		self.prefetch = prefetch;
 		self

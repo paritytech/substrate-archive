@@ -90,8 +90,10 @@ impl Builder {
 
 	pub fn build(self) -> Result<ThreadPoolMq, Error> {
 		let conn = Arc::new(self.opts.create_connection()?);
-		let pool =
-			ThreadPool::with_name(self.name.unwrap_or_else(|| "work-queue".into()), self.threads.unwrap_or_else(num_cpus::get));
+		let pool = ThreadPool::with_name(
+			self.name.unwrap_or_else(|| "work-queue".into()),
+			self.threads.unwrap_or_else(num_cpus::get),
+		);
 		let (tx, rx) = flume::bounded(pool.max_count());
 
 		Ok(ThreadPoolMq { conn, tx, rx, pool, queue_opts: Arc::new(self.opts) })
