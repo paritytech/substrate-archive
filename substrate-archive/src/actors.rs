@@ -295,11 +295,12 @@ where
 
 		let task_loop = task::spawn_blocking(move || loop {
 			match runner.run_pending_tasks() {
-				Ok(_) => { // we don't have any tasks to process. Add more and sleep.
+				Ok(_) => {
+					// we don't have any tasks to process. Add more and sleep.
 					if runner.job_count() < config.control.max_block_load as usize {
 						let _ = storage_tx.try_send(());
 					}
-                    std::thread::sleep(Duration::from_millis(100));
+					std::thread::sleep(Duration::from_millis(100));
 				}
 				Err(sa_work_queue::FetchError::Timeout) => log::warn!("Tasks timed out"),
 				Err(e) => log::error!("{:?}", e),

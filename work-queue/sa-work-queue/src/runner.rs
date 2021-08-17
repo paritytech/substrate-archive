@@ -102,10 +102,10 @@ impl<Env: 'static> Builder<Env> {
 		self.queue_name = name.as_ref().to_string();
 		self
 	}
-    
-    /// Set the prefetch value for task items.
-    /// This is the number of tasks that will be in-cache
-    /// per-thread to pick from at runtime.
+
+	/// Set the prefetch value for task items.
+	/// This is the number of tasks that will be in-cache
+	/// per-thread to pick from at runtime.
 	pub fn prefetch(mut self, prefetch: u16) -> Self {
 		self.prefetch = prefetch;
 		self
