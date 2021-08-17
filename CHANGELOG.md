@@ -6,10 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- RabbitMQ is used by-default for task-queue storage. This is an extra dependency that must be started as a service outside of Archive.
+
 ### Changed
 - **BREAKING**: use RabbitMq instead of Postgres for the background tasks queue. Migrations will take place automatically.
-### Added
-- Config option `task_url` to modify RabbitMq Task URL. Also configurable from `AMQP_URL` environment variable.
+  - table `_background_tasks` will be dropped.
+  - table `_sa_config` will be added.
+- Storage is inserted concurrently based on idle SQL connections.
 
 ## [v0.6.0] - 2021-06-24
 ### Added
