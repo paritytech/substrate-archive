@@ -17,45 +17,49 @@
 mod database;
 mod queue;
 
-use std::{sync::{Mutex, MutexGuard}, fs::File, path::PathBuf};
+use std::{
+	fs::File,
+	path::PathBuf,
+	sync::{Mutex, MutexGuard},
+};
 
 use anyhow::Error;
-use once_cell::sync::Lazy;
 use async_std::task;
+use once_cell::sync::Lazy;
 use sqlx::prelude::*;
 
-pub use test_wasm::wasm_binary_unwrap;
 pub use database::*;
 pub use queue::*;
+pub use test_wasm::wasm_binary_unwrap;
 
 static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 pub struct TestGuard<'a>(MutexGuard<'a, ()>);
 impl<'a> TestGuard<'a> {
-    pub fn lock() -> Self {
-        let guard = TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"));
-        guard
-    }
+	pub fn lock() -> Self {
+		let guard = TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"));
+		guard
+	}
 }
 
 impl<'a> Drop for TestGuard<'a> {
-    fn drop(&mut self) {
-        task::block_on(async move {
-            let mut conn = database::PG_POOL.acquire().await.unwrap();
-            conn.execute(
-                "
+	fn drop(&mut self) {
+		task::block_on(async move {
+			let mut conn = database::PG_POOL.acquire().await.unwrap();
+			conn.execute(
+				"
                 TRUNCATE TABLE metadata CASCADE;
                 TRUNCATE TABLE storage CASCADE;
                 TRUNCATE TABLE blocks CASCADE;
                 TRUNCATE TABLE state_traces CASCADE;
                 TRUNCATE TABLE _sa_config;
                 ",
-            )
-            .await
-            .unwrap();
-            let channel = queue::AMQP_CONN.create_channel().wait().unwrap();
-            channel.queue_delete(queue::TASK_QUEUE, Default::default()).wait().unwrap();
-        });
-    }
+			)
+			.await
+			.unwrap();
+			let channel = queue::AMQP_CONN.create_channel().wait().unwrap();
+			channel.queue_delete(queue::TASK_QUEUE, Default::default()).wait().unwrap();
+		});
+	}
 }
 
 pub struct CsvBlock {
