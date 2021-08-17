@@ -47,6 +47,7 @@ impl<'a> Drop for TestGuard<'a> {
                 TRUNCATE TABLE storage CASCADE;
                 TRUNCATE TABLE blocks CASCADE;
                 TRUNCATE TABLE state_traces CASCADE;
+                TRUNCATE TABLE _sa_config;
                 ",
             )
             .await

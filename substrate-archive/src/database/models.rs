@@ -22,6 +22,7 @@ use std::{marker::PhantomData, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use codec::{Decode, Encode, Error as DecodeError};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgConnection, Postgres};
 
@@ -32,7 +33,7 @@ use sp_runtime::{
 use sp_storage::{StorageData, StorageKey};
 
 use crate::{
-	error::{ArchiveError, Result},
+	error::Result,
 	types::*,
 };
 
@@ -149,8 +150,9 @@ pub struct PersistentConfig {
 	pub task_queue: String,
 	/// Last time the archive was run
 	pub last_run: DateTime<Utc>,
-	/// last version of the archive
-	pub last_version: f32,
+    pub major: i32,
+    pub minor: i32,
+    pub patch: i32,
 }
 
 impl PersistentConfig {
@@ -158,7 +160,7 @@ impl PersistentConfig {
 	pub async fn fetch_and_update(conn: &mut PgConnection) -> Result<Self> {
 		#[derive(FromRow)]
 		struct DbName {
-			name: String,
+			current_database: String,
 		}
 
 		#[derive(FromRow)]
@@ -167,39 +169,76 @@ impl PersistentConfig {
 		}
 
 		// FIXME: No `query_as!` macro until https://github.com/launchbadge/sqlx/issues/1294#issuecomment-866618995
-		let conf = sqlx::query_as::<Postgres, Self>(r#"SELECT * as "conf!" FROM _sa_config LIMIT 1 ORDER BY id"#)
+		let conf = sqlx::query_as::<Postgres, Self>(r#"SELECT * FROM _sa_config ORDER BY id LIMIT 1"#)
 			.fetch_optional(&mut *conn)
 			.await?;
-
-		let last_version = FromStr::from_str(env!("CARGO_PKG_VERSION"))
-			.map_err(|e| ArchiveError::from(format!("Env Version is not a valid floating point number. {}", e)))?;
-		let last_run = Utc::now();
+    
+       	let last_run = Utc::now();
+        let (major, minor, patch) = Self::get_version_tuple();
 
 		if conf.is_none() {
 			let mut task_queue: String =
-				sqlx::query_as::<Postgres, DbName>(r#"SELECT current_database()"#).fetch_one(&mut *conn).await?.name;
+				sqlx::query_as::<Postgres, DbName>(r#"SELECT current_database()"#).fetch_one(&mut *conn).await?.current_database;
 			// queue name is a combination of: database name, "-queue" and the current UTC timestamp.
-			// This is to ensure some level of uniqueness.
-			task_queue.push_str(&format!("queue-{}", Utc::now()));
-
-			let id = sqlx::query_as::<Postgres, Id>(
-				r#"INSERT INTO _sa_config (task_queue, last_run, last_version) VALUES($1, $2, $3) RETURNING id"#,
+			// This is to ensure some level of uniqueness if one server is running multiple
+            // instances of archive for different chains.
+			task_queue.push_str(&format!("-queue-{}", Utc::now().timestamp()));
+           	let id = sqlx::query_as::<Postgres, Id>(
+				r#"INSERT INTO _sa_config (task_queue, last_run, major, minor, patch) VALUES($1, $2, $3, $4, $5) RETURNING id"#,
 			)
 			.bind(&task_queue)
 			.bind(last_run)
-			.bind(last_version)
+			.bind(major)
+            .bind(minor)
+            .bind(patch)
 			.fetch_one(&mut *conn)
 			.await?
 			.id;
 
-			Ok(Self { id, task_queue, last_run, last_version })
+			Ok(Self { id, task_queue, last_run, major, minor, patch })
 		} else {
-			sqlx::query(r#"UPDATE _sa_config SET (last_run, last_version) VALUES($1, $2)"#)
+			sqlx::query(r#"UPDATE _sa_config SET last_run = $1, major = $2, minor = $3, patch = $4"#)
 				.bind(last_run)
-				.bind(last_version)
+				.bind(major)
+                .bind(minor)
+                .bind(patch)
 				.execute(&mut *conn)
 				.await?;
 			Ok(conf.expect("Checked for none; qed"))
 		}
 	}
+
+    fn get_version_tuple() -> (i32, i32, i32) {
+        let version = env!("CARGO_PKG_VERSION");
+        version.split('.').map(FromStr::from_str).filter_map(Result::ok).next_tuple().expect("Substrate archive should always have a valid semantic version")
+    }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use test_common::{TestGuard, PG_POOL};
+    use async_std::task;
+    use anyhow::Error;
+    
+    #[derive(FromRow)]
+    struct TaskQueueQuery {
+        task_queue: String
+    }
+
+    #[test]
+    fn config_should_persist() -> Result<(), Error> {
+        crate::initialize();
+        let _guard = TestGuard::lock();
+        task::block_on(async {
+            let mut conn = PG_POOL.acquire().await?;
+            PersistentConfig::fetch_and_update(&mut *conn).await?;
+            let query = sqlx::query_as!(TaskQueueQuery, "SELECT task_queue FROM _sa_config LIMIT 1").fetch_one(&mut *conn).await?;
+            let conf = PersistentConfig::fetch_and_update(&mut *conn).await?;
+            assert_eq!(query.task_queue, conf.task_queue);
+            Ok::<(), Error>(())
+        })?;
+        Ok(())
+    }
+}
+
