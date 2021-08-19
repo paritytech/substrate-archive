@@ -34,8 +34,8 @@ pub struct DatabaseActor {
 }
 
 impl DatabaseActor {
-	pub async fn new(url: String) -> Result<Self> {
-		Ok(Self { db: Database::new(url).await? })
+	pub fn new(url: String) -> Result<Self> {
+		Ok(Self { db: Database::new(url)? })
 	}
 
 	async fn block_handler<B>(&self, blk: Block<B>) -> Result<()>

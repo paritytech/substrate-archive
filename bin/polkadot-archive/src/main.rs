@@ -54,18 +54,17 @@ pub fn main() -> Result<()> {
 	let cli = cli_opts::CliOpts::init();
 	let config = cli.parse()?;
 
-	let mut archive = run_archive::<SecondaryRocksDb>(&cli.chain_spec, config)?;
-	archive.drive()?;
-	let running = Arc::new(AtomicBool::new(true));
-	let r = running.clone();
-
+	let archive = Arc::new(run_archive::<SecondaryRocksDb>(&cli.chain_spec, config)?);
+	let handle = archive.handle();
+	// let running = Arc::new(AtomicBool::new(true));
+	// let r = running.clone();
 	ctrlc::set_handler(move || {
-		r.store(false, Ordering::SeqCst);
+		log::info!("Handler");
+		handle.kill();
 	})
 	.expect("Error setting Ctrl-C handler");
-	while running.load(Ordering::SeqCst) {}
-	archive.boxed_shutdown()?;
 
+	archive.drive()?;
 	Ok(())
 }
 

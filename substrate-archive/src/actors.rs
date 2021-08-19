@@ -1,5 +1,5 @@
-// Copyright 2017-2021 Parity Technologies (UK) Ltd.
-// This fin/le is part of substrate-archive.
+// copyright 2017-2021 parity technologies (uk) ltd.
+// this file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 mod workers;
 
-use std::{convert::TryInto, marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
+use std::{convert::TryInto, marker::PhantomData, panic::AssertUnwindSafe, sync::{Arc, atomic::{AtomicBool, Ordering}}, time::Duration};
 
 use async_std::{
 	future::timeout,
@@ -50,7 +50,7 @@ use crate::{
 		models::{BlockModelDecoder, PersistentConfig},
 		queries, Channel, Listener,
 	},
-	error::Result,
+	error::{Result, ArchiveError},
 	tasks::Environment,
 };
 
@@ -167,11 +167,11 @@ where
 	Block::Hash: Unpin,
 	NumberFor<Block>: Into<u32>,
 {
-	async fn spawn(conf: &SystemConfig<Block, Db>) -> Result<Self> {
-		let db = workers::DatabaseActor::new(conf.pg_url().into()).await?.create(None).spawn(&mut AsyncStd);
+	fn spawn(conf: &SystemConfig<Block, Db>) -> Result<Self> {
+		let db = workers::DatabaseActor::new(conf.pg_url().into())?.create(None).spawn(&mut AsyncStd);
 		let storage = workers::StorageAggregator::new(db.clone()).create(None).spawn(&mut AsyncStd);
 		let metadata =
-			workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None).spawn(&mut AsyncStd);
+			task::block_on(workers::MetadataActor::new(db.clone(), conf.meta().clone()))?.create(None).spawn(&mut AsyncStd);
 		let blocks = workers::BlocksIndexer::new(conf, db.clone(), metadata.clone()).create(None).spawn(&mut AsyncStd);
 
 		Ok(Actors { storage, blocks, metadata, db })
@@ -179,11 +179,11 @@ where
 
 	// Run a future that sends actors a signal to progress once the previous
 	// messages have been processed.
-	async fn tick_interval(&self) -> Result<()> {
+	async fn tick_interval(&self) -> Result<JoinHandle<()>> {
 		// messages that only need to be sent once
 		self.blocks.send(ReIndex).await?;
 		let actors = self.clone();
-		task::spawn(async move {
+		Ok(task::spawn(async move {
 			loop {
 				let fut = (
 					Box::pin(actors.blocks.send(Crawl)),
@@ -194,8 +194,7 @@ where
 					break;
 				}
 			}
-		});
-		Ok(())
+		}))
 	}
 }
 
@@ -212,6 +211,7 @@ where
 	/// handle to the futures runtime indexing the running chain
 	handle: Option<JoinHandle<Result<()>>>,
 	client: Arc<C>,
+	kill: Arc<AtomicBool>,
 	_marker: PhantomData<(B, R, D)>,
 }
 
@@ -241,21 +241,42 @@ where
 		client: Arc<C>,
 		config: SystemConfig<B, D>,
 	) -> Result<Self> {
-		Ok(Self { handle: None, config, client, _marker: PhantomData })
+		let kill = Arc::new(AtomicBool::new(false));
+		Ok(Self { handle: None, config, client, kill, _marker: PhantomData })
 	}
 
-	fn drive(&mut self) -> Result<()> {
-		let instance = SystemInstance::new(self.config.clone(), self.client.clone())?;
-		// task::block_on(instance.work())?;
-		let handle = task::spawn(instance.work());
-		self.handle.replace(handle);
+	fn drive(&self) -> Result<()> {
+		let instance = SystemInstance::new(self.config.clone(), self.client.clone(), self.kill.clone())?;
+		instance.work()?;
+		// self.handle.replace(handle);
 		Ok(())
+	}
+
+	fn handle(&self) -> Handle {
+		self.kill.clone().into()
+	}
+}
+
+pub struct Handle {
+	kill: Arc<AtomicBool>,
+}
+
+impl Handle {
+	pub fn kill(&self) {
+		self.kill.store(true, Ordering::SeqCst);
+	}
+}
+
+impl From<Arc<AtomicBool>> for Handle {
+	fn from(kill: Arc<AtomicBool>) -> Handle {
+		Handle { kill }
 	}
 }
 
 pub struct SystemInstance<B, R, D, C> {
 	config: SystemConfig<B, D>,
 	client: Arc<C>,
+	kill: Arc<AtomicBool>,
 	_marker: PhantomData<R>,
 }
 
@@ -275,41 +296,50 @@ where
 	B::Hash: Unpin,
 	B::Header: serde::de::DeserializeOwned,
 {
-	fn new(config: SystemConfig<B, D>, client: Arc<C>) -> Result<Self> {
-		Ok(Self { config, client, _marker: PhantomData })
+	fn new(config: SystemConfig<B, D>, client: Arc<C>, kill: Arc<AtomicBool>) -> Result<Self> {
+		Ok(Self { config, client, kill, _marker: PhantomData })
 	}
 
-	async fn work(self) -> Result<()> {
-		let config = self.config.clone();
-		let actors = Actors::spawn(&self.config).await?;
-		let pool = actors.db.send(GetState::Pool).await??.pool();
-		let persistent_config = PersistentConfig::fetch_and_update(&mut *pool.acquire().await?).await?;
+	fn work(self) -> Result<()> {
+		let actors = Actors::spawn(&self.config)?;
 
-		actors.tick_interval().await?;
+		let (persistent_config, tick_handle) = task::block_on(async {
+			let pool = actors.db.send(GetState::Pool).await??.pool();
+			let pconfig = PersistentConfig::fetch_and_update(&mut *pool.acquire().await?).await?;
+			let handle = actors.tick_interval().await?;
+			Ok::<_, ArchiveError>((pconfig, handle))
+		})?;
 
 		let runner = self.start_queue(&actors, &persistent_config.task_queue)?;
-		let handle = runner.unique_handle()?;
-		let mut listener = self.init_listeners(handle.clone()).await?;
-		let (storage_tx, storage_rx) = flume::bounded(1);
-		let storage_handle = Self::restore_missing_storage(storage_rx, config.clone(), pool.clone(), handle.clone());
+		let killer = runner.killer();
+		// let handle = runner.unique_handle()?;
+		// let mut listener = self.init_listeners(handle.clone()).await?;
+		// let (storage_tx, storage_rx) = flume::bounded(1);
+		// let storage_handle = Self::restore_missing_storage(storage_rx, config.clone(), pool.clone(), handle.clone());
 
-		let task_loop = task::spawn_blocking(move || loop {
+		while !self.kill.load(Ordering::SeqCst) {
 			match runner.run_pending_tasks() {
 				Ok(_) => {
 					// we don't have any tasks to process. Add more and sleep.
-					if runner.job_count() < config.control.max_block_load as usize {
-						let _ = storage_tx.try_send(());
+					if runner.job_count() < self.config.control.max_block_load as usize {
+						// let _ = storage_tx.try_send(());
 					}
 					std::thread::sleep(Duration::from_millis(100));
 				}
 				Err(sa_work_queue::FetchError::Timeout) => log::warn!("Tasks timed out"),
 				Err(e) => log::error!("{:?}", e),
 			}
+		}
+		killer.kill();
+		task::block_on(async {
+			log::info!("Killing actors");
+			if timeout(Duration::from_secs(1), tick_handle.cancel()).await.is_err() {
+				log::warn!("Shutdown timed out...");
+			}
 		});
-
-		futures::join!(storage_handle, task_loop).0?;
-		listener.kill().await?;
 		Ok(())
+		// futures::join!(storage_handle, task_loop).0?;
+		// listener.kill().await?;
 	}
 
 	fn start_queue(
@@ -397,7 +427,7 @@ where
 	B::Hash: Unpin,
 	B::Header: serde::de::DeserializeOwned,
 {
-	fn drive(&mut self) -> Result<()> {
+	fn drive(&self) -> Result<()> {
 		System::drive(self)?;
 		Ok(())
 	}
@@ -408,8 +438,13 @@ where
 		}
 	}
 
-	fn shutdown(self) -> Result<()> {
-		let now = std::time::Instant::now();
+	fn handle(&self) -> Handle {
+		self.handle()
+	}
+
+	fn shutdown(&self) -> Result<()> {
+		self.kill.store(true, Ordering::SeqCst);
+		/*
 		if let Some(h) = self.handle {
 			task::block_on(async {
 				if timeout(Duration::from_secs(1), h.cancel()).await.is_err() {
@@ -418,6 +453,7 @@ where
 			})
 		}
 		log::debug!("Shutdown took {:?}", now.elapsed());
+		*/
 		Ok(())
 	}
 
@@ -429,3 +465,4 @@ where
 		&self.config
 	}
 }
+

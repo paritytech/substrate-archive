@@ -28,7 +28,7 @@ use lapin::{
 	message::Delivery,
 	options::{BasicAckOptions, BasicConsumeOptions, BasicNackOptions, BasicQosOptions},
 	types::FieldTable,
-	Connection, ConnectionProperties, Consumer,
+	Connection, ConnectionProperties, Consumer, Channel
 };
 use threadpool::ThreadPool;
 
@@ -91,7 +91,7 @@ impl Builder {
 	pub fn build(self) -> Result<ThreadPoolMq, Error> {
 		let conn = Arc::new(self.opts.create_connection()?);
 		let pool = ThreadPool::with_name(
-			self.name.unwrap_or_else(|| "work-queue".into()),
+			self.name.unwrap_or_else(|| "queue-worker".into()),
 			self.threads.unwrap_or_else(num_cpus::get),
 		);
 		let (tx, rx) = flume::bounded(pool.max_count());
@@ -101,9 +101,9 @@ impl Builder {
 }
 
 pub struct ThreadPoolMq {
+	pool: ThreadPool,
 	conn: Arc<Connection>,
 	queue_opts: Arc<QueueOpts>,
-	pool: ThreadPool,
 	tx: Sender<Event>,
 	rx: Receiver<Event>,
 }
@@ -149,8 +149,18 @@ impl ThreadPoolMq {
 		&self.rx
 	}
 
-	#[cfg(any(test, feature = "test_components"))]
 	pub fn join(&self) {
+		if let Err(e) = self.conn.close(0, "consumers shutting down").wait() {
+			log::error!("{}", e);
+		}
+		log::debug!("Joining pool:
+			active_count={},
+			queued_count={},
+			panic_count={}",
+			self.pool.active_count(),
+			self.pool.queued_count(),
+			self.pool.panic_count()
+		);
 		self.pool.join()
 	}
 
@@ -165,6 +175,8 @@ impl ThreadPoolMq {
 #[derive(Default, Clone)]
 struct ConsumerHandle {
 	inner: Rc<RefCell<Option<Consumer>>>,
+	// channel is held as a  reference in order to close it on drop
+	channel: Rc<RefCell<Option<Channel>>>,
 }
 
 impl ConsumerHandle {
@@ -183,18 +195,11 @@ impl ConsumerHandle {
 		let consumer =
 			chan.basic_consume(&opts.queue_name, "", BasicConsumeOptions::default(), FieldTable::default()).wait()?;
 		let _ = this.insert(consumer);
+		let _ = self.channel.borrow_mut().insert(chan);
 		Ok(())
 	}
 }
 
-// FIXME: There may be a better way to do this that avoids sending in the 'queue_name' as a string.
-// This is part of the reason the string is stored as Arc<String>, to cut down on memory-storage
-// since string would have to be clone on every thread `execute`, despite only needing the string
-// once when the thread is first started.
-// We could: Intern the strings, or store a global hashmap via `OnceCell` of all queue names.
-// However, those options sound more extreme and unnecessary for this use-case.
-//
-//
 /// Run the job, initializing the thread-local consumer if it has not been initialized
 fn run_job<F>(conn: &Connection, opts: &QueueOpts, tx: Sender<Event>, job: F) -> Result<(), Error>
 where
@@ -238,10 +243,16 @@ fn next_job(tx: Sender<Event>, consumer: &mut Consumer) -> Option<(BackgroundJob
 }
 
 fn get_next_job(consumer: &mut Consumer) -> Result<Option<(BackgroundJob, Delivery)>, FetchError> {
-	// let delivery = task::block_on(consumer.next()).transpose()?.map(|(_, d)| d);
 	let delivery =
 		task::block_on(timeout(Duration::from_millis(10), consumer.next())).ok().flatten().transpose()?.map(|(_, d)| d);
 	let data: Option<BackgroundJob> =
 		delivery.as_ref().map(|d| serde_json::from_slice(d.data.as_slice())).transpose()?;
 	Ok(data.zip(delivery))
+}
+
+impl Drop for ThreadPoolMq {
+	fn drop(&mut self) {
+		self.join();
+		log::info!("Threadpool dropped");
+	}
 }

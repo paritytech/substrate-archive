@@ -17,7 +17,7 @@
 use std::{
 	any::Any,
 	panic::{catch_unwind, PanicInfo, RefUnwindSafe, UnwindSafe},
-	sync::Arc,
+	sync::{Arc, atomic::{AtomicBool, Ordering}},
 	time::Duration,
 };
 
@@ -132,6 +132,7 @@ impl<Env: 'static> Builder<Env> {
 			environment: Arc::new(self.environment),
 			registry: Arc::new(self.registry),
 			queue_name: self.queue_name,
+			signal: Arc::new(AtomicBool::new(true)),
 			timeout,
 		})
 	}
@@ -140,13 +141,32 @@ impl<Env: 'static> Builder<Env> {
 /// Runner for background tasks.
 /// Synchronous tasks are run in a threadpool.
 pub struct Runner<Env> {
-	threadpool: ThreadPoolMq,
 	conn: Connection,
 	handle: QueueHandle,
 	environment: Arc<Env>,
 	registry: Arc<Registry<Env>>,
 	queue_name: String,
 	timeout: Duration,
+	signal: Arc<AtomicBool>,
+	threadpool: ThreadPoolMq,
+}
+
+#[derive(Clone, Debug)]
+pub struct Killer {
+	signal: Arc<AtomicBool>
+}
+
+impl Killer {
+	pub fn kill(&self) {
+		log::info!("Killing runner");
+		self.signal.store(false, Ordering::SeqCst);
+	}
+}
+
+impl From<Arc<AtomicBool>> for Killer {
+	fn from(signal: Arc<AtomicBool>) -> Killer {
+		Killer { signal }
+	}
 }
 
 #[derive(Debug)]
@@ -162,8 +182,8 @@ pub enum Event {
 /// Thin wrapper over a 'Channel'
 #[derive(Clone)]
 pub struct QueueHandle {
-	channel: Channel,
 	queue: Queue,
+	channel: Channel,
 }
 
 impl QueueHandle {
@@ -203,7 +223,9 @@ impl<Env: 'static> Runner<Env> {
 	pub fn builder(env: Env, conn: &str) -> Builder<Env> {
 		Builder::new(env, conn)
 	}
+}
 
+impl<Env> Runner<Env> {
 	/// Get a RabbitMq Connection from the pool that the runner is using.
 	pub fn connection(&self) -> &Connection {
 		&self.conn
@@ -230,17 +252,24 @@ impl<Env: 'static> Runner<Env> {
 	pub fn max_jobs(&self) -> usize {
 		self.threadpool.max_count()
 	}
+
+	pub fn killer(&self) -> Killer {
+		self.signal.clone().into()
+	}
 }
 
 impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
+
 	/// Runs all the pending tasks in a loop
-	/// Returns how many tasks are running as a result
 	pub fn run_pending_tasks(&self) -> Result<(), FetchError> {
+		if self.handle().queue.message_count() == 0 {
+			return Ok(())
+		}
 		let max_threads = self.threadpool.max_count();
 		log::debug!("Max Threads: {}", max_threads);
 
 		let mut pending_messages = 0;
-		loop {
+		while self.signal.load(Ordering::SeqCst) {
 			let available_threads = max_threads - self.threadpool.active_count();
 			log::debug!(
 				"
@@ -261,11 +290,9 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 
 			let jobs_to_queue =
 				if pending_messages == 0 { std::cmp::max(available_threads, 1) } else { available_threads };
-
 			for _ in 0..jobs_to_queue {
-				self.run_single_sync_job()
+				self.run_single_job()
 			}
-
 			pending_messages += jobs_to_queue;
 			match self.threadpool.events().recv_timeout(self.timeout) {
 				Ok(Event::Working) => pending_messages -= 1,
@@ -278,9 +305,10 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 				}
 			}
 		}
+		Ok(())
 	}
 
-	fn run_single_sync_job(&self) {
+	fn run_single_job(&self) {
 		let env = Arc::clone(&self.environment);
 		let registry = Arc::clone(&self.registry);
 
@@ -298,6 +326,15 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 	{
 		self.threadpool
 			.execute(move |job| catch_unwind(|| fun(job)).map_err(|e| try_to_extract_panic_info(&e)).and_then(|r| r))
+	}
+}
+
+impl<Env> Drop for Runner<Env> {
+	fn drop(&mut self) {
+		if let Err(e) = self.connection().close(200, "publishers shutting down").wait() {
+			log::error!("{}", e);
+		}
+		log::info!("Runner dropped");
 	}
 }
 
@@ -376,18 +413,14 @@ mod test {
 
 		let job1_processed = processed.clone();
 		runner.get_single_job(move |job| {
-			println!("Hello, I am in the job!");
 			job1_processed.lock().unwrap().push(serde_json::from_value(job.data).unwrap());
 			Ok(())
 		});
 		let job2_processed = processed.clone();
 		runner.get_single_job(move |job| {
-			println!("Hello I am in the second job");
 			job2_processed.lock().unwrap().push(serde_json::from_value(job.data).unwrap());
 			Ok(())
 		});
-		println!("{}", runner.job_count());
-		println!("{}", runner.queued_job_count());
 		runner.wait_for_all_tasks().unwrap();
 
 		let mut processed = processed.lock().unwrap();
