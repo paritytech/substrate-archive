@@ -236,7 +236,10 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 	/// Runs all the pending tasks in a loop
 	/// Returns how many tasks are running as a result
 	pub fn run_pending_tasks(&self) -> Result<(), FetchError> {
-		let max_threads = self.threadpool.max_count();
+	    if self.handle().queue.message_count() == 0 {
+            return Ok(())
+        }
+        let max_threads = self.threadpool.max_count();
 		log::debug!("Max Threads: {}", max_threads);
 
 		let mut pending_messages = 0;

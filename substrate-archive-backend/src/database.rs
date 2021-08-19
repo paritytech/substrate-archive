@@ -42,10 +42,6 @@ pub trait ReadOnlyDb: Send + Sync {
 		Self: Sized;
 }
 
-pub struct Config {
-	pub config: DatabaseConfig,
-}
-
 #[derive(parity_util_mem::MallocSizeOf)]
 pub struct SecondaryRocksDb {
 	inner: Database,
@@ -59,8 +55,8 @@ impl fmt::Debug for SecondaryRocksDb {
 }
 
 impl SecondaryRocksDb {
-	pub fn open(config: Config, path: &str) -> io::Result<Self> {
-		let inner = Database::open(&config.config, path)?;
+	pub fn open(config: DatabaseConfig, path: &str) -> io::Result<Self> {
+		let inner = Database::open(&config, path)?;
 		inner.try_catch_up_with_primary()?;
 		Ok(Self { inner })
 	}
@@ -98,13 +94,8 @@ impl ReadOnlyDb for SecondaryRocksDb {
 
 	fn open_database(path: &str, cache_size: usize, db_path: PathBuf) -> io::Result<SecondaryRocksDb> {
 		// need to make sure this is `Some` to open secondary instance
-		let db_path = db_path.as_path().to_str().expect("Creating db path failed");
-		let mut db_config = Config {
-			config: DatabaseConfig {
-				secondary: Some(db_path.to_string()),
-				..DatabaseConfig::with_columns(NUM_COLUMNS)
-			},
-		};
+		let mut db_config = DatabaseConfig::with_columns(NUM_COLUMNS);
+		db_config.secondary = Some(db_path);
 		let state_col_budget = (cache_size as f64 * 0.9) as usize;
 		let other_col_budget = (cache_size - state_col_budget) / (NUM_COLUMNS as usize - 1);
 		let mut memory_budget = HashMap::new();
@@ -116,7 +107,7 @@ impl ReadOnlyDb for SecondaryRocksDb {
 				memory_budget.insert(i, other_col_budget);
 			}
 		}
-		db_config.config.memory_budget = memory_budget;
+		db_config.memory_budget = memory_budget;
 		log::info!(
 			target: "db",
 			"Open RocksDB at {}, state column budget: {} MiB, others({}) column cache: {} MiB",

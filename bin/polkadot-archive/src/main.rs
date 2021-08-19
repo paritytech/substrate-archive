@@ -25,30 +25,7 @@ use polkadot_service::kusama_runtime as ksm_rt;
 use polkadot_service::polkadot_runtime as dot_rt;
 use polkadot_service::westend_runtime as wnd_rt;
 use polkadot_service::Block;
-use substrate_archive::{
-	native_executor_instance, Archive, ArchiveBuilder, ArchiveConfig, ReadOnlyDb, SecondaryRocksDb,
-};
-
-native_executor_instance!(
-	pub PolkadotExecutor,
-	dot_rt::api::dispatch,
-	dot_rt::native_version,
-	sp_io::SubstrateHostFunctions,
-);
-
-native_executor_instance!(
-	pub KusamaExecutor,
-	ksm_rt::api::dispatch,
-	ksm_rt::native_version,
-	sp_io::SubstrateHostFunctions,
-);
-
-native_executor_instance!(
-	pub WestendExecutor,
-	wnd_rt::api::dispatch,
-	wnd_rt::native_version,
-	sp_io::SubstrateHostFunctions,
-);
+use substrate_archive::{Archive, ArchiveBuilder, ArchiveConfig, ReadOnlyDb, SecondaryRocksDb};
 
 pub fn main() -> Result<()> {
 	let cli = cli_opts::CliOpts::init();
@@ -76,21 +53,21 @@ fn run_archive<D: ReadOnlyDb + 'static>(
 	match chain_spec.to_ascii_lowercase().as_str() {
 		"kusama" | "ksm" => {
 			let spec = polkadot_service::chain_spec::kusama_config().map_err(|err| anyhow!("{}", err))?;
-			let archive = ArchiveBuilder::<Block, wnd_rt::RuntimeApi, KusamaExecutor, D>::with_config(config)
+			let archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, D>::with_config(config)
 				.chain_spec(Box::new(spec))
 				.build()?;
 			Ok(Box::new(archive))
 		}
 		"westend" | "wnd" => {
 			let spec = polkadot_service::chain_spec::westend_config().map_err(|err| anyhow!("{}", err))?;
-			let archive = ArchiveBuilder::<Block, wnd_rt::RuntimeApi, WestendExecutor, D>::with_config(config)
+			let archive = ArchiveBuilder::<Block, wnd_rt::RuntimeApi, D>::with_config(config)
 				.chain_spec(Box::new(spec))
 				.build()?;
 			Ok(Box::new(archive))
 		}
 		"polkadot" | "dot" => {
 			let spec = polkadot_service::chain_spec::polkadot_config().map_err(|err| anyhow!("{}", err))?;
-			let archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, PolkadotExecutor, D>::with_config(config)
+			let archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, D>::with_config(config)
 				.chain_spec(Box::new(spec))
 				.build()?;
 			Ok(Box::new(archive))

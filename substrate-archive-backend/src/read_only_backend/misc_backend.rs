@@ -53,6 +53,7 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockImportOperation<Block> for RealBlockImpo
 		&mut self,
 		_header: Block::Header,
 		_body: Option<Vec<Block::Extrinsic>>,
+		_indexed_body: Option<Vec<Vec<u8>>>,
 		_justification: Option<Justifications>,
 		_state: NewBlockState,
 	) -> ChainResult<()> {

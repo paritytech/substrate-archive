@@ -30,7 +30,7 @@ use sc_executor::RuntimeVersion;
 use sp_api::{ApiError, ApiRef, CallApiAt, CallApiAtParams, ConstructRuntimeApi, Metadata, ProvideRuntimeApi};
 use sp_core::NativeOrEncoded;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
-use sp_version::{GetRuntimeVersion, NativeVersion};
+use sp_version::GetRuntimeVersionAt;
 
 use crate::{
 	database::ReadOnlyDb,
@@ -55,7 +55,7 @@ pub struct Client<Exec, Block: BlockT, RA, D: ReadOnlyDb> {
 impl<Exec, Block, RA, D> Client<Exec, Block, RA, D>
 where
 	D: ReadOnlyDb + 'static,
-	Exec: CallExecutor<Block> + GetRuntimeVersion<Block> + Send + Sync,
+	Exec: CallExecutor<Block> + GetRuntimeVersionAt<Block> + Send + Sync,
 	Block: BlockT,
 	RA: Send + Sync,
 {
@@ -72,11 +72,7 @@ where
 	}
 
 	pub fn runtime_version_at(&self, id: &BlockId<Block>) -> Result<RuntimeVersion, BackendError> {
-		GetRuntimeVersion::runtime_version(self, id).map_err(Into::into)
-	}
-
-	pub fn native_runtime_version(&self) -> &NativeVersion {
-		self.executor.native_version()
+		GetRuntimeVersionAt::runtime_version(self, id).map_err(Into::into)
 	}
 
 	/// get the backend for this client instance
@@ -85,26 +81,22 @@ where
 	}
 }
 
-impl<Exec, Block, RA, D> GetRuntimeVersion<Block> for Client<Exec, Block, RA, D>
+impl<Exec, Block, RA, D> GetRuntimeVersionAt<Block> for Client<Exec, Block, RA, D>
 where
 	D: ReadOnlyDb + 'static,
-	Exec: CallExecutor<Block> + Send + Sync + GetRuntimeVersion<Block>,
+	Exec: CallExecutor<Block> + Send + Sync + GetRuntimeVersionAt<Block>,
 	Block: BlockT,
 	RA: Send + Sync,
 {
 	fn runtime_version(&self, at: &BlockId<Block>) -> Result<sp_version::RuntimeVersion, String> {
-		GetRuntimeVersion::runtime_version(&self.executor, at)
-	}
-
-	fn native_version(&self) -> &NativeVersion {
-		self.executor.native_version()
+		GetRuntimeVersionAt::runtime_version(&self.executor, at)
 	}
 }
 
 impl<Exec, Block, RA, D> GetMetadata<Block> for Client<Exec, Block, RA, D>
 where
 	D: ReadOnlyDb + 'static,
-	Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + GetRuntimeVersion<Block> + Send + Sync,
+	Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + GetRuntimeVersionAt<Block> + Send + Sync,
 	Block: BlockT,
 	RA: ConstructRuntimeApi<Block, Self> + Send + Sync,
 	RA::RuntimeApi: sp_api::Metadata<Block> + Send + Sync + 'static,
@@ -117,7 +109,7 @@ where
 impl<Exec, Block, RA, D> ProvideRuntimeApi<Block> for Client<Exec, Block, RA, D>
 where
 	D: ReadOnlyDb + 'static,
-	Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + GetRuntimeVersion<Block> + Send + Sync,
+	Exec: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + GetRuntimeVersionAt<Block> + Send + Sync,
 	Block: BlockT,
 	RA: ConstructRuntimeApi<Block, Self> + Send + Sync,
 {
@@ -130,7 +122,7 @@ where
 impl<E, Block, RA, D> CallApiAt<Block> for Client<E, Block, RA, D>
 where
 	D: ReadOnlyDb + 'static,
-	E: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + GetRuntimeVersion<Block> + Send + Sync,
+	E: CallExecutor<Block, Backend = ReadOnlyBackend<Block, D>> + GetRuntimeVersionAt<Block> + Send + Sync,
 	Block: BlockT,
 	RA: Send + Sync,
 {

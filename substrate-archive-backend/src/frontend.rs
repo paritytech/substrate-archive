@@ -31,9 +31,10 @@ use sc_client_api::{
 	execution_extensions::{ExecutionExtensions, ExecutionStrategies},
 	ExecutionStrategy,
 };
-use sc_executor::{NativeExecutionDispatch, NativeExecutor, WasmExecutionMethod};
+use sc_executor::{WasmExecutor, WasmExecutionMethod};
 use sc_service::{ChainSpec, ClientConfig, LocalCallExecutor, TransactionStorageMode};
 use sp_api::ConstructRuntimeApi;
+use sp_wasm_interface::HostFunctions;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
@@ -41,10 +42,10 @@ pub use self::client::{Client, GetMetadata};
 use crate::{database::ReadOnlyDb, error::BackendError, read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
 
 /// Archive Client Condensed Type
-pub type TArchiveClient<TBl, TRtApi, TExecDisp, D> = Client<TFullCallExecutor<TBl, TExecDisp, D>, TBl, TRtApi, D>;
+pub type TArchiveClient<TBl, TRtApi, D> = Client<TFullCallExecutor<TBl, D>, TBl, TRtApi, D>;
 
 /// Full client call executor type.
-type TFullCallExecutor<TBl, TExecDisp, D> = LocalCallExecutor<TBl, ReadOnlyBackend<TBl, D>, NativeExecutor<TExecDisp>>;
+type TFullCallExecutor<TBl, D> = LocalCallExecutor<TBl, ReadOnlyBackend<TBl, D>, WasmExecutor>;
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub enum ExecutionMethod {
@@ -149,22 +150,22 @@ where
 	}
 }
 
-pub fn runtime_api<Block, Runtime, Dispatch, D: ReadOnlyDb + 'static>(
+pub fn runtime_api<Block, Runtime, D: ReadOnlyDb + 'static>(
 	config: RuntimeConfig,
 	backend: Arc<ReadOnlyBackend<Block, D>>,
-) -> Result<TArchiveClient<Block, Runtime, Dispatch, D>, BackendError>
+) -> Result<TArchiveClient<Block, Runtime, D>, BackendError>
 where
 	Block: BlockT,
 	Block::Hash: FromStr,
-	Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Dispatch, D>> + Send + Sync + 'static,
+	Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, D>> + Send + Sync + 'static,
 	Runtime::RuntimeApi: RuntimeApiCollection<Block, StateBackend = sc_client_api::StateBackendFor<ReadOnlyBackend<Block, D>, Block>>
 		+ Send
 		+ Sync
 		+ 'static,
-	Dispatch: NativeExecutionDispatch + 'static,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
-	let executor = NativeExecutor::<Dispatch>::new(config.exec_method.into(), config.wasm_pages, config.block_workers);
+	let executor = WasmExecutor::new(config.exec_method.into(), config.wasm_pages,
+		sp_io::SubstrateHostFunctions::host_functions(), config.block_workers, None);
 	let executor =
 		LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.try_into()?)?;
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None, None))?;
@@ -201,10 +202,10 @@ impl SpawnNamed for TaskExecutor {
 
 fn execution_strategies() -> ExecutionStrategies {
 	ExecutionStrategies {
-		syncing: ExecutionStrategy::NativeElseWasm,
-		importing: ExecutionStrategy::NativeElseWasm,
-		block_construction: ExecutionStrategy::NativeElseWasm,
-		offchain_worker: ExecutionStrategy::NativeElseWasm,
-		other: ExecutionStrategy::NativeElseWasm,
+		syncing: ExecutionStrategy::AlwaysWasm,
+		importing: ExecutionStrategy::AlwaysWasm,
+		block_construction: ExecutionStrategy::AlwaysWasm,
+		offchain_worker: ExecutionStrategy::AlwaysWasm,
+		other: ExecutionStrategy::AlwaysWasm,
 	}
 }

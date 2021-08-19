@@ -21,7 +21,6 @@ use serde::{de::DeserializeOwned, Deserialize};
 
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
-use sc_executor::NativeExecutionDispatch;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_blockchain::Backend as BlockchainBackend;
@@ -134,18 +133,18 @@ where
 	fn context(&self) -> &SystemConfig<B, D>;
 }
 
-pub struct ArchiveBuilder<B, R, D, DB> {
-	_marker: PhantomData<(B, R, D, DB)>,
+pub struct ArchiveBuilder<B, R, DB> {
+	_marker: PhantomData<(B, R, DB)>,
 	config: ArchiveConfig,
 }
 
-impl<B, R, D, DB> Default for ArchiveBuilder<B, R, D, DB> {
+impl<B, R, DB> Default for ArchiveBuilder<B, R, DB> {
 	fn default() -> Self {
 		Self { _marker: PhantomData, config: ArchiveConfig::default() }
 	}
 }
 
-impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
+impl<B, R, DB> ArchiveBuilder<B, R, DB> {
 	/// Creates a archive builder with the given config.
 	pub fn with_config(config: Option<ArchiveConfig>) -> Self {
 		if let Some(config) = config {
@@ -311,18 +310,17 @@ impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB> {
 	}
 }
 
-impl<B, R, D, DB> ArchiveBuilder<B, R, D, DB>
+impl<B, R, DB> ArchiveBuilder<B, R, DB>
 where
 	DB: ReadOnlyDb + 'static,
 	B: BlockT + Unpin + DeserializeOwned,
-	R: ConstructRuntimeApi<B, TArchiveClient<B, R, D, DB>> + Send + Sync + 'static,
+	R: ConstructRuntimeApi<B, TArchiveClient<B, R, DB>> + Send + Sync + 'static,
 	R::RuntimeApi: BlockBuilderApi<B>
 		+ sp_api::Metadata<B>
 		+ ApiExt<B, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<B, DB>, B>>
 		+ Send
 		+ Sync
 		+ 'static,
-	D: NativeExecutionDispatch + 'static,
 	<R::RuntimeApi as sp_api::ApiExt<B>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 	NumberFor<B>: Into<u32> + From<u32> + Unpin,
 	B::Hash: Unpin + std::str::FromStr,
@@ -361,7 +359,7 @@ where
 
 		// configure substrate client and backend
 		let backend = Arc::new(ReadOnlyBackend::new(db, true, self.config.runtime.storage_mode));
-		let client = Arc::new(runtime_api::<B, R, D, DB>(self.config.runtime.clone(), backend.clone())?);
+		let client = Arc::new(runtime_api::<B, R, DB>(self.config.runtime.clone(), backend.clone())?);
 		Self::startup_info(&*client, &*backend)?;
 
 		// config postgres database
@@ -387,7 +385,7 @@ where
 	}
 
 	/// Log some general startup info
-	fn startup_info(client: &TArchiveClient<B, R, D, DB>, backend: &ReadOnlyBackend<B, DB>) -> Result<()> {
+	fn startup_info(client: &TArchiveClient<B, R, DB>, backend: &ReadOnlyBackend<B, DB>) -> Result<()> {
 		let last_finalized_block = backend.last_finalized()?;
 		let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
 		log::info!(
