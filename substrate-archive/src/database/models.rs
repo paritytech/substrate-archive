@@ -137,8 +137,10 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 	}
 }
 
-/// Config that is stored/restored in
-/// Postgres on every run.
+/// Config that is stored/restored in Postgres on every run.
+/// This is needed to persist RabbitMq task-queue name between runs.
+/// Archive version and timestamp included as extra metadata
+/// that could be useful for debugging.
 #[derive(FromRow, Debug, Clone)]
 pub struct PersistentConfig {
 	// internal SQL identifier
