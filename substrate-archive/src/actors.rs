@@ -18,7 +18,7 @@
 
 mod workers;
 
-use std::{convert::TryInto, marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
+use std::{convert::TryInto, marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::{Duration, Instant}};
 
 use async_std::{
 	future::timeout,
@@ -293,12 +293,15 @@ where
 		let (storage_tx, storage_rx) = flume::bounded(1);
 		let storage_handle = Self::restore_missing_storage(storage_rx, config.clone(), pool.clone(), handle.clone());
 
+        let mut last = Instant::now();
 		let task_loop = task::spawn_blocking(move || loop {
 			match runner.run_pending_tasks() {
 				Ok(_) => {
 					// we don't have any tasks to process. Add more and sleep.
-					if runner.job_count() < config.control.max_block_load as usize {
-						let _ = storage_tx.try_send(());
+					if runner.job_count() < config.control.max_block_load as usize
+                    && last.elapsed() > Duration::from_secs(60) { // we don't want to restore too often to avoid dups.
+					    last = Instant::now();
+                        let _ = storage_tx.try_send(());
 					}
 					std::thread::sleep(Duration::from_millis(100));
 				}
@@ -313,7 +316,7 @@ where
 	}
 
     #[allow(clippy::type_complexity)]
-	fn start_queue(
+    fn start_queue(
 		&self,
 		actors: &Actors<B, B::Hash, D>,
 		queue: &str,
