@@ -254,7 +254,6 @@ where
 
 	fn drive(&mut self) -> Result<()> {
 		let instance = SystemInstance::new(self.config.clone(), self.client.clone())?;
-		// task::block_on(instance.work())?;
 		let handle = task::spawn(instance.work());
 		self.handle.replace(handle);
 		Ok(())
