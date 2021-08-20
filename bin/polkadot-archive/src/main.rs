@@ -46,28 +46,28 @@ pub fn main() -> Result<()> {
 	Ok(())
 }
 
-fn run_archive<D: ReadOnlyDb + 'static>(
+fn run_archive<Db: ReadOnlyDb + 'static>(
 	chain_spec: &str,
 	config: Option<ArchiveConfig>,
-) -> Result<Box<dyn Archive<Block, D>>> {
+) -> Result<Box<dyn Archive<Block, Db>>> {
 	match chain_spec.to_ascii_lowercase().as_str() {
 		"kusama" | "ksm" => {
 			let spec = polkadot_service::chain_spec::kusama_config().map_err(|err| anyhow!("{}", err))?;
-			let archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, D>::with_config(config)
+			let archive = ArchiveBuilder::<Block, ksm_rt::RuntimeApi, Db>::with_config(config)
 				.chain_spec(Box::new(spec))
 				.build()?;
 			Ok(Box::new(archive))
 		}
 		"westend" | "wnd" => {
 			let spec = polkadot_service::chain_spec::westend_config().map_err(|err| anyhow!("{}", err))?;
-			let archive = ArchiveBuilder::<Block, wnd_rt::RuntimeApi, D>::with_config(config)
+			let archive = ArchiveBuilder::<Block, wnd_rt::RuntimeApi, Db>::with_config(config)
 				.chain_spec(Box::new(spec))
 				.build()?;
 			Ok(Box::new(archive))
 		}
 		"polkadot" | "dot" => {
 			let spec = polkadot_service::chain_spec::polkadot_config().map_err(|err| anyhow!("{}", err))?;
-			let archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, D>::with_config(config)
+			let archive = ArchiveBuilder::<Block, dot_rt::RuntimeApi, Db>::with_config(config)
 				.chain_spec(Box::new(spec))
 				.build()?;
 			Ok(Box::new(archive))
