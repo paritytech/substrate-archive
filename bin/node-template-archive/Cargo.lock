@@ -2669,12 +2669,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jod-thread"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b23360e99b8717f20aaa4598f5a6541efbe30630039fbc7706cf954a87947ae"
-
-[[package]]
 name = "js-sys"
 version = "0.3.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7605,7 +7599,6 @@ dependencies = [
  "hex",
  "itertools 0.10.1",
  "itoa",
- "jod-thread",
  "log",
  "num_cpus",
  "parity-scale-codec",

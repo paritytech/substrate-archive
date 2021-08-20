@@ -20,7 +20,6 @@ use std::sync::{
 	Arc,
 };
 
-use node_template::service::Executor;
 use node_template_runtime::{opaque::Block, RuntimeApi};
 
 use substrate_archive::{Archive, ArchiveBuilder, SecondaryRocksDb};
@@ -29,7 +28,7 @@ fn main() -> anyhow::Result<()> {
 	let cli = cli_opts::CliOpts::init();
 	let config = cli.parse()?;
 
-	let mut archive = ArchiveBuilder::<Block, RuntimeApi, Executor, SecondaryRocksDb>::with_config(config)
+	let mut archive = ArchiveBuilder::<Block, RuntimeApi, SecondaryRocksDb>::with_config(config)
 		.chain_spec(Box::new(cli.chain_spec))
 		.build()?;
 	archive.drive()?;
