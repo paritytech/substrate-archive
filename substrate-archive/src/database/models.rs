@@ -147,8 +147,11 @@ pub struct PersistentConfig {
 	pub task_queue: String,
 	/// Last time the archive was run
 	pub last_run: DateTime<Utc>,
+	/// Major version of this library.
 	pub major: i32,
+	/// Minor version of this library.
 	pub minor: i32,
+	/// Patch version of this library.
 	pub patch: i32,
 }
 
