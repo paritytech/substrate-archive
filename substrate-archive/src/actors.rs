@@ -367,7 +367,7 @@ where
 
 	/// Checks if any blocks that should be executed are missing
 	/// from the task queue.
-	/// If any are found, they are re-queued.
+	/// If any are found, they are re-enqueued.
 	async fn restore_missing_storage(
 		signal: Receiver<()>,
 		conf: SystemConfig<Block, Db>,
