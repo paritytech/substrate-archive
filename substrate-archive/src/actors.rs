@@ -376,11 +376,11 @@ where
 	) -> Result<()> {
 		loop {
 			let _ = signal.recv_async().await; // signal to restore storage
-			let mut conn0 = pool.acquire().await?;
-			let nums = queries::missing_storage_blocks(&mut *conn0).await?;
+			let mut conn = pool.acquire().await?;
+			let nums = queries::missing_storage_blocks(&mut *conn).await?;
 			log::info!("Restoring {} missing storage entries.", nums.len());
 			let mut block_stream =
-				queries::blocks_paginated(&mut *conn0, nums.as_slice(), conf.control.max_block_load.try_into()?);
+				queries::blocks_paginated(&mut *conn, nums.as_slice(), conf.control.max_block_load.try_into()?);
 			while let Some(Ok(page)) = block_stream.next().await {
 				let jobs: Vec<crate::tasks::execute_block::Job<Block, Runtime, Client, Db>> =
 					BlockModelDecoder::with_vec(page)?
