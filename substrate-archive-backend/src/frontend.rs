@@ -31,12 +31,12 @@ use sc_client_api::{
 	execution_extensions::{ExecutionExtensions, ExecutionStrategies},
 	ExecutionStrategy,
 };
-use sc_executor::{WasmExecutor, WasmExecutionMethod};
+use sc_executor::{WasmExecutionMethod, WasmExecutor};
 use sc_service::{ChainSpec, ClientConfig, LocalCallExecutor, TransactionStorageMode};
 use sp_api::ConstructRuntimeApi;
-use sp_wasm_interface::HostFunctions;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
+use sp_wasm_interface::HostFunctions;
 
 pub use self::client::{Client, GetMetadata};
 use crate::{database::ReadOnlyDb, error::BackendError, read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
@@ -164,8 +164,13 @@ where
 		+ 'static,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
-	let executor = WasmExecutor::new(config.exec_method.into(), config.wasm_pages,
-		sp_io::SubstrateHostFunctions::host_functions(), config.block_workers, None);
+	let executor = WasmExecutor::new(
+		config.exec_method.into(),
+		config.wasm_pages,
+		sp_io::SubstrateHostFunctions::host_functions(),
+		config.block_workers,
+		None,
+	);
 	let executor =
 		LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.try_into()?)?;
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None, None))?;
