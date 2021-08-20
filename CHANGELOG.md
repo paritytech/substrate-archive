@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - table `_sa_config` will be added.
 - Storage is inserted concurrently based on idle SQL connections.
 
+### Removed
+- **BREAKING** `Dispatch` generic on `Archive` and `ArchiveBuilder`.
+
 ## [v0.6.0] - 2021-06-24
 ### Added
 - Use `async-std` instead of `smol` for async tasks. ([#301](https://github.com/paritytech/substrate-archive/commit/f2a4b408123c5e64be04e70a890b1354475d812d))

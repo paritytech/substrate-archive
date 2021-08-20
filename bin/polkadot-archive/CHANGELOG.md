@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- Config option `task_url` to modify RabbitMq Task URL. Also configurable from `AMQP_URL` environment variable.
 - RabbitMq as a required dependency.
+- Config option `task_url` to modify RabbitMq Task URL. Also configurable from `AMQP_URL` environment variable.
 
 ## [3.0.0] - 2021-06-24
 ### Changed
