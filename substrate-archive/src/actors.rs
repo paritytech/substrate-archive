@@ -312,6 +312,7 @@ where
 		Ok(())
 	}
 
+    #[allow(clippy::type_complexity)]
 	fn start_queue(
 		&self,
 		actors: &Actors<B, B::Hash, D>,
