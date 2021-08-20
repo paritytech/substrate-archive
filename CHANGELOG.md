@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - **BREAKING** `Dispatch` generic on `Archive` and `ArchiveBuilder`.
+- remove native execution. All runtimes will be executed in WASM, either interpreted or compiled.
 
 ## [v0.6.0] - 2021-06-24
 ### Added
