@@ -113,9 +113,9 @@ pub struct ArchiveConfig {
 
 /// The control interface of an archive system.
 #[async_trait::async_trait(?Send)]
-pub trait Archive<B: BlockT + Unpin, D: ReadOnlyDb>
+pub trait Archive<Block: BlockT + Unpin, Db: ReadOnlyDb>
 where
-	B::Hash: Unpin,
+	Block::Hash: Unpin,
 {
 	/// start driving the execution of the archive
 	fn drive(&mut self) -> Result<()>;
@@ -130,21 +130,21 @@ where
 	fn boxed_shutdown(self: Box<Self>) -> Result<()>;
 
 	/// Get a reference to the context the actors are using
-	fn context(&self) -> &SystemConfig<B, D>;
+	fn context(&self) -> &SystemConfig<Block, Db>;
 }
 
-pub struct ArchiveBuilder<B, R, DB> {
-	_marker: PhantomData<(B, R, DB)>,
+pub struct ArchiveBuilder<Block, Runtime, Db> {
+	_marker: PhantomData<(Block, Runtime, Db)>,
 	config: ArchiveConfig,
 }
 
-impl<B, R, DB> Default for ArchiveBuilder<B, R, DB> {
+impl<Block, Runtime, Db> Default for ArchiveBuilder<Block, Runtime, Db> {
 	fn default() -> Self {
 		Self { _marker: PhantomData, config: ArchiveConfig::default() }
 	}
 }
 
-impl<B, R, DB> ArchiveBuilder<B, R, DB> {
+impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	/// Creates a archive builder with the given config.
 	pub fn with_config(config: Option<ArchiveConfig>) -> Self {
 		if let Some(config) = config {
@@ -310,21 +310,21 @@ impl<B, R, DB> ArchiveBuilder<B, R, DB> {
 	}
 }
 
-impl<B, R, DB> ArchiveBuilder<B, R, DB>
+impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db>
 where
-	DB: ReadOnlyDb + 'static,
-	B: BlockT + Unpin + DeserializeOwned,
-	R: ConstructRuntimeApi<B, TArchiveClient<B, R, DB>> + Send + Sync + 'static,
-	R::RuntimeApi: BlockBuilderApi<B>
-		+ sp_api::Metadata<B>
-		+ ApiExt<B, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<B, DB>, B>>
+	Db: ReadOnlyDb + 'static,
+	Block: BlockT + Unpin + DeserializeOwned,
+	Runtime: ConstructRuntimeApi<Block, TArchiveClient<Block, Runtime, Db>> + Send + Sync + 'static,
+	Runtime::RuntimeApi: BlockBuilderApi<Block>
+		+ sp_api::Metadata<Block>
+		+ ApiExt<Block, StateBackend = api_backend::StateBackendFor<ReadOnlyBackend<Block, Db>, Block>>
 		+ Send
 		+ Sync
 		+ 'static,
-	<R::RuntimeApi as sp_api::ApiExt<B>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-	NumberFor<B>: Into<u32> + From<u32> + Unpin,
-	B::Hash: Unpin + std::str::FromStr,
-	B::Header: serde::de::DeserializeOwned,
+	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+	NumberFor<Block>: Into<u32> + From<u32> + Unpin,
+	Block::Hash: Unpin + std::str::FromStr,
+	Block::Header: serde::de::DeserializeOwned,
 {
 	/// Build this instance of the Archiver.
 	/// Runs the database migrations for the database at `pg_url`.
@@ -332,7 +332,7 @@ where
 	/// # Panics
 	/// Panics if one of chain_data_db or pg_url is not passed to the builder
 	/// and their respective environment variables are not set.
-	pub fn build(mut self) -> Result<impl Archive<B, DB>> {
+	pub fn build(mut self) -> Result<impl Archive<Block, Db>> {
 		// config logger
 		logger::init(self.config.log.clone())?;
 		log::debug!("Archive Config: {:?}", self.config);
@@ -349,7 +349,7 @@ where
 			self.config.chain.rocksdb_secondary_path,
 			self.config.chain.spec.as_ref().map(AsRef::as_ref),
 		)?;
-		let db = Arc::new(DB::open_database(chain_path, self.config.chain.cache_size, db_path)?);
+		let db = Arc::new(Db::open_database(chain_path, self.config.chain.cache_size, db_path)?);
 
 		// configure runtime
 		self.config.runtime.wasm_runtime_overrides = self.config.wasm_tracing.as_ref().and_then(|c| c.folder.clone());
@@ -359,7 +359,7 @@ where
 
 		// configure substrate client and backend
 		let backend = Arc::new(ReadOnlyBackend::new(db, true, self.config.runtime.storage_mode));
-		let client = Arc::new(runtime_api::<B, R, DB>(self.config.runtime.clone(), backend.clone())?);
+		let client = Arc::new(runtime_api::<Block, Runtime, Db>(self.config.runtime.clone(), backend.clone())?);
 		Self::startup_info(&*client, &*backend)?;
 
 		// config postgres database
@@ -380,12 +380,12 @@ where
 			self.config.runtime,
 			self.config.wasm_tracing.map(|t| t.targets),
 		);
-		let sys = System::<_, R, _, _>::new(client, config)?;
+		let sys = System::<_, Runtime, _, _>::new(client, config)?;
 		Ok(sys)
 	}
 
 	/// Log some general startup info
-	fn startup_info(client: &TArchiveClient<B, R, DB>, backend: &ReadOnlyBackend<B, DB>) -> Result<()> {
+	fn startup_info(client: &TArchiveClient<Block, Runtime, Db>, backend: &ReadOnlyBackend<Block, Db>) -> Result<()> {
 		let last_finalized_block = backend.last_finalized()?;
 		let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
 		log::info!(
