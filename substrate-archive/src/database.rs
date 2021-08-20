@@ -75,9 +75,10 @@ pub struct Database {
 impl Database {
 	/// Connect to the database
 	pub async fn new(url: String) -> Result<Self> {
+		let cpus = num_cpus::get().try_into()?;
 		let pool = PgPoolOptions::new()
-			.min_connections(16)
-			.max_connections(32)
+			.min_connections(cpus / 2)
+			.max_connections(cpus)
 			.idle_timeout(Duration::from_millis(3600)) // kill connections after 3.6 seconds of idle
 			.connect(url.as_str())
 			.await?;
