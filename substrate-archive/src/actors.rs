@@ -1,5 +1,5 @@
 // Copyright 2017-2021 Parity Technologies (UK) Ltd.
-// This fin/le is part of substrate-archive.
+// This file is part of substrate-archive.
 
 // substrate-archive is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
