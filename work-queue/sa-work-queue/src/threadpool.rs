@@ -180,7 +180,7 @@ impl ConsumerHandle {
 		}
 		let chan = conn.create_channel().wait()?;
 		chan.basic_qos(opts.prefetch, BasicQosOptions::default()).wait()?;
-        log::debug!("Creating Channel for queue {}", &opts.queue_name);
+		log::debug!("Creating Channel for queue {}", &opts.queue_name);
 		let consumer =
 			chan.basic_consume(&opts.queue_name, "", BasicConsumeOptions::default(), FieldTable::default()).wait()?;
 		let _ = this.insert(consumer);
