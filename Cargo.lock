@@ -8867,9 +8867,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx"
-version = "0.5.6"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b977121ecc75cadd442a6a8c600f5ded6d7117a46d55ed417a815bd94b2af237"
+checksum = "0e4b94ab0f8c21ee4899b93b06451ef5d965f1a355982ee73684338228498440"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -8877,9 +8877,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-core"
-version = "0.5.6"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6da11206ae9ba3ececf83d44aef533c0d8176ae430cfaa14b408ce8b6bc4ab4b"
+checksum = "ec28b91a01e1fe286d6ba66f68289a2286df023fc97444e1fd86c2fd6d5dc026"
 dependencies = [
  "ahash 0.7.4",
  "atoi",
@@ -8928,9 +8928,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-macros"
-version = "0.5.6"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "419f9005ad3b065ab4e774361b0d56a24e8e3dc9b2c9ddeaf018b5fdc1166ec2"
+checksum = "4dc33c35d54774eed73d54568d47a6ac099aed8af5e1556a017c131be88217d5"
 dependencies = [
  "dotenv",
  "either",
@@ -8951,9 +8951,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-rt"
-version = "0.5.6"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52d39baa13314f936c5991429b0b656980f52d23dfb15078bbea2c51f5086eeb"
+checksum = "14302b678d9c76b28f2e60115211e25e0aabc938269991745a169753dc00e35c"
 dependencies = [
  "async-rustls",
  "async-std",
