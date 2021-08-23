@@ -176,7 +176,7 @@ where
 	NumberFor<Block>: Into<u32>,
 {
 	async fn spawn(conf: &SystemConfig<Block, Db>) -> Result<Self> {
-		let db = workers::DatabaseActor::new(conf.pg_url().into()).await?.create(None).spawn(&mut AsyncStd);
+		let db = workers::DatabaseActor::new(conf.pg_url()).await?.create(None).spawn(&mut AsyncStd);
 		let storage = workers::StorageAggregator::new(db.clone()).create(None).spawn(&mut AsyncStd);
 		let metadata =
 			workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None).spawn(&mut AsyncStd);
