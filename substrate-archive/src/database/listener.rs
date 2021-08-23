@@ -219,7 +219,6 @@ impl Listener {
 		if let Some(handle) = self.handle.take() {
 			handle.await?;
 		}
-		log::info!("Killed Listener");
 		Ok(())
 	}
 }
@@ -227,7 +226,7 @@ impl Listener {
 impl Drop for Listener {
 	fn drop(&mut self) {
 		if let Err(e) = task::block_on(self.kill()) {
-			log::error!("{}", e)
+			log::error!("failed to terminate listener {}", e)
 		}
 	}
 }

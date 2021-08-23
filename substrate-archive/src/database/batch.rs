@@ -36,6 +36,24 @@ use std::{
 
 use crate::error::{ArchiveError, Result};
 
+
+
+// CHUNK_MAX is mostly picked from my own testing.
+// It might be worth making it configurable from the TOML,
+// however for the general case I think it is OK to give a hard-coded value, at least for now.
+
+// CHUNK_MAX was chosen by running archive and checking how long it took to insert storage into Postgres.
+// Insertion time is somewhat dependant on this value, especially on machines with many cores available and/or
+// on machines with drives allowing concurrent read/writes. Although on machines with less cores/sequential drives
+// this value matters less anyway.
+// Insertion times were a big hangup in previous iterations, causing tasks to time out.
+// (~100-200 blocks to insert, each with 30-400 changes each,
+// 400 being on the extreme end with a block that includes some more intensive extrinsics).
+
+// This was fixed by lowering CHUNK_MAX, but allowing storage to be inserted concurrently based on how many free idle
+// connections to Postgres exist. This way instead of one query taking ~10-20s to insert 30K items,
+// we can have 3-4 or more which each take less time, based on how many threads exist on the system.
+// Insertion times for blocks have never really been an issue, so this is mostly an optimization for storage/traces
 const CHUNK_MAX: usize = 5_000;
 
 pub struct Chunk {

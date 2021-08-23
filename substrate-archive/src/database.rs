@@ -25,6 +25,7 @@ pub mod queries;
 use std::{
 	convert::{TryFrom, TryInto},
 	fmt,
+	cmp::max,
 	time::Duration,
 };
 
@@ -69,26 +70,25 @@ impl fmt::Display for DatabaseConfig {
 pub struct Database {
 	/// pool of database connections
 	pool: PgPool,
-	url: String,
 }
 
 impl Database {
 	/// Connect to the database
-	pub async fn new(url: String) -> Result<Self> {
+	pub async fn new(url: &str) -> Result<Self> {
 		let cpus = num_cpus::get().try_into()?;
 		let pool = PgPoolOptions::new()
-			.min_connections(cpus / 2)
+			.min_connections(max(1, cpus / 2))
 			.max_connections(cpus)
 			.idle_timeout(Duration::from_millis(3600)) // kill connections after 3.6 seconds of idle
-			.connect(url.as_str())
+			.connect(url)
 			.await?;
-		Ok(Self { pool, url })
+		Ok(Self { pool })
 	}
 
 	/// Start the database with a pre-defined pool
 	#[allow(unused)]
-	pub fn with_pool(url: String, pool: PgPool) -> Self {
-		Self { pool, url }
+	pub fn with_pool(pool: PgPool) -> Self {
+		Self { pool }
 	}
 
 	pub async fn insert(&self, data: impl Insert) -> Result<u64> {
