@@ -226,7 +226,7 @@ mod tests {
 		let blocks: Vec<BlockModel> = test_common::get_kusama_blocks()?.drain(0..1000).map(BlockModel::from).collect();
 		let blocks = BlockModelDecoder::<Block>::with_vec(blocks)?;
 
-		let database = Database::new(test_common::DATABASE_URL).await?;
+		let database = Database::new(&test_common::DATABASE_URL.to_string()).await?;
 		// insert some dummy data to satisfy the foreign key constraint
 		sqlx::query("INSERT INTO metadata (version, meta) VALUES ($1, $2)")
 			.bind(26)
