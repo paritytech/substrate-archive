@@ -155,8 +155,8 @@ pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>> {
 pub(crate) async fn missing_storage_blocks(conn: &mut sqlx::PgConnection) -> Result<Vec<u32>> {
 	let blocks: Vec<u32> = sqlx::query_as!(
 		BlockNum,
-		r#" 
-         SELECT block_num FROM blocks 
+		r#"
+         SELECT block_num FROM blocks
          WHERE NOT EXISTS
             (SELECT block_num FROM storage WHERE storage.block_num = blocks.block_num)
         ORDER BY block_num;
@@ -226,7 +226,7 @@ mod tests {
 		let blocks: Vec<BlockModel> = test_common::get_kusama_blocks()?.drain(0..1000).map(BlockModel::from).collect();
 		let blocks = BlockModelDecoder::<Block>::with_vec(blocks)?;
 
-		let database = Database::new(test_common::DATABASE_URL.to_string()).await?;
+		let database = Database::new(test_common::DATABASE_URL).await?;
 		// insert some dummy data to satisfy the foreign key constraint
 		sqlx::query("INSERT INTO metadata (version, meta) VALUES ($1, $2)")
 			.bind(26)

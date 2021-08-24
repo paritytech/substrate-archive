@@ -99,8 +99,8 @@
       ]
     }
   },
-  "a9d252f26fa788b73258414b2b029b9f0326729e6ceb53135a6a7274dc8e6ad6": {
-    "query": " \n         SELECT block_num FROM blocks \n         WHERE NOT EXISTS\n            (SELECT block_num FROM storage WHERE storage.block_num = blocks.block_num)\n        ORDER BY block_num;\n        ",
+  "b32766abc83ba8a342a39dca90f2fbf63317f80b46377695d2cf85325c08c907": {
+    "query": "\n         SELECT block_num FROM blocks\n         WHERE NOT EXISTS\n            (SELECT block_num FROM storage WHERE storage.block_num = blocks.block_num)\n        ORDER BY block_num;\n        ",
     "describe": {
       "columns": [
         {

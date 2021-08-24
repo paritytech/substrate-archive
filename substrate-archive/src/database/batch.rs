@@ -36,8 +36,6 @@ use std::{
 
 use crate::error::{ArchiveError, Result};
 
-
-
 // CHUNK_MAX is mostly picked from my own testing.
 // It might be worth making it configurable from the TOML,
 // however for the general case I think it is OK to give a hard-coded value, at least for now.

@@ -23,9 +23,9 @@ pub mod models;
 pub mod queries;
 
 use std::{
+	cmp::max,
 	convert::{TryFrom, TryInto},
 	fmt,
-	cmp::max,
 	time::Duration,
 };
 
