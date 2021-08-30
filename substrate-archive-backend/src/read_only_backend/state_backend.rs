@@ -186,7 +186,7 @@ impl<B: BlockT, D: ReadOnlyDb> StateBackend<HashFor<B>> for TrieState<B, D> {
 		self.state.child_keys(child_info, prefix)
 	}
 
-	fn as_trie_backend(&mut self) -> Option<&sp_state_machine::TrieBackend<Self::TrieBackendStorage, HashFor<B>>> {
+	fn as_trie_backend(&self) -> Option<&sp_state_machine::TrieBackend<Self::TrieBackendStorage, HashFor<B>>> {
 		self.state.as_trie_backend()
 	}
 
