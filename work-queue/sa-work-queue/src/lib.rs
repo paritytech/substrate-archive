@@ -1,6 +1,3 @@
-// #![forbid(unsafe_code)]
-// #![deny(dead_code)]
-
 #![deny(unused, dead_code)]
 #![forbid(unsafe_code)]
 #[doc(hidden)]
