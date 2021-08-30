@@ -129,7 +129,7 @@ where
 		);
 		let query = sqlx::query(
 			r#"
-            INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec) VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec, justification) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT DO NOTHING
         "#,
 		);
@@ -140,6 +140,7 @@ where
 		let extrinsics_root = self.inner.block.header().extrinsics_root().as_ref();
 		let digest = self.inner.block.header().digest().encode();
 		let extrinsics = self.inner.block.extrinsics().encode();
+		let justifications = self.inner.justifications.encode();
 
 		query
 			.bind(parent_hash)
@@ -150,6 +151,7 @@ where
 			.bind(digest.as_slice())
 			.bind(extrinsics.as_slice())
 			.bind(self.spec)
+			.bind(justifications.as_slice())
 			.execute(conn)
 			.await
 			.map(|d| d.rows_affected())
@@ -168,7 +170,7 @@ where
 			"blocks",
 			r#"
             INSERT INTO "blocks" (
-                parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
+                parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec, justification
             ) VALUES
             "#,
 			r#"
@@ -176,7 +178,7 @@ where
             "#,
 		);
 		for b in self.inner {
-			batch.reserve(8)?;
+			batch.reserve(9)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
 			}
@@ -187,6 +189,7 @@ where
 			let extrinsics_root = b.inner.block.header().extrinsics_root().as_ref();
 			let digest = b.inner.block.header().digest().encode();
 			let extrinsics = b.inner.block.extrinsics().encode();
+			let justifications = b.inner.justifications.encode();
 			batch.append("(");
 			batch.bind(parent_hash)?;
 			batch.append(",");
@@ -203,6 +206,8 @@ where
 			batch.bind(extrinsics.as_slice())?;
 			batch.append(",");
 			batch.bind(b.spec)?;
+			batch.append(",");
+			batch.bind(justifications.as_slice())?;
 			batch.append(")");
 		}
 		Ok(batch.execute(conn).await?)

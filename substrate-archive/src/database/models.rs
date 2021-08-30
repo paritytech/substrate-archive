@@ -44,6 +44,7 @@ pub struct BlockModel {
 	pub digest: Vec<u8>,
 	pub ext: Vec<u8>,
 	pub spec: i32,
+	pub justification: Vec<u8>
 }
 
 impl BlockModel {
@@ -57,6 +58,8 @@ impl BlockModel {
 		let header = <B::Header as HeaderT>::new(block_num, extrinsics_root, state_root, parent_hash, digest);
 
 		let spec = self.spec as u32;
+		// do I need to include justifications here?
+		// let justification = Decode::decode(&mut self.justification.as_slice())?;
 
 		Ok((B::new(header, ext), spec))
 	}

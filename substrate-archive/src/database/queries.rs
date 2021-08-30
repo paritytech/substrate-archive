@@ -94,7 +94,7 @@ pub(crate) async fn get_full_block_by_number(conn: &mut sqlx::PgConnection, bloc
 	sqlx::query_as!(
 		BlockModel,
 		"
-        SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec
+        SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec, justification
         FROM blocks
         WHERE block_num = $1
         ",
