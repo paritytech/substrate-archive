@@ -54,9 +54,7 @@ pub trait Job: Serialize + DeserializeOwned {
 
 	/// Logic for running a synchronous job
 	#[doc(hidden)]
-	fn perform(self, _: &Self::Environment) -> Result<(), PerformError> {
-		panic!("Running Sync job when it should be async!");
-	}
+	fn perform(self, _: &Self::Environment) -> Result<(), PerformError>;
 }
 
 #[async_trait::async_trait]
