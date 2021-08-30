@@ -1,7 +1,7 @@
 // #![forbid(unsafe_code)]
 // #![deny(dead_code)]
 
-#![deny(warnings, unused, dead_code)]
+#![deny(unused, dead_code)]
 #![forbid(unsafe_code)]
 #[doc(hidden)]
 pub extern crate async_trait;

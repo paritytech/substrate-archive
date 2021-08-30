@@ -142,9 +142,7 @@ impl ThreadPoolMq {
 		self.pool.queued_count()
 	}
 
-	// TODO: could wrap this so we're not exposing underlying details and just returning a raw
-	// receiver
-	/// get the receiving end of events sent from the threadpool
+	/// Get the receiving end of events sent from the threadpool
 	pub fn events(&self) -> &Receiver<Event> {
 		&self.rx
 	}
@@ -239,7 +237,6 @@ fn next_job(tx: Sender<Event>, consumer: &mut Consumer) -> Option<(BackgroundJob
 }
 
 fn get_next_job(consumer: &mut Consumer) -> Result<Option<(BackgroundJob, Delivery)>, FetchError> {
-	// let delivery = task::block_on(consumer.next()).transpose()?.map(|(_, d)| d);
 	let delivery =
 		task::block_on(timeout(Duration::from_millis(10), consumer.next())).ok().flatten().transpose()?.map(|(_, d)| d);
 	let data: Option<BackgroundJob> =

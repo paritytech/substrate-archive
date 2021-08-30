@@ -1,4 +1,3 @@
-#![deny(warnings)]
 #![forbid(unsafe_code)]
 #![deny(dead_code)]
 #![recursion_limit = "128"]

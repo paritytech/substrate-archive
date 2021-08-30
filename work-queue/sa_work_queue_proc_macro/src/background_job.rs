@@ -6,7 +6,6 @@ use syn::spanned::Spanned;
 
 fn wrap_body(body: Vec<syn::Stmt>) -> TokenStream {
 	let body = quote!(#(#body)*);
-	// can wrap conection if we want to do fancy stuff in the future
 	body
 }
 
@@ -27,11 +26,6 @@ pub fn expand(item: syn::ItemFn) -> Result<TokenStream, Diagnostic> {
 	let body = wrap_body(job.body);
 	let (impl_generics, ty_generics, where_clause) = job.generics.split_for_impl();
 
-	// FIXME: this proc-macro needs some love ...
-	// I should probably split the `Job Trait` into `Async Job` and `Sync Job`
-	// Or leave the Job trait as it is and create two proc macros, one for async and one for sync
-	// this if-else chain is ugly.
-	// Or maybe there is a better way to accomplish this with proc-macros...
 	let res = if job.generics_exist {
 		quote! {
 			#(#attrs)*
@@ -131,13 +125,7 @@ impl BackgroundJob {
 		if !sig.generics.params.is_empty() {
 			generics_exist = true;
 		}
-		/*
-			if let Some(where_clause) = sig.generics.where_clause {
-				return Err(where_clause.where_token.span.error(
-					"#[sa_work_queue::background_job] cannot be used on functions with a where clause",
-				));
-			}
-		*/
+
 		let fn_token = sig.fn_token;
 		let return_type = sig.output.clone();
 		let ident = sig.ident.clone();
