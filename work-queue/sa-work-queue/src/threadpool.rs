@@ -239,7 +239,6 @@ fn next_job(tx: Sender<Event>, consumer: &mut Consumer) -> Option<(BackgroundJob
 }
 
 fn get_next_job(consumer: &mut Consumer) -> Result<Option<(BackgroundJob, Delivery)>, FetchError> {
-	// let delivery = task::block_on(consumer.next()).transpose()?.map(|(_, d)| d);
 	let delivery =
 		task::block_on(timeout(Duration::from_millis(10), consumer.next())).ok().flatten().transpose()?.map(|(_, d)| d);
 	let data: Option<BackgroundJob> =
