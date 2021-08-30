@@ -18,7 +18,7 @@
 //! Only some types implemented, for convenience most types are already in their database model
 //! equivalents
 
-use std::{marker::PhantomData, convert::TryInto};
+use std::{convert::TryInto, marker::PhantomData};
 
 use chrono::{DateTime, Utc};
 use codec::{Decode, Encode, Error as DecodeError};
