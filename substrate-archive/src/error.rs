@@ -74,6 +74,9 @@ pub enum ArchiveError {
 	#[error("Rust Standard Library does not support negative durations")]
 	TimestampOutOfRange,
 
+	#[error(transparent)]
+	Semver(#[from] semver::Error),
+
 	#[error("{0}")]
 	Msg(String),
 }

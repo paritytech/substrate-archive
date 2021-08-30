@@ -18,11 +18,10 @@
 //! Only some types implemented, for convenience most types are already in their database model
 //! equivalents
 
-use std::{marker::PhantomData, str::FromStr};
+use std::{marker::PhantomData, convert::TryInto};
 
 use chrono::{DateTime, Utc};
 use codec::{Decode, Encode, Error as DecodeError};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgConnection, Postgres};
 
@@ -176,7 +175,7 @@ impl PersistentConfig {
 			.await?;
 
 		let last_run = Utc::now();
-		let (major, minor, patch) = Self::get_version_tuple();
+		let (major, minor, patch) = Self::get_version_tuple()?;
 
 		if conf.is_none() {
 			let mut task_queue: String = sqlx::query_as::<Postgres, DbName>(r#"SELECT current_database()"#)
@@ -212,14 +211,10 @@ impl PersistentConfig {
 		}
 	}
 
-	fn get_version_tuple() -> (i32, i32, i32) {
+	fn get_version_tuple() -> Result<(i32, i32, i32)> {
 		let version = env!("CARGO_PKG_VERSION");
-		version
-			.split('.')
-			.map(FromStr::from_str)
-			.filter_map(Result::ok)
-			.next_tuple()
-			.expect("Substrate archive should always have a valid semantic version")
+		let version = semver::Version::parse(version)?;
+		Ok((version.major.try_into()?, version.minor.try_into()?, version.patch.try_into()?))
 	}
 }
 
