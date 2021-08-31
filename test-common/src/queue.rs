@@ -13,3 +13,20 @@
 
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
+
+//! Global Variables RabbitMq
+
+use std::env;
+
+use async_amqp::*;
+use lapin::ConnectionProperties;
+use once_cell::sync::Lazy;
+
+pub static TASK_QUEUE: &str = "SA_TEST_QUEUE";
+pub static AMQP_URL: &str = "amqp://localhost:5672";
+pub static AMQP_CONN: Lazy<lapin::Connection> = Lazy::new(|| {
+	let url = env::var("AMQP_URL").unwrap_or_else(|_| "amqp://localhost:5672".to_string());
+	lapin::Connection::connect(&url, ConnectionProperties::default().with_async_std())
+		.wait()
+		.expect("Cant connect to RabbitMQ")
+});

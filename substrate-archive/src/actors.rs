@@ -18,18 +18,25 @@
 
 mod workers;
 
-use std::{convert::TryInto, marker::PhantomData, panic::AssertUnwindSafe, sync::Arc, time::Duration};
+use std::{
+	convert::TryInto,
+	marker::PhantomData,
+	panic::AssertUnwindSafe,
+	sync::Arc,
+	time::{Duration, Instant},
+};
 
 use async_std::{
 	future::timeout,
 	task::{self, JoinHandle},
 };
-use coil::Job as _;
 use futures::{future, FutureExt, StreamExt};
 use futures_timer::Delay;
+use sa_work_queue::{Job as _, QueueHandle, Runner};
 use serde::{de::DeserializeOwned, Deserialize};
 use xtra::{prelude::*, spawn::AsyncStd};
 
+use flume::Receiver;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
@@ -45,50 +52,64 @@ use self::workers::{
 pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
 use crate::{
 	archive::Archive,
-	database::{models::BlockModelDecoder, queries, Channel, Listener},
+	database::{
+		models::{BlockModelDecoder, PersistentConfig},
+		queries, Channel, Listener,
+	},
 	error::Result,
 	tasks::Environment,
 };
 
 /// Provides parameters that are passed in from the user.
 /// Provides context that every actor may use
-pub struct SystemConfig<B, D> {
-	pub backend: Arc<ReadOnlyBackend<B, D>>,
+pub struct SystemConfig<Block, Db> {
+	pub backend: Arc<ReadOnlyBackend<Block, Db>>,
 	pub pg_url: String,
-	pub meta: Meta<B>,
+	pub meta: Meta<Block>,
 	pub control: ControlConfig,
 	pub runtime: RuntimeConfig,
 	pub tracing_targets: Option<String>,
 }
 
-impl<B, D> Clone for SystemConfig<B, D> {
-	fn clone(&self) -> SystemConfig<B, D> {
+impl<Block, Db> Clone for SystemConfig<Block, Db> {
+	fn clone(&self) -> SystemConfig<Block, Db> {
 		SystemConfig {
 			backend: Arc::clone(&self.backend),
 			pg_url: self.pg_url.clone(),
 			meta: self.meta.clone(),
-			control: self.control,
+			control: self.control.clone(),
 			runtime: self.runtime.clone(),
 			tracing_targets: self.tracing_targets.clone(),
 		}
 	}
 }
 
-#[derive(Copy, Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ControlConfig {
-	/// Maximum amount of time coil will wait for a task to begin.
+	/// Maximum amount of time the work queue will wait for a task to begin.
 	/// Times out if tasks don't start execution in the thread pool within `task_timeout` seconds.
 	#[serde(default = "default_task_timeout")]
 	pub(crate) task_timeout: u64,
 	/// Maximum amount of blocks to index at once.
 	#[serde(default = "default_max_block_load")]
 	pub(crate) max_block_load: u32,
+	/// RabbitMq URL. default: `http://localhost:5672`
+	#[serde(default = "default_task_url")]
+	pub(crate) task_url: String,
 }
 
 impl Default for ControlConfig {
 	fn default() -> Self {
-		Self { task_timeout: default_task_timeout(), max_block_load: default_max_block_load() }
+		Self {
+			task_timeout: default_task_timeout(),
+			max_block_load: default_max_block_load(),
+			task_url: default_task_url(),
+		}
 	}
+}
+
+fn default_task_url() -> String {
+	"amqp://localhost:5672".into()
 }
 
 const fn default_task_timeout() -> u64 {
@@ -99,14 +120,14 @@ const fn default_max_block_load() -> u32 {
 	100_000
 }
 
-impl<B: BlockT + Unpin, D: ReadOnlyDb> SystemConfig<B, D>
+impl<Block: BlockT + Unpin, Db: ReadOnlyDb> SystemConfig<Block, Db>
 where
-	B::Hash: Unpin,
+	Block::Hash: Unpin,
 {
 	pub fn new(
-		backend: Arc<ReadOnlyBackend<B, D>>,
+		backend: Arc<ReadOnlyBackend<Block, Db>>,
 		pg_url: String,
-		meta: Meta<B>,
+		meta: Meta<Block>,
 		control: ControlConfig,
 		runtime: RuntimeConfig,
 		tracing_targets: Option<String>,
@@ -114,7 +135,7 @@ where
 		Self { backend, pg_url, meta, control, runtime, tracing_targets }
 	}
 
-	pub fn backend(&self) -> &Arc<ReadOnlyBackend<B, D>> {
+	pub fn backend(&self) -> &Arc<ReadOnlyBackend<Block, Db>> {
 		&self.backend
 	}
 
@@ -122,19 +143,21 @@ where
 		self.pg_url.as_str()
 	}
 
-	pub fn meta(&self) -> &Meta<B> {
+	pub fn meta(&self) -> &Meta<Block> {
 		&self.meta
 	}
 }
 
-struct Actors<Block: Send + Sync + 'static, H: Send + Sync + 'static, Db: Send + Sync + 'static> {
-	storage: Address<workers::StorageAggregator<H>>,
+struct Actors<Block: Send + Sync + 'static, Hash: Send + Sync + 'static, Db: Send + Sync + 'static> {
+	storage: Address<workers::StorageAggregator<Hash>>,
 	blocks: Address<workers::BlocksIndexer<Block, Db>>,
 	metadata: Address<workers::MetadataActor<Block>>,
 	db: Address<DatabaseActor>,
 }
 
-impl<B: Send + Sync + 'static, H: Send + Sync + 'static, D: Send + Sync + 'static> Clone for Actors<B, H, D> {
+impl<Block: Send + Sync + 'static, Hash: Send + Sync + 'static, Db: Send + Sync + 'static> Clone
+	for Actors<Block, Hash, Db>
+{
 	fn clone(&self) -> Self {
 		Self {
 			storage: self.storage.clone(),
@@ -153,7 +176,7 @@ where
 	NumberFor<Block>: Into<u32>,
 {
 	async fn spawn(conf: &SystemConfig<Block, Db>) -> Result<Self> {
-		let db = workers::DatabaseActor::new(conf.pg_url().into()).await?.create(None).spawn(&mut AsyncStd);
+		let db = workers::DatabaseActor::new(conf.pg_url()).await?.create(None).spawn(&mut AsyncStd);
 		let storage = workers::StorageAggregator::new(db.clone()).create(None).spawn(&mut AsyncStd);
 		let metadata =
 			workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None).spawn(&mut AsyncStd);
@@ -200,21 +223,21 @@ where
 	_marker: PhantomData<(B, R, D)>,
 }
 
-impl<B, R, C, D> System<B, R, C, D>
+impl<Block, Runtime, Client, Db> System<Block, Runtime, Client, Db>
 where
-	D: ReadOnlyDb + 'static,
-	B: BlockT + Unpin + DeserializeOwned,
-	R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
-	R::RuntimeApi: BlockBuilderApi<B>
-		+ sp_api::Metadata<B>
-		+ ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B, D>, B>>
+	Db: ReadOnlyDb + 'static,
+	Block: BlockT + Unpin + DeserializeOwned,
+	Runtime: ConstructRuntimeApi<Block, Client> + Send + Sync + 'static,
+	Runtime::RuntimeApi: BlockBuilderApi<Block>
+		+ sp_api::Metadata<Block>
+		+ ApiExt<Block, StateBackend = backend::StateBackendFor<ReadOnlyBackend<Block, Db>, Block>>
 		+ Send
 		+ Sync
 		+ 'static,
-	C: ApiAccess<B, ReadOnlyBackend<B, D>, R> + 'static,
-	NumberFor<B>: Into<u32> + From<u32> + Unpin,
-	B::Hash: Unpin,
-	B::Header: serde::de::DeserializeOwned,
+	Client: ApiAccess<Block, ReadOnlyBackend<Block, Db>, Runtime> + 'static,
+	NumberFor<Block>: Into<u32> + From<u32> + Unpin,
+	Block::Hash: Unpin,
+	Block::Header: serde::de::DeserializeOwned,
 {
 	/// Initialize substrate archive.
 	/// Requires a substrate client, url to a running RPC node, and a list of keys to index from storage.
@@ -223,8 +246,8 @@ where
 	pub fn new(
 		// one client per-threadpool. This way we don't have conflicting cache resources
 		// for WASM runtime-instances
-		client: Arc<C>,
-		config: SystemConfig<B, D>,
+		client: Arc<Client>,
+		config: SystemConfig<Block, Db>,
 	) -> Result<Self> {
 		Ok(Self { handle: None, config, client, _marker: PhantomData })
 	}
@@ -237,41 +260,77 @@ where
 	}
 }
 
-pub struct SystemInstance<B, R, D, C> {
-	config: SystemConfig<B, D>,
-	client: Arc<C>,
-	listener: Listener,
-	_marker: PhantomData<R>,
+pub struct SystemInstance<Block, Runtime, Db, Client> {
+	config: SystemConfig<Block, Db>,
+	client: Arc<Client>,
+	_marker: PhantomData<Runtime>,
 }
 
-impl<B, R, D, C> SystemInstance<B, R, D, C>
+impl<Block, Runtime, Db, Client> SystemInstance<Block, Runtime, Db, Client>
 where
-	D: ReadOnlyDb + 'static,
-	B: BlockT + Unpin + DeserializeOwned,
-	R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
-	R::RuntimeApi: BlockBuilderApi<B>
-		+ sp_api::Metadata<B>
-		+ ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B, D>, B>>
+	Db: ReadOnlyDb + 'static,
+	Block: BlockT + Unpin + DeserializeOwned,
+	Runtime: ConstructRuntimeApi<Block, Client> + Send + Sync + 'static,
+	Runtime::RuntimeApi: BlockBuilderApi<Block>
+		+ sp_api::Metadata<Block>
+		+ ApiExt<Block, StateBackend = backend::StateBackendFor<ReadOnlyBackend<Block, Db>, Block>>
 		+ Send
 		+ Sync
 		+ 'static,
-	C: ApiAccess<B, ReadOnlyBackend<B, D>, R> + 'static,
-	NumberFor<B>: Into<u32> + From<u32> + Unpin,
-	B::Hash: Unpin,
-	B::Header: serde::de::DeserializeOwned,
+	Client: ApiAccess<Block, ReadOnlyBackend<Block, Db>, Runtime> + 'static,
+	NumberFor<Block>: Into<u32> + From<u32> + Unpin,
+	Block::Hash: Unpin,
+	Block::Header: serde::de::DeserializeOwned,
 {
-	fn new(config: SystemConfig<B, D>, client: Arc<C>) -> Result<Self> {
-		let listener = task::block_on(Self::init_listeners(&config))?;
-		Ok(Self { config, client, listener, _marker: PhantomData })
+	fn new(config: SystemConfig<Block, Db>, client: Arc<Client>) -> Result<Self> {
+		Ok(Self { config, client, _marker: PhantomData })
 	}
 
 	async fn work(self) -> Result<()> {
+		let config = self.config.clone();
 		let actors = Actors::spawn(&self.config).await?;
-		actors.tick_interval().await?;
 		let pool = actors.db.send(GetState::Pool).await??.pool();
+		let persistent_config = PersistentConfig::fetch_and_update(&mut *pool.acquire().await?).await?;
 
-		let storage_handle = Self::restore_missing_storage(self.config.clone(), pool.clone());
-		let env = Environment::<B, B::Hash, R, C, D>::new(
+		actors.tick_interval().await?;
+
+		let runner = self.start_queue(&actors, &persistent_config.task_queue)?;
+		let handle = runner.unique_handle()?;
+		let mut listener = self.init_listeners(handle.clone()).await?;
+		let (storage_tx, storage_rx) = flume::bounded(1);
+		let storage_handle = Self::restore_missing_storage(storage_rx, config.clone(), pool.clone(), handle.clone());
+
+		let mut last = Instant::now();
+		let task_loop = task::spawn_blocking(move || loop {
+			match runner.run_pending_tasks() {
+				Ok(_) => {
+					// we don't have any tasks to process. Add more and sleep.
+					if runner.job_count() < config.control.max_block_load as usize
+						&& last.elapsed() > Duration::from_secs(60)
+					{
+						// we don't want to restore too often to avoid dups.
+						last = Instant::now();
+						let _ = storage_tx.try_send(());
+					}
+					std::thread::sleep(Duration::from_millis(100));
+				}
+				Err(sa_work_queue::FetchError::Timeout) => log::warn!("Tasks timed out"),
+				Err(e) => log::error!("{:?}", e),
+			}
+		});
+
+		futures::join!(storage_handle, task_loop).0?;
+		listener.kill().await?;
+		Ok(())
+	}
+
+	#[allow(clippy::type_complexity)]
+	fn start_queue(
+		&self,
+		actors: &Actors<Block, Block::Hash, Db>,
+		queue: &str,
+	) -> Result<Runner<AssertUnwindSafe<Environment<Block, Block::Hash, Runtime, Client, Db>>>> {
+		let env = Environment::<Block, Block::Hash, Runtime, Client, Db>::new(
 			self.config.backend().clone(),
 			self.client.clone(),
 			actors.storage.clone(),
@@ -279,31 +338,24 @@ where
 		);
 		let env = AssertUnwindSafe(env);
 
-		let runner = coil::Runner::builder(env, &pool)
-			.register_job::<crate::tasks::execute_block::Job<B, R, C, D>>()
+		let runner = sa_work_queue::Runner::builder(env, &self.config.control.task_url)
+			.register_job::<crate::tasks::execute_block::Job<Block, Runtime, Client, Db>>()
 			.num_threads(self.config.runtime.block_workers)
+			.queue_name(queue)
+			.prefetch(5000)
 			// times out if tasks don't start execution on the threadpool within timeout.
 			.timeout(Duration::from_secs(self.config.control.task_timeout))
 			.build()?;
 
-		let task_loop = task::spawn_blocking(move || loop {
-			match runner.run_pending_tasks() {
-				Ok(_) => (),
-				Err(coil::FetchError::Timeout) => log::warn!("Tasks timed out"),
-				Err(e) => log::error!("{:?}", e),
-			}
-		});
-
-		futures::join!(storage_handle, task_loop).0?;
-		Ok(())
+		Ok(runner)
 	}
 
-	async fn init_listeners(config: &SystemConfig<B, D>) -> Result<Listener> {
-		Listener::builder(config.pg_url(), move |notif, conn| {
+	async fn init_listeners(&self, handle: QueueHandle) -> Result<Listener> {
+		Listener::builder(self.config.pg_url(), handle, move |notif, conn, handle| {
 			async move {
 				let sql_block = queries::get_full_block_by_number(conn, notif.block_num).await?;
 				let b = sql_block.into_block_and_spec()?;
-				crate::tasks::execute_block::<B, R, C, D>(b.0, PhantomData).enqueue(conn).await?;
+				crate::tasks::execute_block::<Block, Runtime, Client, Db>(b.0, PhantomData).enqueue(handle).await?;
 				Ok(())
 			}
 			.boxed()
@@ -315,50 +367,49 @@ where
 
 	/// Checks if any blocks that should be executed are missing
 	/// from the task queue.
-	/// If any are found, they are re-queued.
-	async fn restore_missing_storage(conf: SystemConfig<B, D>, pool: sqlx::PgPool) -> Result<()> {
-		let mut conn0 = pool.acquire().await?;
-		let mut conn1 = pool.acquire().await?;
-		let nums = queries::missing_storage_blocks(&mut *conn0).await?;
-		log::info!("Restoring {} missing storage entries.", nums.len());
-		let mut block_stream =
-			queries::blocks_paginated(&mut *conn0, nums.as_slice(), conf.control.max_block_load.try_into()?);
-		while let Some(Ok(page)) = block_stream.next().await {
-			let jobs: Vec<crate::tasks::execute_block::Job<B, R, C, D>> = BlockModelDecoder::with_vec(page)?
-				.into_iter()
-				.map(|b| crate::tasks::execute_block::<B, R, C, D>(b.inner.block, PhantomData))
-				.collect();
-			coil::JobExt::enqueue_batch(jobs, &mut *conn1).await?;
-		}
-		Ok(())
-	}
-}
-
-impl<B, R, D, C> Drop for SystemInstance<B, R, D, C> {
-	fn drop(&mut self) {
-		if let Err(e) = task::block_on(self.listener.kill()) {
-			log::error!("{}", e)
+	/// If any are found, they are re-enqueued.
+	async fn restore_missing_storage(
+		signal: Receiver<()>,
+		conf: SystemConfig<Block, Db>,
+		pool: sqlx::PgPool,
+		handle: QueueHandle,
+	) -> Result<()> {
+		loop {
+			let _ = signal.recv_async().await; // signal to restore storage
+			let mut conn = pool.acquire().await?;
+			let nums = queries::missing_storage_blocks(&mut *conn).await?;
+			log::info!("Restoring {} missing storage entries.", nums.len());
+			let mut block_stream =
+				queries::blocks_paginated(&mut *conn, nums.as_slice(), conf.control.max_block_load.try_into()?);
+			while let Some(Ok(page)) = block_stream.next().await {
+				let jobs: Vec<crate::tasks::execute_block::Job<Block, Runtime, Client, Db>> =
+					BlockModelDecoder::with_vec(page)?
+						.into_iter()
+						.map(|b| crate::tasks::execute_block::<Block, Runtime, Client, Db>(b.inner.block, PhantomData))
+						.collect();
+				sa_work_queue::JobExt::enqueue_batch(&handle, jobs).await?;
+			}
 		}
 	}
 }
 
 #[async_trait::async_trait(?Send)]
-impl<B, R, C, D> Archive<B, D> for System<B, R, C, D>
+impl<Block, Runtime, Client, Db> Archive<Block, Db> for System<Block, Runtime, Client, Db>
 where
-	D: ReadOnlyDb + 'static,
-	B: BlockT + Unpin + DeserializeOwned,
-	<B as BlockT>::Hash: Unpin,
-	R: ConstructRuntimeApi<B, C> + Send + Sync + 'static,
-	R::RuntimeApi: BlockBuilderApi<B>
-		+ sp_api::Metadata<B>
-		+ ApiExt<B, StateBackend = backend::StateBackendFor<ReadOnlyBackend<B, D>, B>>
+	Db: ReadOnlyDb + 'static,
+	Block: BlockT + Unpin + DeserializeOwned,
+	<Block as BlockT>::Hash: Unpin,
+	Runtime: ConstructRuntimeApi<Block, Client> + Send + Sync + 'static,
+	Runtime::RuntimeApi: BlockBuilderApi<Block>
+		+ sp_api::Metadata<Block>
+		+ ApiExt<Block, StateBackend = backend::StateBackendFor<ReadOnlyBackend<Block, Db>, Block>>
 		+ Send
 		+ Sync
 		+ 'static,
-	C: ApiAccess<B, ReadOnlyBackend<B, D>, R> + 'static,
-	NumberFor<B>: Into<u32> + From<u32> + Unpin,
-	B::Hash: Unpin,
-	B::Header: serde::de::DeserializeOwned,
+	Client: ApiAccess<Block, ReadOnlyBackend<Block, Db>, Runtime> + 'static,
+	NumberFor<Block>: Into<u32> + From<u32> + Unpin,
+	Block::Hash: Unpin,
+	Block::Header: serde::de::DeserializeOwned,
 {
 	fn drive(&mut self) -> Result<()> {
 		System::drive(self)?;
@@ -388,7 +439,7 @@ where
 		self.shutdown()
 	}
 
-	fn context(&self) -> &SystemConfig<B, D> {
+	fn context(&self) -> &SystemConfig<Block, Db> {
 		&self.config
 	}
 }

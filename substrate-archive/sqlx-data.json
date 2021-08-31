@@ -99,13 +99,13 @@
       ]
     }
   },
-  "bc7850f77a9f06fd5ed526757ca7b4330359499b2cd0502cc7c0c58d18a0cf02": {
-    "query": "SELECT MAX(block_num) FROM blocks",
+  "b32766abc83ba8a342a39dca90f2fbf63317f80b46377695d2cf85325c08c907": {
+    "query": "\n         SELECT block_num FROM blocks\n         WHERE NOT EXISTS\n            (SELECT block_num FROM storage WHERE storage.block_num = blocks.block_num)\n        ORDER BY block_num;\n        ",
     "describe": {
       "columns": [
         {
           "ordinal": 0,
-          "name": "max",
+          "name": "block_num",
           "type_info": "Int4"
         }
       ],
@@ -113,17 +113,17 @@
         "Left": []
       },
       "nullable": [
-        null
+        false
       ]
     }
   },
-  "c78cd1ac7aab19caaba2ff193d10820668c73d840db10d4a1468d5df8dd9475d": {
-    "query": "SELECT block_num AS \"block_num!\" FROM\n            (SELECT block_num FROM blocks EXCEPT\n                SELECT (HEX_TO_INT(LTRIM(data->'block'->'header'->>'number', '0x'))) AS block_num FROM _background_tasks WHERE job_type = 'execute_block') AS maybe_missing\n        WHERE NOT EXISTS\n\t        (SELECT block_num FROM storage WHERE storage.block_num = maybe_missing.block_num)\n\t\tORDER BY block_num",
+  "bc7850f77a9f06fd5ed526757ca7b4330359499b2cd0502cc7c0c58d18a0cf02": {
+    "query": "SELECT MAX(block_num) FROM blocks",
     "describe": {
       "columns": [
         {
           "ordinal": 0,
-          "name": "block_num!",
+          "name": "max",
           "type_info": "Int4"
         }
       ],

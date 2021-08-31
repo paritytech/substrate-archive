@@ -31,7 +31,10 @@ jobs:
         ports:
           # Maps tcp port 5432 on service container to the host
           - 5432:5432
-
+      rabbitmq:
+        image: rabbitmq:latest
+        ports:
+          - 5672:5672
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2.3.4
@@ -51,4 +54,5 @@ jobs:
         env:
           # Tests get the pg url from the environment directly
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          AMQP_URL: amqp://localhost:5672
           RUST_LOG: debug

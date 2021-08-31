@@ -23,6 +23,7 @@ pub mod models;
 pub mod queries;
 
 use std::{
+	cmp::max,
 	convert::{TryFrom, TryInto},
 	fmt,
 	time::Duration,
@@ -69,32 +70,35 @@ impl fmt::Display for DatabaseConfig {
 pub struct Database {
 	/// pool of database connections
 	pool: PgPool,
-	url: String,
 }
 
 impl Database {
 	/// Connect to the database
-	pub async fn new(url: String) -> Result<Self> {
+	pub async fn new(url: &str) -> Result<Self> {
+		let cpus = num_cpus::get().try_into()?;
 		let pool = PgPoolOptions::new()
-			.min_connections(4)
-			.max_connections(28)
+			.min_connections(max(1, cpus / 2))
+			.max_connections(cpus)
 			.idle_timeout(Duration::from_millis(3600)) // kill connections after 3.6 seconds of idle
-			.connect(url.as_str())
+			.connect(url)
 			.await?;
-		Ok(Self { pool, url })
+		Ok(Self { pool })
 	}
 
 	/// Start the database with a pre-defined pool
 	#[allow(unused)]
-	pub fn with_pool(url: String, pool: PgPool) -> Self {
-		Self { pool, url }
+	pub fn with_pool(pool: PgPool) -> Self {
+		Self { pool }
 	}
 
-	#[allow(unused)]
 	pub async fn insert(&self, data: impl Insert) -> Result<u64> {
 		let mut conn = self.pool.acquire().await?;
 		let res = data.insert(&mut conn).await?;
 		Ok(res)
+	}
+
+	pub async fn concurrent_insert(&self, data: impl Insert) -> Result<u64> {
+		data.concurrent_insert(self.pool.clone()).await
 	}
 
 	pub async fn conn(&self) -> Result<DbConn> {
@@ -112,6 +116,9 @@ pub type DbConn = PoolConnection<Postgres>;
 #[async_trait::async_trait]
 pub trait Insert: Send + Sized {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn;
+	async fn concurrent_insert(mut self, conn: PgPool) -> DbReturn {
+		self.insert(&mut conn.acquire().await?).await
+	}
 }
 
 #[async_trait::async_trait]
@@ -240,46 +247,56 @@ where
 	}
 }
 
+fn build_storage_batch<H: AsRef<[u8]>>(storage: Vec<StorageModel<H>>) -> Result<Batch> {
+	let mut batch = Batch::new(
+		"storage",
+		r#"
+        INSERT INTO "storage" (
+            block_num, hash, is_full, key, storage
+        ) VALUES
+        "#,
+		r#"
+        ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
+            hash = EXCLUDED.hash,
+            key = EXCLUDED.key,
+            storage = EXCLUDED.storage,
+            is_full = EXCLUDED.is_full
+        "#,
+	);
+
+	for s in storage {
+		batch.reserve(5)?;
+		if batch.current_num_arguments() > 0 {
+			batch.append(",");
+		}
+		batch.append("(");
+		batch.bind(s.block_num())?;
+		batch.append(",");
+		batch.bind(s.hash().as_ref())?;
+		batch.append(",");
+		batch.bind(s.is_full())?;
+		batch.append(",");
+		batch.bind(s.key().0.as_slice())?;
+		batch.append(",");
+		batch.bind(s.data().map(|d| d.0.as_slice()))?;
+		batch.append(")");
+	}
+	Ok(batch)
+}
+
 #[async_trait::async_trait]
 impl<Hash> Insert for Vec<StorageModel<Hash>>
 where
 	Hash: Send + Sync + AsRef<[u8]> + 'static,
 {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
-		let mut batch = Batch::new(
-			"storage",
-			r#"
-            INSERT INTO "storage" (
-                block_num, hash, is_full, key, storage
-            ) VALUES
-            "#,
-			r#"
-            ON CONFLICT (hash, key, md5(storage)) DO UPDATE SET
-                hash = EXCLUDED.hash,
-                key = EXCLUDED.key,
-                storage = EXCLUDED.storage,
-                is_full = EXCLUDED.is_full
-            "#,
-		);
-
-		for s in self {
-			batch.reserve(5)?;
-			if batch.current_num_arguments() > 0 {
-				batch.append(",");
-			}
-			batch.append("(");
-			batch.bind(s.block_num())?;
-			batch.append(",");
-			batch.bind(s.hash().as_ref())?;
-			batch.append(",");
-			batch.bind(s.is_full())?;
-			batch.append(",");
-			batch.bind(s.key().0.as_slice())?;
-			batch.append(",");
-			batch.bind(s.data().map(|d| d.0.as_slice()))?;
-			batch.append(")");
-		}
+		let batch = build_storage_batch(self)?;
 		Ok(batch.execute(conn).await?)
+	}
+
+	async fn concurrent_insert(mut self, conn: PgPool) -> DbReturn {
+		let batch = build_storage_batch(self)?;
+		batch.execute_concurrent(conn, None).await
 	}
 }
 
@@ -397,44 +414,4 @@ impl Insert for Traces {
 // Old time is disabled in chrono by not providing the feature flag in Cargo.toml.
 fn time_to_std(time: chrono::Duration) -> Result<Duration> {
 	time.to_std().map_err(|_| ArchiveError::TimestampOutOfRange)
-}
-
-#[cfg(test)]
-pub(crate) mod tests {
-	use super::*;
-
-	pub async fn enqueue_mock_jobs<B: BlockT>(blocks: &[Block<B>], conn: &mut DbConn) -> Result<(), ArchiveError> {
-		let jobs = blocks
-			.iter()
-			.map(|b| {
-				serde_json::json!({
-					"_m": null,
-					"block": &b.inner.block
-				})
-			})
-			.collect::<Vec<serde_json::Value>>();
-
-		let mut batch = Batch::new(
-			"jobs",
-			r#"INSERT INTO "_background_tasks" (
-            job_type, data
-           ) VALUES
-         	"#,
-			r#""#,
-		);
-
-		for job in jobs.into_iter() {
-			batch.reserve(3)?;
-			if batch.current_num_arguments() > 0 {
-				batch.append(",");
-			}
-			batch.append("(");
-			batch.bind("execute_block")?;
-			batch.append(",");
-			batch.bind(sqlx::types::Json(job))?;
-			batch.append(")");
-		}
-		batch.execute(conn).await?;
-		Ok(())
-	}
 }

@@ -31,7 +31,7 @@ use std::sync::Arc;
 use sc_client_api::Backend as BackendT;
 use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
-use sp_version::GetRuntimeVersion;
+use sp_version::GetRuntimeVersionAt;
 
 use self::frontend::GetMetadata;
 // re-exports
@@ -53,7 +53,7 @@ pub trait ApiAccess<Block, Backend, Runtime>:
 	+ Sync
 	+ CallApiAt<Block, StateBackend = Backend::State>
 	+ GetMetadata<Block>
-	+ GetRuntimeVersion<Block>
+	+ GetRuntimeVersionAt<Block>
 where
 	Block: BlockT,
 	Backend: BackendT<Block>,
@@ -69,7 +69,7 @@ where
 	Client: ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
 		+ CallApiAt<Block, StateBackend = Backend::State>
 		+ GetMetadata<Block>
-		+ GetRuntimeVersion<Block>
+		+ GetRuntimeVersionAt<Block>
 		+ Sized
 		+ Send
 		+ Sync,

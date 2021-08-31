@@ -153,19 +153,20 @@ pub(crate) async fn get_versions(conn: &mut PgConnection) -> Result<Vec<u32>> {
 }
 
 pub(crate) async fn missing_storage_blocks(conn: &mut sqlx::PgConnection) -> Result<Vec<u32>> {
-	let blocks: Vec<u32> = sqlx::query_as!(BlockNum,
-	   r#"SELECT block_num AS "block_num!" FROM
-            (SELECT block_num FROM blocks EXCEPT
-                SELECT (HEX_TO_INT(LTRIM(data->'block'->'header'->>'number', '0x'))) AS block_num FROM _background_tasks WHERE job_type = 'execute_block') AS maybe_missing
-        WHERE NOT EXISTS
-	        (SELECT block_num FROM storage WHERE storage.block_num = maybe_missing.block_num)
-		ORDER BY block_num"#
+	let blocks: Vec<u32> = sqlx::query_as!(
+		BlockNum,
+		r#"
+         SELECT block_num FROM blocks
+         WHERE NOT EXISTS
+            (SELECT block_num FROM storage WHERE storage.block_num = blocks.block_num)
+        ORDER BY block_num;
+        "#
 	)
-		.fetch_all(conn)
-		.await?
-		.into_iter()
-		.map(|r| r.block_num as u32)
-		.collect();
+	.fetch_all(conn)
+	.await?
+	.into_iter()
+	.map(|r| r.block_num as u32)
+	.collect();
 	Ok(blocks)
 }
 
@@ -202,7 +203,6 @@ mod tests {
 			Database,
 		},
 		types::BatchBlock,
-		TestGuard,
 	};
 	use anyhow::Error;
 	use async_std::task;
@@ -210,6 +210,7 @@ mod tests {
 	use sp_api::{BlockT, HeaderT};
 	use sp_storage::StorageKey;
 	use sqlx::{pool::PoolConnection, postgres::Postgres};
+	use test_common::TestGuard;
 
 	use polkadot_service::{Block, Hash};
 
@@ -218,7 +219,6 @@ mod tests {
 
 	// Setup a data scheme such that:
 	// - blocks 0 - 200 will be missing from the `storage` table
-	// - blocks 100 - 200 will be present in the `_background_tasks` table
 	// - all blocks will be present in the `blocks` table
 	async fn setup_data_scheme() -> Result<PoolConnection<Postgres>, Error> {
 		let mock_bytes: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF];
@@ -226,7 +226,7 @@ mod tests {
 		let blocks: Vec<BlockModel> = test_common::get_kusama_blocks()?.drain(0..1000).map(BlockModel::from).collect();
 		let blocks = BlockModelDecoder::<Block>::with_vec(blocks)?;
 
-		let database = Database::new(crate::DATABASE_URL.to_string()).await?;
+		let database = Database::new(&test_common::DATABASE_URL.to_string()).await?;
 		// insert some dummy data to satisfy the foreign key constraint
 		sqlx::query("INSERT INTO metadata (version, meta) VALUES ($1, $2)")
 			.bind(26)
@@ -249,7 +249,6 @@ mod tests {
 			.collect::<Vec<StorageModel<Hash>>>();
 		database.insert(mock_storage).await?;
 
-		crate::database::tests::enqueue_mock_jobs(&blocks[100..200], &mut database.conn().await.unwrap()).await?;
 		Ok(database.conn().await?)
 	}
 
@@ -260,9 +259,9 @@ mod tests {
 		let mut conn = task::block_on(setup_data_scheme())?;
 		let items = task::block_on(missing_storage_blocks(&mut conn))?;
 
-		assert_eq!(items.len(), 100);
+		assert_eq!(items.len(), 200);
 		assert_eq!(items.iter().min(), Some(&3_000_001u32));
-		assert_eq!(items.iter().max(), Some(&3_000_100u32));
+		assert_eq!(items.iter().max(), Some(&3_000_200u32));
 		Ok(())
 	}
 

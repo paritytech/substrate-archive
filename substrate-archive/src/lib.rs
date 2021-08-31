@@ -18,7 +18,6 @@
 #![deny(dead_code)]
 
 // Re-Exports
-pub use sc_executor::native_executor_instance;
 pub use sp_blockchain::Error as BlockchainError;
 pub use sp_runtime::MultiSignature;
 pub use substrate_archive_backend::{ExecutionMethod, ReadOnlyDb, RuntimeConfig, SecondaryRocksDb};
@@ -58,21 +57,26 @@ pub fn substrate_archive_default_dir() -> std::path::PathBuf {
 }
 
 #[cfg(test)]
-use test::{initialize, insert_dummy_sql, TestGuard, DATABASE_URL, PG_POOL};
+pub use test::*;
 
 #[cfg(test)]
 mod test {
 	use crate::database::BlockModel;
 	use async_std::task;
-	use once_cell::sync::Lazy;
-	use sqlx::prelude::*;
-	use std::sync::{Mutex, MutexGuard, Once};
-	use test_common::CsvBlock;
+	use std::sync::Once;
+	use test_common::{CsvBlock, DATABASE_URL};
 
-	pub static DATABASE_URL: Lazy<String> =
-		Lazy::new(|| dotenv::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set to run tests!"));
-
-	pub const DUMMY_HASH: [u8; 2] = [0x13, 0x37];
+	static INIT: Once = Once::new();
+	/// Guard that should be called at the beginning of every test.
+	pub fn initialize() {
+		INIT.call_once(|| {
+			pretty_env_logger::init();
+			let url: &str = &DATABASE_URL;
+			task::block_on(async {
+				crate::database::migrate(url).await.unwrap();
+			});
+		});
+	}
 
 	impl From<test_common::CsvBlock> for BlockModel {
 		fn from(csv: CsvBlock) -> BlockModel {
@@ -87,93 +91,6 @@ mod test {
 				ext: csv.ext,
 				spec: csv.spec,
 			}
-		}
-	}
-
-	pub static PG_POOL: Lazy<sqlx::PgPool> = Lazy::new(|| {
-		task::block_on(async {
-			let pool = sqlx::postgres::PgPoolOptions::new()
-				.min_connections(4)
-				.max_connections(8)
-				.idle_timeout(std::time::Duration::from_millis(3600))
-				.connect(&DATABASE_URL)
-				.await
-				.expect("Couldn't initialize postgres pool for tests");
-			pool
-		})
-	});
-
-	static INIT: Once = Once::new();
-	pub fn initialize() {
-		INIT.call_once(|| {
-			pretty_env_logger::init();
-			let url: &str = &DATABASE_URL;
-			task::block_on(async {
-				crate::database::migrate(url).await.unwrap();
-			});
-		});
-	}
-
-	static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-
-	pub fn insert_dummy_sql() {
-		task::block_on(async {
-			sqlx::query(
-				r#"
-                    INSERT INTO metadata (version, meta)
-                    VALUES($1, $2)
-                "#,
-			)
-			.bind(0)
-			.bind(&DUMMY_HASH[0..2])
-			.execute(&*PG_POOL)
-			.await
-			.unwrap();
-
-			// insert a dummy block
-			sqlx::query(
-                    "
-                        INSERT INTO blocks (parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec)
-                        VALUES($1, $2, $3, $4, $5, $6, $7, $8)
-                    ")
-                    .bind(&DUMMY_HASH[0..2])
-                    .bind(&DUMMY_HASH[0..2])
-                    .bind(0)
-                    .bind(&DUMMY_HASH[0..2])
-                    .bind(&DUMMY_HASH[0..2])
-                    .bind(&DUMMY_HASH[0..2])
-                    .bind(&DUMMY_HASH[0..2])
-                    .bind(0)
-                    .execute(&*PG_POOL)
-                    .await
-                    .expect("INSERT");
-		});
-	}
-
-	pub struct TestGuard<'a>(MutexGuard<'a, ()>);
-	impl<'a> TestGuard<'a> {
-		pub(crate) fn lock() -> Self {
-			let guard = TestGuard(TEST_MUTEX.lock().expect("Test mutex panicked"));
-			guard
-		}
-	}
-
-	impl<'a> Drop for TestGuard<'a> {
-		fn drop(&mut self) {
-			task::block_on(async move {
-				let mut conn = crate::PG_POOL.acquire().await.unwrap();
-				conn.execute(
-					"
-					TRUNCATE TABLE metadata CASCADE;
-					TRUNCATE TABLE storage CASCADE;
-					TRUNCATE TABLE blocks CASCADE;
-					TRUNCATE TABLE state_traces CASCADE;
-					TRUNCATE TABLE _background_tasks;
-					",
-				)
-				.await
-				.unwrap();
-			});
 		}
 	}
 }

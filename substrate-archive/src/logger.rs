@@ -97,7 +97,7 @@ pub fn init(config: LoggerConfig) -> io::Result<()> {
 			.level(file.level)
 			.level_for("substrate_archive", file.level)
 			.level_for("cranelift_wasm", log::LevelFilter::Error)
-			.level_for("sqlx", log::LevelFilter::Warn)
+			.level_for("sqlx", log::LevelFilter::Error)
 			.level_for("staking", log::LevelFilter::Warn)
 			.level_for("cranelift_codegen", log::LevelFilter::Warn)
 			.level_for("wasm-heap", log::LevelFilter::Error)

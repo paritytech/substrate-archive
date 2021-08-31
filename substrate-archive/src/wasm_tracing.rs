@@ -323,6 +323,7 @@ mod tests {
 
 	#[test]
 	fn should_collect_spans_and_events_in_wasm() -> Result<(), Error> {
+		crate::initialize();
 		let mut ext = TestExternalities::default();
 		let mut ext = ext.ext();
 
@@ -348,7 +349,6 @@ mod tests {
 				.unwrap();
 			Ok(())
 		})?;
-
 		assert_eq!(spans[0].name, "im_a_span");
 		assert_eq!(spans[0].target, "test_wasm");
 		assert_eq!(spans[0].target, "test_wasm");

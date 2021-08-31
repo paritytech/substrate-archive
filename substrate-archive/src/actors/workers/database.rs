@@ -34,7 +34,7 @@ pub struct DatabaseActor {
 }
 
 impl DatabaseActor {
-	pub async fn new(url: String) -> Result<Self> {
+	pub async fn new(url: &str) -> Result<Self> {
 		Ok(Self { db: Database::new(url).await? })
 	}
 
@@ -97,7 +97,7 @@ impl DatabaseActor {
 		let mut block_nums = storages.inner().iter().map(|s| s.block_num()).collect::<Vec<_>>();
 		block_nums.sort_unstable();
 		if !block_nums.is_empty() {
-			log::debug!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
+			log::info!("Inserting: {:#?}, {} .. {}", block_nums.len(), block_nums[0], block_nums.last().unwrap());
 		}
 		let len = block_nums.len();
 		let now = std::time::Instant::now();
@@ -109,8 +109,8 @@ impl DatabaseActor {
 		std::mem::drop(conn);
 		let storage = Vec::<StorageModel<H>>::from(storages);
 		let now = std::time::Instant::now();
-		self.db.insert(storage).await?;
-		log::debug!("Insert took {:?}", now.elapsed());
+		self.db.concurrent_insert(storage).await?;
+		log::debug!("[Batch Storage Insert] took {:?}", now.elapsed());
 		Ok(())
 	}
 }
@@ -182,7 +182,10 @@ where
 		if let Err(e) = self.batch_storage_handler(storages).await {
 			log::error!("{}", e.to_string());
 		}
-		log::debug!("Took {:?} to insert {} storage entries", now.elapsed(), len);
+
+		if now.elapsed() > std::time::Duration::from_millis(5000) {
+			log::warn!("Took {:?} to insert {} storage entries", now.elapsed(), len);
+		}
 	}
 }
 

@@ -1,0 +1,52 @@
+version: '3'
+
+
+# Dockerfile for development purposes
+# Includes dashboard for RabbitMq and Postgres, which may not be 
+# wanted in a production environment
+
+services:
+  substrate-archive-mq:
+    image: 'rabbitmq:3-management' # RabbitMQ with included management dashboard
+    networks:
+      default: 
+        ipv4_address: 172.10.10.2 # 0 and 1 are reserved for docker
+    ports:
+      - 5672:5672 # localhost:container_port ; don't change container port
+      - 15672:15672
+    
+  substrate-archive-pg:
+    image: 'postgres:latest'
+    ports:
+      - 6432:5432 # localhost_port:container_port ; don't change container_port
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123 # change me
+      POSTGRES_DB: polkadot # default db name
+    networks:
+      default:
+        ipv4_address: 172.10.10.3
+    volumes:
+      # this volume executes a script that creates databases 'kusama' and 'test' in addition to 'polkadot'
+      - ./scripts/docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
+      - ./scripts/postgresql.conf:/etc/postgresql.conf
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "pgadmin4@pgadmin.org"
+      PGADMIN_DEFAULT_PASSWORD: "admin"
+    networks:
+        default:
+          ipv4_address: 172.10.10.4
+    ports:
+      - 16543:80
+    restart: unless-stopped
+    depends_on:
+      - substrate-archive-pg
+    
+networks:
+  default:
+    name: sa-network 
+    ipam:
+      config:
+        - subnet: 172.10.10.0/24

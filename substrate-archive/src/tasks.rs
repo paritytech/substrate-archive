@@ -234,15 +234,15 @@ impl sp_core::traits::SpawnNamed for TaskExecutor {
 // FIXME:
 // we need PhantomData here so that the proc_macro correctly puts PhantomData into the `Job` struct
 // + DeserializeOwned so that the types work.
-// This is a little bit wonky (and entirely confusing), could be fixed with a better proc-macro in `coil`
+// This is a little bit wonky (and entirely confusing), could be fixed with a better proc-macro in `sa_work_queue`
 // TODO: We should detect when the chain is behind our node, and not execute blocks in this case.
 /// Execute a block, and send it to the database actor
-#[coil::background_job]
+#[sa_work_queue::background_job]
 pub fn execute_block<B, RA, Api, D>(
 	env: &Env<B, B::Hash, RA, Api, D>,
 	block: B,
 	_m: PhantomData<(RA, Api, D)>,
-) -> Result<(), coil::PerformError>
+) -> Result<(), sa_work_queue::PerformError>
 where
 	D: ReadOnlyDb + 'static,
 	B: BlockT + DeserializeOwned + Unpin,
@@ -258,10 +258,11 @@ where
 		return Ok(());
 	}
 
+	let (hash, number) = (block.header().hash(), *block.header().number());
 	log::debug!(
 		"Executing Block: {}:{}, version {}",
-		block.header().hash(),
-		block.header().number(),
+		number,
+		hash,
 		env.client.runtime_version_at(&BlockId::Hash(block.hash())).map_err(|e| format!("{:?}", e))?.spec_version,
 	);
 
@@ -273,7 +274,10 @@ where
 	} else {
 		(block.execute()?, Default::default())
 	};
-	log::debug!("Took {:?} to execute block", now.elapsed());
+	let elapsed = now.elapsed();
+	if now.elapsed() > std::time::Duration::from_millis(1000) {
+		log::warn!("Took {:?} to execute block {} of hash {}", elapsed, number, hash);
+	}
 
 	let now = std::time::Instant::now();
 	task::block_on(env.storage.send(Storage::from(storage)))?;
@@ -281,6 +285,6 @@ where
 		log::info!("Sending {} events and {} spans", traces.events.len(), traces.spans.len());
 		task::block_on(env.storage.send(traces))?;
 	}
-	log::trace!("Took {:?} to insert & send finished task", now.elapsed());
+	log::debug!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())
 }
