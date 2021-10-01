@@ -9033,9 +9033,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx"
-version = "0.5.7"
+version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e4b94ab0f8c21ee4899b93b06451ef5d965f1a355982ee73684338228498440"
+checksum = "e60972f6c519c2c5a06c59cb7586335140908a27c3d072c69a727afc73f8e1a3"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
