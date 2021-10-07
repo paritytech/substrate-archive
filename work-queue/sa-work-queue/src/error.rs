@@ -34,6 +34,8 @@ pub enum Error {
 	Env(#[from] std::env::VarError),
 	#[error(transparent)]
 	Json(#[from] serde_json::Error),
+	#[error("Timeout")]
+	Timeout,
 	#[error("{0}")]
 	Msg(String),
 }

@@ -23,18 +23,22 @@ use std::{cell::RefCell, rc::Rc, sync::Arc, time::Duration};
 use async_amqp::LapinAsyncStdExt;
 use async_std::{future::timeout, task};
 use flume::{Receiver, Sender};
-use futures::StreamExt;
+use futures::{future, FutureExt, StreamExt};
 use lapin::{
 	message::Delivery,
 	options::{BasicAckOptions, BasicConsumeOptions, BasicNackOptions, BasicQosOptions},
 	types::FieldTable,
-	Connection, ConnectionProperties, Consumer,
+	Channel, ChannelState, Connection, ConnectionProperties, Consumer,
 };
 use threadpool::ThreadPool;
 
 use crate::{error::*, job::BackgroundJob, runner::Event};
 
 thread_local!(static CONSUMER: ConsumerHandle = Default::default());
+
+/// if a task takes more than this long, the channel will close.
+/// The timeout is in milliseconds.
+const RABBITMQ_CHANNEL_TIMEOUT: u64 = 1800000;
 
 #[derive(PartialEq, Clone, Debug)]
 struct QueueOpts {
@@ -158,11 +162,29 @@ impl ThreadPoolMq {
 	}
 }
 
+#[derive(Clone)]
+struct MaybeChannel(Rc<RefCell<Option<Channel>>>);
+
+impl MaybeChannel {
+	fn insert(&self, channel: Channel) {
+		let mut this = self.0.borrow_mut();
+		let _ = this.insert(channel);
+	}
+}
+
+impl Default for MaybeChannel {
+	fn default() -> Self {
+		Self(Rc::new(RefCell::new(None)))
+	}
+}
+
 // A handle to a consumer that by default is not initalized.
 // mostly for convenience + clarity.
 #[derive(Default, Clone)]
 struct ConsumerHandle {
 	inner: Rc<RefCell<Option<Consumer>>>,
+	/// the channel this consumer belongs to.
+	channel: MaybeChannel,
 }
 
 impl ConsumerHandle {
@@ -182,7 +204,20 @@ impl ConsumerHandle {
 		let consumer =
 			chan.basic_consume(&opts.queue_name, "", BasicConsumeOptions::default(), FieldTable::default()).wait()?;
 		let _ = this.insert(consumer);
+		self.channel.insert(chan);
 		Ok(())
+	}
+
+	/// Recover the channel if the task times out.
+	fn recover(&self, _conn: &Connection, _opts: &QueueOpts) -> Result<(), Error> {
+		if let Some(channel) = &*self.channel.0.borrow() {
+			match channel.status().state() {
+				ChannelState::Error => Ok(channel.basic_recover(Default::default()).wait()?),
+				_ => Ok(()),
+			}
+		} else {
+			Ok(())
+		}
 	}
 }
 
@@ -203,20 +238,46 @@ where
 	handle.init(conn, opts)?;
 	let mut consumer = handle.inner.borrow_mut();
 	let mut consumer = consumer.as_mut().expect("Initialized handle must be Some; qed");
-
 	if let Some((data, delivery)) = next_job(tx, &mut consumer) {
-		match job(data) {
-			Ok(_) => {
+		match task::block_on(timed_job(job, data)) {
+			Ok(Ok(_)) => {
 				task::block_on(delivery.acker.ack(BasicAckOptions::default()))?;
 			}
-			Err(e) => {
+			Ok(Err(e)) => {
 				task::block_on(delivery.acker.nack(BasicNackOptions { requeue: false, ..Default::default() }))?;
 				let job: BackgroundJob = serde_json::from_slice(&delivery.data)?;
 				return Err(Error::Msg(format!("Job `{}` failed to run: {}", job.job_type, e)));
 			}
+			Err(Error::Timeout) => {
+				log::warn!("task exceeded RabbitMQ timeout.");
+				// would be nice to log task data here
+				handle.recover(conn, opts)?;
+			}
+			e @ Err(_) => e??,
 		}
 	}
 	Ok(())
+}
+
+type JobResult = Result<(), PerformError>;
+/// In case a task takes greater than RABBITMQ_CHANNEL_TIMEOUT to execute,
+/// we need to re-connect to the channel that disconnected.
+/// In order to implement this timeout we should use our futures library (async-std),
+/// but we dont want to spawn the job in spawn_blocking, because that would defeat the purpose
+/// of our threadpool. Instead we spawn our timeout on async-stds executor, and select on our task & timeout.
+async fn timed_job<F>(job: F, data: BackgroundJob) -> Result<JobResult, Error>
+where
+	F: Send + 'static + FnOnce(BackgroundJob) -> JobResult,
+{
+	let timeout_handle = task::sleep(Duration::from_millis(RABBITMQ_CHANNEL_TIMEOUT));
+	// NOTE:
+	// Order matters here. If we place the timeout_handle _after_ executing `job`,
+	// `job` as a blocking task will block the event loop (within task::block_on)
+	// and our timeout future will never be spawned on the async_std _global_ executor.
+	futures::select! {
+		_ = task::spawn(timeout_handle).fuse() => Err(Error::Timeout),
+		j = future::ready(job(data)) => Ok(j)
+	}
 }
 
 fn next_job(tx: Sender<Event>, consumer: &mut Consumer) -> Option<(BackgroundJob, Delivery)> {
