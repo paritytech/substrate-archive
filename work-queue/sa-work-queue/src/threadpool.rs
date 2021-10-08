@@ -213,7 +213,10 @@ impl ConsumerHandle {
 		if let Some(channel) = &*self.channel.0.borrow() {
 			let id = channel.id();
 			match channel.status().state() {
-				ChannelState::Error => channel.basic_recover(Default::default()).wait()?,
+				ChannelState::Error => {
+					log::info!("Recovering Channel");
+					channel.basic_recover(Default::default()).wait()?
+				},
 				ChannelState::Closing => log::warn!("RabbitMQ Channel {} Closing", id),
 				ChannelState::Closed => log::warn!("RabbitMQ Channel {} Closed", id), // this is not from an error.
 				ChannelState::Connected => log::trace!("RabbitMQ Channel {} Connected", id),
@@ -244,6 +247,7 @@ where
 	let mut consumer = handle.inner.borrow_mut();
 	let mut consumer = consumer.as_mut().expect("Initialized handle must be Some; qed");
 	if let Some((data, delivery)) = next_job(tx, &mut consumer) {
+		log::debug!("Job: {:?}", data);
 		match task::block_on(timed_job(job, data)) {
 			Ok(Ok(_)) => {
 				task::block_on(delivery.acker.ack(BasicAckOptions::default()))?;
@@ -255,6 +259,7 @@ where
 			}
 			Err(Error::Timeout) => {
 				log::warn!("task exceeded RabbitMQ timeout.");
+				task::block_on(delivery.acker.nack(BasicNackOptions { requeue: false, ..Default::default() }))?;
 				// would be nice to log task data here
 				handle.recover(conn, opts)?;
 			}
