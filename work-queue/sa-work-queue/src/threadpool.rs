@@ -211,10 +211,15 @@ impl ConsumerHandle {
 	/// Recover the channel if the task times out.
 	fn recover(&self, _conn: &Connection, _opts: &QueueOpts) -> Result<(), Error> {
 		if let Some(channel) = &*self.channel.0.borrow() {
+			let id = channel.id();
 			match channel.status().state() {
-				ChannelState::Error => Ok(channel.basic_recover(Default::default()).wait()?),
-				_ => Ok(()),
-			}
+				ChannelState::Error => channel.basic_recover(Default::default()).wait()?,
+				ChannelState::Closing => log::warn!("RabbitMQ Channel {} Closing", id),
+				ChannelState::Closed => log::warn!("RabbitMQ Channel {} Closed", id), // this is not from an error.
+				ChannelState::Connected => log::trace!("RabbitMQ Channel {} Connected", id),
+				_ => ()
+			};
+			Ok(())
 		} else {
 			Ok(())
 		}
@@ -269,7 +274,7 @@ async fn timed_job<F>(job: F, data: BackgroundJob) -> Result<JobResult, Error>
 where
 	F: Send + 'static + FnOnce(BackgroundJob) -> JobResult,
 {
-	let timeout_handle = task::sleep(Duration::from_millis(RABBITMQ_CHANNEL_TIMEOUT));
+	let timeout_handle = task::sleep(Duration::from_millis(180_000));
 	// NOTE:
 	// Order matters here. If we place the timeout_handle _after_ executing `job`,
 	// `job` as a blocking task will block the event loop (within task::block_on)
