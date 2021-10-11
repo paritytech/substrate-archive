@@ -212,15 +212,13 @@ impl ConsumerHandle {
 	fn recover(&self, _conn: &Connection, _opts: &QueueOpts) -> Result<(), Error> {
 		if let Some(channel) = &*self.channel.0.borrow() {
 			let id = channel.id();
+
 			match channel.status().state() {
-				ChannelState::Error => {
-					log::info!("Recovering Channel");
-					channel.basic_recover(Default::default()).wait()?
-				},
+				ChannelState::Error => log::info!("Recovering Channel {}", id),
 				ChannelState::Closing => log::warn!("RabbitMQ Channel {} Closing", id),
-				ChannelState::Closed => log::warn!("RabbitMQ Channel {} Closed", id), // this is not from an error.
-				ChannelState::Connected => log::trace!("RabbitMQ Channel {} Connected", id),
-				_ => ()
+				ChannelState::Closed => log::warn!("RabbitMQ Channel {} Closed", id),
+				ChannelState::Connected => log::debug!("RabbitMQ Channel {} Connected", id),
+				ChannelState::Initial => log::debug!("RabbitMQ Channel {} Initial", id),
 			};
 			Ok(())
 		} else {
