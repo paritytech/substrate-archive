@@ -22,7 +22,7 @@ use crate::{
 	runner::QueueHandle,
 };
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BackgroundJob {
 	/// Where this job comes from (generally the name of the job function from the proc-macro)
 	pub job_type: String,

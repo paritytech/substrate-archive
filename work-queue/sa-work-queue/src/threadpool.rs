@@ -38,7 +38,7 @@ thread_local!(static CONSUMER: ConsumerHandle = Default::default());
 
 /// if a task takes more than this long, the channel will close.
 /// The timeout is in milliseconds.
-const RABBITMQ_CHANNEL_TIMEOUT: u64 = 1800000;
+// const RABBITMQ_CHANNEL_TIMEOUT: u64 = 1800000;
 
 #[derive(PartialEq, Clone, Debug)]
 struct QueueOpts {
@@ -247,8 +247,7 @@ where
 	let mut consumer = handle.inner.borrow_mut();
 	let mut consumer = consumer.as_mut().expect("Initialized handle must be Some; qed");
 	if let Some((data, delivery)) = next_job(tx, &mut consumer) {
-		log::debug!("Job: {:?}", data);
-		match task::block_on(timed_job(job, data)) {
+		match task::block_on(timed_job(job, data.clone())) {
 			Ok(Ok(_)) => {
 				task::block_on(delivery.acker.ack(BasicAckOptions::default()))?;
 			}
@@ -260,6 +259,7 @@ where
 			Err(Error::Timeout) => {
 				log::warn!("task exceeded RabbitMQ timeout.");
 				task::block_on(delivery.acker.nack(BasicNackOptions { requeue: false, ..Default::default() }))?;
+				log::debug!("Failde Job Data {:?}", data);
 				// would be nice to log task data here
 				handle.recover(conn, opts)?;
 			}
