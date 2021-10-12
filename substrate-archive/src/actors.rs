@@ -301,9 +301,8 @@ where
 		let task_loop = task::spawn_blocking(move || loop {
 			match runner.run_pending_tasks() {
 				Ok(_) => {
-					// we don't have any tasks to process. Add more and sleep.
-					if runner.job_count() < config.control.max_block_load as usize
-						&& last.elapsed() > Duration::from_secs(60)
+					// we don't have any tasks to process. Add more.
+					if runner.job_count() == 0 && last.elapsed() > Duration::from_secs(60)
 					{
 						// we don't want to restore too often to avoid dups.
 						last = Instant::now();
