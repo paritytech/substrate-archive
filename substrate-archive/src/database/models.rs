@@ -143,6 +143,7 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 #[derive(FromRow, Debug, Clone)]
 pub struct PersistentConfig {
 	// internal SQL identifier
+	#[allow(unused)]
 	id: i32,
 	/// RabbitMQ Queue Name
 	pub task_queue: String,

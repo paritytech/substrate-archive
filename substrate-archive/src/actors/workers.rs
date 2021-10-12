@@ -18,8 +18,10 @@ pub mod blocks;
 mod database;
 mod metadata;
 pub mod storage_aggregator;
+mod storage_entries;
 
 pub use self::database::{DatabaseActor, GetState};
 pub use self::metadata::MetadataActor;
 pub use blocks::BlocksIndexer;
 pub use storage_aggregator::StorageAggregator;
+pub use storage_entries::StorageEntries;

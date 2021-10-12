@@ -26,7 +26,7 @@ use crate::{
 	wasm_tracing::Traces,
 };
 
-pub struct StorageAggregator<H: Send + Sync + 'static> {
+pub struct StorageAggregator<H> {
 	db: Address<DatabaseActor>,
 	storage: Vec<Storage<H>>,
 	traces: Vec<Traces>,

@@ -39,7 +39,7 @@ use crate::{
 type DatabaseAct = Address<DatabaseActor>;
 type MetadataAct<B> = Address<MetadataActor<B>>;
 
-pub struct BlocksIndexer<B: Send + 'static, D: Send + 'static> {
+pub struct BlocksIndexer<B, D> {
 	/// background task to crawl blocks
 	backend: Arc<ReadOnlyBackend<B, D>>,
 	db: DatabaseAct,
@@ -162,7 +162,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B: Send + Sync, D: Send + Sync> Actor for BlocksIndexer<B, D> {}
+impl<B: Send + Sync + 'static, D: Send + Sync + 'static> Actor for BlocksIndexer<B, D> {}
 
 pub struct Crawl;
 impl Message for Crawl {

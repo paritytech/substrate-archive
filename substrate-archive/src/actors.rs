@@ -49,7 +49,7 @@ use self::workers::{
 	storage_aggregator::{SendStorage, SendTraces},
 	GetState,
 };
-pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
+pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator, StorageEntries};
 use crate::{
 	archive::Archive,
 	database::{
@@ -148,15 +148,21 @@ where
 	}
 }
 
-struct Actors<Block: Send + Sync + 'static, Hash: Send + Sync + 'static, Db: Send + Sync + 'static> {
+struct Actors<Block, Runtime, Client, Hash, Db> {
 	storage: Address<workers::StorageAggregator<Hash>>,
 	blocks: Address<workers::BlocksIndexer<Block, Db>>,
 	metadata: Address<workers::MetadataActor<Block>>,
 	db: Address<DatabaseActor>,
+	entries: Address<StorageEntries<Block, Runtime, Db, Client>>
 }
 
-impl<Block: Send + Sync + 'static, Hash: Send + Sync + 'static, Db: Send + Sync + 'static> Clone
-	for Actors<Block, Hash, Db>
+impl<Block, Runtime, Client, Hash, Db> Clone for Actors<Block, Runtime, Client, Hash, Db>
+where
+	Block : Send + Sync + 'static,
+	Runtime: Send + Sync + 'static,
+	Client: Send + Sync + 'static,
+	Hash: Send + Sync + 'static,
+	Db: Send + Sync + 'static
 {
 	fn clone(&self) -> Self {
 		Self {
@@ -164,13 +170,16 @@ impl<Block: Send + Sync + 'static, Hash: Send + Sync + 'static, Db: Send + Sync 
 			blocks: self.blocks.clone(),
 			metadata: self.metadata.clone(),
 			db: self.db.clone(),
+			entries: self.entries.clone()
 		}
 	}
 }
 
-impl<Block, Db> Actors<Block, Block::Hash, Db>
+impl<Block, Runtime, Client, Db> Actors<Block, Runtime, Client, Block::Hash, Db>
 where
 	Block: BlockT + Unpin,
+	Runtime: Send + Sync + 'static,
+	Client: Send + Sync + 'static,
 	Db: ReadOnlyDb + 'static,
 	Block::Hash: Unpin,
 	NumberFor<Block>: Into<u32>,
@@ -181,8 +190,9 @@ where
 		let metadata =
 			workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None).spawn(&mut AsyncStd);
 		let blocks = workers::BlocksIndexer::new(conf, db.clone(), metadata.clone()).create(None).spawn(&mut AsyncStd);
+		let entries = workers::StorageEntries::new(db.clone(), conf.control.clone()).create(None).spawn(&mut AsyncStd);
 
-		Ok(Actors { storage, blocks, metadata, db })
+		Ok(Actors { storage, blocks, metadata, db, entries })
 	}
 
 	// Run a future that sends actors a signal to progress once the previous
@@ -305,7 +315,7 @@ where
 			match runner.run_pending_tasks() {
 				Ok(_) => {
 					// we don't have any tasks to process. Add more and sleep.
-					if runner.job_count() < config.control.max_block_load as usize
+					if runner.job_count() < config.control.max_block_load
 						&& last.elapsed() > Duration::from_secs(60)
 					{
 						// we don't want to restore too often to avoid dups.
@@ -327,7 +337,7 @@ where
 	#[allow(clippy::type_complexity)]
 	fn start_queue(
 		&self,
-		actors: &Actors<Block, Block::Hash, Db>,
+		actors: &Actors<Block, Runtime, Db, Client, Block::Hash>,
 		queue: &str,
 	) -> Result<Runner<AssertUnwindSafe<Environment<Block, Block::Hash, Runtime, Client, Db>>>> {
 		let env = Environment::<Block, Block::Hash, Runtime, Client, Db>::new(
