@@ -19,11 +19,11 @@
 mod workers;
 
 use std::{
+	convert::TryInto,
 	marker::PhantomData,
 	panic::AssertUnwindSafe,
 	sync::Arc,
 	time::{Duration, Instant},
-	convert::TryInto
 };
 
 use async_std::{
@@ -302,8 +302,7 @@ where
 			match runner.run_pending_tasks() {
 				Ok(_) => {
 					// we don't have any tasks to process. Add more.
-					if runner.job_count() == 0 && last.elapsed() > Duration::from_secs(60)
-					{
+					if runner.job_count() == 0 && last.elapsed() > Duration::from_secs(60) {
 						// we don't want to restore too often to avoid dups.
 						last = Instant::now();
 						let handle = task::spawn(Self::restore_missing_storage(
