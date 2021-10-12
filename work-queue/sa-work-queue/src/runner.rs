@@ -224,9 +224,7 @@ impl<Env: 'static> Runner<Env> {
 	}
 
 	pub fn job_count(&self) -> u32 {
-		let count = self.handle.queue.message_count();
-		log::trace!("Message Count {}", count);
-		count
+		self.handle.queue.message_count()
 	}
 
 	pub fn max_jobs(&self) -> usize {
