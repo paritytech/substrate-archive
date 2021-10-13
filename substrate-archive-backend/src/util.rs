@@ -67,6 +67,8 @@ pub mod meta_keys {
 	pub const FINALIZED_BLOCK: &[u8; 5] = b"final";
 	/// Last finalized state key.
 	pub const FINALIZED_STATE: &[u8; 6] = b"fstate";
+	/// Block Gap
+	pub const BLOCK_GAP: &[u8; 3] = b"gap";
 	/// Meta information prefix for list-based caches.
 	pub const CACHE_META_PREFIX: &[u8; 5] = b"cache";
 	/// Meta information for changes tries key.
@@ -141,6 +143,7 @@ pub struct Meta<N, H> {
 	pub genesis_hash: H,
 	/// Finalized state, if any
 	pub finalized_state: Option<(H, N)>,
+	pub block_gap: Option<(N, N)>,
 }
 
 /// Read meta from the database.
@@ -161,6 +164,7 @@ where
 				finalized_number: Zero::zero(),
 				genesis_hash: Default::default(),
 				finalized_state: Default::default(),
+				block_gap: None,
 			})
 		}
 	};
@@ -187,7 +191,12 @@ where
 		None
 	};
 
-	Ok(Meta { best_hash, best_number, finalized_hash, finalized_number, genesis_hash, finalized_state })
+	let block_gap = db
+		.get(columns::META, meta_keys::BLOCK_GAP)
+		.and_then(|d| Decode::decode(&mut d.as_slice()).ok());
+	log::debug!(target: "db", "block_gap={:?}", block_gap);
+
+	Ok(Meta { best_hash, best_number, finalized_hash, finalized_number, genesis_hash, finalized_state, block_gap })
 }
 
 /// Read genesis hash from database.
