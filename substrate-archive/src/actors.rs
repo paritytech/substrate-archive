@@ -307,8 +307,7 @@ where
 			let handle = runner.unique_handle()?;
 			let mut listener = self.init_listeners(handle.clone()).await?;
 			let task_loop = self.storage_index(runner, pool);
-			let (t, a) = futures::join!(task_loop, actors_future);
-			t?; a?;
+			futures::try_join!(task_loop, actors_future)?;
 			listener.kill().await?;
 		} else {
 			actors_future.await?
