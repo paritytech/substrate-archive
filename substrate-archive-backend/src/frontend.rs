@@ -34,9 +34,9 @@ use sc_client_api::{
 use sc_executor::{WasmExecutionMethod, WasmExecutor};
 use sc_service::{ChainSpec, ClientConfig, LocalCallExecutor, TransactionStorageMode};
 use sp_api::ConstructRuntimeApi;
-use sp_wasm_interface::Function;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
+use sp_wasm_interface::Function;
 use sp_wasm_interface::HostFunctions;
 
 pub use self::client::{Client, GetMetadata};
@@ -166,17 +166,11 @@ where
 		+ 'static,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
-	let host_functions = if let Some(funcs) = host_functions {
-		funcs
-	} else { sp_io::SubstrateHostFunctions::host_functions() };
+	let host_functions =
+		if let Some(funcs) = host_functions { funcs } else { sp_io::SubstrateHostFunctions::host_functions() };
 
-	let executor = WasmExecutor::new(
-		config.exec_method.into(),
-		config.wasm_pages,
-		host_functions,
-		config.block_workers,
-		None,
-	);
+	let executor =
+		WasmExecutor::new(config.exec_method.into(), config.wasm_pages, host_functions, config.block_workers, None);
 	let executor =
 		LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.try_into()?)?;
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None, None))?;
