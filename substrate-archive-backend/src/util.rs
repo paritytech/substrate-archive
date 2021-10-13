@@ -143,6 +143,7 @@ pub struct Meta<N, H> {
 	pub genesis_hash: H,
 	/// Finalized state, if any
 	pub finalized_state: Option<(H, N)>,
+	/// missing blocks during warp sync (start & end)
 	pub block_gap: Option<(N, N)>,
 }
 
