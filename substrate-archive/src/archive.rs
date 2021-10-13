@@ -28,6 +28,7 @@ use sp_runtime::{
 	generic::BlockId,
 	traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
+use sp_wasm_interface::Function;
 
 use substrate_archive_backend::{
 	runtime_api, ExecutionMethod, ReadOnlyBackend, ReadOnlyDb, RuntimeConfig, TArchiveClient,
@@ -136,11 +137,12 @@ where
 pub struct ArchiveBuilder<Block, Runtime, Db> {
 	_marker: PhantomData<(Block, Runtime, Db)>,
 	config: ArchiveConfig,
+	host_functions: Option<Vec<&'static dyn Function>>,
 }
 
 impl<Block, Runtime, Db> Default for ArchiveBuilder<Block, Runtime, Db> {
 	fn default() -> Self {
-		Self { _marker: PhantomData, config: ArchiveConfig::default() }
+		Self { _marker: PhantomData, config: ArchiveConfig::default(), host_functions: None }
 	}
 }
 
@@ -148,7 +150,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	/// Creates a archive builder with the given config.
 	pub fn with_config(config: Option<ArchiveConfig>) -> Self {
 		if let Some(config) = config {
-			Self { _marker: PhantomData, config }
+			Self { _marker: PhantomData, config, ..Default::default() }
 		} else {
 			Self::default()
 		}
@@ -308,6 +310,12 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 		self.config.wasm_tracing = wasm_tracing;
 		self
 	}
+
+	/// Set the host functions to use for runtime being indexed
+	pub fn host_functions(mut self, host_functions: Vec<&'static dyn Function>) -> Self {
+		self.host_functions = Some(host_functions);
+		self
+	}
 }
 
 impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db>
@@ -359,7 +367,11 @@ where
 
 		// configure substrate client and backend
 		let backend = Arc::new(ReadOnlyBackend::new(db, true, self.config.runtime.storage_mode));
-		let client = Arc::new(runtime_api::<Block, Runtime, Db>(self.config.runtime.clone(), backend.clone())?);
+		let client = Arc::new(runtime_api::<Block, Runtime, Db>(
+			self.config.runtime.clone(),
+			backend.clone(),
+			self.host_functions,
+		)?);
 		Self::startup_info(&*client, &*backend)?;
 
 		// config postgres database

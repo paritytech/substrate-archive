@@ -34,6 +34,7 @@ use sc_client_api::{
 use sc_executor::{WasmExecutionMethod, WasmExecutor};
 use sc_service::{ChainSpec, ClientConfig, LocalCallExecutor, TransactionStorageMode};
 use sp_api::ConstructRuntimeApi;
+use sp_wasm_interface::Function;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use sp_wasm_interface::HostFunctions;
@@ -153,6 +154,7 @@ where
 pub fn runtime_api<Block, Runtime, D: ReadOnlyDb + 'static>(
 	config: RuntimeConfig,
 	backend: Arc<ReadOnlyBackend<Block, D>>,
+	host_functions: Option<Vec<&'static dyn Function>>,
 ) -> Result<TArchiveClient<Block, Runtime, D>, BackendError>
 where
 	Block: BlockT,
@@ -164,10 +166,14 @@ where
 		+ 'static,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
+	let host_functions = if let Some(funcs) = host_functions {
+		funcs
+	} else { sp_io::SubstrateHostFunctions::host_functions() };
+
 	let executor = WasmExecutor::new(
 		config.exec_method.into(),
 		config.wasm_pages,
-		sp_io::SubstrateHostFunctions::host_functions(),
+		host_functions,
 		config.block_workers,
 		None,
 	);
