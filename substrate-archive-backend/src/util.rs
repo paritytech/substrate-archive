@@ -191,9 +191,7 @@ where
 		None
 	};
 
-	let block_gap = db
-		.get(columns::META, meta_keys::BLOCK_GAP)
-		.and_then(|d| Decode::decode(&mut d.as_slice()).ok());
+	let block_gap = db.get(columns::META, meta_keys::BLOCK_GAP).and_then(|d| Decode::decode(&mut d.as_slice()).ok());
 	log::debug!(target: "db", "block_gap={:?}", block_gap);
 
 	Ok(Meta { best_hash, best_number, finalized_hash, finalized_number, genesis_hash, finalized_state, block_gap })
