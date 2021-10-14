@@ -111,7 +111,7 @@ pub struct TraceHandler {
 
 impl TraceHandler {
 	pub fn new(targets: &str, span_events: Arc<Mutex<SpansAndEvents>>) -> Self {
-		let mut targets: Vec<_> = targets.split(',').map(|s| parse_target(s)).collect();
+		let mut targets: Vec<_> = targets.split(',').map(parse_target).collect();
 		targets.push((WASM_TRACE_IDENTIFIER.to_string(), Level::TRACE));
 		Self { span_events, targets }
 	}

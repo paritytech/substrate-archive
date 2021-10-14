@@ -95,6 +95,9 @@ pub struct ControlConfig {
 	/// RabbitMq URL. default: `http://localhost:5672`
 	#[serde(default = "default_task_url")]
 	pub(crate) task_url: String,
+	/// Whether to index storage or not
+	#[serde(default = "default_storage_indexing")]
+	pub(crate) storage_indexing: bool,
 }
 
 impl Default for ControlConfig {
@@ -103,8 +106,13 @@ impl Default for ControlConfig {
 			task_timeout: default_task_timeout(),
 			max_block_load: default_max_block_load(),
 			task_url: default_task_url(),
+			storage_indexing: default_storage_indexing(),
 		}
 	}
+}
+
+const fn default_storage_indexing() -> bool {
+	true
 }
 
 fn default_task_url() -> String {
@@ -201,7 +209,8 @@ where
 					break;
 				}
 			}
-		});
+		})
+		.await;
 		Ok(())
 	}
 }
@@ -259,6 +268,9 @@ where
 	}
 }
 
+type TaskRunner<Block, Hash, Runtime, Client, Db> =
+	Runner<AssertUnwindSafe<Environment<Block, Hash, Runtime, Client, Db>>>;
+
 pub struct SystemInstance<Block, Runtime, Db, Client> {
 	config: SystemConfig<Block, Db>,
 	client: Arc<Client>,
@@ -286,19 +298,35 @@ where
 	}
 
 	async fn work(self) -> Result<()> {
-		let config = self.config.clone();
 		let actors = Actors::spawn(&self.config).await?;
 		let pool = actors.db.send(GetState::Pool).await??.pool();
 		let persistent_config = PersistentConfig::fetch_and_update(&mut *pool.acquire().await?).await?;
 
-		actors.tick_interval().await?;
+		let actors_future = actors.tick_interval();
 
-		let runner = self.start_queue(&actors, &persistent_config.task_queue)?;
-		let handle = runner.unique_handle()?;
-		let mut listener = self.init_listeners(handle.clone()).await?;
+		if self.config.control.storage_indexing {
+			let runner = self.start_queue(&actors, &persistent_config.task_queue)?;
+			let handle = runner.unique_handle()?;
+			let mut listener = self.init_listeners(handle.clone()).await?;
+			let task_loop = self.storage_index(runner, pool);
+			futures::try_join!(task_loop, actors_future)?;
+			listener.kill().await?;
+		} else {
+			actors_future.await?
+		};
 
+		Ok(())
+	}
+
+	async fn storage_index(
+		&self,
+		runner: TaskRunner<Block, Block::Hash, Runtime, Client, Db>,
+		pool: sqlx::PgPool,
+	) -> Result<()> {
+		let control_config = self.config.control.clone();
 		let mut last = Instant::now();
-		let task_loop = task::spawn_blocking(move || loop {
+		let handle = runner.handle().clone();
+		task::spawn_blocking(move || loop {
 			match runner.run_pending_tasks() {
 				Ok(_) => {
 					// we don't have any tasks to process. Add more.
@@ -306,7 +334,7 @@ where
 						// we don't want to restore too often to avoid dups.
 						last = Instant::now();
 						let handle = task::spawn(Self::restore_missing_storage(
-							config.control.clone(),
+							control_config.clone(),
 							pool.clone(),
 							handle.clone(),
 						));
@@ -318,19 +346,15 @@ where
 				Err(sa_work_queue::FetchError::Timeout) => log::warn!("Tasks timed out"),
 				Err(e) => log::error!("{:?}", e),
 			}
-		});
-
-		task_loop.await;
-		listener.kill().await?;
-		Ok(())
+		})
+		.await
 	}
 
-	#[allow(clippy::type_complexity)]
 	fn start_queue(
 		&self,
 		actors: &Actors<Block, Block::Hash, Db>,
 		queue: &str,
-	) -> Result<Runner<AssertUnwindSafe<Environment<Block, Block::Hash, Runtime, Client, Db>>>> {
+	) -> Result<TaskRunner<Block, Block::Hash, Runtime, Client, Db>> {
 		let env = Environment::<Block, Block::Hash, Runtime, Client, Db>::new(
 			self.config.backend().clone(),
 			self.client.clone(),
