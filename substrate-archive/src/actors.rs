@@ -209,7 +209,8 @@ where
 					break;
 				}
 			}
-		}).await)
+		})
+		.await)
 	}
 }
 
