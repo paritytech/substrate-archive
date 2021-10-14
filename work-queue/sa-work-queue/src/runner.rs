@@ -223,8 +223,8 @@ impl<Env: 'static> Runner<Env> {
 		self.threadpool.queued_count()
 	}
 
-	pub fn job_count(&self) -> usize {
-		self.handle.queue.message_count() as usize
+	pub fn job_count(&self) -> u32 {
+		self.handle.queue.message_count()
 	}
 
 	pub fn max_jobs(&self) -> usize {

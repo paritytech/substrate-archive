@@ -142,7 +142,10 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 /// that could be useful for debugging.
 #[derive(FromRow, Debug, Clone)]
 pub struct PersistentConfig {
-	// internal SQL identifier
+	// internal SQL identifier.
+	// required to be here when restoring the entire row from Postgres,
+	// otherwise we get decoding errors. Also useful for ordering of elements in postgres.
+	#[allow(unused)]
 	id: i32,
 	/// RabbitMQ Queue Name
 	pub task_queue: String,

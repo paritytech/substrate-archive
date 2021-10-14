@@ -36,7 +36,6 @@ use sa_work_queue::{Job as _, QueueHandle, Runner};
 use serde::{de::DeserializeOwned, Deserialize};
 use xtra::{prelude::*, spawn::AsyncStd};
 
-use flume::Receiver;
 use sc_client_api::backend;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
@@ -297,29 +296,31 @@ where
 		let runner = self.start_queue(&actors, &persistent_config.task_queue)?;
 		let handle = runner.unique_handle()?;
 		let mut listener = self.init_listeners(handle.clone()).await?;
-		let (storage_tx, storage_rx) = flume::bounded(1);
-		let storage_handle = Self::restore_missing_storage(storage_rx, config.clone(), pool.clone(), handle.clone());
 
 		let mut last = Instant::now();
 		let task_loop = task::spawn_blocking(move || loop {
 			match runner.run_pending_tasks() {
 				Ok(_) => {
-					// we don't have any tasks to process. Add more and sleep.
-					if runner.job_count() < config.control.max_block_load as usize
-						&& last.elapsed() > Duration::from_secs(60)
-					{
+					// we don't have any tasks to process. Add more.
+					if runner.job_count() == 0 && last.elapsed() > Duration::from_secs(60) {
 						// we don't want to restore too often to avoid dups.
 						last = Instant::now();
-						let _ = storage_tx.try_send(());
+						let handle = task::spawn(Self::restore_missing_storage(
+							config.control.clone(),
+							pool.clone(),
+							handle.clone(),
+						));
+						if let Err(e) = task::block_on(handle) {
+							log::error!("{}", e);
+						}
 					}
-					std::thread::sleep(Duration::from_millis(100));
 				}
 				Err(sa_work_queue::FetchError::Timeout) => log::warn!("Tasks timed out"),
 				Err(e) => log::error!("{:?}", e),
 			}
 		});
 
-		futures::join!(storage_handle, task_loop).0?;
+		task_loop.await;
 		listener.kill().await?;
 		Ok(())
 	}
@@ -368,28 +369,21 @@ where
 	/// Checks if any blocks that should be executed are missing
 	/// from the task queue.
 	/// If any are found, they are re-enqueued.
-	async fn restore_missing_storage(
-		signal: Receiver<()>,
-		conf: SystemConfig<Block, Db>,
-		pool: sqlx::PgPool,
-		handle: QueueHandle,
-	) -> Result<()> {
-		loop {
-			let _ = signal.recv_async().await; // signal to restore storage
-			let mut conn = pool.acquire().await?;
-			let nums = queries::missing_storage_blocks(&mut *conn).await?;
-			log::info!("Restoring {} missing storage entries.", nums.len());
-			let mut block_stream =
-				queries::blocks_paginated(&mut *conn, nums.as_slice(), conf.control.max_block_load.try_into()?);
-			while let Some(Ok(page)) = block_stream.next().await {
-				let jobs: Vec<crate::tasks::execute_block::Job<Block, Runtime, Client, Db>> =
-					BlockModelDecoder::with_vec(page)?
-						.into_iter()
-						.map(|b| crate::tasks::execute_block::<Block, Runtime, Client, Db>(b.inner.block, PhantomData))
-						.collect();
-				sa_work_queue::JobExt::enqueue_batch(&handle, jobs).await?;
-			}
+	async fn restore_missing_storage(config: ControlConfig, pool: sqlx::PgPool, handle: QueueHandle) -> Result<()> {
+		let mut conn = pool.acquire().await?;
+		let nums = queries::missing_storage_blocks(&mut *conn).await?;
+		log::info!("Restoring {} missing storage entries.", nums.len());
+		let load: usize = config.max_block_load.try_into()?;
+		let mut block_stream = queries::blocks_paginated(&mut *conn, nums.as_slice(), load);
+		while let Some(page) = block_stream.next().await {
+			let jobs: Vec<crate::tasks::execute_block::Job<Block, Runtime, Client, Db>> =
+				BlockModelDecoder::with_vec(page?)?
+					.into_iter()
+					.map(|b| crate::tasks::execute_block::<Block, Runtime, Client, Db>(b.inner.block, PhantomData))
+					.collect();
+			sa_work_queue::JobExt::enqueue_batch(&handle, jobs).await?;
 		}
+		Ok(())
 	}
 }
 
