@@ -198,7 +198,7 @@ where
 		// messages that only need to be sent once
 		self.blocks.send(ReIndex).await?;
 		let actors = self.clone();
-		task::spawn(async move {
+		Ok(task::spawn(async move {
 			loop {
 				let fut = (
 					Box::pin(actors.blocks.send(Crawl)),
@@ -209,8 +209,8 @@ where
 					break;
 				}
 			}
-		});
-		Ok(())
+		})
+		.await)
 	}
 }
 
@@ -301,19 +301,17 @@ where
 		let pool = actors.db.send(GetState::Pool).await??.pool();
 		let persistent_config = PersistentConfig::fetch_and_update(&mut *pool.acquire().await?).await?;
 
-		actors.tick_interval().await?;
+		let actors_future = actors.tick_interval();
 
 		if self.config.control.storage_indexing {
 			let runner = self.start_queue(&actors, &persistent_config.task_queue)?;
 			let handle = runner.unique_handle()?;
 			let mut listener = self.init_listeners(handle.clone()).await?;
 			let task_loop = self.storage_index(runner, pool);
-			task_loop.await?;
+			futures::try_join!(task_loop, actors_future)?;
 			listener.kill().await?;
 		} else {
-			loop {
-				task::sleep(Duration::from_secs(60)).await
-			}
+			actors_future.await?
 		};
 
 		Ok(())
