@@ -2,18 +2,20 @@ FROM docker.io/paritytech/ci-linux:production as builder
 LABEL description="build stage for Substrate Archive. We are creating the binary."
 
 ARG PROFILE=release
-WORKDIR /bin/polkadot-archive/
+WORKDIR /substrate-archive
 
-COPY . /bin/polkadot-archive/
+COPY . /substrate-archive
 
-RUN cargo build --$PROFILE
+RUN cargo build --$PROFILE --bin polkadot-archive
+RUN ls
 
 # ===== SECOND STAGE ======
 
 FROM docker.io/library/ubuntu:20.04
 LABEL description="This is the 2nd stage: a very small image where we copy the Polkadot binary."
 ARG PROFILE=release
-COPY --from=builder /bin/polkadot-archive/target/$PROFILE/polkadot-archive /usr/local/bin
+RUN ls
+COPY --from=builder /substrate-archive/target/$PROFILE/polkadot-archive /usr/local/bin
 
 RUN useradd -m -u 1000 -U -s /bin/sh -d /polkadot-archive polkadot-archive && \
 	mkdir -p /polkadot-archive/.local/share && \
