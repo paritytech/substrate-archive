@@ -52,27 +52,7 @@ pub struct RuntimeVersionCache<B, D> {
 
 impl<B: BlockT, D: ReadOnlyDb + 'static> RuntimeVersionCache<B, D> {
 	pub fn new(backend: Arc<ReadOnlyBackend<B, D>>) -> Self {
-		// all _available_ functions
-		// sp_io::storage::HostFunctions
-		// sp_io::default_child_storage
-		// sp_io::misc::HostFunctions
-		// sp_io::offchain::HostFunctions
-		// sp_io::crypto::HostFunctions
-		// sp_io::hashing::HostFunctions
-		// sp_io::logging::HostFunctions
-		// sp_io::sandbox::HostFunctions
-		// sp_io::trie::HostFunctions
-		// sp_io::offchain_index::HostFunctions
-
-		// remove some unnecessary host functions
-		let funs = sp_io::SubstrateHostFunctions::host_functions()
-			.into_iter()
-			.filter(|f| f.name().matches("wasm_tracing").count() == 0)
-			.filter(|f| f.name().matches("ext_offchain").count() == 0)
-			.filter(|f| f.name().matches("ext_storage").count() == 0)
-			.filter(|f| f.name().matches("ext_default_child_storage").count() == 0)
-			.filter(|f| f.name().matches("ext_logging").count() == 0)
-			.collect::<Vec<_>>();
+		let funs = sp_io::SubstrateHostFunctions::host_functions();
 
 		// TODO: https://github.com/paritytech/substrate-archive/issues/247
 		let exec = WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(128), funs, 1, None);

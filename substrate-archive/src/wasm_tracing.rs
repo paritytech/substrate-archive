@@ -336,7 +336,7 @@ mod tests {
 		);
 
 		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
-		let handler = TraceHandler::new(&TARGETS, span_events.clone());
+		let handler = TraceHandler::new(TARGETS, span_events);
 		let (spans, events, _) = handler.scoped_trace(|| {
 			executor
 				.uncached_call(

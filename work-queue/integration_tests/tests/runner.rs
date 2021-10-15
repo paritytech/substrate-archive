@@ -32,8 +32,8 @@ fn run_all_pending_jobs_returns_when_all_jobs_enqueued() -> Result<()> {
 	let handle = runner.handle();
 
 	smol::block_on(async {
-		barrier_job().enqueue(&handle).await.unwrap();
-		barrier_job().enqueue(&handle).await.unwrap();
+		barrier_job().enqueue(handle).await.unwrap();
+		barrier_job().enqueue(handle).await.unwrap();
 		runner.run_pending_tasks().unwrap();
 		assert_eq!(0, runner.job_count());
 	});
@@ -50,8 +50,8 @@ fn wait_for_all_tasks_blocks_until_all_queued_jobs_are_finished() -> Result<()> 
 
 	let handle = runner.handle();
 	smol::block_on(async {
-		barrier_job().enqueue(&handle).await?;
-		barrier_job().enqueue(&handle).await
+		barrier_job().enqueue(handle).await?;
+		barrier_job().enqueue(handle).await
 	})?;
 	runner.run_pending_tasks()?;
 	let (tx, rx) = flume::bounded(1);
@@ -85,8 +85,8 @@ fn panicking_jobs_are_caught_and_treated_as_failures() -> Result<()> {
 	let runner = TestGuard::dummy_runner();
 	let handle = runner.handle();
 	smol::block_on(async {
-		panic_job().enqueue(&handle).await?;
-		failure_job().enqueue(&handle).await
+		panic_job().enqueue(handle).await?;
+		failure_job().enqueue(handle).await
 	})?;
 	runner.run_pending_tasks()?;
 	Ok(())
@@ -101,8 +101,8 @@ fn run_all_pending_jobs_errs_if_jobs_dont_start_in_timeout() -> Result<()> {
 	let runner = TestGuard::builder(barrier.clone()).num_threads(1).timeout(Duration::from_millis(50)).build();
 
 	smol::block_on(async {
-		barrier_job().enqueue(&runner.handle()).await?;
-		barrier_job().enqueue(&runner.handle()).await
+		barrier_job().enqueue(runner.handle()).await?;
+		barrier_job().enqueue(runner.handle()).await
 	})?;
 
 	let run_result = runner.run_pending_tasks();

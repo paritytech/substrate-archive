@@ -45,6 +45,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git ="https://github.com/paritytech/substrate", branch = "master" }
 sp-storage = { git ="https://github.com/paritytech/substrate", branch = "master" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Workspace
 substrate-archive-backend = { path = '../substrate-archive-backend' }
@@ -54,7 +55,6 @@ sa-work-queue = { path = "../work-queue/sa-work-queue" }
 test-common = { path = "../test-common/" }
 sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master", package = "polkadot-service" }
 anyhow = "1"
 pretty_env_logger = "0.4.0"
