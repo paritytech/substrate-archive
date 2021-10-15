@@ -202,9 +202,9 @@ where
 	let handle = ConsumerHandle::current();
 	handle.init(conn, opts)?;
 	let mut consumer = handle.inner.borrow_mut();
-	let mut consumer = consumer.as_mut().expect("Initialized handle must be Some; qed");
+	let consumer = consumer.as_mut().expect("Initialized handle must be Some; qed");
 
-	if let Some((data, delivery)) = next_job(tx, &mut consumer) {
+	if let Some((data, delivery)) = next_job(tx, consumer) {
 		match job(data) {
 			Ok(_) => {
 				task::block_on(delivery.acker.ack(BasicAckOptions::default()))?;

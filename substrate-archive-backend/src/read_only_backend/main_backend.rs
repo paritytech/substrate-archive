@@ -94,10 +94,10 @@ impl<Block: BlockT, D: ReadOnlyDb + 'static> Backend<Block> for ReadOnlyBackend<
 		let hash = match block {
 			BlockId::Number(n) => {
 				let h = self.hash(n)?;
-				if h.is_none() {
+				if let Some(h) = h {
+					h
+				} else  {
 					return Err(BlockchainError::UnknownBlock(format!("No block found for {:?}", n)));
-				} else {
-					h.expect("Checked for some; qed")
 				}
 			}
 			BlockId::Hash(h) => h,

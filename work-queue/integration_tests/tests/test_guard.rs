@@ -94,6 +94,6 @@ impl<'a, Env> DerefMut for TestGuard<'a, Env> {
 impl<'a, Env: 'static> Drop for TestGuard<'a, Env> {
 	fn drop(&mut self) {
 		let handle = self.runner.handle();
-		handle.channel().queue_delete(handle.name().into(), Default::default()).wait().unwrap();
+		handle.channel().queue_delete(handle.name(), Default::default()).wait().unwrap();
 	}
 }

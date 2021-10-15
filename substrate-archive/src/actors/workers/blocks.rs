@@ -75,7 +75,7 @@ where
 		let now = std::time::Instant::now();
 		let (backend, cache) = (self.backend.clone(), self.rt_cache.clone());
 		let blocks = task::spawn_blocking(move || {
-			let blocks: Vec<SignedBlock<B>> = backend.iter_blocks(|n| fun(n))?.collect();
+			let blocks: Vec<SignedBlock<B>> = backend.iter_blocks(fun)?.collect();
 			if !blocks.is_empty() {
 				log::info!("Took {:?} to load {} blocks", now.elapsed(), blocks.len());
 			} else {

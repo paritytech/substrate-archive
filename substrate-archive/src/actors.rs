@@ -198,7 +198,7 @@ where
 		// messages that only need to be sent once
 		self.blocks.send(ReIndex).await?;
 		let actors = self.clone();
-		Ok(task::spawn(async move {
+		task::spawn(async move {
 			loop {
 				let fut = (
 					Box::pin(actors.blocks.send(Crawl)),
@@ -210,7 +210,8 @@ where
 				}
 			}
 		})
-		.await)
+		.await;
+		Ok(())
 	}
 }
 
