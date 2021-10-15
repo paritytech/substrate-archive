@@ -63,14 +63,14 @@ fn enqueue_8_jobs_limited_size() {
 
 	let handle = runner.handle();
 	smol::block_on(async {
-		resize_image("lightsource".to_string()).enqueue(&handle).await.unwrap();
-		resize_image("gambit".to_string()).enqueue(&handle).await.unwrap();
-		resize_image("chess".to_string()).enqueue(&handle).await.unwrap();
-		resize_image("checkers".to_string()).enqueue(&handle).await.unwrap();
-		resize_image("L".to_string()).enqueue(&handle).await.unwrap();
-		resize_image("sinks".to_string()).enqueue(&handle).await.unwrap();
-		resize_image("polkadot".to_string()).enqueue(&handle).await.unwrap();
-		resize_image("kusama".to_string()).enqueue(&handle).await.unwrap();
+		resize_image("lightsource".to_string()).enqueue(handle).await.unwrap();
+		resize_image("gambit".to_string()).enqueue(handle).await.unwrap();
+		resize_image("chess".to_string()).enqueue(handle).await.unwrap();
+		resize_image("checkers".to_string()).enqueue(handle).await.unwrap();
+		resize_image("L".to_string()).enqueue(handle).await.unwrap();
+		resize_image("sinks".to_string()).enqueue(handle).await.unwrap();
+		resize_image("polkadot".to_string()).enqueue(handle).await.unwrap();
+		resize_image("kusama".to_string()).enqueue(handle).await.unwrap();
 	});
 
 	runner.run_pending_tasks().unwrap();
@@ -85,11 +85,11 @@ fn generic_jobs_can_be_enqueued() {
 	let handle = runner.handle();
 
 	smol::block_on(async {
-		resize_image_gen("koala".to_string()).enqueue(&handle).await.unwrap();
-		resize_image_gen("cool_pic_no_2".to_string()).enqueue(&handle).await.unwrap();
-		resize_image_gen("electric".to_string()).enqueue(&handle).await.unwrap();
-		resize_image_gen("letter".to_string()).enqueue(&handle).await.unwrap();
-		resize_image_gen("L".to_string()).enqueue(&handle).await.unwrap();
+		resize_image_gen("koala".to_string()).enqueue(handle).await.unwrap();
+		resize_image_gen("cool_pic_no_2".to_string()).enqueue(handle).await.unwrap();
+		resize_image_gen("electric".to_string()).enqueue(handle).await.unwrap();
+		resize_image_gen("letter".to_string()).enqueue(handle).await.unwrap();
+		resize_image_gen("L".to_string()).enqueue(handle).await.unwrap();
 		runner.run_pending_tasks().unwrap();
 		runner.wait_for_all_tasks().unwrap();
 	});
