@@ -399,9 +399,9 @@ where
 		log::info!("Restoring {} missing storage entries.", nums.len());
 		let load: usize = config.max_block_load.try_into()?;
 		let mut block_stream = queries::blocks_paginated(&mut *conn, nums.as_slice(), load);
-		while let Some(Ok(page)) = block_stream.next().await {
+		while let Some(page) = block_stream.next().await {
 			let jobs: Vec<crate::tasks::execute_block::Job<Block, Runtime, Client, Db>> =
-				BlockModelDecoder::with_vec(page)?
+				BlockModelDecoder::with_vec(page?)?
 					.into_iter()
 					.map(|b| crate::tasks::execute_block::<Block, Runtime, Client, Db>(b.inner.block, PhantomData))
 					.collect();

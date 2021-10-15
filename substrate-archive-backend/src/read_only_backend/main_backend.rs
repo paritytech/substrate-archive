@@ -96,7 +96,7 @@ impl<Block: BlockT, D: ReadOnlyDb + 'static> Backend<Block> for ReadOnlyBackend<
 				let h = self.hash(n)?;
 				if let Some(h) = h {
 					h
-				} else  {
+				} else {
 					return Err(BlockchainError::UnknownBlock(format!("No block found for {:?}", n)));
 				}
 			}
