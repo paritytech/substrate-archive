@@ -1,7 +1,7 @@
 [chain]
 # Must be an absolute path to chain data db (no ~/)
 # Can also be specified via the `CHAIN_DATA_DB` environment variable
-data_path = "/.local/share/node-template/chains/dev/db"
+data_path = "/.local/share/node-template/chains/dev/db/full"
 
 # How much should the read-only database keep in cache (MB)
 # Optional, default: 128
@@ -22,7 +22,7 @@ block_workers = 4
 
 # Number of 64KB Heap Pages to allocate for WASM execution
 # Optional, default: 1024.
-wasm_pages = 256
+wasm_pages = 2048
 
 [database]
 # Database url.
@@ -30,7 +30,7 @@ wasm_pages = 256
 # Can also be specified via the `DATABASE_URL` environment variable.
 # For production use, using `DATABASE_URL` is preferable.
 # More info on the wiki: https://github.com/paritytech/substrate-archive/wiki/1.)-Requirements.
-url = "postgres://user:pass@localhost:5432/archive"
+url = "postgres://user:pass@localhost:5432/node-template"
 
 [log]
 # Optional log level of stdout, default: "DEBUG"
@@ -49,9 +49,8 @@ std = "DEBUG"
 #
 # Changing these may lead to unexpected results.
 [control]
-# Number of threads to dedicate for executing tasks
-# Optional, default: the number of logical system threads
-task_workers = 8
+# Whether to index storage via re-executing historical blocks.
+# storage_indexing = true
 
 # Timeout to wait for a task to start execution.
 # Optional, default: 20 seconds
