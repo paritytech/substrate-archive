@@ -17,44 +17,37 @@
 use std::{fs, path::PathBuf, borrow::Cow};
 
 use anyhow::Result;
-use structopt::StructOpt;
+use argh::FromArgs;
 
 use substrate_archive::ArchiveConfig;
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 pub type ChainSpec = sc_chain_spec::GenericChainSpec<node_template_runtime::GenesisConfig>;
 
-#[derive(Clone, StructOpt)]
-#[structopt(author, about)]
+/// Node Template Archiver for development use.
+#[derive(Clone, FromArgs)]
 pub struct CliOpts {
-	/// Sets a custom config file
-	#[structopt(short = "c", long, name = "FILE")]
+	/// sets a custom config file
+	#[argh(option, short = 'c', long = "config")]
 	pub config: Option<PathBuf>,
-	/// Sets spec for chain from a JSON file. Runs in `dev` mode by default.
-	#[structopt(short = "s", long = "spec", name = "CHAIN", parse(from_str = parse_chain_spec))]
+	/// sets spec for chain from a JSON file. Runs in `dev` mode by default.
+	#[argh(option, default = "default_chain_spec()", short = 's', long = "spec", from_str_fn(parse_chain_spec))]
 	pub chain_spec: ChainSpec,
 }
 
-impl Default for CliOpts {
-	fn default() -> Self {
-
-		let file = include_bytes!("./dev.json");
-		let file: Cow<'static, [u8]> = Cow::Borrowed(file);
-		let chain_spec: ChainSpec = ChainSpec::from_json_bytes(file).expect("Default ChainSpec `dev` could not be loaded");
-		Self {
-			config: None,
-			chain_spec,
-		}
-	}
+fn parse_chain_spec(path: &str) -> Result<ChainSpec, String> {
+	ChainSpec::from_json_file(PathBuf::from(path))
 }
 
-fn parse_chain_spec(path: &str) -> ChainSpec {
-	ChainSpec::from_json_file(PathBuf::from(path)).expect("Chain spec could not be loaded")
+fn default_chain_spec() -> ChainSpec {
+	let file = include_bytes!("./dev.json");
+	let file: Cow<'static, [u8]> = Cow::Borrowed(file);
+	ChainSpec::from_json_bytes(file).expect("Default ChainSpec `dev` could not be loaded")
 }
 
 impl CliOpts {
 	pub fn init() -> Self {
-		CliOpts::from_args()
+		argh::from_env()
 	}
 
 	pub fn parse(&self) -> Result<Option<ArchiveConfig>> {
