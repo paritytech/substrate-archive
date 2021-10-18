@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{fs, path::PathBuf, borrow::Cow};
+use std::{borrow::Cow, fs, path::PathBuf};
 
 use anyhow::Result;
 use argh::FromArgs;
