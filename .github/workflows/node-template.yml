@@ -42,4 +42,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
-          args: --manifest-path bin/node-template-archive/Cargo.toml
+          args: --bin node-template-archive
