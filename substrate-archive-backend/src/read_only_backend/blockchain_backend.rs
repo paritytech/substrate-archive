@@ -183,6 +183,7 @@ impl<Block: BlockT, D: ReadOnlyDb> HeaderBackend<Block> for ReadOnlyBackend<Bloc
 			finalized_number: meta.finalized_number,
 			finalized_state: meta.finalized_state,
 			number_leaves: 0,
+			block_gap: meta.block_gap,
 		}
 	}
 
