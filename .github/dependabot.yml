@@ -12,6 +12,7 @@ updates:
       - dependency-name: "pallet-*"
       - dependency-name: "fork-tree"
       - dependency-name: "polkadot-*"
+      - dependency-name: "node-template-*"
     schedule:
       interval: "daily"
 
