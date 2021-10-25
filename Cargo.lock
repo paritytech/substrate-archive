@@ -8130,7 +8130,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-log",
- "tracing-subscriber",
+ "tracing-subscriber 0.2.25",
 ]
 
 [[package]]
@@ -9192,7 +9192,7 @@ dependencies = [
  "sp-std",
  "tracing",
  "tracing-core",
- "tracing-subscriber",
+ "tracing-subscriber 0.2.25",
 ]
 
 [[package]]
@@ -9605,7 +9605,7 @@ dependencies = [
  "test-common",
  "thiserror",
  "tracing",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.1",
  "xtra",
 ]
 
@@ -10073,6 +10073,20 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-serde",
+]
+
+[[package]]
+name = "tracing-subscriber"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80a4ddde70311d8da398062ecf6fc2c309337de6b0f77d6c27aff8d53f6fca52"
+dependencies = [
+ "ansi_term 0.12.1",
+ "sharded-slab",
+ "smallvec",
+ "thread_local",
+ "tracing-core",
+ "tracing-log",
 ]
 
 [[package]]
