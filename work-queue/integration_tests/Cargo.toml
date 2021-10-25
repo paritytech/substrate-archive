@@ -2,7 +2,7 @@
 name = "integration_tests"
 version = "0.1.0"
 authors = ["Andrew Plaza <aplaza@liquidthink.net>"]
-edition = "2018"
+edition = "2021"
 autotests = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

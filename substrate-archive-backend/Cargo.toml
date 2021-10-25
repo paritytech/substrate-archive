@@ -2,7 +2,7 @@
 name = "substrate-archive-backend"
 version = "0.6.0"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 # External
