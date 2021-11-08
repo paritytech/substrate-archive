@@ -105,6 +105,23 @@ pub(crate) async fn get_full_block_by_number(conn: &mut sqlx::PgConnection, bloc
 	.map_err(Into::into)
 }
 
+
+/// TODO: Write test
+/// Get up to `max_block_load` extrinsics which are not present in the `extrinsics` table.
+pub(crate) async fn missing_extrinsics(conn: &mut PgConnection, max_block_load: u32) -> impl Stream<Item = Result<u32>> {
+	sqlx::query_as!(
+	r#"
+	SELECT block_num FROM blocks
+    WHERE NOT EXISTS
+		(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)
+    ORDER BY block_num
+	MAX $1
+	"#
+	).fetch(conn)
+	.map(TryInto::try_into)
+	.map_err(Into::into)
+}
+
 /// Check if the runtime version identified by `spec` exists in the relational database
 pub(crate) async fn check_if_meta_exists(spec: u32, conn: &mut PgConnection) -> Result<bool> {
 	let spec = match i32::try_from(spec) {
