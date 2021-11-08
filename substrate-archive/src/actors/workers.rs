@@ -15,6 +15,7 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 pub mod blocks;
+mod extrinsics_decoder;
 mod database;
 mod metadata;
 pub mod storage_aggregator;
@@ -23,3 +24,4 @@ pub use self::database::{DatabaseActor, GetState};
 pub use self::metadata::MetadataActor;
 pub use blocks::BlocksIndexer;
 pub use storage_aggregator::StorageAggregator;
+pub use extrinsics_decoder::ExtrinsicsDecoder;
