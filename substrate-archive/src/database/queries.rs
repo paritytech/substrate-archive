@@ -105,19 +105,23 @@ pub(crate) async fn get_full_block_by_number(conn: &mut sqlx::PgConnection, bloc
 	.map_err(Into::into)
 }
 
-
 /// TODO: Write test
 /// Get up to `max_block_load` extrinsics which are not present in the `extrinsics` table.
-pub(crate) async fn missing_extrinsics(conn: &mut PgConnection, max_block_load: u32) -> impl Stream<Item = Result<u32>> {
+pub(crate) async fn missing_extrinsic_blocks(
+	conn: &mut PgConnection,
+	max_block_load: u32,
+) -> impl Stream<Item = Result<u32>> {
 	sqlx::query_as!(
-	r#"
-	SELECT block_num FROM blocks
-    WHERE NOT EXISTS
-		(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)
-    ORDER BY block_num
-	MAX $1
-	"#
-	).fetch(conn)
+		BlockNum,
+		"
+		SELECT block_num FROM blocks
+		WHERE NOT EXISTS
+			(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)
+		ORDER BY block_num
+		LIMIT $1
+		"
+	)
+	.fetch(conn)
 	.map(TryInto::try_into)
 	.map_err(Into::into)
 }
@@ -216,7 +220,7 @@ mod tests {
 	use super::*;
 	use crate::{
 		database::{
-			models::{BlockModelDecoder, StorageModel},
+			models::{BlockModelDecoder, ExtrinsicsModel, StorageModel},
 			Database,
 		},
 		types::BatchBlock,
@@ -236,6 +240,7 @@ mod tests {
 
 	// Setup a data scheme such that:
 	// - blocks 0 - 200 will be missing from the `storage` table
+	// - blocks 0-400 will be missing from the `extrinsics` table
 	// - all blocks will be present in the `blocks` table
 	async fn setup_data_scheme() -> Result<PoolConnection<Postgres>, Error> {
 		let mock_bytes: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF];

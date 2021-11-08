@@ -23,7 +23,8 @@ use std::{convert::TryInto, marker::PhantomData};
 use chrono::{DateTime, Utc};
 use codec::{Decode, Encode, Error as DecodeError};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgConnection, Postgres};
+use serde_json::Value;
+use sqlx::{FromRow, PgConnection, Postgres, types::Json};
 
 use sp_runtime::{
 	generic::SignedBlock,
@@ -134,6 +135,14 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 	fn from(original: BatchStorage<Hash>) -> Vec<StorageModel<Hash>> {
 		original.inner.into_iter().flat_map(Vec::<StorageModel<Hash>>::from).collect()
 	}
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct ExtrinsicsModel {
+	id: i32,
+	hash: Vec<u8>,
+	number: i32,
+	extrinsics: Vec<Json<Value>>
 }
 
 /// Config that is stored/restored in Postgres on every run.

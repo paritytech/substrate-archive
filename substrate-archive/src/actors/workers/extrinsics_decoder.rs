@@ -18,6 +18,7 @@ use xtra::prelude::*;
 use crate::{
 	actors::workers::database::{DatabaseActor, GetState},
 	database::{queries, DbConn},
+	error::Result
 };
 
 pub struct ExtrinsicsDecoder {
@@ -27,8 +28,8 @@ pub struct ExtrinsicsDecoder {
 }
 
 impl ExtrinsicsDecoder {
-	pub fn new(max_block_load: u32, addr: Address<DatabaseActor>) -> Result<Self> {
-		let db = addr.send(GetState::Conn).await??.conn();
+	pub async fn new(max_block_load: u32, addr: Address<DatabaseActor>) -> Result<Self> {
+		let conn = addr.send(GetState::Conn).await??.conn();
 		Ok(Self { conn, addr, max_block_load })
 	}
 
