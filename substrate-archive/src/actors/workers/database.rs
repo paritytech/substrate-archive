@@ -24,7 +24,7 @@ use xtra::prelude::*;
 use crate::{
 	database::{models::StorageModel, queries, Database, DbConn},
 	error::Result,
-	types::{BatchBlock, BatchStorage, Block, Metadata, Storage},
+	types::{BatchBlock, BatchExtrinsics, BatchStorage, Block, Metadata, Storage},
 	wasm_tracing::Traces,
 };
 
@@ -201,6 +201,17 @@ impl Handler<Traces> for DatabaseActor {
 			log::error!("{}", e.to_string());
 		}
 		log::debug!("took {:?} to insert traces", now.elapsed());
+	}
+}
+
+#[async_trait::async_trait]
+impl Handler<BatchExtrinsics> for DatabaseActor {
+	async fn handle(&mut self, extrinsics: BatchExtrinsics, _: &mut Context<Self>) {
+		let now = std::time::Instant::now();
+		if let Err(e) = self.db.insert(extrinsics.inner()).await {
+			log::error!("{}", e.to_string());
+		}
+		log::debug!("took {:?} to insert extrinsics", now.elapsed());
 	}
 }
 

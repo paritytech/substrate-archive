@@ -19,7 +19,7 @@
 use std::convert::TryFrom;
 
 use async_stream::try_stream;
-use futures::Stream;
+use futures::{Stream, StreamExt, TryStreamExt};
 use hashbrown::HashSet;
 use sqlx::PgConnection;
 
@@ -48,6 +48,19 @@ struct DoesExist {
 // Return type of queries that `SELECT block_num`
 struct BlockNum {
 	block_num: i32,
+}
+
+// Return type of queries that `SELECT block_num, ext`
+struct BlockExtrinsics {
+	block_num: i32,
+	hash: Vec<u8>,
+	ext: Vec<u8>,
+	spec: i32,
+}
+
+/// Return type of queries that `SELECT meta`
+struct Meta {
+	pub meta: Vec<u8>,
 }
 
 /// Get missing blocks from the relational database between numbers `min` and
@@ -105,25 +118,33 @@ pub(crate) async fn get_full_block_by_number(conn: &mut sqlx::PgConnection, bloc
 	.map_err(Into::into)
 }
 
-/// TODO: Write test
 /// Get up to `max_block_load` extrinsics which are not present in the `extrinsics` table.
 pub(crate) async fn missing_extrinsic_blocks(
 	conn: &mut PgConnection,
 	max_block_load: u32,
-) -> impl Stream<Item = Result<u32>> {
+) -> impl Stream<Item = Result<(u32, Vec<u8>, Vec<u8>, u32)>> + '_ {
 	sqlx::query_as!(
-		BlockNum,
+		BlockExtrinsics,
 		"
-		SELECT block_num FROM blocks
+		SELECT block_num, hash, ext, spec FROM blocks
 		WHERE NOT EXISTS
 			(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)
 		ORDER BY block_num
 		LIMIT $1
-		"
+		",
+		i64::from(max_block_load)
 	)
 	.fetch(conn)
-	.map(TryInto::try_into)
+	.map(|b| (b.map(|b| (b.block_num as u32, b.hash, b.ext, b.spec as u32))))
 	.map_err(Into::into)
+}
+
+pub async fn metadata(conn: &mut PgConnection, spec: i32) -> Result<Vec<u8>> {
+	sqlx::query_as!(Meta, "SELECT meta FROM metadata WHERE version = $1", spec)
+		.fetch_one(conn)
+		.await
+		.map_err(Into::into)
+		.map(|m| m.meta)
 }
 
 /// Check if the runtime version identified by `spec` exists in the relational database
