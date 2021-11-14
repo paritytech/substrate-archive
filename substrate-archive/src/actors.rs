@@ -199,6 +199,7 @@ where
 		self.blocks.send(ReIndex).await?;
 		let actors = self.clone();
 		task::spawn(async move {
+			let _ = &actors;
 			loop {
 				let fut = (
 					Box::pin(actors.blocks.send(Crawl)),
