@@ -23,8 +23,6 @@ use std::{
 	str::FromStr,
 	sync::Arc,
 };
-
-use futures::{future::BoxFuture, task::SpawnExt};
 use serde::Deserialize;
 
 use sc_client_api::{
@@ -155,6 +153,7 @@ pub fn runtime_api<Block, Runtime, D: ReadOnlyDb + 'static>(
 	config: RuntimeConfig,
 	backend: Arc<ReadOnlyBackend<Block, D>>,
 	host_functions: Option<Vec<&'static dyn Function>>,
+	task_executor: impl SpawnNamed + 'static,
 ) -> Result<TArchiveClient<Block, Runtime, D>, BackendError>
 where
 	Block: BlockT,
@@ -172,37 +171,9 @@ where
 	let executor =
 		WasmExecutor::new(config.exec_method.into(), config.wasm_pages, host_functions, config.block_workers, None);
 	let executor =
-		LocalCallExecutor::new(backend.clone(), executor, Box::new(TaskExecutor::new()), config.try_into()?)?;
+		LocalCallExecutor::new(backend.clone(), executor, Box::new(task_executor), config.try_into()?)?;
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None, None))?;
 	Ok(client)
-}
-
-#[derive(Clone, Debug)]
-struct TaskExecutor {
-	pool: futures::executor::ThreadPool,
-}
-
-impl TaskExecutor {
-	fn new() -> Self {
-		let pool = futures::executor::ThreadPool::builder().pool_size(1).create().unwrap();
-		Self { pool }
-	}
-}
-
-impl futures::task::Spawn for TaskExecutor {
-	fn spawn_obj(&self, future: futures::task::FutureObj<'static, ()>) -> Result<(), futures::task::SpawnError> {
-		self.pool.spawn_obj(future)
-	}
-}
-
-impl SpawnNamed for TaskExecutor {
-	fn spawn_blocking(&self, _: &'static str, fut: BoxFuture<'static, ()>) {
-		let _ = self.pool.spawn(fut);
-	}
-
-	fn spawn(&self, _: &'static str, fut: BoxFuture<'static, ()>) {
-		let _ = self.pool.spawn(fut);
-	}
 }
 
 fn execution_strategies() -> ExecutionStrategies {

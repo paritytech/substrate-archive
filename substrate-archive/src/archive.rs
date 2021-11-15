@@ -368,10 +368,11 @@ where
 
 		// configure substrate client and backend
 		let backend = Arc::new(ReadOnlyBackend::new(db, true, self.config.runtime.storage_mode));
-		let client = Arc::new(runtime_api::<Block, Runtime, Db>(
+		let client = Arc::new(runtime_api(
 			self.config.runtime.clone(),
 			backend.clone(),
 			self.host_functions,
+			crate::tasks::TaskExecutor,
 		)?);
 		let rt = Self::startup_info(&*client, &*backend)?;
 

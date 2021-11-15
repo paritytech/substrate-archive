@@ -16,13 +16,11 @@
 
 //! Implements Blockchain Backend (and required associated traits) for ReadOnlyBackend type
 
-use std::sync::Arc;
-
 use codec::{Decode, Encode};
 
 use sc_service::TransactionStorageMode;
 use sp_blockchain::{
-	Backend as BlockchainBackend, BlockStatus, Cache, CachedHeaderMetadata, Error as BlockchainError, HeaderBackend,
+	Backend as BlockchainBackend, BlockStatus, CachedHeaderMetadata, Error as BlockchainError, HeaderBackend,
 	HeaderMetadata, Info,
 };
 use sp_runtime::{
@@ -105,11 +103,6 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<
 
 	fn last_finalized(&self) -> ChainResult<Block::Hash> {
 		Ok(util::read_meta::<Block, D>(&*self.db, columns::HEADER)?.finalized_hash)
-	}
-
-	// no cache for Read Only Backend (yet)
-	fn cache(&self) -> Option<Arc<dyn Cache<Block>>> {
-		None
 	}
 
 	/// Returns hashes of all blocks that are leaves of the block tree.
