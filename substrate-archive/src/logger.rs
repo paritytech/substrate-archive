@@ -78,6 +78,7 @@ pub fn init(config: LoggerConfig) -> io::Result<()> {
 		.level_for("header", log::LevelFilter::Warn)
 		.level_for("frame_executive", log::LevelFilter::Error)
 		.level_for("regalloc", log::LevelFilter::Warn)
+		.level_for("desub_legacy", log::LevelFilter::Warn)
 		.format(move |out, message, record| {
 			out.finish(format_args!(
 				"{} {} {}",

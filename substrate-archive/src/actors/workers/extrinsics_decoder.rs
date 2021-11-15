@@ -88,7 +88,7 @@ impl Handler<Index> for ExtrinsicsDecoder {
 		match self.crawl_missing_extrinsics().await {
 			Err(ArchiveError::Disconnected) => ctx.stop(),
 			Ok(_) => {}
-			Err(e) => log::error!("{}", e),
+			Err(e) => log::error!("{:?}", e),
 		}
 	}
 }
