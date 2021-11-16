@@ -79,6 +79,11 @@ pub enum ArchiveError {
 
 	#[error("{0}")]
 	Msg(String),
+	#[error("Expected chain {expected} got {got}")]
+	MismatchedSpecName { expected: String, got: String },
+
+	#[error(transparent)]
+	Desub(#[from] desub::Error),
 }
 
 #[derive(Error, Debug)]

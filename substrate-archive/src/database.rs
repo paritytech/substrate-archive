@@ -37,6 +37,7 @@ use sqlx::{
 	Connection,
 };
 
+use sc_executor::RuntimeVersion;
 use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
 use self::batch::Batch;
@@ -48,10 +49,12 @@ use crate::{
 };
 
 /// Run all the migrations.
-pub async fn migrate<T: AsRef<str>>(url: T) -> Result<()> {
+pub async fn setup<T: AsRef<str>>(url: T, version: RuntimeVersion) -> Result<PersistentConfig> {
 	let mut conn = PgConnection::connect(url.as_ref()).await?;
+	let persistent_config = PersistentConfig::fetch_and_update(&mut conn, version).await?;
+
 	sqlx::migrate!("./src/migrations/").run(&mut conn).await?;
-	Ok(())
+	Ok(persistent_config)
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -405,6 +408,38 @@ impl Insert for Traces {
 			batch.append(")");
 		}
 
+		Ok(batch.execute(conn).await?)
+	}
+}
+
+#[async_trait::async_trait]
+impl Insert for Vec<ExtrinsicsModel> {
+	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
+		let mut batch = Batch::new(
+			"extrinsisc",
+			r#"
+			INSERT INTO "extrinsics" (
+				hash, number, extrinsics
+			) VALUES
+			"#,
+			r#"
+			ON CONFLICT DO NOTHING
+			"#,
+		);
+
+		for extrinsic in self.into_iter() {
+			batch.reserve(3)?;
+			if batch.current_num_arguments() > 0 {
+				batch.append(",");
+			}
+			batch.append("(");
+			batch.bind(extrinsic.hash)?;
+			batch.append(",");
+			batch.bind(extrinsic.number)?;
+			batch.append(",");
+			batch.bind(extrinsic.extrinsics)?;
+			batch.append(")");
+		}
 		Ok(batch.execute(conn).await?)
 	}
 }

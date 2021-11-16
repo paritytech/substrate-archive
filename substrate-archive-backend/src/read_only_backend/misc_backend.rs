@@ -26,10 +26,10 @@ use sp_blockchain::{well_known_cache_keys::Id, Error as BlockchainError};
 use sp_core::offchain::OffchainStorage;
 use sp_runtime::{
 	generic::BlockId,
-	traits::{Block as BlockT, HashFor, NumberFor},
+	traits::Block as BlockT,
 	Justification, Justifications,
 };
-use sp_state_machine::{ChangesTrieTransaction, ChildStorageCollection, IndexOperation, StorageCollection};
+use sp_state_machine::{ChildStorageCollection, IndexOperation, StorageCollection};
 use sp_storage::Storage;
 
 use crate::{database::ReadOnlyDb, read_only_backend::ReadOnlyBackend, util::columns};
@@ -83,14 +83,6 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockImportOperation<Block> for RealBlockImpo
 
 	fn update_storage(&mut self, _update: StorageCollection, _child_update: ChildStorageCollection) -> ChainResult<()> {
 		log::warn!("Cannot modify storage of a read only backend. Storage not updated.");
-		Ok(())
-	}
-
-	fn update_changes_trie(
-		&mut self,
-		_update: ChangesTrieTransaction<HashFor<Block>, NumberFor<Block>>,
-	) -> ChainResult<()> {
-		log::warn!("Cannot modify storage of a read only backend. Changes Trie not updated.");
 		Ok(())
 	}
 
