@@ -43,7 +43,7 @@ jobs:
         uses: actions-rs/toolchain@v1.0.7
         with:
           profile: minimal
-          toolchain: nightly-2021-07-05
+          toolchain: nightly
           target: wasm32-unknown-unknown
           override: true
 
