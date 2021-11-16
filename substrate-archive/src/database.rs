@@ -416,7 +416,7 @@ impl Insert for Traces {
 impl Insert for Vec<ExtrinsicsModel> {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
 		let mut batch = Batch::new(
-			"extrinsisc",
+			"extrinsic",
 			r#"
 			INSERT INTO "extrinsics" (
 				hash, number, extrinsics
