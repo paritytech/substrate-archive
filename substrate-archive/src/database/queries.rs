@@ -16,10 +16,9 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
-use std::convert::TryFrom;
-
+use std::collections::HashMap;
 use async_stream::try_stream;
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::Stream;
 use hashbrown::HashSet;
 use sqlx::PgConnection;
 
@@ -61,6 +60,11 @@ struct BlockExtrinsics {
 /// Return type of queries that `SELECT meta`
 struct Meta {
 	pub meta: Vec<u8>,
+}
+
+struct BlockNumSpec {
+	block_num: i32,
+	spec: i32,
 }
 
 /// Get missing blocks from the relational database between numbers `min` and
@@ -118,25 +122,30 @@ pub(crate) async fn get_full_block_by_number(conn: &mut sqlx::PgConnection, bloc
 	.map_err(Into::into)
 }
 
+
 /// Get up to `max_block_load` extrinsics which are not present in the `extrinsics` table.
 pub(crate) async fn missing_extrinsic_blocks(
 	conn: &mut PgConnection,
 	max_block_load: u32,
-) -> impl Stream<Item = Result<(u32, Vec<u8>, Vec<u8>, u32)>> + '_ {
-	sqlx::query_as!(
+) -> Result<Vec<(u32, Vec<u8>, Vec<u8>, u32)>> {
+	let blocks = sqlx::query_as!(
 		BlockExtrinsics,
 		"
 		SELECT block_num, hash, ext, spec FROM blocks
 		WHERE NOT EXISTS
 			(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)
-		ORDER BY block_num
+		ORDER BY block_num ASC
 		LIMIT $1
 		",
 		i64::from(max_block_load)
 	)
-	.fetch(conn)
-	.map(|b| (b.map(|b| (b.block_num as u32, b.hash, b.ext, b.spec as u32))))
-	.map_err(Into::into)
+	.fetch_all(conn)
+	.await?
+	.into_iter()
+	.map(|b| (b.block_num as u32, b.hash, b.ext, b.spec as u32))
+	.collect();
+
+	Ok(blocks)
 }
 
 pub async fn metadata(conn: &mut PgConnection, spec: i32) -> Result<Vec<u8>> {
@@ -236,12 +245,34 @@ pub(crate) fn blocks_paginated<'a>(
 	})
 }
 
+/// Get upgrade blocks starting from a spec
+pub(crate) async fn upgrade_blocks_from_spec(conn: &mut sqlx::PgConnection, from: u32) -> Result<HashMap<u32, u32>> {
+	let from = i32::try_from(from)?;
+	let blocks = sqlx::query_as!(
+		BlockNumSpec,
+		r#"
+			SELECT DISTINCT ON (spec) spec, block_num
+			FROM blocks
+			WHERE blocks.spec >= $1
+			ORDER BY spec, block_num ASC
+		"#,
+		from
+	)
+	.fetch_all(conn)
+	.await?
+	.into_iter()
+	.map(|u| (u.block_num as u32, u.spec as u32))
+	.collect::<HashMap<u32, u32>>();
+
+	Ok(blocks)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::{
 		database::{
-			models::{BlockModelDecoder, ExtrinsicsModel, StorageModel},
+			models::{BlockModelDecoder, StorageModel},
 			Database,
 		},
 		types::BatchBlock,

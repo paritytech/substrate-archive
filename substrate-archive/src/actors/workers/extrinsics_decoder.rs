@@ -13,9 +13,10 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-use futures::StreamExt;
-use serde_json::Value;
+use arc_swap::ArcSwap;
+use async_std::task;
 use sqlx::PgPool;
+use std::{collections::HashMap, sync::Arc};
 use xtra::prelude::*;
 
 use desub::Decoder;
@@ -25,7 +26,7 @@ use crate::{
 		workers::database::{DatabaseActor, GetState},
 		SystemConfig,
 	},
-	database::{models::ExtrinsicsModel, queries, DbConn},
+	database::{models::ExtrinsicsModel, queries},
 	error::{ArchiveError, Result},
 	types::BatchExtrinsics,
 };
@@ -34,7 +35,9 @@ pub struct ExtrinsicsDecoder {
 	pool: PgPool,
 	addr: Address<DatabaseActor>,
 	max_block_load: u32,
-	decoder: Decoder,
+	decoder: Arc<Decoder>,
+	/// Hashmap of spec version -> number of block that upgrades to that spec version
+	upgrades: ArcSwap<HashMap<u32, u32>>,
 }
 
 impl ExtrinsicsDecoder {
@@ -45,32 +48,69 @@ impl ExtrinsicsDecoder {
 		let max_block_load = config.control.max_block_load;
 		let chain = config.persistent_config.chain();
 		let pool = addr.send(GetState::Pool).await??.pool();
-		let decoder = Decoder::new(chain);
-		Ok(Self { pool, addr, max_block_load, decoder })
+		let decoder = Arc::new(Decoder::new(chain));
+		let mut conn = pool.acquire().await?;
+		let upgrades = ArcSwap::from_pointee(queries::upgrade_blocks_from_spec(&mut conn, 0).await?);
+		Ok(Self { pool, addr, max_block_load, decoder, upgrades })
 	}
 
 	async fn crawl_missing_extrinsics(&mut self) -> Result<()> {
 		let mut conn = self.pool.acquire().await?;
-		let mut stream = queries::missing_extrinsic_blocks(&mut conn, self.max_block_load).await;
+		let blocks = queries::missing_extrinsic_blocks(&mut conn, self.max_block_load).await?;
 
-		let mut extrinsics = Vec::new();
-		let mut inner_conn = self.pool.acquire().await?;
-		while let Some(Ok((number, hash, ext, spec))) = stream.next().await {
-			let ext = self.decode(number, ext.as_slice(), spec, &mut inner_conn).await?;
-			extrinsics.push(ExtrinsicsModel::new(hash, number, ext)?);
+		let versions: Vec<u32> =
+			blocks.iter().filter(|b| self.decoder.has_version(&b.3)).map(|(_, _, _, v)| *v).collect();
+		// above and below line are separate to let immutable ref to `self.decoder` to go out of scope.
+		for version in versions.iter() {
+			let metadata = queries::metadata(&mut conn, *version as i32).await?;
+			// TODO: FIX EXPECT
+			Arc::get_mut(&mut self.decoder)
+				.expect("Actors guarantee one reference; qed")
+				.register_version(*version, &metadata)?;
 		}
+
+		if self.upgrades.load().iter().max_by(|a, b| a.1.cmp(b.1)).map(|(_, v)| v)
+			< blocks.iter().map(|&(_, _, _, v)| v).max().as_ref()
+		{
+			self.update_upgrade_blocks().await?;
+		}
+
+		let decoder = self.decoder.clone();
+		let upgrades = self.upgrades.load().clone();
+		let extrinsics =
+			task::spawn_blocking(move || Ok::<_, ArchiveError>(Self::decode(&decoder, blocks, &upgrades))).await??;
+
 		self.addr.send(BatchExtrinsics::new(extrinsics)).await?;
 		Ok(())
 	}
 
-	async fn decode(&mut self, _number: u32, ext: &[u8], spec: u32, conn: &mut DbConn) -> Result<Value> {
-		if self.decoder.has_version(&spec) {
-			self.decoder.decode_extrinsics(spec, ext).map_err(Into::into)
-		} else {
-			let metadata = queries::metadata(conn, spec as i32).await?;
-			self.decoder.register_version(spec, metadata.as_slice())?;
-			self.decoder.decode_extrinsics(spec, ext).map_err(Into::into)
+	fn decode(
+		decoder: &Decoder,
+		blocks: Vec<(u32, Vec<u8>, Vec<u8>, u32)>,
+		upgrades: &HashMap<u32, u32>,
+	) -> Result<Vec<ExtrinsicsModel>> {
+		let mut extrinsics = Vec::new();
+		for (number, hash, ext, spec) in blocks.into_iter() {
+			if upgrades.get(&number).is_some() {
+				todo!()
+			} else {
+				let ext = decoder.decode_extrinsics(spec, ext.as_slice())?;
+				extrinsics.push(ExtrinsicsModel::new(hash, number, ext)?);
+			}
 		}
+		Ok(extrinsics)
+	}
+
+	async fn update_upgrade_blocks(&self) -> Result<()> {
+		let max_spec = *self.upgrades.load().iter().max_by(|a, b| a.1.cmp(b.1)).map(|(k, _)| k).unwrap_or(&0);
+		let mut conn = self.pool.acquire().await?;
+		let upgrade_blocks = queries::upgrade_blocks_from_spec(&mut conn, max_spec).await?;
+		self.upgrades.rcu(move |upgrades| {
+			let mut upgrades = HashMap::clone(upgrades);
+			upgrades.extend(upgrade_blocks.iter());
+			upgrades
+		});
+		Ok(())
 	}
 }
 

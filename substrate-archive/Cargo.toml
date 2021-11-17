@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 # external
 async-trait = "0.1"
+arc-swap = "1.4.0"
 chrono = "0.4.19"
 dirs = { version = "3", package = "directories" }
 fdlimit = "0.2"

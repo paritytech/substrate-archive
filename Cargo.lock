@@ -9927,6 +9927,7 @@ name = "substrate-archive"
 version = "0.6.0"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "async-std",
  "async-stream",
  "async-trait",
