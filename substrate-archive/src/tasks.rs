@@ -196,8 +196,7 @@ where
 			api.execute_block(&id, block).map_err(ArchiveError::from)
 		})?;
 
-		let changes =
-			api.into_storage_changes(&state, parent_hash).map_err(ArchiveError::ConvertStorageChanges)?;
+		let changes = api.into_storage_changes(&state, parent_hash).map_err(ArchiveError::ConvertStorageChanges)?;
 
 		let changes = BlockChanges {
 			storage_changes: changes.main_storage_changes,

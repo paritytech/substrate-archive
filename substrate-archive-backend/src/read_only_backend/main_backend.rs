@@ -18,10 +18,7 @@
 
 use std::marker::PhantomData;
 
-use sc_client_api::{
-	backend::Backend,
-	client::UsageInfo,
-};
+use sc_client_api::{backend::Backend, client::UsageInfo};
 use sp_blockchain::{Error as BlockchainError, HeaderBackend as _};
 use sp_runtime::{
 	generic::BlockId,

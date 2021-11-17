@@ -16,6 +16,7 @@
 
 mod client;
 
+use serde::Deserialize;
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
@@ -23,7 +24,6 @@ use std::{
 	str::FromStr,
 	sync::Arc,
 };
-use serde::Deserialize;
 
 use sc_client_api::{
 	execution_extensions::{ExecutionExtensions, ExecutionStrategies},
@@ -170,8 +170,7 @@ where
 
 	let executor =
 		WasmExecutor::new(config.exec_method.into(), config.wasm_pages, host_functions, config.block_workers, None);
-	let executor =
-		LocalCallExecutor::new(backend.clone(), executor, Box::new(task_executor), config.try_into()?)?;
+	let executor = LocalCallExecutor::new(backend.clone(), executor, Box::new(task_executor), config.try_into()?)?;
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None, None))?;
 	Ok(client)
 }

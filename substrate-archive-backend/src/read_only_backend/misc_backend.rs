@@ -24,11 +24,7 @@ use std::marker::PhantomData;
 use sc_client_api::backend::{AuxStore, BlockImportOperation, NewBlockState, TransactionForSB};
 use sp_blockchain::{well_known_cache_keys::Id, Error as BlockchainError};
 use sp_core::offchain::OffchainStorage;
-use sp_runtime::{
-	generic::BlockId,
-	traits::Block as BlockT,
-	Justification, Justifications,
-};
+use sp_runtime::{generic::BlockId, traits::Block as BlockT, Justification, Justifications};
 use sp_state_machine::{ChildStorageCollection, IndexOperation, StorageCollection};
 use sp_storage::Storage;
 
