@@ -38,7 +38,7 @@ use sqlx::{
 };
 
 use sc_executor::RuntimeVersion;
-use sp_runtime::traits::{Block as BlockT, Hash, Header as _, NumberFor};
+use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
 use self::batch::Batch;
 pub use self::{listener::*, models::*};
@@ -56,7 +56,7 @@ pub async fn setup<T, H>(
 ) -> Result<PersistentConfig>
 where
 	T: AsRef<str>,
-	H: Hash + AsRef<[u8]>
+	H: AsRef<[u8]>
 {
 	let mut conn = PgConnection::connect(url.as_ref()).await?;
 	let persistent_config = PersistentConfig::fetch_and_update(&mut conn, version, genesis).await?;

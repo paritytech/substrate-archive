@@ -30,7 +30,7 @@ use desub::Chain;
 use sc_executor::RuntimeVersion;
 use sp_runtime::{
 	generic::SignedBlock,
-	traits::{Block as BlockT, Hash as HashT, Header as HeaderT},
+	traits::{Block as BlockT, Header as HeaderT},
 };
 use sp_storage::{StorageData, StorageKey};
 
@@ -181,12 +181,19 @@ pub struct PersistentConfig {
 	/// The chain data this db is populated with
 	pub chain: String,
 	/// The genesis hash of the network the db is populated with.
-	pub genesis_hash: Vec<u8>
+	pub genesis_hash: Vec<u8>,
 }
 
 impl PersistentConfig {
 	/// Get the config and update it if it exists. If not initialize config and return it.
-	pub async fn fetch_and_update<H: HashT + AsRef<[u8]>>(conn: &mut PgConnection, version: RuntimeVersion, genesis: H) -> Result<Self> {
+	pub async fn fetch_and_update<H>(
+		conn: &mut PgConnection,
+		version: RuntimeVersion,
+		genesis: H,
+	) -> Result<Self>
+	where
+		H: AsRef<[u8]>
+	{
 		#[derive(FromRow)]
 		struct DbName {
 			current_database: String,
@@ -235,7 +242,16 @@ impl PersistentConfig {
 			.await?
 			.id;
 
-			Ok(Self { id, task_queue, last_run, major, minor, patch, chain: running_chain, genesis_hash: genesis.as_ref().to_vec() })
+			Ok(Self {
+				id,
+				task_queue,
+				last_run,
+				major,
+				minor,
+				patch,
+				chain: running_chain,
+				genesis_hash: genesis.as_ref().to_vec(),
+			})
 		} else {
 			let stored_chain = sqlx::query_as::<Postgres, StoredChain>("SELECT chain FROM _sa_config")
 				.fetch_one(&mut *conn)

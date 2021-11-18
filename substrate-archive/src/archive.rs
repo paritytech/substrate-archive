@@ -27,7 +27,7 @@ use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_blockchain::{Backend as BlockchainBackend, HeaderBackend};
 use sp_runtime::{
 	generic::BlockId,
-	traits::{BlakeTwo256, Block as BlockT, Hash, NumberFor},
+	traits::{BlakeTwo256, Block as BlockT, NumberFor},
 };
 use sp_wasm_interface::Function;
 
@@ -332,7 +332,7 @@ where
 		+ 'static,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 	NumberFor<Block>: Into<u32> + From<u32> + Unpin,
-	Block::Hash: Unpin + std::str::FromStr + Hash,
+	Block::Hash: Unpin + std::str::FromStr + AsRef<[u8]>,
 	Block::Header: serde::de::DeserializeOwned,
 {
 	/// Build this instance of the Archiver.

@@ -165,9 +165,7 @@ impl<Block: BlockT, D: ReadOnlyDb> HeaderBackend<Block> for ReadOnlyBackend<Bloc
 	}
 
 	fn info(&self) -> Info<Block> {
-		// TODO: Remove expect
 		let meta = util::read_meta::<Block, D>(&*self.db, columns::HEADER).expect("Metadata could not be read");
-		log::warn!("Leaves are not counted on the Read Only Backend!");
 		Info {
 			best_hash: meta.best_hash,
 			best_number: meta.best_number,
