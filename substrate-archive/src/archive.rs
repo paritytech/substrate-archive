@@ -24,10 +24,10 @@ use sc_client_api::backend as api_backend;
 use sc_executor::RuntimeVersion;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_blockchain::Backend as BlockchainBackend;
+use sp_blockchain::{Backend as BlockchainBackend, HeaderBackend};
 use sp_runtime::{
 	generic::BlockId,
-	traits::{BlakeTwo256, Block as BlockT, NumberFor},
+	traits::{BlakeTwo256, Block as BlockT, Hash, NumberFor},
 };
 use sp_wasm_interface::Function;
 
@@ -332,7 +332,7 @@ where
 		+ 'static,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 	NumberFor<Block>: Into<u32> + From<u32> + Unpin,
-	Block::Hash: Unpin + std::str::FromStr,
+	Block::Hash: Unpin + std::str::FromStr + Hash,
 	Block::Header: serde::de::DeserializeOwned,
 {
 	/// Build this instance of the Archiver.
@@ -374,7 +374,7 @@ where
 			self.host_functions,
 			crate::tasks::TaskExecutor,
 		)?);
-		let rt = Self::startup_info(&*client, &*backend)?;
+		let (rt, genesis_hash) = Self::startup_info(&*client, &*backend)?;
 
 		// config postgres database
 		const DATABASE_URL: &str = "DATABASE_URL";
@@ -383,7 +383,7 @@ where
 			.database
 			.map(|config| config.url)
 			.unwrap_or_else(|| env::var(DATABASE_URL).expect("missing DATABASE_URL"));
-		let persistent_config = task::block_on(database::setup(&pg_url, rt))?;
+		let persistent_config = task::block_on(database::setup(&pg_url, rt, genesis_hash))?;
 
 		// config actor system
 		let config = SystemConfig::new(
@@ -400,11 +400,13 @@ where
 	}
 
 	/// Log some general startup info
+	/// return RuntimeVersion and Genesis Hash information.
 	fn startup_info(
 		client: &TArchiveClient<Block, Runtime, Db>,
 		backend: &ReadOnlyBackend<Block, Db>,
-	) -> Result<RuntimeVersion> {
+	) -> Result<(RuntimeVersion, Block::Hash)> {
 		let last_finalized_block = backend.last_finalized()?;
+		let genesis_hash = backend.info().genesis_hash;
 		let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
 		log::info!(
             "Running archive for 🔗 `{}`, implementation `{}`. Latest known runtime version: {}. Latest finalized block {} 🛡️",
@@ -425,7 +427,7 @@ where
 				);
 			}
 		}
-		Ok(rt)
+		Ok((rt, genesis_hash))
 	}
 }
 

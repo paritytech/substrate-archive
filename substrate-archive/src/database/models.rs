@@ -30,7 +30,7 @@ use desub::Chain;
 use sc_executor::RuntimeVersion;
 use sp_runtime::{
 	generic::SignedBlock,
-	traits::{Block as BlockT, Header as HeaderT},
+	traits::{Block as BlockT, Hash as HashT, Header as HeaderT},
 };
 use sp_storage::{StorageData, StorageKey};
 
@@ -180,11 +180,13 @@ pub struct PersistentConfig {
 	pub patch: i32,
 	/// The chain data this db is populated with
 	pub chain: String,
+	/// The genesis hash of the network the db is populated with.
+	pub genesis_hash: Vec<u8>
 }
 
 impl PersistentConfig {
 	/// Get the config and update it if it exists. If not initialize config and return it.
-	pub async fn fetch_and_update(conn: &mut PgConnection, version: RuntimeVersion) -> Result<Self> {
+	pub async fn fetch_and_update<H: HashT + AsRef<[u8]>>(conn: &mut PgConnection, version: RuntimeVersion, genesis: H) -> Result<Self> {
 		#[derive(FromRow)]
 		struct DbName {
 			current_database: String,
@@ -220,7 +222,7 @@ impl PersistentConfig {
 			// instances of archive for different chains.
 			task_queue.push_str(&format!("-queue-{}", Utc::now().timestamp()));
 			let id = sqlx::query_as::<Postgres, Id>(
-				r#"INSERT INTO _sa_config (task_queue, last_run, major, minor, patch, chain) VALUES($1, $2, $3, $4, $5, $6) RETURNING id"#,
+				r#"INSERT INTO _sa_config (task_queue, last_run, major, minor, patch, chain, genesis_hash) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id"#,
 			)
 			.bind(&task_queue)
 			.bind(last_run)
@@ -228,11 +230,12 @@ impl PersistentConfig {
 			.bind(minor)
 			.bind(patch)
 			.bind(&running_chain)
+			.bind(&genesis.as_ref())
 			.fetch_one(&mut *conn)
 			.await?
 			.id;
 
-			Ok(Self { id, task_queue, last_run, major, minor, patch, chain: running_chain })
+			Ok(Self { id, task_queue, last_run, major, minor, patch, chain: running_chain, genesis_hash: genesis.as_ref().to_vec() })
 		} else {
 			let stored_chain = sqlx::query_as::<Postgres, StoredChain>("SELECT chain FROM _sa_config")
 				.fetch_one(&mut *conn)

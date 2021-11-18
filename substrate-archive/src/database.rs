@@ -38,7 +38,7 @@ use sqlx::{
 };
 
 use sc_executor::RuntimeVersion;
-use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
+use sp_runtime::traits::{Block as BlockT, Hash, Header as _, NumberFor};
 
 use self::batch::Batch;
 pub use self::{listener::*, models::*};
@@ -49,9 +49,17 @@ use crate::{
 };
 
 /// Run all the migrations.
-pub async fn setup<T: AsRef<str>>(url: T, version: RuntimeVersion) -> Result<PersistentConfig> {
+pub async fn setup<T, H>(
+	url: T,
+	version: RuntimeVersion,
+	genesis: H,
+) -> Result<PersistentConfig>
+where
+	T: AsRef<str>,
+	H: Hash + AsRef<[u8]>
+{
 	let mut conn = PgConnection::connect(url.as_ref()).await?;
-	let persistent_config = PersistentConfig::fetch_and_update(&mut conn, version).await?;
+	let persistent_config = PersistentConfig::fetch_and_update(&mut conn, version, genesis).await?;
 
 	sqlx::migrate!("./src/migrations/").run(&mut conn).await?;
 	Ok(persistent_config)
