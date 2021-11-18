@@ -63,6 +63,7 @@ struct Meta {
 	pub meta: Vec<u8>,
 }
 
+/// Return type of queries that `SELECT block_num, spec`
 #[derive(Copy, Clone)]
 struct BlockNumSpec {
 	block_num: i32,
@@ -124,6 +125,7 @@ pub(crate) async fn get_full_block_by_number(conn: &mut sqlx::PgConnection, bloc
 	.map_err(Into::into)
 }
 
+/// Get metadata according to spec version.
 pub async fn metadata(conn: &mut PgConnection, spec: i32) -> Result<Vec<u8>> {
 	sqlx::query_as!(Meta, "SELECT meta FROM metadata WHERE version = $1", spec)
 		.fetch_one(conn)
