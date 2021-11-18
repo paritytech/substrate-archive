@@ -96,7 +96,8 @@ impl ExtrinsicsDecoder {
 		let mut extrinsics = Vec::new();
 		for (number, hash, ext, spec) in blocks.into_iter() {
 			if let Some(version) = upgrades.get(&number) {
-				let previous = upgrades.values()
+				let previous = upgrades
+					.values()
 					.sorted()
 					.tuple_windows()
 					.find(|(_curr, next)| *next >= version)

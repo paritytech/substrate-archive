@@ -186,13 +186,9 @@ pub struct PersistentConfig {
 
 impl PersistentConfig {
 	/// Get the config and update it if it exists. If not initialize config and return it.
-	pub async fn fetch_and_update<H>(
-		conn: &mut PgConnection,
-		version: RuntimeVersion,
-		genesis: H,
-	) -> Result<Self>
+	pub async fn fetch_and_update<H>(conn: &mut PgConnection, version: RuntimeVersion, genesis: H) -> Result<Self>
 	where
-		H: AsRef<[u8]>
+		H: AsRef<[u8]>,
 	{
 		#[derive(FromRow)]
 		struct DbName {

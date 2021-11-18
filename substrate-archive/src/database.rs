@@ -49,14 +49,10 @@ use crate::{
 };
 
 /// Run all the migrations.
-pub async fn setup<T, H>(
-	url: T,
-	version: RuntimeVersion,
-	genesis: H,
-) -> Result<PersistentConfig>
+pub async fn setup<T, H>(url: T, version: RuntimeVersion, genesis: H) -> Result<PersistentConfig>
 where
 	T: AsRef<str>,
-	H: AsRef<[u8]>
+	H: AsRef<[u8]>,
 {
 	let mut conn = PgConnection::connect(url.as_ref()).await?;
 	let persistent_config = PersistentConfig::fetch_and_update(&mut conn, version, genesis).await?;

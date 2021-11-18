@@ -16,12 +16,12 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
-use std::collections::HashMap;
 use async_stream::try_stream;
 use futures::Stream;
 use hashbrown::HashSet;
 use itertools::Itertools;
 use sqlx::PgConnection;
+use std::collections::HashMap;
 
 use crate::{database::models::BlockModel, error::Result};
 
