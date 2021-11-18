@@ -16,6 +16,7 @@
 use arc_swap::ArcSwap;
 use async_std::task;
 use sqlx::PgPool;
+use itertools::Itertools;
 use std::{collections::HashMap, sync::Arc};
 use xtra::prelude::*;
 
@@ -51,30 +52,34 @@ impl ExtrinsicsDecoder {
 		let decoder = Arc::new(Decoder::new(chain));
 		let mut conn = pool.acquire().await?;
 		let upgrades = ArcSwap::from_pointee(queries::upgrade_blocks_from_spec(&mut conn, 0).await?);
+		log::info!("Started extrinsic decoder");
 		Ok(Self { pool, addr, max_block_load, decoder, upgrades })
 	}
 
 	async fn crawl_missing_extrinsics(&mut self) -> Result<()> {
 		let mut conn = self.pool.acquire().await?;
 		let blocks = queries::missing_extrinsic_blocks(&mut conn, self.max_block_load).await?;
+		log::info!("Indexing {} missing extrinsic blocks", blocks.len());
 
 		let versions: Vec<u32> =
-			blocks.iter().filter(|b| self.decoder.has_version(&b.3)).map(|(_, _, _, v)| *v).collect();
+			blocks.iter().filter(|b| !self.decoder.has_version(&b.3)).map(|(_, _, _, v)| *v).unique().collect();
 		// above and below line are separate to let immutable ref to `self.decoder` to go out of scope.
 		for version in versions.iter() {
 			let metadata = queries::metadata(&mut conn, *version as i32).await?;
+			log::debug!("Registering version {}", version);
 			// TODO: FIX EXPECT
 			Arc::get_mut(&mut self.decoder)
 				.expect("Actors guarantee one reference; qed")
 				.register_version(*version, &metadata)?;
+			log::debug!("Registered version {}", version);
 		}
 
+		log::info!("Updating stored upgrade blocks");
 		if self.upgrades.load().iter().max_by(|a, b| a.1.cmp(b.1)).map(|(_, v)| v)
 			< blocks.iter().map(|&(_, _, _, v)| v).max().as_ref()
 		{
 			self.update_upgrade_blocks().await?;
 		}
-
 		let decoder = self.decoder.clone();
 		let upgrades = self.upgrades.load().clone();
 		let extrinsics =
@@ -92,7 +97,7 @@ impl ExtrinsicsDecoder {
 		let mut extrinsics = Vec::new();
 		for (number, hash, ext, spec) in blocks.into_iter() {
 			if upgrades.get(&number).is_some() {
-				todo!()
+				log::error!("UPGRADE BLOCK");
 			} else {
 				let ext = decoder.decode_extrinsics(spec, ext.as_slice())?;
 				extrinsics.push(ExtrinsicsModel::new(hash, number, ext)?);

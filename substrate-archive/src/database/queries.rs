@@ -253,7 +253,7 @@ pub(crate) async fn upgrade_blocks_from_spec(conn: &mut sqlx::PgConnection, from
 		r#"
 			SELECT DISTINCT ON (spec) spec, block_num
 			FROM blocks
-			WHERE blocks.spec >= $1
+			WHERE blocks.spec >= $1 AND blocks.spec != 0
 			ORDER BY spec, block_num ASC
 		"#,
 		from
