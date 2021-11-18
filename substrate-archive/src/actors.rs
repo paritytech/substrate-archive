@@ -213,7 +213,7 @@ where
 					Box::pin(actors.storage.send(SendTraces)),
 					Box::pin(actors.extrinsics.send(Index)),
 				);
-				if let (Err(_), Err(_), Err(_), Err(_)) = future::join4(fut.0, fut.1, fut.2, fut.3).await {
+				if future::try_join4(fut.0, fut.1, fut.2, fut.3).await.is_err() {
 					break;
 				}
 			}

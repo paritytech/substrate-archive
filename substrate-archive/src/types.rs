@@ -159,6 +159,10 @@ impl BatchExtrinsics {
 	pub fn inner(self) -> Vec<ExtrinsicsModel> {
 		self.inner
 	}
+
+	pub fn len(&self) -> usize {
+		self.inner.len()
+	}
 }
 
 impl Message for BatchExtrinsics {

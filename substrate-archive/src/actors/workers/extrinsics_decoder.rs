@@ -59,7 +59,7 @@ impl ExtrinsicsDecoder {
 
 	async fn crawl_missing_extrinsics(&mut self) -> Result<()> {
 		let mut conn = self.pool.acquire().await?;
-		let blocks = queries::missing_extrinsic_blocks(&mut conn, self.max_block_load).await?;
+		let blocks = queries::blocks_missing_extrinsics(&mut conn, self.max_block_load).await?;
 		log::info!("Indexing {} missing extrinsic blocks", blocks.len());
 
 		let versions: Vec<u32> =
@@ -96,7 +96,8 @@ impl ExtrinsicsDecoder {
 		let mut extrinsics = Vec::new();
 		for (number, hash, ext, spec) in blocks.into_iter() {
 			if let Some(version) = upgrades.get(&number) {
-				let previous = itertools::sorted(upgrades.values())
+				let previous = upgrades.values()
+					.sorted()
 					.tuple_windows()
 					.find(|(_curr, next)| *next >= version)
 					.map(|(c, _)| c)

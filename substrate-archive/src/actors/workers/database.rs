@@ -207,11 +207,12 @@ impl Handler<Traces> for DatabaseActor {
 #[async_trait::async_trait]
 impl Handler<BatchExtrinsics> for DatabaseActor {
 	async fn handle(&mut self, extrinsics: BatchExtrinsics, _: &mut Context<Self>) {
+		let len = extrinsics.len();
 		let now = std::time::Instant::now();
 		if let Err(e) = self.db.insert(extrinsics.inner()).await {
 			log::error!("{}", e.to_string());
 		}
-		log::debug!("took {:?} to insert extrinsics", now.elapsed());
+		log::debug!("took {:?} to insert {} extrinsics", now.elapsed(), len);
 	}
 }
 

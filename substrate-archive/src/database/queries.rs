@@ -224,7 +224,7 @@ pub(crate) fn blocks_paginated<'a>(
 }
 
 /// Get up to `max_block_load` extrinsics which are not present in the `extrinsics` table.
-pub(crate) async fn missing_extrinsic_blocks(
+pub(crate) async fn blocks_missing_extrinsics(
 	conn: &mut PgConnection,
 	max_block_load: u32,
 ) -> Result<Vec<(u32, Vec<u8>, Vec<u8>, u32)>> {
