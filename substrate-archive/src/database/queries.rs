@@ -20,6 +20,7 @@ use std::collections::HashMap;
 use async_stream::try_stream;
 use futures::Stream;
 use hashbrown::HashSet;
+use itertools::Itertools;
 use sqlx::PgConnection;
 
 use crate::{database::models::BlockModel, error::Result};
@@ -62,6 +63,7 @@ struct Meta {
 	pub meta: Vec<u8>,
 }
 
+#[derive(Copy, Clone)]
 struct BlockNumSpec {
 	block_num: i32,
 	spec: i32,
@@ -120,32 +122,6 @@ pub(crate) async fn get_full_block_by_number(conn: &mut sqlx::PgConnection, bloc
 	.fetch_one(conn)
 	.await
 	.map_err(Into::into)
-}
-
-
-/// Get up to `max_block_load` extrinsics which are not present in the `extrinsics` table.
-pub(crate) async fn missing_extrinsic_blocks(
-	conn: &mut PgConnection,
-	max_block_load: u32,
-) -> Result<Vec<(u32, Vec<u8>, Vec<u8>, u32)>> {
-	let blocks = sqlx::query_as!(
-		BlockExtrinsics,
-		"
-		SELECT block_num, hash, ext, spec FROM blocks
-		WHERE NOT EXISTS
-			(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)
-		ORDER BY block_num ASC
-		LIMIT $1
-		",
-		i64::from(max_block_load)
-	)
-	.fetch_all(conn)
-	.await?
-	.into_iter()
-	.map(|b| (b.block_num as u32, b.hash, b.ext, b.spec as u32))
-	.collect();
-
-	Ok(blocks)
 }
 
 pub async fn metadata(conn: &mut PgConnection, spec: i32) -> Result<Vec<u8>> {
@@ -245,7 +221,35 @@ pub(crate) fn blocks_paginated<'a>(
 	})
 }
 
-/// Get upgrade blocks starting from a spec
+/// Get up to `max_block_load` extrinsics which are not present in the `extrinsics` table.
+pub(crate) async fn missing_extrinsic_blocks(
+	conn: &mut PgConnection,
+	max_block_load: u32,
+) -> Result<Vec<(u32, Vec<u8>, Vec<u8>, u32)>> {
+	let blocks = sqlx::query_as!(
+		BlockExtrinsics,
+		"
+		SELECT block_num, hash, ext, spec FROM blocks
+		WHERE NOT EXISTS
+			(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)
+		ORDER BY block_num ASC
+		LIMIT $1
+		",
+		i64::from(max_block_load)
+	)
+	.fetch_all(conn)
+	.await?
+	.into_iter()
+	.map(|b| (b.block_num as u32, b.hash, b.ext, b.spec as u32))
+	.collect();
+
+	Ok(blocks)
+}
+
+/// Get upgrade blocks starting from a spec.
+/// Will always return one previous to `from`.
+/// So if you want upgrade specs `from` 30 for polkadot,
+/// this function will also return spec/block_num 29.
 pub(crate) async fn upgrade_blocks_from_spec(conn: &mut sqlx::PgConnection, from: u32) -> Result<HashMap<u32, u32>> {
 	let from = i32::try_from(from)?;
 	let blocks = sqlx::query_as!(
@@ -253,15 +257,16 @@ pub(crate) async fn upgrade_blocks_from_spec(conn: &mut sqlx::PgConnection, from
 		r#"
 			SELECT DISTINCT ON (spec) spec, block_num
 			FROM blocks
-			WHERE blocks.spec >= $1 AND blocks.spec != 0
+			WHERE spec != 0
 			ORDER BY spec, block_num ASC
 		"#,
-		from
 	)
 	.fetch_all(conn)
 	.await?
 	.into_iter()
-	.map(|u| (u.block_num as u32, u.spec as u32))
+	.tuple_windows()
+	.filter(|(_curr, next)| next.spec >= from)
+	.map(|(curr, _)| (curr.block_num as u32, curr.spec as u32))
 	.collect::<HashMap<u32, u32>>();
 
 	Ok(blocks)

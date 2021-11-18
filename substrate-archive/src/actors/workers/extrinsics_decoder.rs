@@ -15,8 +15,8 @@
 
 use arc_swap::ArcSwap;
 use async_std::task;
-use sqlx::PgPool;
 use itertools::Itertools;
+use sqlx::PgPool;
 use std::{collections::HashMap, sync::Arc};
 use xtra::prelude::*;
 
@@ -37,7 +37,8 @@ pub struct ExtrinsicsDecoder {
 	addr: Address<DatabaseActor>,
 	max_block_load: u32,
 	decoder: Arc<Decoder>,
-	/// Hashmap of spec version -> number of block that upgrades to that spec version
+	/// Cache of blocks where runtime upgrades occurred.
+	/// number -> spec
 	upgrades: ArcSwap<HashMap<u32, u32>>,
 }
 
@@ -67,14 +68,12 @@ impl ExtrinsicsDecoder {
 		for version in versions.iter() {
 			let metadata = queries::metadata(&mut conn, *version as i32).await?;
 			log::debug!("Registering version {}", version);
-			// TODO: FIX EXPECT
 			Arc::get_mut(&mut self.decoder)
 				.expect("Actors guarantee one reference; qed")
 				.register_version(*version, &metadata)?;
 			log::debug!("Registered version {}", version);
 		}
 
-		log::info!("Updating stored upgrade blocks");
 		if self.upgrades.load().iter().max_by(|a, b| a.1.cmp(b.1)).map(|(_, v)| v)
 			< blocks.iter().map(|&(_, _, _, v)| v).max().as_ref()
 		{
@@ -96,8 +95,14 @@ impl ExtrinsicsDecoder {
 	) -> Result<Vec<ExtrinsicsModel>> {
 		let mut extrinsics = Vec::new();
 		for (number, hash, ext, spec) in blocks.into_iter() {
-			if upgrades.get(&number).is_some() {
-				log::error!("UPGRADE BLOCK");
+			if let Some(version) = upgrades.get(&number) {
+				let previous = itertools::sorted(upgrades.values())
+					.tuple_windows()
+					.find(|(_curr, next)| *next >= version)
+					.map(|(c, _)| c)
+					.ok_or(ArchiveError::PrevSpecNotFound(*version))?;
+				let ext = decoder.decode_extrinsics(*previous, ext.as_slice())?;
+				extrinsics.push(ExtrinsicsModel::new(hash, number, ext)?);
 			} else {
 				let ext = decoder.decode_extrinsics(spec, ext.as_slice())?;
 				extrinsics.push(ExtrinsicsModel::new(hash, number, ext)?);
