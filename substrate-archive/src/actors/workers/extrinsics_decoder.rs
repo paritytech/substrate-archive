@@ -32,10 +32,17 @@ use crate::{
 	types::BatchExtrinsics,
 };
 
+/// Actor which crawls missing encoded extrinsics and
+/// sends decoded JSON to the database.
+/// Crawls missing extrinsics upon receiving an `Index` message.
 pub struct ExtrinsicsDecoder {
+	/// Pool of Postgres Connections.
 	pool: PgPool,
+	/// Address of the database actor.
 	addr: Address<DatabaseActor>,
+	/// Max amount of extrinsics to load at any one time.i.
 	max_block_load: u32,
+	/// Desub Legacy + current decoder.
 	decoder: Arc<Decoder>,
 	/// Cache of blocks where runtime upgrades occurred.
 	/// number -> spec
@@ -69,7 +76,7 @@ impl ExtrinsicsDecoder {
 			let metadata = queries::metadata(&mut conn, *version as i32).await?;
 			log::debug!("Registering version {}", version);
 			Arc::get_mut(&mut self.decoder)
-				.expect("Actors guarantee one reference; qed")
+				.ok_or_else(|| ArchiveError::Msg("Reference to decoder is not safe to access".into()))?
 				.register_version(*version, &metadata)?;
 			log::debug!("Registered version {}", version);
 		}
