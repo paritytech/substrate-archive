@@ -67,7 +67,6 @@ impl ExtrinsicsDecoder {
 	async fn crawl_missing_extrinsics(&mut self) -> Result<()> {
 		let mut conn = self.pool.acquire().await?;
 		let blocks = queries::blocks_missing_extrinsics(&mut conn, self.max_block_load).await?;
-		log::info!("Indexing {} missing extrinsic blocks", blocks.len());
 
 		let versions: Vec<u32> =
 			blocks.iter().filter(|b| !self.decoder.has_version(&b.3)).map(|(_, _, _, v)| *v).unique().collect();
@@ -101,6 +100,18 @@ impl ExtrinsicsDecoder {
 		upgrades: &HashMap<u32, u32>,
 	) -> Result<Vec<ExtrinsicsModel>> {
 		let mut extrinsics = Vec::new();
+		if blocks.len() > 2 {
+			let first = blocks.first().expect("Checked len; qed");
+			let last = blocks.last().expect("Checked len; qed");
+			log::info!(
+				"Decoding {} extrinsics in blocks {}..{} versions {}..{}",
+				blocks.len(),
+				first.0,
+				last.0,
+				first.3,
+				last.3
+			);
+		}
 		for (number, hash, ext, spec) in blocks.into_iter() {
 			if let Some(version) = upgrades.get(&number) {
 				let previous = upgrades
