@@ -304,12 +304,11 @@ mod test {
 		let _guard = TestGuard::lock();
 		task::block_on(async {
 			let mut conn = PG_POOL.acquire().await?;
-			let version = sc_executor::RuntimeVersion::default();
-			PersistentConfig::fetch_and_update(&mut *conn, version).await?;
+			PersistentConfig::fetch_and_update(&mut *conn, Default::default(), vec![]).await?;
 			let query = sqlx::query_as::<Postgres, TaskQueueQuery>("SELECT task_queue FROM _sa_config LIMIT 1")
 				.fetch_one(&mut *conn)
 				.await?;
-			let conf = PersistentConfig::fetch_and_update(&mut *conn, version).await?;
+			let conf = PersistentConfig::fetch_and_update(&mut *conn, Default::default(), vec![]).await?;
 			assert_eq!(query.task_queue, conf.task_queue);
 			Ok::<(), Error>(())
 		})?;
