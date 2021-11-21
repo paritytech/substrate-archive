@@ -1,8 +1,9 @@
 [package]
 name = "node-template-archive"
 version = "0.3.0"
-authors = ["Andrew Plaza <aplaza@liquidthink.net>"]
+authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+rust-version = "1.56.1"
 description = "Indexes Substrate Data"
 
 [dependencies]
