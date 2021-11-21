@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - table `_background_tasks` will be dropped.
   - table `_sa_config` will be added.
 - Storage is inserted concurrently based on idle SQL connections.
+- Migrated to 2021 edition, enforcing MSRV of `1.56.1`. [#390](https://github.com/paritytech/substrate-archive/pull/390)
 
 ### Removed
 - **BREAKING** `Dispatch` generic on `Archive` and `ArchiveBuilder`.
