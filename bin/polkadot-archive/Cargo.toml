@@ -3,6 +3,7 @@ name = "polkadot-archive"
 version = "0.3.0"
 authors = ["Andrew Plaza <aplaza@liquidthink.net>"]
 edition = "2021"
+rust-version = "1.56.1"
 description = "Indexes the Polkadot, Kusama and Westend Networks"
 
 [dependencies]
