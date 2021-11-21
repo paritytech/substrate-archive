@@ -1,7 +1,7 @@
 [package]
 name = "integration_tests"
 version = "0.1.0"
-authors = ["Andrew Plaza <aplaza@liquidthink.net>"]
+authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 rust-version = "1.56.1"
 autotests = false
