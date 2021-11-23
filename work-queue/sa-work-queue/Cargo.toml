@@ -8,7 +8,7 @@ rust-version = "1.56.1"
 
 [dependencies]
 log = "0.4"
-lapin = "1.7"
+lapin = "1.9"
 async-amqp = "1"
 sa_work_queue_proc_macro = { path = "../sa_work_queue_proc_macro" }
 threadpool = "1"
