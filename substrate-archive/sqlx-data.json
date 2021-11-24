@@ -247,6 +247,44 @@
       ]
     }
   },
+  "da3d043ca1c56f587af1b165bb3573d76b1fe568a52168f863b6edb5d0813f19": {
+    "query": "\n\tSELECT version as present, past_version as past, meta as metadata, past_metadata FROM (\n\t\tSELECT\n\t\t\tversion, meta,\n\t\t\tLAG(version, 1) OVER (ORDER BY version) as past_version,\n\t\t\tLAG(meta, 1) OVER (ORDER BY version) as past_metadata\n\t\tFROM metadata\n\t) as z WHERE version = $1;\n\t",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "present",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 1,
+          "name": "past",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 2,
+          "name": "metadata",
+          "type_info": "Bytea"
+        },
+        {
+          "ordinal": 3,
+          "name": "past_metadata",
+          "type_info": "Bytea"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": [
+        false,
+        null,
+        false,
+        null
+      ]
+    }
+  },
   "eafd9a045fa56835703150bd9ad24801207e0326287cee132f45a5273d3f3200": {
     "query": "\n\t\tSELECT block_num, hash, ext, spec FROM blocks\n\t\tWHERE NOT EXISTS\n\t\t\t(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)\n\t\tORDER BY block_num ASC\n\t\tLIMIT $1\n\t\t",
     "describe": {
