@@ -23,10 +23,9 @@ use std::{convert::TryInto, marker::PhantomData};
 use chrono::{DateTime, Utc};
 use codec::{Decode, Encode, Error as DecodeError};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use sqlx::{types::Json, FromRow, PgConnection, Postgres};
 
-use desub::Chain;
+use desub::{Chain, types::LegacyOrCurrentExtrinsic};
 use sc_executor::RuntimeVersion;
 use sp_runtime::{
 	generic::SignedBlock,
@@ -142,16 +141,16 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, FromRow)]
 pub struct ExtrinsicsModel {
 	pub id: Option<i32>,
 	pub hash: Vec<u8>,
 	pub number: i32,
-	pub extrinsics: Json<Value>,
+	pub extrinsics: Json<Vec<LegacyOrCurrentExtrinsic>>,
 }
 
 impl ExtrinsicsModel {
-	pub fn new(hash: Vec<u8>, number: u32, extrinsics: Value) -> Result<Self> {
+	pub fn new(hash: Vec<u8>, number: u32, extrinsics: Vec<LegacyOrCurrentExtrinsic>) -> Result<Self> {
 		let number = number.try_into()?;
 		Ok(Self { id: None, hash, number, extrinsics: Json(extrinsics) })
 	}
