@@ -1565,6 +1565,7 @@ dependencies = [
 [[package]]
 name = "desub"
 version = "0.1.0"
+source = "git+https://github.com/paritytech/desub?branch=insipx/modified-frame-metadata#cf30bc149d6fd6c7a58075054313158798e422d8"
 dependencies = [
  "desub-common",
  "desub-current",
@@ -1579,6 +1580,7 @@ dependencies = [
 [[package]]
 name = "desub-common"
 version = "0.1.0"
+source = "git+https://github.com/paritytech/desub?branch=insipx/modified-frame-metadata#cf30bc149d6fd6c7a58075054313158798e422d8"
 dependencies = [
  "serde",
  "sp-core",
@@ -1588,6 +1590,7 @@ dependencies = [
 [[package]]
 name = "desub-current"
 version = "0.1.0"
+source = "git+https://github.com/paritytech/desub?branch=insipx/modified-frame-metadata#cf30bc149d6fd6c7a58075054313158798e422d8"
 dependencies = [
  "bitvec 0.20.4",
  "derive_more",
@@ -1607,6 +1610,7 @@ dependencies = [
 [[package]]
 name = "desub-json-resolver"
 version = "0.0.1"
+source = "git+https://github.com/paritytech/desub?branch=insipx/modified-frame-metadata#cf30bc149d6fd6c7a58075054313158798e422d8"
 dependencies = [
  "desub-legacy",
  "log",
@@ -1621,6 +1625,7 @@ dependencies = [
 [[package]]
 name = "desub-legacy"
 version = "0.0.1"
+source = "git+https://github.com/paritytech/desub?branch=insipx/modified-frame-metadata#cf30bc149d6fd6c7a58075054313158798e422d8"
 dependencies = [
  "bitvec 0.20.4",
  "derive_more",

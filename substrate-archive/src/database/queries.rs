@@ -70,6 +70,14 @@ struct BlockNumSpec {
 	spec: i32,
 }
 
+/// Return tye of queries which `SELECT present, past, metadata, past_metadata`
+struct PastAndPresentVersion {
+	pub present: i32,
+	pub past: Option<i32>,
+	pub metadata: Vec<u8>,
+	pub past_metadata: Option<Vec<u8>>,
+}
+
 /// Get missing blocks from the relational database between numbers `min` and
 /// MAX(block_num). LIMIT result to length `max_block_load`. The highest effective
 /// value for `min` is i32::MAX.
@@ -224,6 +232,7 @@ pub(crate) fn blocks_paginated<'a>(
 }
 
 /// Get up to `max_block_load` extrinsics which are not present in the `extrinsics` table.
+/// Ordered from least to greatest number.
 pub(crate) async fn blocks_missing_extrinsics(
 	conn: &mut PgConnection,
 	max_block_load: u32,
@@ -272,6 +281,25 @@ pub(crate) async fn upgrade_blocks_from_spec(conn: &mut sqlx::PgConnection, from
 	.collect::<HashMap<u32, u32>>();
 
 	Ok(blocks)
+}
+
+pub async fn past_and_present_version(conn: &mut PgConnection, spec: i32) -> Result<(Option<u32>, u32, Option<Vec<u8>>, Vec<u8>)> {
+	let version = sqlx::query_as!(
+		PastAndPresentVersion,
+		"
+	SELECT version as present, past_version as past, meta as metadata, past_metadata FROM (
+		SELECT
+			version, meta,
+			LAG(version, 1) OVER (ORDER BY version) as past_version,
+			LAG(meta, 1) OVER (ORDER BY version) as past_metadata
+		FROM metadata
+	) as z WHERE version = $1;
+	", spec)
+	.fetch_one(conn)
+	.await
+	.map(|v| (v.past.map(|v| v as u32), v.present as u32, v.past_metadata, v.metadata))?;
+
+	Ok(version)
 }
 
 #[cfg(test)]
