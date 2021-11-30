@@ -25,7 +25,7 @@ use codec::{Decode, Encode, Error as DecodeError};
 use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, FromRow, PgConnection, Postgres};
 
-use desub::{Chain, types::LegacyOrCurrentExtrinsic};
+use desub::{types::LegacyOrCurrentExtrinsic, Chain};
 use sc_executor::RuntimeVersion;
 use sp_runtime::{
 	generic::SignedBlock,

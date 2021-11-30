@@ -283,7 +283,10 @@ pub(crate) async fn upgrade_blocks_from_spec(conn: &mut sqlx::PgConnection, from
 	Ok(blocks)
 }
 
-pub async fn past_and_present_version(conn: &mut PgConnection, spec: i32) -> Result<(Option<u32>, u32, Option<Vec<u8>>, Vec<u8>)> {
+pub async fn past_and_present_version(
+	conn: &mut PgConnection,
+	spec: i32,
+) -> Result<(Option<u32>, u32, Option<Vec<u8>>, Vec<u8>)> {
 	let version = sqlx::query_as!(
 		PastAndPresentVersion,
 		"
@@ -294,7 +297,9 @@ pub async fn past_and_present_version(conn: &mut PgConnection, spec: i32) -> Res
 			LAG(meta, 1) OVER (ORDER BY version) as past_metadata
 		FROM metadata
 	) as z WHERE version = $1;
-	", spec)
+	",
+		spec
+	)
 	.fetch_one(conn)
 	.await
 	.map(|v| (v.past.map(|v| v as u32), v.present as u32, v.past_metadata, v.metadata))?;
