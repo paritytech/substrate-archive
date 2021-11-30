@@ -332,7 +332,7 @@ mod tests {
 
 	// Setup a data scheme such that:
 	// - blocks 0 - 200 will be missing from the `storage` table
-	// - blocks 0-400 will be missing from the `extrinsics` table
+	// - blocks 0 - 400 will be missing from the `extrinsics` table
 	// - all blocks will be present in the `blocks` table
 	async fn setup_data_scheme() -> Result<PoolConnection<Postgres>, Error> {
 		let mock_bytes: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF];
