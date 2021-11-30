@@ -18,10 +18,7 @@
 
 use std::marker::PhantomData;
 
-use sc_client_api::{
-	backend::{Backend, PrunableStateChangesTrieStorage},
-	client::UsageInfo,
-};
+use sc_client_api::{backend::Backend, client::UsageInfo};
 use sp_blockchain::{Error as BlockchainError, HeaderBackend as _};
 use sp_runtime::{
 	generic::BlockId,
@@ -76,12 +73,6 @@ impl<Block: BlockT, D: ReadOnlyDb + 'static> Backend<Block> for ReadOnlyBackend<
 	fn usage_info(&self) -> Option<UsageInfo> {
 		// TODO: Implement usage info (for state reads)
 		log::warn!("Usage info not supported");
-		None
-	}
-
-	fn changes_trie_storage(&self) -> Option<&dyn PrunableStateChangesTrieStorage<Block>> {
-		// TODO: Implement Changes Trie
-		// log::warn!("Changes trie not supported");
 		None
 	}
 

@@ -23,15 +23,20 @@ use std::{convert::TryInto, marker::PhantomData};
 use chrono::{DateTime, Utc};
 use codec::{Decode, Encode, Error as DecodeError};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgConnection, Postgres};
+use sqlx::{types::Json, FromRow, PgConnection, Postgres};
 
+use desub::{types::LegacyOrCurrentExtrinsic, Chain};
+use sc_executor::RuntimeVersion;
 use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, Header as HeaderT},
 };
 use sp_storage::{StorageData, StorageKey};
 
-use crate::{error::Result, types::*};
+use crate::{
+	error::{ArchiveError, Result},
+	types::*,
+};
 
 /// Struct modeling data returned from database when querying for a block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
@@ -136,6 +141,21 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 	}
 }
 
+#[derive(Debug, Serialize, FromRow)]
+pub struct ExtrinsicsModel {
+	pub id: Option<i32>,
+	pub hash: Vec<u8>,
+	pub number: i32,
+	pub extrinsics: Json<Vec<LegacyOrCurrentExtrinsic>>,
+}
+
+impl ExtrinsicsModel {
+	pub fn new(hash: Vec<u8>, number: u32, extrinsics: Vec<LegacyOrCurrentExtrinsic>) -> Result<Self> {
+		let number = number.try_into()?;
+		Ok(Self { id: None, hash, number, extrinsics: Json(extrinsics) })
+	}
+}
+
 /// Config that is stored/restored in Postgres on every run.
 /// This is needed to persist RabbitMq task-queue name between runs.
 /// Archive version and timestamp included as extra metadata
@@ -157,11 +177,18 @@ pub struct PersistentConfig {
 	pub minor: i32,
 	/// Patch version of this library.
 	pub patch: i32,
+	/// The chain data this db is populated with
+	pub chain: String,
+	/// The genesis hash of the network the db is populated with.
+	pub genesis_hash: Vec<u8>,
 }
 
 impl PersistentConfig {
 	/// Get the config and update it if it exists. If not initialize config and return it.
-	pub async fn fetch_and_update(conn: &mut PgConnection) -> Result<Self> {
+	pub async fn fetch_and_update<H>(conn: &mut PgConnection, version: RuntimeVersion, genesis: H) -> Result<Self>
+	where
+		H: AsRef<[u8]>,
+	{
 		#[derive(FromRow)]
 		struct DbName {
 			current_database: String,
@@ -172,6 +199,11 @@ impl PersistentConfig {
 			id: i32,
 		}
 
+		#[derive(FromRow)]
+		struct StoredChain {
+			chain: String,
+		}
+
 		// FIXME: No `query_as!` macro until https://github.com/launchbadge/sqlx/issues/1294#issuecomment-866618995
 		let conf = sqlx::query_as::<Postgres, Self>(r#"SELECT * FROM _sa_config ORDER BY id LIMIT 1"#)
 			.fetch_optional(&mut *conn)
@@ -179,6 +211,8 @@ impl PersistentConfig {
 
 		let last_run = Utc::now();
 		let (major, minor, patch) = Self::get_version_tuple()?;
+
+		let running_chain = version.spec_name.to_string();
 
 		if conf.is_none() {
 			let mut task_queue: String = sqlx::query_as::<Postgres, DbName>(r#"SELECT current_database()"#)
@@ -190,19 +224,38 @@ impl PersistentConfig {
 			// instances of archive for different chains.
 			task_queue.push_str(&format!("-queue-{}", Utc::now().timestamp()));
 			let id = sqlx::query_as::<Postgres, Id>(
-				r#"INSERT INTO _sa_config (task_queue, last_run, major, minor, patch) VALUES($1, $2, $3, $4, $5) RETURNING id"#,
+				r#"INSERT INTO _sa_config (task_queue, last_run, major, minor, patch, chain, genesis_hash) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id"#,
 			)
 			.bind(&task_queue)
 			.bind(last_run)
 			.bind(major)
 			.bind(minor)
 			.bind(patch)
+			.bind(&running_chain)
+			.bind(&genesis.as_ref())
 			.fetch_one(&mut *conn)
 			.await?
 			.id;
 
-			Ok(Self { id, task_queue, last_run, major, minor, patch })
+			Ok(Self {
+				id,
+				task_queue,
+				last_run,
+				major,
+				minor,
+				patch,
+				chain: running_chain,
+				genesis_hash: genesis.as_ref().to_vec(),
+			})
 		} else {
+			let stored_chain = sqlx::query_as::<Postgres, StoredChain>("SELECT chain FROM _sa_config")
+				.fetch_one(&mut *conn)
+				.await?
+				.chain;
+			if stored_chain.as_str() != running_chain {
+				return Err(ArchiveError::MismatchedSpecName { expected: stored_chain, got: running_chain });
+			}
+
 			sqlx::query(r#"UPDATE _sa_config SET last_run = $1, major = $2, minor = $3, patch = $4"#)
 				.bind(last_run)
 				.bind(major)
@@ -218,6 +271,17 @@ impl PersistentConfig {
 		let version = env!("CARGO_PKG_VERSION");
 		let version = semver::Version::parse(version)?;
 		Ok((version.major.try_into()?, version.minor.try_into()?, version.patch.try_into()?))
+	}
+
+	pub(crate) fn chain(&self) -> Chain {
+		match self.chain.to_ascii_lowercase().as_str() {
+			"kusama" => Chain::Kusama,
+			"polkadot" => Chain::Polkadot,
+			"westend" => Chain::Westend,
+			"centrifuge" => Chain::Centrifuge,
+			"rococo" => Chain::Rococo,
+			s => Chain::Custom(s.to_string()),
+		}
 	}
 }
 
@@ -239,11 +303,11 @@ mod test {
 		let _guard = TestGuard::lock();
 		task::block_on(async {
 			let mut conn = PG_POOL.acquire().await?;
-			PersistentConfig::fetch_and_update(&mut *conn).await?;
+			PersistentConfig::fetch_and_update(&mut *conn, Default::default(), vec![]).await?;
 			let query = sqlx::query_as::<Postgres, TaskQueueQuery>("SELECT task_queue FROM _sa_config LIMIT 1")
 				.fetch_one(&mut *conn)
 				.await?;
-			let conf = PersistentConfig::fetch_and_update(&mut *conn).await?;
+			let conf = PersistentConfig::fetch_and_update(&mut *conn, Default::default(), vec![]).await?;
 			assert_eq!(query.task_queue, conf.task_queue);
 			Ok::<(), Error>(())
 		})?;

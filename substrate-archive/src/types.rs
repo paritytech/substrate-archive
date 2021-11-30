@@ -21,6 +21,8 @@ use xtra::Message;
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
 
+use crate::database::models::ExtrinsicsModel;
+
 pub trait Hash: Copy + Send + Sync + Unpin + AsRef<[u8]> + 'static {}
 
 impl<T> Hash for T where T: Copy + Send + Sync + Unpin + AsRef<[u8]> + 'static {}
@@ -141,6 +143,29 @@ impl<Hash> BatchStorage<Hash> {
 }
 
 impl<Hash: Send + Sync + 'static> Message for BatchStorage<Hash> {
+	type Result = ();
+}
+
+#[derive(Debug)]
+pub struct BatchExtrinsics {
+	pub inner: Vec<ExtrinsicsModel>,
+}
+
+impl BatchExtrinsics {
+	pub fn new(extrinsics: Vec<ExtrinsicsModel>) -> Self {
+		Self { inner: extrinsics }
+	}
+
+	pub fn inner(self) -> Vec<ExtrinsicsModel> {
+		self.inner
+	}
+
+	pub fn len(&self) -> usize {
+		self.inner.len()
+	}
+}
+
+impl Message for BatchExtrinsics {
 	type Result = ();
 }
 

@@ -8,6 +8,7 @@ rust-version = "1.56.1"
 [dependencies]
 # external
 async-trait = "0.1"
+arc-swap = "1.4.0"
 chrono = "0.4.19"
 dirs = { version = "3", package = "directories" }
 fdlimit = "0.2"
@@ -22,7 +23,7 @@ log = { version = "0.4", features = ["serde"] }
 num_cpus = "1.13"
 parking_lot = "0.11"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 async-std = "1.9"
 futures-timer = "3"
 sqlx = { version = "0.5", default-features = false, features = ["postgres", "macros", "runtime-async-std-rustls", "migrate", "json", "offline", "chrono" ] }
@@ -35,6 +36,7 @@ async-stream = "0.3"
 semver = "1.0"
 
 # Parity
+desub = { package = "desub", git = "https://github.com/paritytech/desub", branch = "insipx/modified-frame-metadata", features = ["polkadot-js"] }
 codec = { package = "parity-scale-codec", version = "2.0", default-features = false, features = ["derive", "full"] }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }

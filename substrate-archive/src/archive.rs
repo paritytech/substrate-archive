@@ -21,9 +21,10 @@ use serde::{de::DeserializeOwned, Deserialize};
 
 use sc_chain_spec::ChainSpec;
 use sc_client_api::backend as api_backend;
+use sc_executor::RuntimeVersion;
 use sp_api::{ApiExt, ConstructRuntimeApi};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
-use sp_blockchain::Backend as BlockchainBackend;
+use sp_blockchain::{Backend as BlockchainBackend, HeaderBackend};
 use sp_runtime::{
 	generic::BlockId,
 	traits::{BlakeTwo256, Block as BlockT, NumberFor},
@@ -331,7 +332,7 @@ where
 		+ 'static,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 	NumberFor<Block>: Into<u32> + From<u32> + Unpin,
-	Block::Hash: Unpin + std::str::FromStr,
+	Block::Hash: Unpin + std::str::FromStr + AsRef<[u8]>,
 	Block::Header: serde::de::DeserializeOwned,
 {
 	/// Build this instance of the Archiver.
@@ -367,12 +368,13 @@ where
 
 		// configure substrate client and backend
 		let backend = Arc::new(ReadOnlyBackend::new(db, true, self.config.runtime.storage_mode));
-		let client = Arc::new(runtime_api::<Block, Runtime, Db>(
+		let client = Arc::new(runtime_api(
 			self.config.runtime.clone(),
 			backend.clone(),
 			self.host_functions,
+			crate::tasks::TaskExecutor,
 		)?);
-		Self::startup_info(&*client, &*backend)?;
+		let (rt, genesis_hash) = Self::startup_info(&*client, &*backend)?;
 
 		// config postgres database
 		const DATABASE_URL: &str = "DATABASE_URL";
@@ -381,7 +383,7 @@ where
 			.database
 			.map(|config| config.url)
 			.unwrap_or_else(|| env::var(DATABASE_URL).expect("missing DATABASE_URL"));
-		task::block_on(database::migrate(&pg_url))?;
+		let persistent_config = task::block_on(database::setup(&pg_url, rt, genesis_hash))?;
 
 		// config actor system
 		let config = SystemConfig::new(
@@ -391,14 +393,20 @@ where
 			self.config.control,
 			self.config.runtime,
 			self.config.wasm_tracing.map(|t| t.targets),
+			persistent_config,
 		);
 		let sys = System::<_, Runtime, _, _>::new(client, config)?;
 		Ok(sys)
 	}
 
 	/// Log some general startup info
-	fn startup_info(client: &TArchiveClient<Block, Runtime, Db>, backend: &ReadOnlyBackend<Block, Db>) -> Result<()> {
+	/// return RuntimeVersion and Genesis Hash information.
+	fn startup_info(
+		client: &TArchiveClient<Block, Runtime, Db>,
+		backend: &ReadOnlyBackend<Block, Db>,
+	) -> Result<(RuntimeVersion, Block::Hash)> {
 		let last_finalized_block = backend.last_finalized()?;
+		let genesis_hash = backend.info().genesis_hash;
 		let rt = client.runtime_version_at(&BlockId::Hash(last_finalized_block))?;
 		log::info!(
             "Running archive for 🔗 `{}`, implementation `{}`. Latest known runtime version: {}. Latest finalized block {} 🛡️",
@@ -419,7 +427,7 @@ where
 				);
 			}
 		}
-		Ok(())
+		Ok((rt, genesis_hash))
 	}
 }
 

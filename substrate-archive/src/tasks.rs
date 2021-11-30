@@ -170,7 +170,7 @@ where
 
 		self.api.execute_block(&self.id, block)?;
 		let storage_changes =
-			self.api.into_storage_changes(&state, None, parent_hash).map_err(ArchiveError::ConvertStorageChanges)?;
+			self.api.into_storage_changes(&state, parent_hash).map_err(ArchiveError::ConvertStorageChanges)?;
 
 		Ok(BlockChanges {
 			storage_changes: storage_changes.main_storage_changes,
@@ -196,8 +196,7 @@ where
 			api.execute_block(&id, block).map_err(ArchiveError::from)
 		})?;
 
-		let changes =
-			api.into_storage_changes(&state, None, parent_hash).map_err(ArchiveError::ConvertStorageChanges)?;
+		let changes = api.into_storage_changes(&state, parent_hash).map_err(ArchiveError::ConvertStorageChanges)?;
 
 		let changes = BlockChanges {
 			storage_changes: changes.main_storage_changes,
@@ -222,11 +221,11 @@ impl futures::task::Spawn for TaskExecutor {
 }
 
 impl sp_core::traits::SpawnNamed for TaskExecutor {
-	fn spawn_blocking(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
+	fn spawn_blocking(&self, _: &'static str, _: Option<&'static str>, fut: futures::future::BoxFuture<'static, ()>) {
 		task::spawn_blocking(|| async move { fut.await });
 	}
 
-	fn spawn(&self, _: &'static str, fut: futures::future::BoxFuture<'static, ()>) {
+	fn spawn(&self, _: &'static str, _: Option<&'static str>, fut: futures::future::BoxFuture<'static, ()>) {
 		task::spawn(fut);
 	}
 }

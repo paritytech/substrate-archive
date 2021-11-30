@@ -45,10 +45,11 @@ use substrate_archive_backend::{ApiAccess, Meta, ReadOnlyBackend, ReadOnlyDb, Ru
 
 use self::workers::{
 	blocks::{Crawl, ReIndex},
+	database::GetState,
+	extrinsics_decoder::Index,
 	storage_aggregator::{SendStorage, SendTraces},
-	GetState,
 };
-pub use self::workers::{BlocksIndexer, DatabaseActor, StorageAggregator};
+pub use self::workers::{BlocksIndexer, DatabaseActor, ExtrinsicsDecoder, StorageAggregator};
 use crate::{
 	archive::Archive,
 	database::{
@@ -68,6 +69,7 @@ pub struct SystemConfig<Block, Db> {
 	pub control: ControlConfig,
 	pub runtime: RuntimeConfig,
 	pub tracing_targets: Option<String>,
+	persistent_config: PersistentConfig,
 }
 
 impl<Block, Db> Clone for SystemConfig<Block, Db> {
@@ -79,6 +81,7 @@ impl<Block, Db> Clone for SystemConfig<Block, Db> {
 			control: self.control.clone(),
 			runtime: self.runtime.clone(),
 			tracing_targets: self.tracing_targets.clone(),
+			persistent_config: self.persistent_config.clone(),
 		}
 	}
 }
@@ -138,8 +141,9 @@ where
 		control: ControlConfig,
 		runtime: RuntimeConfig,
 		tracing_targets: Option<String>,
+		persistent_config: PersistentConfig,
 	) -> Self {
-		Self { backend, pg_url, meta, control, runtime, tracing_targets }
+		Self { backend, pg_url, meta, control, runtime, tracing_targets, persistent_config }
 	}
 
 	pub fn backend(&self) -> &Arc<ReadOnlyBackend<Block, Db>> {
@@ -160,6 +164,7 @@ struct Actors<Block: Send + Sync + 'static, Hash: Send + Sync + 'static, Db: Sen
 	blocks: Address<workers::BlocksIndexer<Block, Db>>,
 	metadata: Address<workers::MetadataActor<Block>>,
 	db: Address<DatabaseActor>,
+	extrinsics: Address<ExtrinsicsDecoder>,
 }
 
 impl<Block: Send + Sync + 'static, Hash: Send + Sync + 'static, Db: Send + Sync + 'static> Clone
@@ -171,6 +176,7 @@ impl<Block: Send + Sync + 'static, Hash: Send + Sync + 'static, Db: Send + Sync 
 			blocks: self.blocks.clone(),
 			metadata: self.metadata.clone(),
 			db: self.db.clone(),
+			extrinsics: self.extrinsics.clone(),
 		}
 	}
 }
@@ -188,8 +194,9 @@ where
 		let metadata =
 			workers::MetadataActor::new(db.clone(), conf.meta().clone()).await?.create(None).spawn(&mut AsyncStd);
 		let blocks = workers::BlocksIndexer::new(conf, db.clone(), metadata.clone()).create(None).spawn(&mut AsyncStd);
+		let extrinsics = workers::ExtrinsicsDecoder::new(conf, db.clone()).await?.create(None).spawn(&mut AsyncStd);
 
-		Ok(Actors { storage, blocks, metadata, db })
+		Ok(Actors { storage, blocks, metadata, db, extrinsics })
 	}
 
 	// Run a future that sends actors a signal to progress once the previous
@@ -204,8 +211,9 @@ where
 					Box::pin(actors.blocks.send(Crawl)),
 					Box::pin(actors.storage.send(SendStorage)),
 					Box::pin(actors.storage.send(SendTraces)),
+					Box::pin(actors.extrinsics.send(Index)),
 				);
-				if let (Err(_), Err(_), Err(_)) = future::join3(fut.0, fut.1, fut.2).await {
+				if future::try_join4(fut.0, fut.1, fut.2, fut.3).await.is_err() {
 					break;
 				}
 			}
@@ -300,8 +308,7 @@ where
 	async fn work(self) -> Result<()> {
 		let actors = Actors::spawn(&self.config).await?;
 		let pool = actors.db.send(GetState::Pool).await??.pool();
-		let persistent_config = PersistentConfig::fetch_and_update(&mut *pool.acquire().await?).await?;
-
+		let persistent_config = &self.config.persistent_config;
 		let actors_future = actors.tick_interval();
 
 		if self.config.control.storage_indexing {

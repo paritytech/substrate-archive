@@ -210,7 +210,6 @@ impl Batch {
 		Ok(rows_affected.into_inner().try_into()?)
 	}
 
-	// TODO: Better name?
 	pub fn current_num_arguments(&self) -> usize {
 		self.chunks[self.index].args_len
 	}

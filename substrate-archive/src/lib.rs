@@ -73,7 +73,7 @@ mod test {
 			pretty_env_logger::init();
 			let url: &str = &DATABASE_URL;
 			task::block_on(async {
-				crate::database::migrate(url).await.unwrap();
+				crate::database::setup(url, Default::default(), vec![]).await.unwrap();
 			});
 		});
 	}

@@ -16,12 +16,12 @@
 
 //! Common Sql queries on Archive Database abstracted into rust functions
 
-use std::convert::TryFrom;
-
 use async_stream::try_stream;
 use futures::Stream;
 use hashbrown::HashSet;
+use itertools::Itertools;
 use sqlx::PgConnection;
+use std::collections::HashMap;
 
 use crate::{database::models::BlockModel, error::Result};
 
@@ -48,6 +48,34 @@ struct DoesExist {
 // Return type of queries that `SELECT block_num`
 struct BlockNum {
 	block_num: i32,
+}
+
+// Return type of queries that `SELECT block_num, ext`
+struct BlockExtrinsics {
+	block_num: i32,
+	hash: Vec<u8>,
+	ext: Vec<u8>,
+	spec: i32,
+}
+
+/// Return type of queries that `SELECT meta`
+struct Meta {
+	pub meta: Vec<u8>,
+}
+
+/// Return type of queries that `SELECT block_num, spec`
+#[derive(Copy, Clone)]
+struct BlockNumSpec {
+	block_num: i32,
+	spec: i32,
+}
+
+/// Return tye of queries which `SELECT present, past, metadata, past_metadata`
+struct PastAndPresentVersion {
+	pub present: i32,
+	pub past: Option<i32>,
+	pub metadata: Vec<u8>,
+	pub past_metadata: Option<Vec<u8>>,
 }
 
 /// Get missing blocks from the relational database between numbers `min` and
@@ -103,6 +131,15 @@ pub(crate) async fn get_full_block_by_number(conn: &mut sqlx::PgConnection, bloc
 	.fetch_one(conn)
 	.await
 	.map_err(Into::into)
+}
+
+/// Get metadata according to spec version.
+pub async fn metadata(conn: &mut PgConnection, spec: i32) -> Result<Vec<u8>> {
+	sqlx::query_as!(Meta, "SELECT meta FROM metadata WHERE version = $1", spec)
+		.fetch_one(conn)
+		.await
+		.map_err(Into::into)
+		.map(|m| m.meta)
 }
 
 /// Check if the runtime version identified by `spec` exists in the relational database
@@ -194,6 +231,82 @@ pub(crate) fn blocks_paginated<'a>(
 	})
 }
 
+/// Get up to `max_block_load` extrinsics which are not present in the `extrinsics` table.
+/// Ordered from least to greatest number.
+pub(crate) async fn blocks_missing_extrinsics(
+	conn: &mut PgConnection,
+	max_block_load: u32,
+) -> Result<Vec<(u32, Vec<u8>, Vec<u8>, u32)>> {
+	let blocks = sqlx::query_as!(
+		BlockExtrinsics,
+		"
+		SELECT block_num, hash, ext, spec FROM blocks
+		WHERE NOT EXISTS
+			(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)
+		ORDER BY block_num ASC
+		LIMIT $1
+		",
+		i64::from(max_block_load)
+	)
+	.fetch_all(conn)
+	.await?
+	.into_iter()
+	.map(|b| (b.block_num as u32, b.hash, b.ext, b.spec as u32))
+	.collect();
+
+	Ok(blocks)
+}
+
+/// Get upgrade blocks starting from a spec.
+/// Will always return one previous to `from`.
+/// So if you want upgrade specs `from` 30 for polkadot,
+/// this function will also return spec/block_num 29.
+pub(crate) async fn upgrade_blocks_from_spec(conn: &mut sqlx::PgConnection, from: u32) -> Result<HashMap<u32, u32>> {
+	let from = i32::try_from(from)?;
+	let blocks = sqlx::query_as!(
+		BlockNumSpec,
+		r#"
+			SELECT DISTINCT ON (spec) spec, block_num
+			FROM blocks
+			WHERE spec != 0
+			ORDER BY spec, block_num ASC
+		"#,
+	)
+	.fetch_all(conn)
+	.await?
+	.into_iter()
+	.tuple_windows()
+	.filter(|(_curr, next)| next.spec >= from)
+	.map(|(curr, _)| (curr.block_num as u32, curr.spec as u32))
+	.collect::<HashMap<u32, u32>>();
+
+	Ok(blocks)
+}
+
+pub async fn past_and_present_version(
+	conn: &mut PgConnection,
+	spec: i32,
+) -> Result<(Option<u32>, u32, Option<Vec<u8>>, Vec<u8>)> {
+	let version = sqlx::query_as!(
+		PastAndPresentVersion,
+		"
+	SELECT version as present, past_version as past, meta as metadata, past_metadata FROM (
+		SELECT
+			version, meta,
+			LAG(version, 1) OVER (ORDER BY version) as past_version,
+			LAG(meta, 1) OVER (ORDER BY version) as past_metadata
+		FROM metadata
+	) as z WHERE version = $1;
+	",
+		spec
+	)
+	.fetch_one(conn)
+	.await
+	.map(|v| (v.past.map(|v| v as u32), v.present as u32, v.past_metadata, v.metadata))?;
+
+	Ok(version)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -219,6 +332,7 @@ mod tests {
 
 	// Setup a data scheme such that:
 	// - blocks 0 - 200 will be missing from the `storage` table
+	// - blocks 0 - 400 will be missing from the `extrinsics` table
 	// - all blocks will be present in the `blocks` table
 	async fn setup_data_scheme() -> Result<PoolConnection<Postgres>, Error> {
 		let mock_bytes: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF];
