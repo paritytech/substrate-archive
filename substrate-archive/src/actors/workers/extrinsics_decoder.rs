@@ -77,7 +77,15 @@ impl ExtrinsicsDecoder {
 			Arc::get_mut(&mut self.decoder)
 				.ok_or_else(|| ArchiveError::Msg("Reference to decoder is not safe to access".into()))?
 				.register_version(*version, &metadata)?;
-			log::debug!("Registered version {}", version);
+		}
+
+		if let Some(first) = versions.first() {
+			if let (Some(past), _, Some(past_metadata), _) = queries::past_and_present_version(&mut conn, *first as i32).await? {
+				Arc::get_mut(&mut self.decoder)
+					.ok_or_else(|| ArchiveError::Msg("Reference to decoder is not safe to access".into()))?
+					.register_version(past, &past_metadata)?;
+				log::debug!("Registered previous version {}", past);
+			}
 		}
 
 		if self.upgrades.load().iter().max_by(|a, b| a.1.cmp(b.1)).map(|(_, v)| v)
