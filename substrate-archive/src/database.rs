@@ -55,9 +55,10 @@ where
 	H: AsRef<[u8]>,
 {
 	let mut conn = PgConnection::connect(url.as_ref()).await?;
-	let persistent_config = PersistentConfig::fetch_and_update(&mut conn, version, genesis).await?;
 
 	sqlx::migrate!("./src/migrations/").run(&mut conn).await?;
+	let persistent_config = PersistentConfig::fetch_and_update(&mut conn, version, genesis).await?;
+
 	Ok(persistent_config)
 }
 
