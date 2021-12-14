@@ -230,6 +230,7 @@ pub enum GetState {
 /// A response to `GetState`
 /// it is callers responsiblity to make sure to call the
 /// correct method on the implement after receiving the message
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum StateResponse {
 	Conn(DbConn),
