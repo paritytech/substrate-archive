@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Custom Read-Only Database Instance using RocksDB Secondary features
-//! Will try catching up with primary database on every `get()`
+//! Custom Read-Only Database Instance using RocksDB Secondary features.
+//! Will try catching up with primary database on every `get()`.
 
 use std::{collections::HashMap, fmt, io, path::PathBuf};
 
@@ -28,7 +28,9 @@ const NUM_COLUMNS: u32 = 11;
 
 pub type KeyValuePair = (Box<[u8]>, Box<[u8]>);
 
-// Archive specific K/V database reader implementation
+/// Archive specific K/V database reader implementation.
+/// Any backend database similiar to RocksDB (e.g ParityDb)
+/// should implement this trait in order to be used with archive.
 pub trait ReadOnlyDb: Send + Sync {
 	/// Read key/value pairs from the database
 	fn get(&self, col: u32, key: &[u8]) -> Option<Vec<u8>>;

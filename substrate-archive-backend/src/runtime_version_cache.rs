@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A cache of runtime versions
+//! A cache of runtime versions.
 //! Will only call the `runtime_version` function once per wasm blob
 
 use std::{

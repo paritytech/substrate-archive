@@ -67,6 +67,8 @@ impl From<ExecutionMethod> for WasmExecutionMethod {
 	}
 }
 
+/// Configuration controls how Archive executes blocks in `execute_block`
+/// (mostly in tasks.rs in `substrate-archive/`).
 #[derive(Clone, Debug, Deserialize)]
 pub struct RuntimeConfig {
 	/// How to execute the runtime code: interpreted (default) or JIT compiled.
@@ -149,6 +151,8 @@ where
 	}
 }
 
+/// Main entry to initialize the substrate-archive backend client, used to
+/// call into the runtime of the network being indexed (e.g to execute blocks).
 pub fn runtime_api<Block, Runtime, D: ReadOnlyDb + 'static>(
 	config: RuntimeConfig,
 	backend: Arc<ReadOnlyBackend<Block, D>>,
