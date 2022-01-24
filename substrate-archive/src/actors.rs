@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Main entrypoint for substrate-archive. `init` will start all actors and begin indexing the
+//! Main entrypoint for substrate-archive. `init` will start the actor loop and begin indexing the
 //! chain defined with the passed-in Client and URL.
 
 mod workers;
@@ -199,8 +199,8 @@ where
 		Ok(Actors { storage, blocks, metadata, db, extrinsics })
 	}
 
-	// Run a future that sends actors a signal to progress once the previous
-	// messages have been processed.
+	/// Run a future that sends actors a signal to progress once the previous
+	/// messages have been processed.
 	async fn tick_interval(&self) -> Result<()> {
 		// messages that only need to be sent once
 		self.blocks.send(ReIndex).await?;
