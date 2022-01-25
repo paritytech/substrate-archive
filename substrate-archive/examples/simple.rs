@@ -1,7 +1,7 @@
 //! A simple example
 
-use polkadot_service::{kusama_runtime::RuntimeApi, Block, KusamaExecutor};
-use substrate_archive::{Archive, ArchiveBuilder};
+use polkadot_service::{kusama_runtime::RuntimeApi, Block};
+use substrate_archive::{Archive, ArchiveBuilder, SecondaryRocksDb};
 
 pub fn main() {
     // get spec/runtime from node library
@@ -12,7 +12,7 @@ pub fn main() {
     // export CHAIN_DATA_DB="/home/insipx/.local/share/polkadot/chains/ksmcc3/db"
     let chain_backend_url = std::env::var("CHAIN_DATA_DB").unwrap();
 
-    let mut archive = ArchiveBuilder::<Block, RuntimeApi, KusamaExecutor>::default()
+    let mut archive = ArchiveBuilder::<Block, RuntimeApi, SecondaryRocksDb>::default()
         .chain_spec(Box::new(spec))
         .chain_data_path(chain_backend_url)
         .pg_url(db_url)

@@ -95,7 +95,7 @@ pub struct ControlConfig {
 	/// Maximum amount of blocks to index at once.
 	#[serde(default = "default_max_block_load")]
 	pub(crate) max_block_load: u32,
-	/// RabbitMq URL. default: `http://localhost:5672`
+	/// RabbitMq URL. default: `amqp://localhost:5672`
 	#[serde(default = "default_task_url")]
 	pub(crate) task_url: String,
 	/// Whether to index storage or not
