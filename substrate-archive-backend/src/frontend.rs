@@ -67,7 +67,7 @@ impl From<ExecutionMethod> for WasmExecutionMethod {
 }
 
 /// Configuration controls how Archive executes blocks in `execute_block`
-/// (mostly in tasks.rs in `substrate-archive/`).
+/// (in tasks.rs in `substrate-archive/`).
 #[derive(Clone, Debug, Deserialize)]
 pub struct RuntimeConfig {
 	/// How to execute the runtime code: interpreted (default) or JIT compiled.
