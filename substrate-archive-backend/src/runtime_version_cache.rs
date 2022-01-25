@@ -18,7 +18,7 @@
 
 use std::{
 	collections::hash_map::DefaultHasher,
-	hash::{Hash, Hasher as _},
+	hash::{Hash as StdHash, Hasher as _},
 	sync::Arc,
 };
 
@@ -35,7 +35,6 @@ use sp_runtime::{
 use sp_state_machine::BasicExternalities;
 use sp_storage::well_known_keys;
 use sp_version::RuntimeVersion;
-use sp_wasm_interface::HostFunctions;
 
 use crate::{
 	database::ReadOnlyDb,
@@ -43,26 +42,24 @@ use crate::{
 	read_only_backend::ReadOnlyBackend,
 };
 
-pub struct RuntimeVersionCache<B, D> {
+pub struct RuntimeVersionCache<Block, Db> {
 	/// Hash of the WASM Blob -> RuntimeVersion
 	versions: ArcSwap<HashMap<u64, RuntimeVersion>>,
-	backend: Arc<ReadOnlyBackend<B, D>>,
-	exec: WasmExecutor,
+	backend: Arc<ReadOnlyBackend<Block, Db>>,
+	exec: WasmExecutor<sp_io::SubstrateHostFunctions>,
 }
 
-impl<B: BlockT, D: ReadOnlyDb + 'static> RuntimeVersionCache<B, D> {
-	pub fn new(backend: Arc<ReadOnlyBackend<B, D>>) -> Self {
-		let funs = sp_io::SubstrateHostFunctions::host_functions();
-
+impl<Block: BlockT, Db: ReadOnlyDb + 'static> RuntimeVersionCache<Block, Db> {
+	pub fn new(backend: Arc<ReadOnlyBackend<Block, Db>>) -> Self {
 		// TODO: https://github.com/paritytech/substrate-archive/issues/247
-		let exec = WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(128), funs, 1, None);
+		let exec = WasmExecutor::<sp_io::SubstrateHostFunctions>::new(WasmExecutionMethod::Interpreted, Some(128), 1, None, 128);
 		Self { versions: ArcSwap::from_pointee(HashMap::new()), backend, exec }
 	}
 
 	/// Get a version of the runtime for some Block Hash
 	/// Prefer `find_versions` when trying to get the runtime versions for
 	/// many consecutive blocks
-	pub fn get(&self, hash: B::Hash) -> Result<Option<RuntimeVersion>> {
+	pub fn get(&self, hash: Block::Hash) -> Result<Option<RuntimeVersion>> {
 		// Getting code from the backend is the slowest part of this. Takes an average of 6ms
 		let code = self.backend.storage(hash, well_known_keys::CODE).ok_or(BackendError::StorageNotExist)?;
 
@@ -85,14 +82,14 @@ impl<B: BlockT, D: ReadOnlyDb + 'static> RuntimeVersionCache<B, D> {
 	}
 
 	/// Recursively finds the versions of all the blocks while minimizing reads/calls to the backend.
-	pub fn find_versions(&self, blocks: &[SignedBlock<B>]) -> Result<Vec<VersionRange<B>>> {
+	pub fn find_versions(&self, blocks: &[SignedBlock<Block>]) -> Result<Vec<VersionRange<Block>>> {
 		let mut versions = Vec::with_capacity(256);
 		self.find_pivot(blocks, &mut versions)?;
 		Ok(versions)
 	}
 
 	/// This can be thought of as similar to a recursive Binary Search
-	fn find_pivot(&self, blocks: &[SignedBlock<B>], versions: &mut Vec<VersionRange<B>>) -> Result<()> {
+	fn find_pivot(&self, blocks: &[SignedBlock<Block>], versions: &mut Vec<VersionRange<Block>>) -> Result<()> {
 		if blocks.is_empty() {
 			return Ok(());
 		} else if blocks.len() == 1 {
@@ -137,17 +134,11 @@ impl<B: BlockT> VersionRange<B> {
 }
 
 fn decode_version(version: &[u8]) -> Result<sp_version::RuntimeVersion> {
-	let v: RuntimeVersion = sp_api::OldRuntimeVersion::decode(&mut &*version)?.into();
-	let core_api_id = sp_core::hashing::blake2_64(b"Core");
-	if v.has_api_with(&core_api_id, |v| v >= 3) {
-		sp_api::RuntimeVersion::decode(&mut &*version).map_err(Into::into)
-	} else {
-		Ok(v)
-	}
+	Decode::decode(&mut &*version).map_err(Into::into)
 }
 
 // Make a hash out of a byte string using the default hasher.
-fn make_hash<K: Hash + ?Sized>(val: &K) -> u64 {
+fn make_hash<K: StdHash + ?Sized>(val: &K) -> u64 {
 	let mut state = DefaultHasher::new();
 	val.hash(&mut state);
 	state.finish()

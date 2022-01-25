@@ -371,7 +371,6 @@ where
 		let client = Arc::new(runtime_api(
 			self.config.runtime.clone(),
 			backend.clone(),
-			self.host_functions,
 			crate::tasks::TaskExecutor,
 		)?);
 		let (rt, genesis_hash) = Self::startup_info(&*client, &*backend)?;
