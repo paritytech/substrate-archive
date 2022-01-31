@@ -52,7 +52,13 @@ pub struct RuntimeVersionCache<Block, Db> {
 impl<Block: BlockT, Db: ReadOnlyDb + 'static> RuntimeVersionCache<Block, Db> {
 	pub fn new(backend: Arc<ReadOnlyBackend<Block, Db>>) -> Self {
 		// TODO: https://github.com/paritytech/substrate-archive/issues/247
-		let exec = WasmExecutor::<sp_io::SubstrateHostFunctions>::new(WasmExecutionMethod::Interpreted, Some(128), 1, None, 128);
+		let exec = WasmExecutor::<sp_io::SubstrateHostFunctions>::new(
+			WasmExecutionMethod::Interpreted,
+			Some(128),
+			1,
+			None,
+			128,
+		);
 		Self { versions: ArcSwap::from_pointee(HashMap::new()), backend, exec }
 	}
 

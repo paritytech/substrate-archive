@@ -42,8 +42,8 @@ use crate::{database::ReadOnlyDb, error::BackendError, read_only_backend::ReadOn
 pub type TArchiveClient<TBl, TRtApi, D> = Client<TFullCallExecutor<TBl, D>, TBl, TRtApi, D>;
 
 /// Full client call executor type.
-type TFullCallExecutor<TBl, D> = LocalCallExecutor<TBl, ReadOnlyBackend<TBl, D>,
-WasmExecutor<sp_io::SubstrateHostFunctions>>;
+type TFullCallExecutor<TBl, D> =
+	LocalCallExecutor<TBl, ReadOnlyBackend<TBl, D>, WasmExecutor<sp_io::SubstrateHostFunctions>>;
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub enum ExecutionMethod {
@@ -132,9 +132,11 @@ where
 			.into_iter()
 			.map(|(n, code)| {
 				let number = NumberFor::<B>::from_str(&n).map_err(|_| {
-					BackendError::Msg(format!("Failed to parse `{}` as block number for code substitutes. \
+					BackendError::Msg(format!(
+						"Failed to parse `{}` as block number for code substitutes. \
 						 In an old version the key for code substitute was a block hash. \
-						 Please update the chain spec to a version that is compatible with your node.", n
+						 Please update the chain spec to a version that is compatible with your node.",
+						n
 					))
 				})?;
 				Ok((number, code))
@@ -170,12 +172,12 @@ where
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	let executor = WasmExecutor::<sp_io::SubstrateHostFunctions>::new(
-			config.exec_method.into(),
-			config.wasm_pages,
-			config.block_workers,
-			None,
-			128
-		);
+		config.exec_method.into(),
+		config.wasm_pages,
+		config.block_workers,
+		None,
+		128,
+	);
 	let executor = LocalCallExecutor::new(backend.clone(), executor, Box::new(task_executor), config.try_into()?)?;
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None, None))?;
 	Ok(client)
