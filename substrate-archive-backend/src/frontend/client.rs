@@ -16,7 +16,7 @@
 
 //! Custom implementation of a Client for Archival use.
 //! This client resembles the client in `client/service/src/client` except that it uses a read-only rocksdb
-//! database implementation, and the backend state trie access attempt to avoid caching like the substrate client.
+//! database implementation, and that the backend state trie aims at avoid caching as much as possible, unlike the normal substrate client.
 //! (Substrate Archive generally does not expect to access values multiple times during a run).
 //! Implements Runtime API's
 //! Read-Only Access
