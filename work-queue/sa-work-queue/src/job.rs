@@ -44,7 +44,7 @@ pub trait Job: Serialize + DeserializeOwned {
 	const JOB_TYPE: &'static str;
 
 	#[doc(hidden)]
-	/// inserts the job into the Postgres Database
+	/// Inserts the job into the Postgres Database
 	async fn enqueue(self, handle: &QueueHandle) -> Result<(), EnqueueError> {
 		let job = BackgroundJob { job_type: Self::JOB_TYPE.to_string(), data: serde_json::to_value(&self)? };
 		let job = serde_json::to_vec(&job)?;
@@ -57,11 +57,13 @@ pub trait Job: Serialize + DeserializeOwned {
 	fn perform(self, _: &Self::Environment) -> Result<(), PerformError>;
 }
 
+/// Extra/Optional functions for Job
 #[async_trait::async_trait]
 pub trait JobExt: Job {
+	/// Enqueue a batch of jobs.
+	/// Optimized over just using `enqueue` since the jobs may be enqueued using concurrent connections.
 	async fn enqueue_batch(conn: &QueueHandle, jobs: Vec<Self>) -> Result<(), EnqueueError> {
 		stream::iter(jobs).map(Ok).try_for_each_concurrent(16, |job| job.enqueue(conn)).await?;
-
 		Ok(())
 	}
 }

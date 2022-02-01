@@ -14,12 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Custom implementation of a Client for Archival use
+//! Custom implementation of a Client for Archival use.
+//! This client resembles the client in `client/service/src/client` except that it uses a read-only rocksdb
+//! database implementation, and that the backend state trie aims at avoid caching as much as possible, unlike the normal substrate client.
+//! (Substrate Archive generally does not expect to access values multiple times during a run).
 //! Implements Runtime API's
 //! Read-Only Access
-//! The Archive Client and it's backend are decoupled
 //! It's recommended to use the backend (ReadOnlyBackend) for anything that requires getting blocks, querying
-//! storage, or similar operations. Client usage should be reserved for calling into the Runtime
+//! storage, or similar operations. Client usage should be reserved for calling into the Runtime.
 
 use std::{marker::PhantomData, panic::UnwindSafe, sync::Arc};
 

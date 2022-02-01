@@ -18,7 +18,7 @@ mod client;
 
 use serde::Deserialize;
 use std::{
-	collections::HashMap,
+	collections::{BTreeMap, HashMap},
 	convert::{TryFrom, TryInto},
 	path::PathBuf,
 	str::FromStr,
@@ -33,9 +33,7 @@ use sc_executor::{WasmExecutionMethod, WasmExecutor};
 use sc_service::{ChainSpec, ClientConfig, LocalCallExecutor, TransactionStorageMode};
 use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
-use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
-use sp_wasm_interface::Function;
-use sp_wasm_interface::HostFunctions;
+use sp_runtime::traits::{BlakeTwo256, Block as BlockT, NumberFor};
 
 pub use self::client::{Client, GetMetadata};
 use crate::{database::ReadOnlyDb, error::BackendError, read_only_backend::ReadOnlyBackend, RuntimeApiCollection};
@@ -44,7 +42,8 @@ use crate::{database::ReadOnlyDb, error::BackendError, read_only_backend::ReadOn
 pub type TArchiveClient<TBl, TRtApi, D> = Client<TFullCallExecutor<TBl, D>, TBl, TRtApi, D>;
 
 /// Full client call executor type.
-type TFullCallExecutor<TBl, D> = LocalCallExecutor<TBl, ReadOnlyBackend<TBl, D>, WasmExecutor>;
+type TFullCallExecutor<TBl, D> =
+	LocalCallExecutor<TBl, ReadOnlyBackend<TBl, D>, WasmExecutor<sp_io::SubstrateHostFunctions>>;
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub enum ExecutionMethod {
@@ -67,6 +66,8 @@ impl From<ExecutionMethod> for WasmExecutionMethod {
 	}
 }
 
+/// Configuration controls how Archive executes blocks in `execute_block`
+/// (in tasks.rs in `substrate-archive/`).
 #[derive(Clone, Debug, Deserialize)]
 pub struct RuntimeConfig {
 	/// How to execute the runtime code: interpreted (default) or JIT compiled.
@@ -85,7 +86,7 @@ pub struct RuntimeConfig {
 	/// are included in the chain_spec and primarily for fixing problematic on-chain wasm.
 	/// If both are in use, the `wasm_runtime_overrides` takes precedence.
 	#[serde(skip)]
-	code_substitutes: HashMap<String, Vec<u8>>,
+	code_substitutes: BTreeMap<String, Vec<u8>>,
 	/// Method of storing and retrieving transactions(extrinsics).
 	#[serde(skip, default = "default_storage_mode")]
 	pub storage_mode: TransactionStorageMode,
@@ -123,36 +124,41 @@ const fn default_storage_mode() -> TransactionStorageMode {
 impl<B> TryFrom<RuntimeConfig> for ClientConfig<B>
 where
 	B: BlockT,
-	B::Hash: FromStr,
 {
 	type Error = BackendError;
 	fn try_from(config: RuntimeConfig) -> Result<ClientConfig<B>, BackendError> {
 		let wasm_runtime_substitutes = config
 			.code_substitutes
 			.into_iter()
-			.map(|(hash, code)| {
-				let hash = B::Hash::from_str(&hash).map_err(|_| {
-					BackendError::Msg(format!("Failed to parse `{}` as block hash for code substitute.", hash))
+			.map(|(n, code)| {
+				let number = NumberFor::<B>::from_str(&n).map_err(|_| {
+					BackendError::Msg(format!(
+						"Failed to parse `{}` as block number for code substitutes. \
+						 In an old version the key for code substitute was a block hash. \
+						 Please update the chain spec to a version that is compatible with your node.",
+						n
+					))
 				})?;
-				Ok((hash, code))
+				Ok((number, code))
 			})
-			.collect::<Result<HashMap<B::Hash, Vec<u8>>, BackendError>>()?;
+			.collect::<Result<HashMap<_, _>, BackendError>>()?;
 
 		Ok(ClientConfig {
 			offchain_worker_enabled: false,
 			offchain_indexing_api: false,
 			wasm_runtime_overrides: config.wasm_runtime_overrides,
-			wasm_runtime_substitutes,
 			// we do not support 'no_genesis', so this value is inconsiquential
 			no_genesis: false,
+			wasm_runtime_substitutes,
 		})
 	}
 }
 
+/// Main entry to initialize the substrate-archive backend client, used to
+/// call into the runtime of the network being indexed (e.g to execute blocks).
 pub fn runtime_api<Block, Runtime, D: ReadOnlyDb + 'static>(
 	config: RuntimeConfig,
 	backend: Arc<ReadOnlyBackend<Block, D>>,
-	host_functions: Option<Vec<&'static dyn Function>>,
 	task_executor: impl SpawnNamed + 'static,
 ) -> Result<TArchiveClient<Block, Runtime, D>, BackendError>
 where
@@ -165,11 +171,13 @@ where
 		+ 'static,
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
-	let host_functions =
-		if let Some(funcs) = host_functions { funcs } else { sp_io::SubstrateHostFunctions::host_functions() };
-
-	let executor =
-		WasmExecutor::new(config.exec_method.into(), config.wasm_pages, host_functions, config.block_workers, None);
+	let executor = WasmExecutor::<sp_io::SubstrateHostFunctions>::new(
+		config.exec_method.into(),
+		config.wasm_pages,
+		config.block_workers,
+		None,
+		128,
+	);
 	let executor = LocalCallExecutor::new(backend.clone(), executor, Box::new(task_executor), config.try_into()?)?;
 	let client = Client::new(backend, executor, ExecutionExtensions::new(execution_strategies(), None, None))?;
 	Ok(client)

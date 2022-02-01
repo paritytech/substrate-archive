@@ -17,6 +17,22 @@
 #![forbid(unsafe_code)]
 #![deny(dead_code)]
 
+//! ### Overview
+//!
+//! Archive is written as a way to index generic substrate chains into a uniform Postgres database for
+//! the purpose of querying information about a network in a way most familiar to developers.
+//! Therefore the core of archive is a library, and needs another layer to tell it about a networks Runtime
+//! characteristics in order to index properly.
+//!
+//! #### Setup
+//! The simplest possible setup for archive is described in the `simple` example [`examples/simple.rs`].
+//! Most important is passing the correct `RuntimeApi`, `Block`, and `ReadOnlyDb` trait generics to the builder.
+//! A more complicated setup may be observed in the `polkadot-archive` and `node-template-archive` binary projects.
+//! The trickiest part is setting up the Postgres and RabbitMq seperately and configuring those services.
+//! A [Docker Compose
+//! Config](https://github.com/paritytech/substrate-archive/blob/master/docker-compose.yaml) exists
+//! to make this process easier.
+
 // Re-Exports
 pub use sp_blockchain::Error as BlockchainError;
 pub use sp_runtime::MultiSignature;

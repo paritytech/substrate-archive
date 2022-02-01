@@ -15,6 +15,21 @@
 // along with substrate-archive.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Read Only Interface with Substrate Backend (kvdb-rocksdb)
+//! Structs and traits in this module generally follow those defined in substrate.
+//! They only differentiate insofar as the use of a read-only Secondary RocksDB Database.
+//! Therefore some methods (like block importing) are not useful to us and left as stubs (generally with a warn! log).
+//! We need to implement substrate database traits in order to satisfy the requirements for using a client.
+//! We need a client implementation in order to access functions in a FRAME runtime (like block execution)
+//! to allow for faster indexing.
+//! These traits are:
+//! [`Backend`](https://paritytech.github.io/substrate/master/sc_client_api/backend/trait.Backend.html)
+//! [`BlockBackend`](https://paritytech.github.io/substrate/master/sp_blockchain/trait.Backend.html)
+//! [`AuxStore`](https://paritytech.github.io/substrate/master/sc_client_api/backend/trait.AuxStore.html)
+//! [`OffchainStorage`](https://paritytech.github.io/substrate/master/sp_core/offchain/trait.OffchainStorage.html)
+//! [`BlockImportOperation`](https://paritytech.github.io/substrate/master/sc_client_db/struct.BlockImportOperation.html)
+//!
+//! the trait [`StateBackend`](https://paritytech.github.io/substrate/master/sc_client_api/backend/trait.StateBackend.html)
+//! is implemented on a trimmed-down [`TrieState`] type and used in the archive client.
 
 #![forbid(unsafe_code)]
 #![deny(dead_code)]

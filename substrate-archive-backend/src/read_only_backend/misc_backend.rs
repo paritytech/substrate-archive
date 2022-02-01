@@ -26,7 +26,7 @@ use sp_blockchain::{well_known_cache_keys::Id, Error as BlockchainError};
 use sp_core::offchain::OffchainStorage;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT, Justification, Justifications};
 use sp_state_machine::{ChildStorageCollection, IndexOperation, StorageCollection};
-use sp_storage::Storage;
+use sp_storage::{StateVersion, Storage};
 
 use crate::{database::ReadOnlyDb, read_only_backend::ReadOnlyBackend, util::columns};
 
@@ -67,12 +67,17 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockImportOperation<Block> for RealBlockImpo
 		Ok(())
 	}
 
-	fn set_genesis_state(&mut self, _storage: Storage, _commit: bool) -> sp_blockchain::Result<Block::Hash> {
+	fn set_genesis_state(
+		&mut self,
+		_storage: Storage,
+		_commit: bool,
+		_: StateVersion,
+	) -> sp_blockchain::Result<Block::Hash> {
 		log::warn!("Cannot set state of a read only backend. Genesis not set");
 		Ok(Default::default())
 	}
 
-	fn reset_storage(&mut self, _reset: Storage) -> ChainResult<Block::Hash> {
+	fn reset_storage(&mut self, _reset: Storage, _: StateVersion) -> ChainResult<Block::Hash> {
 		log::warn!("Cannot modify storage of a read only backend. Storage not reset.");
 		Ok(Default::default())
 	}

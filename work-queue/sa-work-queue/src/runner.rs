@@ -37,6 +37,7 @@ use crate::{
 };
 
 /// Builder pattern struct for the Runner
+#[must_use]
 pub struct Builder<Env> {
 	environment: Env,
 	num_threads: usize,
@@ -234,7 +235,6 @@ impl<Env: 'static> Runner<Env> {
 
 impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 	/// Runs all the pending tasks in a loop
-	/// Returns how many tasks are running as a result
 	pub fn run_pending_tasks(&self) -> Result<(), FetchError> {
 		let max_threads = self.threadpool.max_count();
 		log::debug!("Max Threads: {}", max_threads);
