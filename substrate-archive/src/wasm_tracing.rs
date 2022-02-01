@@ -316,7 +316,6 @@ mod tests {
 	use sc_executor::{WasmExecutionMethod, WasmExecutor};
 	use sc_executor_common::runtime_blob::RuntimeBlob;
 	use sp_io::TestExternalities;
-	use sp_wasm_interface::HostFunctions;
 	use test_common::wasm_binary_unwrap;
 
 	const TARGETS: &str = "wasm_tracing,test_wasm";
@@ -327,13 +326,8 @@ mod tests {
 		let mut ext = TestExternalities::default();
 		let mut ext = ext.ext();
 
-		let executor = WasmExecutor::new(
-			WasmExecutionMethod::Compiled,
-			Some(8),
-			sp_io::SubstrateHostFunctions::host_functions(),
-			8,
-			None,
-		);
+		let executor =
+			WasmExecutor::<sp_io::SubstrateHostFunctions>::new(WasmExecutionMethod::Compiled, Some(1024), 8, None, 128);
 
 		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
 		let handler = TraceHandler::new(TARGETS, span_events);

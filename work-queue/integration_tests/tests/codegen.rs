@@ -57,7 +57,7 @@ fn jobs_with_args_but_no_env() {
 
 	let runner = TestGuard::dummy_runner();
 	smol::block_on(async {
-		let mut conn = runner.handle();
+		let conn = runner.handle();
 		assert_foo("foo".into()).enqueue(conn).await.unwrap();
 		assert_foo("not foo".into()).enqueue(conn).await.unwrap();
 		runner.run_pending_tasks().unwrap();
@@ -75,7 +75,7 @@ fn env_can_have_any_name() {
 
 	let runner = TestGuard::runner(String::from("my environment"));
 	smol::block_on(async {
-		let mut conn = runner.handle();
+		let conn = runner.handle();
 		env_with_different_name().enqueue(conn).await.unwrap();
 
 		runner.run_pending_tasks().unwrap();
