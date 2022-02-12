@@ -6,6 +6,7 @@ let
   };
   rust = (channel.rust.override {
     targets = [ "wasm32-unknown-unknown" ];
+    extensions = ["rust-src"];
   });
 in
   with pkgs;
