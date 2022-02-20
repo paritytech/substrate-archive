@@ -46,7 +46,6 @@ services:
     
 networks:
   default:
-    name: sa-network 
     ipam:
       config:
         - subnet: 172.10.10.0/24
