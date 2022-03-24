@@ -21,17 +21,19 @@ use std::{collections::HashMap, sync::Arc};
 use xtra::prelude::*;
 
 use desub::Decoder;
+use serde_json::Value;
 
 use crate::{
 	actors::{
 		workers::database::{DatabaseActor, GetState},
 		SystemConfig,
 	},
-	database::{models::ExtrinsicsModel, queries},
+	database::{models::ExtrinsicsModel,models::CapsuleModel, queries},
 	error::{ArchiveError, Result},
-	types::BatchExtrinsics,
+	types::{BatchExtrinsics,BatchCapsules},
 };
 
+use serde::Deserialize;
 /// Actor which crawls missing encoded extrinsics and
 /// sends decoded JSON to the database.
 /// Crawls missing extrinsics upon receiving an `Index` message.
@@ -49,15 +51,22 @@ pub struct ExtrinsicsDecoder {
 	upgrades: ArcSwap<HashMap<u32, u32>>,
 }
 
+#[derive(Deserialize, Debug)]
+struct SecondaryVec(Vec<Vec<u8>>);
+
+#[derive(Deserialize, Debug)]
+struct U8Vec(Vec<u8>);
+
 impl ExtrinsicsDecoder {
 	pub async fn new<B: Send + Sync, Db: Send + Sync>(
 		config: &SystemConfig<B, Db>,
 		addr: Address<DatabaseActor>,
 	) -> Result<Self> {
 		let max_block_load = config.control.max_block_load;
-		let chain = config.persistent_config.chain();
 		let pool = addr.send(GetState::Pool).await??.pool();
-		let decoder = Arc::new(Decoder::new(chain));
+		// let chain = config.persistent_config.chain();
+		// let decoder = Arc::new(Decoder::new(chain));
+		let decoder = Arc::new(Decoder::new());
 		let mut conn = pool.acquire().await?;
 		let upgrades = ArcSwap::from_pointee(queries::upgrade_blocks_from_spec(&mut conn, 0).await?);
 		log::info!("Started extrinsic decoder");
@@ -97,10 +106,16 @@ impl ExtrinsicsDecoder {
 		}
 		let decoder = self.decoder.clone();
 		let upgrades = self.upgrades.load().clone();
-		let extrinsics =
-			task::spawn_blocking(move || Ok::<_, ArchiveError>(Self::decode(&decoder, blocks, &upgrades))).await??;
 
+		let extrinsics_tuple = task::spawn_blocking(move || Ok::<_, ArchiveError>(Self::decode(&decoder, blocks, &upgrades))).await??;
+
+		let extrinsics= extrinsics_tuple.0;
 		self.addr.send(BatchExtrinsics::new(extrinsics)).await?;
+
+		//send batch capsules to DatabaseActor
+		let capsules = extrinsics_tuple.1;
+		self.addr.send(BatchCapsules::new(capsules)).await?;
+
 		Ok(())
 	}
 
@@ -108,8 +123,9 @@ impl ExtrinsicsDecoder {
 		decoder: &Decoder,
 		blocks: Vec<(u32, Vec<u8>, Vec<u8>, u32)>,
 		upgrades: &HashMap<u32, u32>,
-	) -> Result<Vec<ExtrinsicsModel>> {
+	) -> Result<(Vec<ExtrinsicsModel>,Vec<CapsuleModel>)> {
 		let mut extrinsics = Vec::new();
+		let mut capsules = Vec::new();
 		if blocks.len() > 2 {
 			let first = blocks.first().expect("Checked len; qed");
 			let last = blocks.last().expect("Checked len; qed");
@@ -131,14 +147,44 @@ impl ExtrinsicsDecoder {
 					.find(|(_curr, next)| *next >= version)
 					.map(|(c, _)| c)
 					.ok_or(ArchiveError::PrevSpecNotFound(*version))?;
-				let ext = decoder.decode_extrinsics(*previous, ext.as_slice())?;
-				extrinsics.push(ExtrinsicsModel::new(hash, number, ext)?);
+				let ext1 = decoder.decode_extrinsics(*previous, ext.as_slice())?;
+				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
+
+				//construct capsule list for batch
+				Self::construct_capsules(&number, &hash.to_owned(),&ext1,&mut capsules);
 			} else {
-				let ext = decoder.decode_extrinsics(spec, ext.as_slice())?;
-				extrinsics.push(ExtrinsicsModel::new(hash, number, ext)?);
+				let ext1 = decoder.decode_extrinsics(spec, ext.as_slice())?;
+				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
+
+				//construct capsule list for batch
+				Self::construct_capsules(&number, &hash.to_owned(),&ext1,&mut capsules);
 			}
 		}
-		Ok(extrinsics)
+		Ok((extrinsics,capsules))
+	}
+
+	//construct capsule list for batch
+	fn construct_capsules(number: &u32, hash:&Vec<u8>, ext2: &Value,capsules:&mut Vec<CapsuleModel>){
+		if ext2.is_array(){
+			let ext2_array = ext2.as_array().unwrap().to_owned();
+			for item in ext2_array{
+				if item.is_object(){
+					let item_object = item.as_object().unwrap().to_owned();
+					let pallet_name = item_object["call_data"]["pallet_name"].as_str().unwrap().to_owned();
+					let arguments = item_object["call_data"]["arguments"].to_owned();
+					if pallet_name == "Timestamp" {
+						let model = CapsuleModel::from_timestamp(hash.to_vec(),number.to_owned(),pallet_name.as_bytes().to_vec()).unwrap();
+						capsules.push(model);
+					}else if pallet_name == "CapsuleModule"{
+						let arg1:SecondaryVec = serde_json::from_value(arguments[0].to_owned()).unwrap();
+						let arg2:U8Vec = serde_json::from_value(arguments[1].to_owned()).unwrap();
+						let arg3 = arguments[2].as_u64().unwrap();
+						let model = CapsuleModel::new(hash.to_vec(), number.to_owned(), arg2.0, arg1.0, pallet_name.as_bytes().to_vec(), arg3 as u32).unwrap();
+						capsules.push(model);
+					}
+				}
+			}
+		}
 	}
 
 	async fn update_upgrade_blocks(&self) -> Result<()> {

@@ -25,8 +25,9 @@ use codec::{Decode, Encode, Error as DecodeError};
 use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, FromRow, PgConnection, Postgres};
 
-use desub::{types::LegacyOrCurrentExtrinsic, Chain};
+// use desub::{Chain};
 use sc_executor::RuntimeVersion;
+use serde_json::Value;
 use sp_runtime::{
 	generic::SignedBlock,
 	traits::{Block as BlockT, Header as HeaderT},
@@ -141,18 +142,46 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 	}
 }
 
-#[derive(Debug, Serialize, FromRow)]
+#[derive(Debug, Serialize,FromRow)]
 pub struct ExtrinsicsModel {
 	pub id: Option<i32>,
 	pub hash: Vec<u8>,
 	pub number: i32,
-	pub extrinsics: Json<Vec<LegacyOrCurrentExtrinsic>>,
+	pub extrinsics: Json<Value>,
 }
 
 impl ExtrinsicsModel {
-	pub fn new(hash: Vec<u8>, number: u32, extrinsics: Vec<LegacyOrCurrentExtrinsic>) -> Result<Self> {
+	pub fn new(hash: Vec<u8>, number: u32, extrinsics: Value) -> Result<Self> {
 		let number = number.try_into()?;
 		Ok(Self { id: None, hash, number, extrinsics: Json(extrinsics) })
+	}
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct CapsuleModel{
+	pub id: Option<i32>,
+	pub hash: Vec<u8>,
+	pub number: u32,
+	pub cipher:Option<Vec<u8>>,
+	pub account_id:Option<Vec<Vec<u8>>>,
+	pub capsule_type:String,
+	pub release_number: Option<u32>
+}
+
+
+impl CapsuleModel {
+	pub fn new(block_id: Vec<u8>, block_num: u32, cipher: Vec<u8>, account_id:Vec<Vec<u8>>, capsule_type:Vec<u8>, release_number:u32) -> Result<Self>{
+		let block_id = block_id.try_into().unwrap();
+		let block_num = block_num.try_into().unwrap();
+		let capsule_type = String::from_utf8(capsule_type).unwrap();
+		Ok(Self{id: None, hash:block_id, number:block_num,cipher:Option::from(cipher),account_id:Option::from(account_id),capsule_type,release_number:Option::from(release_number)})
+	}
+
+	pub fn from_timestamp(block_id: Vec<u8>, block_num: u32,capsule_type:Vec<u8>) -> Result<Self>{
+		let block_id = block_id.try_into().unwrap();
+		let block_num = block_num.try_into().unwrap();
+		let capsule_type = String::from_utf8(capsule_type).unwrap();
+		Ok(Self{id: None, hash:block_id, number:block_num,cipher:None,account_id:None,capsule_type,release_number:None})
 	}
 }
 
@@ -273,16 +302,16 @@ impl PersistentConfig {
 		Ok((version.major.try_into()?, version.minor.try_into()?, version.patch.try_into()?))
 	}
 
-	pub(crate) fn chain(&self) -> Chain {
-		match self.chain.to_ascii_lowercase().as_str() {
-			"kusama" => Chain::Kusama,
-			"polkadot" => Chain::Polkadot,
-			"westend" => Chain::Westend,
-			"centrifuge" => Chain::Centrifuge,
-			"rococo" => Chain::Rococo,
-			s => Chain::Custom(s.to_string()),
-		}
-	}
+	// pub(crate) fn chain(&self) -> Chain {
+	// 	match self.chain.to_ascii_lowercase().as_str() {
+	// 		"kusama" => Chain::Kusama,
+	// 		"polkadot" => Chain::Polkadot,
+	// 		"westend" => Chain::Westend,
+	// 		"centrifuge" => Chain::Centrifuge,
+	// 		"rococo" => Chain::Rococo,
+	// 		s => Chain::Custom(s.to_string()),
+	// 	}
+	// }
 }
 
 #[cfg(test)]

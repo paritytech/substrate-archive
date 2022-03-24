@@ -1,7 +1,8 @@
 [chain]
 # Must be an absolute path to chain data db (no ~/)
 # Can also be specified via the `CHAIN_DATA_DB` environment variable
-data_path = "/Users/yindan/Capsule/my-chain-state/chains/dev/db/full"
+#data_path = "/Users/yindan/Capsule/my-chain-state/chains/dev/db/full"
+data_path = "/Users/yindan/Capsule/target/debug/my-chain-state/chains/dev/db/full"
 
 # How much should the read-only database keep in cache (MB)
 # Optional, default: 128

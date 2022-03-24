@@ -27,6 +27,7 @@ use crate::{
 	types::{BatchBlock, BatchExtrinsics, BatchStorage, Block, Metadata, Storage},
 	wasm_tracing::Traces,
 };
+use crate::types::BatchCapsules;
 
 #[derive(Clone)]
 pub struct DatabaseActor {
@@ -213,6 +214,19 @@ impl Handler<BatchExtrinsics> for DatabaseActor {
 			log::error!("{}", e.to_string());
 		}
 		log::debug!("took {:?} to insert {} extrinsics", now.elapsed(), len);
+	}
+}
+
+
+#[async_trait::async_trait]
+impl Handler<BatchCapsules> for DatabaseActor {
+	async fn handle(&mut self, capsules: BatchCapsules, _: &mut Context<Self>) {
+		let len = capsules.len();
+		let now = std::time::Instant::now();
+		if let Err(e) = self.db.insert(capsules.inner()).await {
+			log::error!("{}", e.to_string());
+		}
+		log::debug!("took {:?} to insert {} capsules", now.elapsed(), len);
 	}
 }
 
