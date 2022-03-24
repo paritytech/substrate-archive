@@ -20,13 +20,12 @@ mod workers;
 
 use std::{
 	convert::TryInto,
+	env,
 	marker::PhantomData,
 	panic::AssertUnwindSafe,
 	sync::Arc,
 	time::{Duration, Instant},
-	env,
 };
-
 
 use async_std::{
 	future::timeout,
@@ -116,7 +115,6 @@ impl Default for ControlConfig {
 	}
 }
 
-
 const fn default_storage_indexing() -> bool {
 	true
 }
@@ -124,8 +122,8 @@ const fn default_storage_indexing() -> bool {
 fn env_var_task_url() -> String {
 	const AMQP_URL: &str = "AMQP_URL";
 	match env::var(AMQP_URL) {
-		Ok(env_var_url) =>  env_var_url.into(),
-		Err(_) => default_task_url()
+		Ok(env_var_url) => env_var_url.into(),
+		Err(_) => default_task_url(),
 	}
 }
 
