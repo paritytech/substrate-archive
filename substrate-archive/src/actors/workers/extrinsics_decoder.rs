@@ -174,14 +174,14 @@ impl ExtrinsicsDecoder {
 					let arguments = item_object["call_data"]["arguments"].to_owned();
 					match pallet_name.as_str() {
 						"Timestamp" => {
-							let model = CapsuleModel::from_timestamp(hash.to_vec(),number.to_owned(),pallet_name.as_bytes().to_vec()).unwrap();
-							capsules.push(model);
+							// let model = CapsuleModel::from_timestamp(hash.to_vec(),number.to_owned(),pallet_name.as_bytes().to_vec()).unwrap();
+							// capsules.push(model);
 						}
 						"CapsuleModule" => {
-							let arg1:SecondaryVec = serde_json::from_value(arguments[0].to_owned()).unwrap();
-							let arg2:U8Vec = serde_json::from_value(arguments[1].to_owned()).unwrap();
-							let arg3 = arguments[2].as_u64().unwrap();
-							let model = CapsuleModel::new(hash.to_vec(), number.to_owned(), arg2.0, arg1.0, pallet_name.as_bytes().to_vec(), arg3 as u32).unwrap();
+							let account_id = serde_json::from_value(arguments[0].to_owned()).unwrap().0;
+							let cipher = serde_json::from_value(arguments[1].to_owned()).unwrap().1;
+							let release_block_num = arguments[2].as_u64().unwrap() as u32;
+							let model = CapsuleModel::new(hash.to_vec(), number.to_owned(), cipher, account_id, pallet_name.as_bytes().to_vec(), release_block_num).unwrap();
 							capsules.push(model);
 						}
 						_ => {
