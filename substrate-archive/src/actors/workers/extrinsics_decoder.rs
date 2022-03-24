@@ -21,7 +21,7 @@ use std::{collections::HashMap, sync::Arc};
 use xtra::prelude::*;
 
 use desub::Decoder;
-use serde_json::Value;
+use serde_json::{Value};
 
 use crate::{
 	actors::{
@@ -164,23 +164,29 @@ impl ExtrinsicsDecoder {
 	}
 
 	//construct capsule list for batch
-	fn construct_capsules(number: &u32, hash:&Vec<u8>, ext2: &Value,capsules:&mut Vec<CapsuleModel>){
-		if ext2.is_array(){
-			let ext2_array = ext2.as_array().unwrap().to_owned();
-			for item in ext2_array{
+	fn construct_capsules(number: &u32, hash:&Vec<u8>, ext: &Value,capsules:&mut Vec<CapsuleModel>){
+		if ext.is_array(){
+			let ext_array = ext.as_array().unwrap().to_owned();
+			for item in ext_array{
 				if item.is_object(){
 					let item_object = item.as_object().unwrap().to_owned();
 					let pallet_name = item_object["call_data"]["pallet_name"].as_str().unwrap().to_owned();
 					let arguments = item_object["call_data"]["arguments"].to_owned();
-					if pallet_name == "Timestamp" {
-						let model = CapsuleModel::from_timestamp(hash.to_vec(),number.to_owned(),pallet_name.as_bytes().to_vec()).unwrap();
-						capsules.push(model);
-					}else if pallet_name == "CapsuleModule"{
-						let arg1:SecondaryVec = serde_json::from_value(arguments[0].to_owned()).unwrap();
-						let arg2:U8Vec = serde_json::from_value(arguments[1].to_owned()).unwrap();
-						let arg3 = arguments[2].as_u64().unwrap();
-						let model = CapsuleModel::new(hash.to_vec(), number.to_owned(), arg2.0, arg1.0, pallet_name.as_bytes().to_vec(), arg3 as u32).unwrap();
-						capsules.push(model);
+					match pallet_name.as_str() {
+						"Timestamp" => {
+							let model = CapsuleModel::from_timestamp(hash.to_vec(),number.to_owned(),pallet_name.as_bytes().to_vec()).unwrap();
+							capsules.push(model);
+						}
+						"CapsuleModule" => {
+							let arg1:SecondaryVec = serde_json::from_value(arguments[0].to_owned()).unwrap();
+							let arg2:U8Vec = serde_json::from_value(arguments[1].to_owned()).unwrap();
+							let arg3 = arguments[2].as_u64().unwrap();
+							let model = CapsuleModel::new(hash.to_vec(), number.to_owned(), arg2.0, arg1.0, pallet_name.as_bytes().to_vec(), arg3 as u32).unwrap();
+							capsules.push(model);
+						}
+						_ => {
+
+						}
 					}
 				}
 			}
