@@ -27,6 +27,7 @@ use std::{
 	env,
 };
 
+
 use async_std::{
 	future::timeout,
 	task::{self, JoinHandle},
@@ -97,8 +98,7 @@ pub struct ControlConfig {
 	#[serde(default = "default_max_block_load")]
 	pub(crate) max_block_load: u32,
 	/// RabbitMq URL. default: `amqp://localhost:5672`
-	//#[serde(default = "default_task_url")]
-	#[serde(default = "env_var_task_url")]
+	#[serde(default = "default_task_url")]
 	pub(crate) task_url: String,
 	/// Whether to index storage or not
 	#[serde(default = "default_storage_indexing")]
@@ -116,23 +116,6 @@ impl Default for ControlConfig {
 	}
 }
 
-// maybe unnecessary, waiting response on https://github.com/paritytech/substrate-archive/issues/431
-impl ControlConfig {
-	pub fn with_env_var() -> Self {
-		// TODO
-		const AMQP_URL: &str = "AMQP_URL";
-		if let amqp_url = env::var(AMQP_URL).unwrap() {
-			Self {
-				task_timeout: default_task_timeout(),
-				max_block_load: default_max_block_load(),
-				task_url: amqp_url,
-				storage_indexing: default_storage_indexing(),
-			}
-		} else {
-			Self::default()
-		}
-	}
-}
 
 const fn default_storage_indexing() -> bool {
 	true
@@ -140,13 +123,9 @@ const fn default_storage_indexing() -> bool {
 
 fn env_var_task_url() -> String {
 	const AMQP_URL: &str = "AMQP_URL";
-	let amqp_url = env::var(AMQP_URL).unwrap().into();
-	if amqp_url != "" {
-		
-		amqp_url
-	} else {
-		println!("amqp_url: {:?}", amqp_url);
-		default_task_url()
+	match env::var(AMQP_URL) {
+		Ok(env_var_url) =>  env_var_url.into(),
+		Err(_) => default_task_url()
 	}
 }
 
