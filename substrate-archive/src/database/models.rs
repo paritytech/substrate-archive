@@ -143,7 +143,7 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 	}
 }
 
-#[derive(Debug, Serialize,FromRow)]
+#[derive(Debug, Serialize, FromRow)]
 pub struct ExtrinsicsModel {
 	pub id: Option<i32>,
 	pub hash: Vec<u8>,
@@ -159,23 +159,29 @@ impl ExtrinsicsModel {
 }
 
 #[derive(Debug, Serialize, FromRow)]
-pub struct CapsuleModel{
+pub struct CapsuleModel {
 	pub id: Option<i32>,
 	pub hash: Vec<u8>,
 	pub number: u32,
-	pub cipher:Option<Vec<u8>>,
-	pub account_id:Option<Vec<Vec<u8>>>,
-	pub capsule_type:String,
-	pub release_number: Option<u32>
+	pub cipher: Option<Vec<u8>>,
+	pub account_id: Option<Vec<Vec<u8>>>,
+	pub capsule_type: String,
+	pub release_number: Option<u32>,
 }
 
-
 impl CapsuleModel {
-	pub fn new(block_id: Vec<u8>, block_num: u32, cipher: Option<Vec<u8>>, account_id:Option<Vec<Vec<u8>>>, capsule_type:Vec<u8>, release_number:Option<u32>) -> Result<Self>{
+	pub fn new(
+		block_id: Vec<u8>,
+		block_num: u32,
+		cipher: Option<Vec<u8>>,
+		account_id: Option<Vec<Vec<u8>>>,
+		capsule_type: Vec<u8>,
+		release_number: Option<u32>,
+	) -> Result<Self> {
 		let block_id = block_id.try_into().unwrap_or(vec![]);
 		let block_num = block_num.try_into().unwrap_or(0u32);
 		let capsule_type = String::from_utf8(capsule_type).unwrap_or(String::from(""));
-		Ok(Self{id: None, hash:block_id, number:block_num,cipher,account_id,capsule_type,release_number})
+		Ok(Self { id: None, hash: block_id, number: block_num, cipher, account_id, capsule_type, release_number })
 	}
 }
 

@@ -21,13 +21,13 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 
 use xtra::prelude::*;
 
+use crate::types::BatchCapsules;
 use crate::{
 	database::{models::StorageModel, queries, Database, DbConn},
 	error::Result,
 	types::{BatchBlock, BatchExtrinsics, BatchStorage, Block, Metadata, Storage},
 	wasm_tracing::Traces,
 };
-use crate::types::BatchCapsules;
 
 #[derive(Clone)]
 pub struct DatabaseActor {
@@ -216,7 +216,6 @@ impl Handler<BatchExtrinsics> for DatabaseActor {
 		log::debug!("took {:?} to insert {} extrinsics", now.elapsed(), len);
 	}
 }
-
 
 #[async_trait::async_trait]
 impl Handler<BatchCapsules> for DatabaseActor {
