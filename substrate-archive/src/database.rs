@@ -456,7 +456,7 @@ impl Insert for Vec<CapsuleModel> {
 			"capsules",
 			r#"
 			INSERT INTO "capsules" (
-				hash, number, cipher, account_id, capsule_type, release_number
+				hash, number, cipher, account_id, capsule_type, release_block_num
 			) VALUES
 			"#,
 			r#"
