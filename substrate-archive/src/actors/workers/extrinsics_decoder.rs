@@ -21,6 +21,8 @@ use std::{collections::HashMap, sync::Arc};
 use xtra::prelude::*;
 
 use desub::Decoder;
+use semver::Op;
+use serde::de::Unexpected::Map;
 use serde_json::{Value};
 
 use crate::{
@@ -34,6 +36,7 @@ use crate::{
 };
 
 use serde::Deserialize;
+
 /// Actor which crawls missing encoded extrinsics and
 /// sends decoded JSON to the database.
 /// Crawls missing extrinsics upon receiving an `Index` message.
@@ -52,10 +55,10 @@ pub struct ExtrinsicsDecoder {
 }
 
 #[derive(Deserialize, Debug)]
-struct SecondaryVec(Vec<Vec<u8>>);
+struct AccountId(Vec<Vec<u8>>);
 
 #[derive(Deserialize, Debug)]
-struct U8Vec(Vec<u8>);
+struct Cipher(Vec<u8>);
 
 impl ExtrinsicsDecoder {
 	pub async fn new<B: Send + Sync, Db: Send + Sync>(
@@ -151,13 +154,13 @@ impl ExtrinsicsDecoder {
 				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
 
 				//construct capsule list for batch
-				Self::construct_capsules(&number, &hash.to_owned(),&ext1,&mut capsules);
+				Self::construct_capsules(&number, &hash,&ext1,&mut capsules);
 			} else {
 				let ext1 = decoder.decode_extrinsics(spec, ext.as_slice())?;
 				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
 
 				//construct capsule list for batch
-				Self::construct_capsules(&number, &hash.to_owned(),&ext1,&mut capsules);
+				Self::construct_capsules(&number, &hash,&ext1,&mut capsules);
 			}
 		}
 		Ok((extrinsics,capsules))
@@ -166,26 +169,53 @@ impl ExtrinsicsDecoder {
 	//construct capsule list for batch
 	fn construct_capsules(number: &u32, hash:&Vec<u8>, ext: &Value,capsules:&mut Vec<CapsuleModel>){
 		if ext.is_array(){
-			let ext_array = ext.as_array().unwrap().to_owned();
-			for item in ext_array{
-				if item.is_object(){
-					let item_object = item.as_object().unwrap().to_owned();
-					let pallet_name = item_object["call_data"]["pallet_name"].as_str().unwrap().to_owned();
-					let arguments = item_object["call_data"]["arguments"].to_owned();
-					match pallet_name.as_str() {
+			let extrinsics = ext.as_array().unwrap();
+			for extrinsic in extrinsics{
+				if extrinsic.is_object(){
+					//This operation will always succeed,because the type has been determined.
+					let extrinsic_map = extrinsic.as_object().unwrap();
+					//Do not exclude empty string.
+					let pallet_name = extrinsic_map["call_data"]["pallet_name"].as_str().unwrap_or("");
+					let arguments = extrinsic_map["call_data"]["arguments"].to_owned();
+					match pallet_name{
 						"Timestamp" => {
-							// let model = CapsuleModel::from_timestamp(hash.to_vec(),number.to_owned(),pallet_name.as_bytes().to_vec()).unwrap();
-							// capsules.push(model);
+							// TODO:Extrinsic of timestamp type to be determined
+							// let pre_capsule_model = CapsuleModel::new(hash.to_vec(), number.to_owned(),None,None,pallet_name.as_bytes().to_vec(),None);
+							// match pre_capsule_model {
+							// 	Ok(capsule_model) => {
+							// 		capsules.push(capsule_model);
+							// 	}
+							// 	Err(_) => {
+							// 		log::debug!{"Construct capsule model failed!"};
+							// 	}
+							// }
 						}
 						"CapsuleModule" => {
-							let account_id = serde_json::from_value(arguments[0].to_owned()).unwrap().0;
-							let cipher = serde_json::from_value(arguments[1].to_owned()).unwrap().1;
-							let release_block_num = arguments[2].as_u64().unwrap() as u32;
-							let model = CapsuleModel::new(hash.to_vec(), number.to_owned(), cipher, account_id, pallet_name.as_bytes().to_vec(), release_block_num).unwrap();
-							capsules.push(model);
+							let account_id_struct:Option<AccountId> = serde_json::from_value(arguments[0].to_owned()).unwrap_or(None);
+							let account_id = match account_id_struct {
+								Some(value) => Some(value.0),
+								None => None
+							};
+
+							let cipher_struct:Option<Cipher> = serde_json::from_value(arguments[1].to_owned()).unwrap_or(None);
+							let cipher = match cipher_struct {
+								Some(value) => Some(value.0),
+								None => None
+							};
+
+							let release_block_num = arguments[2].as_u64().unwrap_or(0u64) as u32;
+							let pre_capsule_model = CapsuleModel::new(hash.to_vec(), number.to_owned(), cipher, account_id, pallet_name.as_bytes().to_vec(), Option::from(release_block_num));
+							match pre_capsule_model {
+								Ok(capsule_model) => {
+									capsules.push(capsule_model);
+								}
+								Err(_) => {
+									log::debug!{"Construct capsule model failed!"};
+								}
+							}
 						}
 						_ => {
-
+							log::debug!{"Other type of Extrinsic!"};
 						}
 					}
 				}

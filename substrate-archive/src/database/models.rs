@@ -27,6 +27,7 @@ use sqlx::{types::Json, FromRow, PgConnection, Postgres};
 
 // use desub::{Chain};
 use sc_executor::RuntimeVersion;
+use semver::Op;
 use serde_json::Value;
 use sp_runtime::{
 	generic::SignedBlock,
@@ -170,18 +171,11 @@ pub struct CapsuleModel{
 
 
 impl CapsuleModel {
-	pub fn new(block_id: Vec<u8>, block_num: u32, cipher: Vec<u8>, account_id:Vec<Vec<u8>>, capsule_type:Vec<u8>, release_number:u32) -> Result<Self>{
-		let block_id = block_id.try_into().unwrap();
-		let block_num = block_num.try_into().unwrap();
-		let capsule_type = String::from_utf8(capsule_type).unwrap();
-		Ok(Self{id: None, hash:block_id, number:block_num,cipher:Option::from(cipher),account_id:Option::from(account_id),capsule_type,release_number:Option::from(release_number)})
-	}
-
-	pub fn from_timestamp(block_id: Vec<u8>, block_num: u32,capsule_type:Vec<u8>) -> Result<Self>{
-		let block_id = block_id.try_into().unwrap();
-		let block_num = block_num.try_into().unwrap();
-		let capsule_type = String::from_utf8(capsule_type).unwrap();
-		Ok(Self{id: None, hash:block_id, number:block_num,cipher:None,account_id:None,capsule_type,release_number:None})
+	pub fn new(block_id: Vec<u8>, block_num: u32, cipher: Option<Vec<u8>>, account_id:Option<Vec<Vec<u8>>>, capsule_type:Vec<u8>, release_number:Option<u32>) -> Result<Self>{
+		let block_id = block_id.try_into().unwrap_or(vec![]);
+		let block_num = block_num.try_into().unwrap_or(0u32);
+		let capsule_type = String::from_utf8(capsule_type).unwrap_or(String::from(""));
+		Ok(Self{id: None, hash:block_id, number:block_num,cipher,account_id,capsule_type,release_number})
 	}
 }
 
