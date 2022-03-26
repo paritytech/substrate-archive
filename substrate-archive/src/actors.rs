@@ -20,7 +20,6 @@ mod workers;
 
 use std::{
 	convert::TryInto,
-	env,
 	marker::PhantomData,
 	panic::AssertUnwindSafe,
 	sync::Arc,
@@ -109,7 +108,7 @@ impl Default for ControlConfig {
 		Self {
 			task_timeout: default_task_timeout(),
 			max_block_load: default_max_block_load(),
-			task_url: env_var_task_url(),
+			task_url: default_task_url(),
 			storage_indexing: default_storage_indexing(),
 		}
 	}
@@ -117,14 +116,6 @@ impl Default for ControlConfig {
 
 const fn default_storage_indexing() -> bool {
 	true
-}
-
-fn env_var_task_url() -> String {
-	const AMQP_URL: &str = "AMQP_URL";
-	match env::var(AMQP_URL) {
-		Ok(env_var_url) => env_var_url.into(),
-		Err(_) => default_task_url(),
-	}
 }
 
 fn default_task_url() -> String {

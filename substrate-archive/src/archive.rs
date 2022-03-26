@@ -317,6 +317,8 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 		self.host_functions = Some(host_functions);
 		self
 	}
+
+
 }
 
 impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db>
@@ -345,6 +347,13 @@ where
 		// config logger
 		logger::init(self.config.log.clone())?;
 		log::debug!("Archive Config: {:?}", self.config);
+
+		// configure message queue
+		const AMQP_URL: &str = "AMQP_URL";
+		match env::var(AMQP_URL) {
+		Ok(env_var_url) => self.config.control.task_url = env_var_url.into(),
+		Err(_) => (),
+		}
 
 		// configure chain
 		const CHAIN_DATA_DB: &str = "CHAIN_DATA_DB";
