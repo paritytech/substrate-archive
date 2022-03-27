@@ -150,7 +150,14 @@ impl<Block, Runtime, Db> Default for ArchiveBuilder<Block, Runtime, Db> {
 impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	/// Creates a archive builder with the given config.
 	pub fn with_config(config: Option<ArchiveConfig>) -> Self {
-		if let Some(config) = config {
+		if let Some(mut config) = config {
+			// environment variable takes precedence over file config
+			// configure message queue
+			const AMQP_URL: &str = "AMQP_URL";
+			match env::var(AMQP_URL) {
+				Ok(env_var_url) => 	config.control.task_url = env_var_url.into(),
+				Err(_) => (),
+			}
 			Self { _marker: PhantomData, config, ..Default::default() }
 		} else {
 			Self::default()

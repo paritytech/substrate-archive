@@ -31,6 +31,8 @@ pub fn main() -> Result<()> {
 	let cli = cli_opts::CliOpts::init();
 	let config = cli.parse()?;
 
+
+	
 	let mut archive = run_archive::<SecondaryRocksDb>(&cli.chain_spec, config)?;
 	archive.drive()?;
 	let running = Arc::new(AtomicBool::new(true));
