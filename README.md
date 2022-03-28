@@ -1,6 +1,7 @@
 <div align="center">
 
-# Substrate Archive
+# Capsule Archive
+### (Fork from Substrate Archive)
 
 ### Blockchain Indexing Engine
 
@@ -41,17 +42,18 @@ The CLI is an easier way to get started with substrate-archive. It provides a ba
 
 The node-template CLI (in /bin/node-template-archive) is provided as an example of implementing substrate-archive for your chain.
 
-### Quick Start
+### Quick Start Custom Config
 
 ```bash
-git clone https://github.com/paritytech/substrate-archive.git
+git clone https://github.com/NexTokenTech/capsule-archive.git
 # Set up the databases
-source ./substrate-archive/scripts/up.sh # Run ./scripts/down.sh to drop the database
-cd substrate-archive/bin/polkadot-archive/
-# Start the normal polkadot node with `pruning` set to `archive`
-polkadot --chain=polkadot --pruning=archive
-# Start up the substrate-archive node. `chain` can be one of `polkadot`, `kusama`, or `westend`.
-cargo run --release --  -c test_conf.toml --chain=polkadot
+cd capsule-archive/bin/node-template-archive/
+# Start the normal polkadot node with `pruning` set to `archive`,Set the specified database storage path.
+RUST_BACKTRACE=1 ./capsule-node --pruning=archive -ldebug --dev --base-path ./my-chain-state/
+# build the capsule-archive node.
+cargo build --release --bin node-template-archive
+# run the capsule-archive node.
+./target/release/node-template-archive -c ./bin/node-template-archive/archive.toml
 ```
 
 You can access the help dialog via `cargo run --release -- --help`. Note that `up` and `down` scripts are meant for convenience and are not meant to be complete. Look in the [wiki](https://github.com/paritytech/substrate-archive/wiki) for more information about the database setup.
