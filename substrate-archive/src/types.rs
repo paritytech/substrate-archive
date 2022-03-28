@@ -18,6 +18,7 @@ use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use xtra::Message;
 
+use crate::database::CapsuleModel;
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
 
@@ -166,6 +167,29 @@ impl BatchExtrinsics {
 }
 
 impl Message for BatchExtrinsics {
+	type Result = ();
+}
+
+#[derive(Debug)]
+pub struct BatchCapsules {
+	pub inner: Vec<CapsuleModel>,
+}
+
+impl BatchCapsules {
+	pub fn new(capsules: Vec<CapsuleModel>) -> Self {
+		Self { inner: capsules }
+	}
+
+	pub fn inner(self) -> Vec<CapsuleModel> {
+		self.inner
+	}
+
+	pub fn len(&self) -> usize {
+		self.inner.len()
+	}
+}
+
+impl Message for BatchCapsules {
 	type Result = ();
 }
 

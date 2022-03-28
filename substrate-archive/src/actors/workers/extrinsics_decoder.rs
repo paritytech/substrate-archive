@@ -21,16 +21,21 @@ use std::{collections::HashMap, sync::Arc};
 use xtra::prelude::*;
 
 use desub::Decoder;
+use semver::Op;
+use serde::de::Unexpected::Map;
+use serde_json::Value;
 
 use crate::{
 	actors::{
 		workers::database::{DatabaseActor, GetState},
 		SystemConfig,
 	},
-	database::{models::ExtrinsicsModel, queries},
+	database::{models::CapsuleModel, models::ExtrinsicsModel, queries},
 	error::{ArchiveError, Result},
-	types::BatchExtrinsics,
+	types::{BatchCapsules, BatchExtrinsics},
 };
+
+use serde::Deserialize;
 
 /// Actor which crawls missing encoded extrinsics and
 /// sends decoded JSON to the database.
@@ -49,15 +54,22 @@ pub struct ExtrinsicsDecoder {
 	upgrades: ArcSwap<HashMap<u32, u32>>,
 }
 
+#[derive(Deserialize, Debug)]
+struct AccountId(Vec<Vec<u8>>);
+
+#[derive(Deserialize, Debug)]
+struct Cipher(Vec<u8>);
+
 impl ExtrinsicsDecoder {
 	pub async fn new<B: Send + Sync, Db: Send + Sync>(
 		config: &SystemConfig<B, Db>,
 		addr: Address<DatabaseActor>,
 	) -> Result<Self> {
 		let max_block_load = config.control.max_block_load;
-		let chain = config.persistent_config.chain();
 		let pool = addr.send(GetState::Pool).await??.pool();
-		let decoder = Arc::new(Decoder::new(chain));
+		// let chain = config.persistent_config.chain();
+		// let decoder = Arc::new(Decoder::new(chain));
+		let decoder = Arc::new(Decoder::new());
 		let mut conn = pool.acquire().await?;
 		let upgrades = ArcSwap::from_pointee(queries::upgrade_blocks_from_spec(&mut conn, 0).await?);
 		log::info!("Started extrinsic decoder");
@@ -97,10 +109,17 @@ impl ExtrinsicsDecoder {
 		}
 		let decoder = self.decoder.clone();
 		let upgrades = self.upgrades.load().clone();
-		let extrinsics =
+
+		let extrinsics_tuple =
 			task::spawn_blocking(move || Ok::<_, ArchiveError>(Self::decode(&decoder, blocks, &upgrades))).await??;
 
+		let extrinsics = extrinsics_tuple.0;
 		self.addr.send(BatchExtrinsics::new(extrinsics)).await?;
+
+		//send batch capsules to DatabaseActor
+		let capsules = extrinsics_tuple.1;
+		self.addr.send(BatchCapsules::new(capsules)).await?;
+
 		Ok(())
 	}
 
@@ -108,8 +127,9 @@ impl ExtrinsicsDecoder {
 		decoder: &Decoder,
 		blocks: Vec<(u32, Vec<u8>, Vec<u8>, u32)>,
 		upgrades: &HashMap<u32, u32>,
-	) -> Result<Vec<ExtrinsicsModel>> {
+	) -> Result<(Vec<ExtrinsicsModel>, Vec<CapsuleModel>)> {
 		let mut extrinsics = Vec::new();
+		let mut capsules = Vec::new();
 		if blocks.len() > 2 {
 			let first = blocks.first().expect("Checked len; qed");
 			let last = blocks.last().expect("Checked len; qed");
@@ -131,14 +151,86 @@ impl ExtrinsicsDecoder {
 					.find(|(_curr, next)| *next >= version)
 					.map(|(c, _)| c)
 					.ok_or(ArchiveError::PrevSpecNotFound(*version))?;
-				let ext = decoder.decode_extrinsics(*previous, ext.as_slice())?;
-				extrinsics.push(ExtrinsicsModel::new(hash, number, ext)?);
+				let ext1 = decoder.decode_extrinsics(*previous, ext.as_slice())?;
+				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
+
+				//construct capsule list for batch
+				Self::construct_capsules(&number, &hash, &ext1, &mut capsules);
 			} else {
-				let ext = decoder.decode_extrinsics(spec, ext.as_slice())?;
-				extrinsics.push(ExtrinsicsModel::new(hash, number, ext)?);
+				let ext1 = decoder.decode_extrinsics(spec, ext.as_slice())?;
+				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
+
+				//construct capsule list for batch
+				Self::construct_capsules(&number, &hash, &ext1, &mut capsules);
 			}
 		}
-		Ok(extrinsics)
+		Ok((extrinsics, capsules))
+	}
+
+	//construct capsule list for batch
+	fn construct_capsules(number: &u32, hash: &Vec<u8>, ext: &Value, capsules: &mut Vec<CapsuleModel>) {
+		if ext.is_array() {
+			let extrinsics = ext.as_array().unwrap();
+			for extrinsic in extrinsics {
+				if extrinsic.is_object() {
+					//This operation will always succeed,because the type has been determined.
+					let extrinsic_map = extrinsic.as_object().unwrap();
+					//Do not exclude empty string.
+					let pallet_name = extrinsic_map["call_data"]["pallet_name"].as_str().unwrap_or("");
+					let arguments = extrinsic_map["call_data"]["arguments"].to_owned();
+					match pallet_name {
+						"Timestamp" => {
+							// TODO:Extrinsic of timestamp type to be determined
+							// let pre_capsule_model = CapsuleModel::new(hash.to_vec(), number.to_owned(),None,None,pallet_name.as_bytes().to_vec(),None);
+							// match pre_capsule_model {
+							// 	Ok(capsule_model) => {
+							// 		capsules.push(capsule_model);
+							// 	}
+							// 	Err(_) => {
+							// 		log::debug!{"Construct capsule model failed!"};
+							// 	}
+							// }
+						}
+						"CapsuleModule" => {
+							let account_id_struct: Option<AccountId> =
+								serde_json::from_value(arguments[0].to_owned()).unwrap_or(None);
+							let account_id = match account_id_struct {
+								Some(value) => Some(value.0),
+								None => None,
+							};
+
+							let cipher_struct: Option<Cipher> =
+								serde_json::from_value(arguments[1].to_owned()).unwrap_or(None);
+							let cipher = match cipher_struct {
+								Some(value) => Some(value.0),
+								None => None,
+							};
+
+							let release_block_num = arguments[2].as_u64().unwrap_or(0u64) as u32;
+							let pre_capsule_model = CapsuleModel::new(
+								hash.to_vec(),
+								number.to_owned(),
+								cipher,
+								account_id,
+								pallet_name.as_bytes().to_vec(),
+								Option::from(release_block_num),
+							);
+							match pre_capsule_model {
+								Ok(capsule_model) => {
+									capsules.push(capsule_model);
+								}
+								Err(_) => {
+									log::debug! {"Construct capsule model failed!"};
+								}
+							}
+						}
+						_ => {
+							log::debug! {"Other type of Extrinsic!"};
+						}
+					}
+				}
+			}
+		}
 	}
 
 	async fn update_upgrade_blocks(&self) -> Result<()> {

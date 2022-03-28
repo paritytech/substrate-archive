@@ -36,7 +36,8 @@ async-stream = "0.3"
 semver = "1.0"
 
 # Parity
-desub = { package = "desub", git = "https://github.com/paritytech/desub", branch = "insipx/modified-frame-metadata", features = ["polkadot-js"] }
+desub = "0.1.0"
+#desub = { package = "desub", git = "https://github.com/paritytech/desub", branch = "insipx/modified-frame-metadata", features = ["polkadot-js"] }
 codec = { package = "parity-scale-codec", version = "2.0", default-features = false, features = ["derive", "full"] }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
