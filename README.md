@@ -48,7 +48,7 @@ The node-template CLI (in /bin/node-template-archive) is provided as an example 
 git clone https://github.com/NexTokenTech/capsule-archive.git
 # Set up the databases
 cd capsule-archive/bin/node-template-archive/
-# Start the normal polkadot node with `pruning` set to `archive`,Set the specified database storage path.
+# Start the normal capsule node with `pruning` set to `archive`,Set the specified database storage path.
 RUST_BACKTRACE=1 ./capsule-node --pruning=archive -ldebug --dev --base-path ./my-chain-state/
 # build the capsule-archive node.
 cargo build --release --bin node-template-archive
