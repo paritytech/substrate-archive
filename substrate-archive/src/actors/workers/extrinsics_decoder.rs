@@ -21,8 +21,6 @@ use std::{collections::HashMap, sync::Arc};
 use xtra::prelude::*;
 
 use desub::Decoder;
-use semver::Op;
-use serde::de::Unexpected::Map;
 use serde_json::Value;
 
 use crate::{
@@ -58,7 +56,17 @@ pub struct ExtrinsicsDecoder {
 struct AccountId(Vec<Vec<u8>>);
 
 #[derive(Deserialize, Debug)]
-struct Cipher(Vec<u8>);
+struct CipherText(Vec<u8>);
+
+#[derive(Deserialize, Debug)]
+struct Ciphers(Vec<Cipher>);
+
+#[derive(Deserialize, Debug)]
+struct Cipher{
+	cipher_text:Vec<u8>,
+	difficulty:u32,
+	release_block_num:u32
+}
 
 impl ExtrinsicsDecoder {
 	pub async fn new<B: Send + Sync, Db: Send + Sync>(
@@ -192,6 +200,7 @@ impl ExtrinsicsDecoder {
 							// }
 						}
 						"CapsuleModule" => {
+							// get account_id from arguments[0]
 							let account_id_struct: Option<AccountId> =
 								serde_json::from_value(arguments[0].to_owned()).unwrap_or(None);
 							let account_id = match account_id_struct {
@@ -199,28 +208,55 @@ impl ExtrinsicsDecoder {
 								None => None,
 							};
 
-							let cipher_struct: Option<Cipher> =
-								serde_json::from_value(arguments[1].to_owned()).unwrap_or(None);
-							let cipher = match cipher_struct {
-								Some(value) => Some(value.0),
-								None => None,
+							// get cipher_text from arguments[1]
+							let cipher_text:Option<CipherText> = serde_json::from_value(arguments[1].to_owned()).unwrap_or(None);
+							// get json string from matching chiper_text
+							let ciphers_json_str = match cipher_text {
+								Some(value) => {
+									// fmt utf8 string to String
+									let json_result = String::from_utf8(value.0);
+									let json_ciphers = match json_result {
+										Ok(ciphers_json_text) => ciphers_json_text,
+										Err(_) => "".to_string()
+									};
+									json_ciphers
+								}
+								None => "".to_string()
+							};
+							// Deserialize to Ciphers struct
+							let ciphers:Option<Ciphers> = serde_json::from_str(&ciphers_json_str).unwrap_or(None);
+							// get Vec<Cipher> from Ciphers struct tuple's first object
+							let cipher_list = match ciphers {
+								Some(value2) => {
+									value2.0
+								}
+								None => {
+									vec![]
+								}
 							};
 
-							let release_block_num = arguments[2].as_u64().unwrap_or(0u64) as u32;
-							let pre_capsule_model = CapsuleModel::new(
-								hash.to_vec(),
-								number.to_owned(),
-								cipher,
-								account_id,
-								pallet_name.as_bytes().to_vec(),
-								Option::from(release_block_num),
-							);
-							match pre_capsule_model {
-								Ok(capsule_model) => {
-									capsules.push(capsule_model);
-								}
-								Err(_) => {
-									log::debug! {"Construct capsule model failed!"};
+							//Traverse the vector and construct the CapsuleModel
+							for item in cipher_list{
+								let difficulty = item.difficulty;
+								let cipher = item.cipher_text;
+								let release_number = item.release_block_num;
+
+								let pre_capsule_model = CapsuleModel::new(
+									hash.to_vec(),
+									number.to_owned(),
+									Option::from(cipher),
+									account_id.to_owned(),
+									pallet_name.as_bytes().to_vec(),
+									Option::from(release_number),
+									difficulty
+								);
+								match pre_capsule_model {
+									Ok(capsule_model) => {
+										capsules.push(capsule_model);
+									}
+									Err(_) => {
+										log::debug! {"Construct capsule model failed!"};
+									}
 								}
 							}
 						}
