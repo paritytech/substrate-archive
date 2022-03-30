@@ -188,16 +188,7 @@ impl ExtrinsicsDecoder {
 					let arguments = extrinsic_map["call_data"]["arguments"].to_owned();
 					match pallet_name {
 						"Timestamp" => {
-							// TODO:Extrinsic of timestamp type to be determined
-							// let pre_capsule_model = CapsuleModel::new(hash.to_vec(), number.to_owned(),None,None,pallet_name.as_bytes().to_vec(),None);
-							// match pre_capsule_model {
-							// 	Ok(capsule_model) => {
-							// 		capsules.push(capsule_model);
-							// 	}
-							// 	Err(_) => {
-							// 		log::debug!{"Construct capsule model failed!"};
-							// 	}
-							// }
+							// TODO:Extrinsic of timestamp type to be determined,If is needed.
 						}
 						"CapsuleModule" => {
 							// get account_id from arguments[0]
@@ -209,26 +200,26 @@ impl ExtrinsicsDecoder {
 							};
 
 							// get cipher_text from arguments[1]
-							let cipher_text:Option<CipherText> = serde_json::from_value(arguments[1].to_owned()).unwrap_or(None);
+							let option_cipher_text_struct:Option<CipherText> = serde_json::from_value(arguments[1].to_owned()).unwrap_or(None);
 							// get json string from matching chiper_text
-							let ciphers_json_str = match cipher_text {
-								Some(value) => {
+							let ciphers_json_str = match option_cipher_text_struct {
+								Some(cipher_text_struct) => {
 									// fmt utf8 string to String
-									let json_result = String::from_utf8(value.0);
-									let json_ciphers = match json_result {
-										Ok(ciphers_json_text) => ciphers_json_text,
+									let cipher_json_str_result = String::from_utf8(cipher_text_struct.0);
+									let cipher_json_str = match cipher_json_str_result {
+										Ok(ciphers_json) => ciphers_json,
 										Err(_) => "".to_string()
 									};
-									json_ciphers
+									cipher_json_str
 								}
 								None => "".to_string()
 							};
 							// Deserialize to Ciphers struct
-							let ciphers:Option<Ciphers> = serde_json::from_str(&ciphers_json_str).unwrap_or(None);
+							let option_ciphers:Option<Ciphers> = serde_json::from_str(&ciphers_json_str).unwrap_or(None);
 							// get Vec<Cipher> from Ciphers struct tuple's first object
-							let cipher_list = match ciphers {
-								Some(value2) => {
-									value2.0
+							let cipher_vector = match option_ciphers {
+								Some(ciphers_struct) => {
+									ciphers_struct.0
 								}
 								None => {
 									vec![]
@@ -236,21 +227,21 @@ impl ExtrinsicsDecoder {
 							};
 
 							//Traverse the vector and construct the CapsuleModel
-							for item in cipher_list{
-								let difficulty = item.difficulty;
-								let cipher = item.cipher_text;
-								let release_number = item.release_block_num;
+							for cipher in cipher_vector{
+								let cipher_text = cipher.cipher_text;
+								let release_block_number = cipher.release_block_num;
+								let difficulty = cipher.difficulty;
 
-								let pre_capsule_model = CapsuleModel::new(
+								let capsule_model_result = CapsuleModel::new(
 									hash.to_vec(),
 									number.to_owned(),
-									Option::from(cipher),
+									Option::from(cipher_text),
 									account_id.to_owned(),
-									pallet_name.as_bytes().to_vec(),
-									Option::from(release_number),
+									&pallet_name,
+									Option::from(release_block_number),
 									difficulty
 								);
-								match pre_capsule_model {
+								match capsule_model_result {
 									Ok(capsule_model) => {
 										capsules.push(capsule_model);
 									}

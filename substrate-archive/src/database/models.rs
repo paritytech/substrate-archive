@@ -174,13 +174,13 @@ impl CapsuleModel {
 		block_num: u32,
 		cipher: Option<Vec<u8>>,
 		account_id: Option<Vec<Vec<u8>>>,
-		capsule_type: Vec<u8>,
+		capsule_type: &str,
 		release_number: Option<u32>,
 		difficulty: u32
 	) -> Result<Self> {
 		let block_id = block_id.try_into().unwrap_or(vec![]);
 		let block_num = block_num.try_into().unwrap_or(0u32);
-		let capsule_type = String::from_utf8(capsule_type).unwrap_or(String::from(""));
+		let capsule_type = capsule_type.to_string();
 		Ok(Self { id: None, hash: block_id, number: block_num, cipher, account_id, capsule_type, release_number, difficulty})
 	}
 }
