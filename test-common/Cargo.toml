@@ -11,7 +11,7 @@ test-wasm = { path = "test-wasm" }
 csv = "1"
 hex = "0.4"
 anyhow = "1"
-once_cell = "1.8"
+once_cell = "1.10"
 sqlx = { version = "0.5", default-features = false, features = ["postgres", "macros", "runtime-async-std-rustls", "migrate", "json", "offline", "chrono" ] }
 lapin = "1.9"
 async-amqp = "1"
