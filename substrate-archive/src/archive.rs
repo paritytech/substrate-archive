@@ -155,7 +155,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 			// configure message queue
 			const AMQP_URL: &str = "AMQP_URL";
 			match env::var(AMQP_URL) {
-				Ok(env_var_url) => 	config.control.task_url = env_var_url.into(),
+				Ok(env_var_url) => config.control.task_url = env_var_url.into(),
 				Err(_) => (),
 			}
 			Self { _marker: PhantomData, config, ..Default::default() }
@@ -324,8 +324,6 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 		self.host_functions = Some(host_functions);
 		self
 	}
-
-
 }
 
 impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db>
@@ -358,8 +356,8 @@ where
 		// configure message queue
 		const AMQP_URL: &str = "AMQP_URL";
 		match env::var(AMQP_URL) {
-		Ok(env_var_url) => self.config.control.task_url = env_var_url.into(),
-		Err(_) => (),
+			Ok(env_var_url) => self.config.control.task_url = env_var_url.into(),
+			Err(_) => (),
 		}
 
 		// configure chain
