@@ -25,9 +25,7 @@ use codec::{Decode, Encode, Error as DecodeError};
 use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, FromRow, PgConnection, Postgres};
 
-// use desub::{Chain};
 use sc_executor::RuntimeVersion;
-use semver::Op;
 use serde_json::Value;
 use sp_runtime::{
 	generic::SignedBlock,
@@ -167,6 +165,7 @@ pub struct CapsuleModel {
 	pub account_id: Option<Vec<Vec<u8>>>,
 	pub capsule_type: String,
 	pub release_number: Option<u32>,
+	pub difficulty:u32
 }
 
 impl CapsuleModel {
@@ -175,13 +174,14 @@ impl CapsuleModel {
 		block_num: u32,
 		cipher: Option<Vec<u8>>,
 		account_id: Option<Vec<Vec<u8>>>,
-		capsule_type: Vec<u8>,
+		capsule_type: &str,
 		release_number: Option<u32>,
+		difficulty: u32
 	) -> Result<Self> {
 		let block_id = block_id.try_into().unwrap_or(vec![]);
 		let block_num = block_num.try_into().unwrap_or(0u32);
-		let capsule_type = String::from_utf8(capsule_type).unwrap_or(String::from(""));
-		Ok(Self { id: None, hash: block_id, number: block_num, cipher, account_id, capsule_type, release_number })
+		let capsule_type = capsule_type.to_string();
+		Ok(Self { id: None, hash: block_id, number: block_num, cipher, account_id, capsule_type, release_number, difficulty})
 	}
 }
 

@@ -21,8 +21,6 @@ use std::{collections::HashMap, sync::Arc};
 use xtra::prelude::*;
 
 use desub::Decoder;
-use semver::Op;
-use serde::de::Unexpected::Map;
 use serde_json::Value;
 
 use crate::{
@@ -58,7 +56,17 @@ pub struct ExtrinsicsDecoder {
 struct AccountId(Vec<Vec<u8>>);
 
 #[derive(Deserialize, Debug)]
-struct Cipher(Vec<u8>);
+struct CipherText(Vec<u8>);
+
+#[derive(Deserialize, Debug)]
+struct Ciphers(Vec<Cipher>);
+
+#[derive(Deserialize, Debug)]
+struct Cipher{
+	cipher_text:Vec<u8>,
+	difficulty:u32,
+	release_block_num:u32
+}
 
 impl ExtrinsicsDecoder {
 	pub async fn new<B: Send + Sync, Db: Send + Sync>(
@@ -180,18 +188,10 @@ impl ExtrinsicsDecoder {
 					let arguments = extrinsic_map["call_data"]["arguments"].to_owned();
 					match pallet_name {
 						"Timestamp" => {
-							// TODO:Extrinsic of timestamp type to be determined
-							// let pre_capsule_model = CapsuleModel::new(hash.to_vec(), number.to_owned(),None,None,pallet_name.as_bytes().to_vec(),None);
-							// match pre_capsule_model {
-							// 	Ok(capsule_model) => {
-							// 		capsules.push(capsule_model);
-							// 	}
-							// 	Err(_) => {
-							// 		log::debug!{"Construct capsule model failed!"};
-							// 	}
-							// }
+							// TODO:Extrinsic of timestamp type to be determined,If is needed.
 						}
 						"CapsuleModule" => {
+							// get account_id from arguments[0]
 							let account_id_struct: Option<AccountId> =
 								serde_json::from_value(arguments[0].to_owned()).unwrap_or(None);
 							let account_id = match account_id_struct {
@@ -199,28 +199,55 @@ impl ExtrinsicsDecoder {
 								None => None,
 							};
 
-							let cipher_struct: Option<Cipher> =
-								serde_json::from_value(arguments[1].to_owned()).unwrap_or(None);
-							let cipher = match cipher_struct {
-								Some(value) => Some(value.0),
-								None => None,
+							// get cipher_text from arguments[1]
+							let option_cipher_text_struct:Option<CipherText> = serde_json::from_value(arguments[1].to_owned()).unwrap_or(None);
+							// get json string from matching chiper_text
+							let ciphers_json_str = match option_cipher_text_struct {
+								Some(cipher_text_struct) => {
+									// fmt utf8 string to String
+									let cipher_json_str_result = String::from_utf8(cipher_text_struct.0);
+									let cipher_json_str = match cipher_json_str_result {
+										Ok(ciphers_json) => ciphers_json,
+										Err(_) => "".to_string()
+									};
+									cipher_json_str
+								}
+								None => "".to_string()
+							};
+							// Deserialize to Ciphers struct
+							let option_ciphers:Option<Ciphers> = serde_json::from_str(&ciphers_json_str).unwrap_or(None);
+							// get Vec<Cipher> from Ciphers struct tuple's first object
+							let cipher_vector = match option_ciphers {
+								Some(ciphers_struct) => {
+									ciphers_struct.0
+								}
+								None => {
+									vec![]
+								}
 							};
 
-							let release_block_num = arguments[2].as_u64().unwrap_or(0u64) as u32;
-							let pre_capsule_model = CapsuleModel::new(
-								hash.to_vec(),
-								number.to_owned(),
-								cipher,
-								account_id,
-								pallet_name.as_bytes().to_vec(),
-								Option::from(release_block_num),
-							);
-							match pre_capsule_model {
-								Ok(capsule_model) => {
-									capsules.push(capsule_model);
-								}
-								Err(_) => {
-									log::debug! {"Construct capsule model failed!"};
+							//Traverse the vector and construct the CapsuleModel
+							for cipher in cipher_vector{
+								let cipher_text = cipher.cipher_text;
+								let release_block_number = cipher.release_block_num;
+								let difficulty = cipher.difficulty;
+
+								let capsule_model_result = CapsuleModel::new(
+									hash.to_vec(),
+									number.to_owned(),
+									Option::from(cipher_text),
+									account_id.to_owned(),
+									&pallet_name,
+									Option::from(release_block_number),
+									difficulty
+								);
+								match capsule_model_result {
+									Ok(capsule_model) => {
+										capsules.push(capsule_model);
+									}
+									Err(_) => {
+										log::debug! {"Construct capsule model failed!"};
+									}
 								}
 							}
 						}

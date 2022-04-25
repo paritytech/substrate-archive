@@ -456,7 +456,7 @@ impl Insert for Vec<CapsuleModel> {
 			"capsules",
 			r#"
 			INSERT INTO "capsules" (
-				hash, number, cipher, account_id, capsule_type, release_block_num
+				hash, number, cipher, account_id, capsule_type, release_block_num, difficulty, release_block_difficulty_index
 			) VALUES
 			"#,
 			r#"
@@ -480,6 +480,11 @@ impl Insert for Vec<CapsuleModel> {
 			batch.bind(capsule.capsule_type)?;
 			batch.append(",");
 			batch.bind(capsule.release_number)?;
+			batch.append(",");
+			batch.bind(capsule.difficulty)?;
+			batch.append(",");
+			let release_block_difficulty_index = capsule.release_number.unwrap_or(0u32).to_string() + &"_".to_string() + &capsule.difficulty.to_string();
+			batch.bind(release_block_difficulty_index)?;
 			batch.append(")");
 		}
 		Ok(batch.execute(conn).await?)
