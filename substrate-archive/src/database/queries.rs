@@ -243,6 +243,7 @@ pub(crate) async fn blocks_missing_extrinsics(
 		SELECT block_num, hash, ext, spec FROM blocks
 		WHERE NOT EXISTS
 			(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)
+		AND block_num > (SELECT MAX(number) FROM extrinsics)
 		ORDER BY block_num ASC
 		LIMIT $1
 		",

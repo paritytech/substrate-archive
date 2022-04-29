@@ -131,11 +131,27 @@ impl ExtrinsicsDecoder {
 					.find(|(_curr, next)| *next >= version)
 					.map(|(c, _)| c)
 					.ok_or(ArchiveError::PrevSpecNotFound(*version))?;
-				let ext = decoder.decode_extrinsics(*previous, ext.as_slice())?;
-				extrinsics.push(ExtrinsicsModel::new(hash, number, ext)?);
+				match decoder.decode_extrinsics(*previous, ext.as_slice()) {
+					Ok(exts) => {
+						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
+							extrinsics.push(exts_model);
+						}
+					},
+					Err(err) => {
+						log::warn!("decode extrinsic upgrade failed, block: {}, spec: {}, reason: {:?}", number, spec, err);
+					}
+				}
 			} else {
-				let ext = decoder.decode_extrinsics(spec, ext.as_slice())?;
-				extrinsics.push(ExtrinsicsModel::new(hash, number, ext)?);
+				match decoder.decode_extrinsics(spec, ext.as_slice()) {
+					Ok(exts) => {
+						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
+							extrinsics.push(exts_model);
+						}
+					},
+					Err(err) => {
+						log::warn!("decode extrinsic failed, block: {}, spec: {}, reason: {:?}", number, spec, err);
+					}
+				}
 			}
 		}
 		Ok(extrinsics)
