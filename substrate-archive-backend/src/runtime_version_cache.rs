@@ -40,6 +40,7 @@ use crate::{
 	database::ReadOnlyDb,
 	error::{BackendError, Result},
 	read_only_backend::ReadOnlyBackend,
+	frontend::RuntimeConfig,
 };
 
 pub struct RuntimeVersionCache<Block, Db> {
@@ -50,12 +51,12 @@ pub struct RuntimeVersionCache<Block, Db> {
 }
 
 impl<Block: BlockT, Db: ReadOnlyDb + 'static> RuntimeVersionCache<Block, Db> {
-	pub fn new(backend: Arc<ReadOnlyBackend<Block, Db>>) -> Self {
+	pub fn new(backend: Arc<ReadOnlyBackend<Block, Db>>, config: RuntimeConfig) -> Self {
 		// TODO: https://github.com/paritytech/substrate-archive/issues/247
 		let exec = WasmExecutor::<sp_io::SubstrateHostFunctions>::new(
-			WasmExecutionMethod::Interpreted,
-			Some(128),
-			1,
+			config.exec_method.into(),
+			config.wasm_pages,
+			config.block_workers,
 			None,
 			128,
 		);

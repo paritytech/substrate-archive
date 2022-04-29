@@ -1,326 +1,326 @@
 {
   "db": "PostgreSQL",
   "05b056299b2e00d9d96eb6357329e8fdb77aede4485e045bb71d75c1e6feba1e": {
-    "query": "\n\t\t\tSELECT DISTINCT ON (spec) spec, block_num\n\t\t\tFROM blocks\n\t\t\tWHERE spec != 0\n\t\t\tORDER BY spec, block_num ASC\n\t\t",
     "describe": {
       "columns": [
         {
-          "ordinal": 0,
           "name": "spec",
+          "ordinal": 0,
           "type_info": "Int4"
         },
         {
-          "ordinal": 1,
           "name": "block_num",
+          "ordinal": 1,
           "type_info": "Int4"
         }
       ],
-      "parameters": {
-        "Left": []
-      },
       "nullable": [
         false,
         false
-      ]
-    }
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n\t\t\tSELECT DISTINCT ON (spec) spec, block_num\n\t\t\tFROM blocks\n\t\t\tWHERE spec != 0\n\t\t\tORDER BY spec, block_num ASC\n\t\t"
   },
   "2dd53db31924b333e8f3e096ae72a109336dc80bcb85dbb7c93dad3329069a8e": {
-    "query": "\n\t\tSELECT missing_num\n\t\tFROM (SELECT MAX(block_num) AS max_num FROM blocks) max,\n\t\t\tGENERATE_SERIES($1, max_num) AS missing_num\n\t\tWHERE\n\t\tNOT EXISTS (SELECT id FROM blocks WHERE block_num = missing_num)\n\t\tORDER BY missing_num ASC\n\t\tLIMIT $2",
     "describe": {
       "columns": [
         {
-          "ordinal": 0,
           "name": "missing_num",
+          "ordinal": 0,
           "type_info": "Int4"
         }
+      ],
+      "nullable": [
+        null
       ],
       "parameters": {
         "Left": [
           "Int4",
           "Int8"
         ]
-      },
-      "nullable": [
-        null
-      ]
-    }
+      }
+    },
+    "query": "\n\t\tSELECT missing_num\n\t\tFROM (SELECT MAX(block_num) AS max_num FROM blocks) max,\n\t\t\tGENERATE_SERIES($1, max_num) AS missing_num\n\t\tWHERE\n\t\tNOT EXISTS (SELECT id FROM blocks WHERE block_num = missing_num)\n\t\tORDER BY missing_num ASC\n\t\tLIMIT $2"
   },
-  "4d0f81228d72971606b7e21c677150b541d3f6575bcfe5b2bc7b078f407eab99": {
-    "query": "SELECT EXISTS(SELECT 1 FROM blocks WHERE hash = $1)",
+  "2f2d868dc354308cc2f75de608101c4b7a8aee2f8fef9e77a6e0f650ae9799da": {
     "describe": {
       "columns": [
         {
+          "name": "block_num",
           "ordinal": 0,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n         SELECT block_num FROM blocks\n         WHERE NOT EXISTS\n            (SELECT block_num FROM storage WHERE storage.block_num = blocks.block_num) AND block_num > (SELECT MAX(block_num) FROM storage)\n\t\tAND block_num >= (SELECT MAX(block_num) from storage)\n        ORDER BY block_num ASC\n\t\tLIMIT 1000;\n        "
+  },
+  "4d0f81228d72971606b7e21c677150b541d3f6575bcfe5b2bc7b078f407eab99": {
+    "describe": {
+      "columns": [
+        {
           "name": "exists",
+          "ordinal": 0,
           "type_info": "Bool"
         }
+      ],
+      "nullable": [
+        null
       ],
       "parameters": {
         "Left": [
           "Bytea"
         ]
-      },
-      "nullable": [
-        null
-      ]
-    }
+      }
+    },
+    "query": "SELECT EXISTS(SELECT 1 FROM blocks WHERE hash = $1)"
   },
   "51240d7ed289ce201ceef2b58a98859bdac3c74c588c0cf8c03731be3fe04519": {
-    "query": "SELECT version FROM metadata",
     "describe": {
       "columns": [
         {
-          "ordinal": 0,
           "name": "version",
+          "ordinal": 0,
           "type_info": "Int4"
         }
       ],
-      "parameters": {
-        "Left": []
-      },
       "nullable": [
         false
-      ]
-    }
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT version FROM metadata"
   },
   "664d3547283b0758cf5b608f969707abcba6b904b08cda98f62d69d31d045aea": {
-    "query": "SELECT EXISTS(SELECT version FROM metadata WHERE version = $1)",
     "describe": {
       "columns": [
         {
-          "ordinal": 0,
           "name": "exists",
+          "ordinal": 0,
           "type_info": "Bool"
         }
+      ],
+      "nullable": [
+        null
       ],
       "parameters": {
         "Left": [
           "Int4"
         ]
-      },
-      "nullable": [
-        null
-      ]
-    }
+      }
+    },
+    "query": "SELECT EXISTS(SELECT version FROM metadata WHERE version = $1)"
   },
   "6c0b6b13ae86421b99380dbcf75a37a9edc8357c4c4b0b3db43d203837bf9612": {
-    "query": "SELECT block_num FROM blocks WHERE block_num = ANY ($1)",
     "describe": {
       "columns": [
         {
-          "ordinal": 0,
           "name": "block_num",
+          "ordinal": 0,
           "type_info": "Int4"
         }
+      ],
+      "nullable": [
+        false
       ],
       "parameters": {
         "Left": [
           "Int4Array"
         ]
-      },
-      "nullable": [
-        false
-      ]
-    }
-  },
-  "9e6316290793ef9ca02c1a917d4bd3412497336b1928222381591f2a7a00e3cb": {
-    "query": "SELECT meta FROM metadata WHERE version = $1",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "meta",
-          "type_info": "Bytea"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Int4"
-        ]
-      },
-      "nullable": [
-        false
-      ]
-    }
-  },
-  "b32766abc83ba8a342a39dca90f2fbf63317f80b46377695d2cf85325c08c907": {
-    "query": "\n         SELECT block_num FROM blocks\n         WHERE NOT EXISTS\n            (SELECT block_num FROM storage WHERE storage.block_num = blocks.block_num)\n        ORDER BY block_num;\n        ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "block_num",
-          "type_info": "Int4"
-        }
-      ],
-      "parameters": {
-        "Left": []
-      },
-      "nullable": [
-        false
-      ]
-    }
-  },
-  "bc7850f77a9f06fd5ed526757ca7b4330359499b2cd0502cc7c0c58d18a0cf02": {
-    "query": "SELECT MAX(block_num) FROM blocks",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "max",
-          "type_info": "Int4"
-        }
-      ],
-      "parameters": {
-        "Left": []
-      },
-      "nullable": [
-        null
-      ]
-    }
-  },
-  "cb4c39a4eaa048f4f1acf779ebcdac6a11e4f6f66fbfe5071dc4d8cbf0ef1bb0": {
-    "query": "\n        SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec\n        FROM blocks\n        WHERE block_num = $1\n        ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Int4"
-        },
-        {
-          "ordinal": 1,
-          "name": "parent_hash",
-          "type_info": "Bytea"
-        },
-        {
-          "ordinal": 2,
-          "name": "hash",
-          "type_info": "Bytea"
-        },
-        {
-          "ordinal": 3,
-          "name": "block_num",
-          "type_info": "Int4"
-        },
-        {
-          "ordinal": 4,
-          "name": "state_root",
-          "type_info": "Bytea"
-        },
-        {
-          "ordinal": 5,
-          "name": "extrinsics_root",
-          "type_info": "Bytea"
-        },
-        {
-          "ordinal": 6,
-          "name": "digest",
-          "type_info": "Bytea"
-        },
-        {
-          "ordinal": 7,
-          "name": "ext",
-          "type_info": "Bytea"
-        },
-        {
-          "ordinal": 8,
-          "name": "spec",
-          "type_info": "Int4"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Int4"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false
-      ]
-    }
-  },
-  "da3d043ca1c56f587af1b165bb3573d76b1fe568a52168f863b6edb5d0813f19": {
-    "query": "\n\tSELECT version as present, past_version as past, meta as metadata, past_metadata FROM (\n\t\tSELECT\n\t\t\tversion, meta,\n\t\t\tLAG(version, 1) OVER (ORDER BY version) as past_version,\n\t\t\tLAG(meta, 1) OVER (ORDER BY version) as past_metadata\n\t\tFROM metadata\n\t) as z WHERE version = $1;\n\t",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "present",
-          "type_info": "Int4"
-        },
-        {
-          "ordinal": 1,
-          "name": "past",
-          "type_info": "Int4"
-        },
-        {
-          "ordinal": 2,
-          "name": "metadata",
-          "type_info": "Bytea"
-        },
-        {
-          "ordinal": 3,
-          "name": "past_metadata",
-          "type_info": "Bytea"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Int4"
-        ]
-      },
-      "nullable": [
-        false,
-        null,
-        false,
-        null
-      ]
-    }
+      }
+    },
+    "query": "SELECT block_num FROM blocks WHERE block_num = ANY ($1)"
   },
   "8ff9a9cdf79769e4443a5e7c40c5ca140489c2348f5681e7346a916a8dd85b45": {
-    "query": "\n\t\tSELECT block_num, hash, ext, spec FROM blocks\n\t\tWHERE NOT EXISTS\n\t\t\t(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)\n\t\tAND block_num > (SELECT MAX(number) FROM extrinsics)\n\t\tORDER BY block_num ASC\n\t\tLIMIT $1\n\t\t",
     "describe": {
       "columns": [
         {
-          "ordinal": 0,
           "name": "block_num",
+          "ordinal": 0,
           "type_info": "Int4"
         },
         {
-          "ordinal": 1,
           "name": "hash",
+          "ordinal": 1,
           "type_info": "Bytea"
         },
         {
-          "ordinal": 2,
           "name": "ext",
+          "ordinal": 2,
           "type_info": "Bytea"
         },
         {
-          "ordinal": 3,
           "name": "spec",
+          "ordinal": 3,
           "type_info": "Int4"
         }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false
       ],
       "parameters": {
         "Left": [
           "Int8"
         ]
-      },
+      }
+    },
+    "query": "\n\t\tSELECT block_num, hash, ext, spec FROM blocks\n\t\tWHERE NOT EXISTS\n\t\t\t(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)\n\t\tAND block_num > (SELECT MAX(number) FROM extrinsics)\n\t\tORDER BY block_num ASC\n\t\tLIMIT $1\n\t\t"
+  },
+  "9e6316290793ef9ca02c1a917d4bd3412497336b1928222381591f2a7a00e3cb": {
+    "describe": {
+      "columns": [
+        {
+          "name": "meta",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      }
+    },
+    "query": "SELECT meta FROM metadata WHERE version = $1"
+  },
+  "bc7850f77a9f06fd5ed526757ca7b4330359499b2cd0502cc7c0c58d18a0cf02": {
+    "describe": {
+      "columns": [
+        {
+          "name": "max",
+          "ordinal": 0,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT MAX(block_num) FROM blocks"
+  },
+  "cb4c39a4eaa048f4f1acf779ebcdac6a11e4f6f66fbfe5071dc4d8cbf0ef1bb0": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int4"
+        },
+        {
+          "name": "parent_hash",
+          "ordinal": 1,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "hash",
+          "ordinal": 2,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "block_num",
+          "ordinal": 3,
+          "type_info": "Int4"
+        },
+        {
+          "name": "state_root",
+          "ordinal": 4,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "extrinsics_root",
+          "ordinal": 5,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "digest",
+          "ordinal": 6,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "ext",
+          "ordinal": 7,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "spec",
+          "ordinal": 8,
+          "type_info": "Int4"
+        }
+      ],
       "nullable": [
         false,
         false,
         false,
+        false,
+        false,
+        false,
+        false,
+        false,
         false
-      ]
-    }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n        SELECT id, parent_hash, hash, block_num, state_root, extrinsics_root, digest, ext, spec\n        FROM blocks\n        WHERE block_num = $1\n        "
+  },
+  "da3d043ca1c56f587af1b165bb3573d76b1fe568a52168f863b6edb5d0813f19": {
+    "describe": {
+      "columns": [
+        {
+          "name": "present",
+          "ordinal": 0,
+          "type_info": "Int4"
+        },
+        {
+          "name": "past",
+          "ordinal": 1,
+          "type_info": "Int4"
+        },
+        {
+          "name": "metadata",
+          "ordinal": 2,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "past_metadata",
+          "ordinal": 3,
+          "type_info": "Bytea"
+        }
+      ],
+      "nullable": [
+        false,
+        null,
+        false,
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n\tSELECT version as present, past_version as past, meta as metadata, past_metadata FROM (\n\t\tSELECT\n\t\t\tversion, meta,\n\t\t\tLAG(version, 1) OVER (ORDER BY version) as past_version,\n\t\t\tLAG(meta, 1) OVER (ORDER BY version) as past_metadata\n\t\tFROM metadata\n\t) as z WHERE version = $1;\n\t"
   }
 }

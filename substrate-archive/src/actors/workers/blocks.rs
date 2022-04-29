@@ -60,7 +60,7 @@ where
 {
 	pub fn new(conf: &SystemConfig<B, D>, db: DatabaseAct, meta: MetadataAct<B>) -> Self {
 		Self {
-			rt_cache: Arc::new(RuntimeVersionCache::new(conf.backend.clone())),
+			rt_cache: Arc::new(RuntimeVersionCache::new(conf.backend.clone(), conf.runtime.clone())),
 			last_max: 0,
 			backend: conf.backend().clone(),
 			db,
