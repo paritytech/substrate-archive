@@ -285,8 +285,8 @@
       ]
     }
   },
-  "eafd9a045fa56835703150bd9ad24801207e0326287cee132f45a5273d3f3200": {
-    "query": "\n\t\tSELECT block_num, hash, ext, spec FROM blocks\n\t\tWHERE NOT EXISTS\n\t\t\t(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)\n\t\tORDER BY block_num ASC\n\t\tLIMIT $1\n\t\t",
+  "8ff9a9cdf79769e4443a5e7c40c5ca140489c2348f5681e7346a916a8dd85b45": {
+    "query": "\n\t\tSELECT block_num, hash, ext, spec FROM blocks\n\t\tWHERE NOT EXISTS\n\t\t\t(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)\n\t\tAND block_num > (SELECT MAX(number) FROM extrinsics)\n\t\tORDER BY block_num ASC\n\t\tLIMIT $1\n\t\t",
     "describe": {
       "columns": [
         {
