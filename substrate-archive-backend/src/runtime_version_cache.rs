@@ -26,7 +26,7 @@ use arc_swap::ArcSwap;
 use codec::Decode;
 use hashbrown::HashMap;
 
-use sc_executor::{WasmExecutionMethod, WasmExecutor};
+use sc_executor::WasmExecutor;
 use sp_core::traits::ReadRuntimeVersion;
 use sp_runtime::{
 	generic::SignedBlock,

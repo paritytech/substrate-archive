@@ -195,8 +195,8 @@ pub(crate) async fn missing_storage_blocks(conn: &mut sqlx::PgConnection) -> Res
 		r#"
          SELECT block_num FROM blocks
          WHERE NOT EXISTS
-            (SELECT block_num FROM storage WHERE storage.block_num = blocks.block_num) AND block_num > (SELECT MAX(block_num) FROM storage)
-		AND block_num >= (SELECT MAX(block_num) from storage)
+            (SELECT block_num FROM storage WHERE storage.block_num = blocks.block_num)
+		AND block_num >= (SELECT COALESCE(MAX(block_num), 0) from storage)
         ORDER BY block_num ASC
 		LIMIT 1000;
         "#
@@ -245,7 +245,7 @@ pub(crate) async fn blocks_missing_extrinsics(
 		SELECT block_num, hash, ext, spec FROM blocks
 		WHERE NOT EXISTS
 			(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)
-		AND block_num > (SELECT MAX(number) FROM extrinsics)
+		AND block_num > (SELECT COALESCE(MAX(number), 0) FROM extrinsics)
 		ORDER BY block_num ASC
 		LIMIT $1
 		",
