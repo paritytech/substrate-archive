@@ -1,5 +1,9 @@
 <div align="center">
 
+# HELP WANTED: Looking for Maintainers
+	
+Please leave a message on https://github.com/paritytech/substrate-archive/issues/464 if you're interested in helping to maintain this project going forwards.
+	
 # Substrate Archive
 
 ### Blockchain Indexing Engine
