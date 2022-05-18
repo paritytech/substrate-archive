@@ -346,13 +346,13 @@ mod tests {
 		let database = Database::new(&test_common::DATABASE_URL.to_string()).await?;
 		// insert some dummy data to satisfy the foreign key constraint
 		sqlx::query("INSERT INTO metadata (version, meta) VALUES ($1, $2)")
-			.bind(26)
+			.bind(26_i32)
 			.bind(mock_bytes.as_slice())
 			.execute(&mut database.conn().await?)
 			.await?;
 		database.insert(BatchBlock::new(blocks.clone())).await?;
 
-		let mock_storage = blocks[200..]
+		let mock_storage = blocks[..800]
 			.iter()
 			.map(|b| {
 				StorageModel::new(
@@ -377,8 +377,8 @@ mod tests {
 		let items = task::block_on(missing_storage_blocks(&mut conn))?;
 
 		assert_eq!(items.len(), 200);
-		assert_eq!(items.iter().min(), Some(&3_000_001u32));
-		assert_eq!(items.iter().max(), Some(&3_000_200u32));
+		assert_eq!(items.iter().min(), Some(&3_000_801u32));
+		assert_eq!(items.iter().max(), Some(&3_001_000u32));
 		Ok(())
 	}
 

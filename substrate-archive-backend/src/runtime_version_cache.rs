@@ -39,8 +39,8 @@ use sp_version::RuntimeVersion;
 use crate::{
 	database::ReadOnlyDb,
 	error::{BackendError, Result},
-	read_only_backend::ReadOnlyBackend,
 	frontend::RuntimeConfig,
+	read_only_backend::ReadOnlyBackend,
 };
 
 pub struct RuntimeVersionCache<Block, Db> {

@@ -136,9 +136,14 @@ impl ExtrinsicsDecoder {
 						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
 							extrinsics.push(exts_model);
 						}
-					},
+					}
 					Err(err) => {
-						log::warn!("decode extrinsic upgrade failed, block: {}, spec: {}, reason: {:?}", number, spec, err);
+						log::warn!(
+							"decode extrinsic upgrade failed, block: {}, spec: {}, reason: {:?}",
+							number,
+							spec,
+							err
+						);
 					}
 				}
 			} else {
@@ -147,7 +152,7 @@ impl ExtrinsicsDecoder {
 						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
 							extrinsics.push(exts_model);
 						}
-					},
+					}
 					Err(err) => {
 						log::warn!("decode extrinsic failed, block: {}, spec: {}, reason: {:?}", number, spec, err);
 					}
