@@ -162,6 +162,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to storing metadata in a temporary directory.
+	#[must_use]
 	pub fn chain_spec(mut self, spec: Box<dyn ChainSpec>) -> Self {
 		self.config.chain.spec = Some(spec);
 		self
@@ -171,6 +172,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to the environment variable CHAIN_DATA_DB.
+	#[must_use]
 	pub fn chain_data_path<S: Into<PathBuf>>(mut self, path: S) -> Self {
 		self.config.chain.data_path = Some(path.into());
 		self
@@ -180,6 +182,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to 128MB.
+	#[must_use]
 	pub fn cache_size(mut self, cache_size: usize) -> Self {
 		self.config.chain.cache_size = cache_size;
 		self
@@ -191,6 +194,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to storing metadata in a temporary directory.
+	#[must_use]
 	pub fn rocksdb_secondary_path<S: Into<PathBuf>>(mut self, path: S) -> Self {
 		self.config.chain.rocksdb_secondary_path = Some(path.into());
 		self
@@ -200,6 +204,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to value of the environment variable DATABASE_URL.
+	#[must_use]
 	pub fn pg_url<S: Into<String>>(mut self, url: S) -> Self {
 		self.config.database = Some(DatabaseConfig { url: url.into() });
 		self
@@ -209,6 +214,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to the interpreted method.
+	#[must_use]
 	pub fn execution_method(mut self, method: ExecutionMethod) -> Self {
 		self.config.runtime.exec_method = method;
 		self
@@ -218,6 +224,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to the number of logical cpus in the system.
+	#[must_use]
 	pub fn block_workers(mut self, workers: usize) -> Self {
 		self.config.runtime.block_workers = workers;
 		self
@@ -227,6 +234,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to 64 * (number of logic cpu's).
+	#[must_use]
 	pub fn wasm_pages(mut self, pages: u64) -> Self {
 		self.config.runtime.wasm_pages = Some(pages);
 		self
@@ -236,6 +244,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to 20 seconds.
+	#[must_use]
 	pub fn task_timeout(mut self, timeout: u64) -> Self {
 		self.config.control.task_timeout = timeout;
 		self
@@ -245,6 +254,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to 100_000.
+	#[must_use]
 	pub fn max_block_load(mut self, max_block_load: u32) -> Self {
 		self.config.control.max_block_load = max_block_load;
 		self
@@ -254,6 +264,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to `DEBUG`.
+	#[must_use]
 	pub fn log_std_level(mut self, level: log::LevelFilter) -> Self {
 		self.config.log.std = level;
 		self
@@ -263,6 +274,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to `DEBUG`.
+	#[must_use]
 	pub fn log_file_level(mut self, level: log::LevelFilter) -> Self {
 		if let Some(file) = &mut self.config.log.file {
 			file.level = level;
@@ -276,6 +288,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to `/<local>/substrate-archive`.
+	#[must_use]
 	pub fn log_file_dir<P: Into<PathBuf>>(mut self, dir: P) -> Self {
 		if let Some(file) = &mut self.config.log.file {
 			file.dir = Some(dir.into());
@@ -289,6 +302,7 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Defaults to `substrate-archive.log`.
+	#[must_use]
 	pub fn log_file_name<S: Into<String>>(mut self, name: S) -> Self {
 		if let Some(file) = &mut self.config.log.file {
 			file.name = name.into();
@@ -307,12 +321,14 @@ impl<Block, Runtime, Db> ArchiveBuilder<Block, Runtime, Db> {
 	///
 	/// # Default
 	/// Wasm Tracing is disabled by default.
+	#[must_use]
 	pub fn wasm_tracing(mut self, wasm_tracing: Option<TracingConfig>) -> Self {
 		self.config.wasm_tracing = wasm_tracing;
 		self
 	}
 
 	/// Set the host functions to use for runtime being indexed
+	#[must_use]
 	pub fn host_functions(mut self, host_functions: Vec<&'static dyn Function>) -> Self {
 		self.host_functions = Some(host_functions);
 		self
