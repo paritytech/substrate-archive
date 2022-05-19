@@ -100,8 +100,8 @@ fn test_imports_only_used_in_job_body_are_not_warned_as_unused() {
 
 	let runner = TestGuard::dummy_runner();
 	smol::block_on(async {
-		let mut conn = runner.handle();
-		uses_trait_import().enqueue(&mut conn).await.unwrap();
+		let conn = runner.handle();
+		uses_trait_import().enqueue(conn).await.unwrap();
 
 		runner.run_pending_tasks().unwrap();
 		runner.wait_for_all_tasks().unwrap();
@@ -123,8 +123,8 @@ fn proc_macro_accepts_arbitrary_where_clauses() {
 	let runner = TestGuard::builder(()).register_job::<can_specify_where_clause::Job<String>>().build();
 
 	smol::block_on(async {
-		let mut conn = runner.handle();
-		can_specify_where_clause("hello".to_string()).enqueue(&mut conn).await.unwrap();
+		let conn = runner.handle();
+		can_specify_where_clause("hello".to_string()).enqueue(conn).await.unwrap();
 
 		runner.run_pending_tasks().unwrap();
 		runner.wait_for_all_tasks().unwrap();

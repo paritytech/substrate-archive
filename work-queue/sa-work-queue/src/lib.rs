@@ -52,13 +52,13 @@
 //! The URL along with RabbitMQ prefetch and queue name may be configured.
 //! function
 //! ```no_run
-//!Runner::builder((), "amqp://localhost:5672")
+//!sa_work_queue::Runner::builder((), "amqp://localhost:5672")
 //!    .queue_name("my-work-queue")
 //!    .num_threads(2)
 //!    .prefetch(200)
-//!    .timeout(Duration::from_secs(5))
+//!    .timeout(std::time::Duration::from_secs(5))
 //!    .build()
-//!    .unwrap()?;
+//!    .unwrap();
 //! ```
 //!
 //!

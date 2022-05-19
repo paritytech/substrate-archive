@@ -140,16 +140,13 @@ where
 				if key.len() == 4 && fun(num) {
 					let head: Option<Block::Header> = readable_db
 						.get(super::util::columns::HEADER, &value)
-						.map(|bytes| Decode::decode(&mut &bytes[..]).ok())
-						.flatten();
+						.and_then(|bytes| Decode::decode(&mut &bytes[..]).ok());
 					let body: Option<Vec<Block::Extrinsic>> = readable_db
 						.get(super::util::columns::BODY, &value)
-						.map(|bytes| Decode::decode(&mut &bytes[..]).ok())
-						.flatten();
+						.and_then(|bytes| Decode::decode(&mut &bytes[..]).ok());
 					let justif: Option<Justifications> = readable_db
 						.get(super::util::columns::JUSTIFICATION, &value)
-						.map(|bytes| Decode::decode(&mut &bytes[..]).ok())
-						.flatten();
+						.and_then(|bytes| Decode::decode(&mut &bytes[..]).ok());
 					construct_block(head, body, justif)
 				} else {
 					None
