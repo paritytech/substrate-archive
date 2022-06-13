@@ -19,6 +19,7 @@ use itertools::Itertools;
 use sqlx::PgPool;
 use std::{collections::HashMap, sync::Arc};
 use xtra::prelude::*;
+use rayon::prelude::*;
 
 use desub::Decoder;
 
@@ -109,7 +110,6 @@ impl ExtrinsicsDecoder {
 		blocks: Vec<(u32, Vec<u8>, Vec<u8>, u32)>,
 		upgrades: &HashMap<u32, u32>,
 	) -> Result<Vec<ExtrinsicsModel>> {
-		let mut extrinsics = Vec::new();
 		if blocks.len() > 2 {
 			let first = blocks.first().expect("Checked len; qed");
 			let last = blocks.last().expect("Checked len; qed");
@@ -122,43 +122,62 @@ impl ExtrinsicsDecoder {
 				last.3
 			);
 		}
-		for (number, hash, ext, spec) in blocks.into_iter() {
-			if let Some(version) = upgrades.get(&number) {
-				let previous = upgrades
-					.values()
-					.sorted()
-					.tuple_windows()
-					.find(|(_curr, next)| *next >= version)
-					.map(|(c, _)| c)
-					.ok_or(ArchiveError::PrevSpecNotFound(*version))?;
-				match decoder.decode_extrinsics(*previous, ext.as_slice()) {
-					Ok(exts) => {
-						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
-							extrinsics.push(exts_model);
+
+		const TASK_COUNT: usize = 16;
+		let naive_len = blocks.len() / TASK_COUNT;
+		let chunk_len = if naive_len > 0 { naive_len } else { 1 };
+
+		let extrinsics: Vec<ExtrinsicsModel> = blocks
+		.into_par_iter()
+		.chunks(chunk_len)
+		.flat_map(|batch_blocks: Vec<(u32, Vec<u8>, Vec<u8>, u32)>| -> Result<Vec<ExtrinsicsModel>, ArchiveError> {
+			let mut batch: Vec<ExtrinsicsModel> = vec![];
+			for (number, hash, ext, spec) in batch_blocks {
+				if let Some(version) = upgrades.get(&number) {
+					let previous = match upgrades
+						    .values()
+						    .sorted()
+						    .tuple_windows()
+						    .find(|(_curr, next)| *next >= version)
+						    .map(|(c, _)| c)
+						    .ok_or(ArchiveError::PrevSpecNotFound(*version)) {
+						Ok(it) => it,
+						Err(err) => { return Err(err) }
+					};
+					match decoder.decode_extrinsics(*previous, ext.as_slice()) {
+						Ok(exts) => {
+							if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
+								batch.push(exts_model);
+							}
+						}
+						Err(err) => {
+							log::warn!(
+								"decode extrinsic upgrade failed, block: {}, spec: {}, reason: {:?}",
+								number,
+								spec,
+								err
+							);
 						}
 					}
-					Err(err) => {
-						log::warn!(
-							"decode extrinsic upgrade failed, block: {}, spec: {}, reason: {:?}",
-							number,
-							spec,
-							err
-						);
-					}
-				}
-			} else {
-				match decoder.decode_extrinsics(spec, ext.as_slice()) {
-					Ok(exts) => {
-						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
-							extrinsics.push(exts_model);
+				} else {
+					match decoder.decode_extrinsics(spec, ext.as_slice()) {
+						Ok(exts) => {
+							if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
+								batch.push(exts_model);
+							}
 						}
-					}
-					Err(err) => {
-						log::warn!("decode extrinsic failed, block: {}, spec: {}, reason: {:?}", number, spec, err);
+						Err(err) => {
+							log::warn!("decode extrinsic failed, block: {}, spec: {}, reason: {:?}", number, spec, err);
+						}
 					}
 				}
 			}
-		}
+			
+			Ok(batch)
+		})
+		.flatten()
+		.collect();
+
 		Ok(extrinsics)
 	}
 
