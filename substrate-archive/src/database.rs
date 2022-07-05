@@ -450,40 +450,40 @@ impl Insert for Vec<ExtrinsicsModel> {
 }
 
 #[async_trait::async_trait]
-impl Insert for Vec<CapsuleModel> {
+impl Insert for Vec<TrexModel> {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
 		let mut batch = Batch::new(
-			"capsules",
+			"trex",
 			r#"
-			INSERT INTO "capsules" (
-				hash, number, cipher, account_id, capsule_type, release_block_num, difficulty, release_block_difficulty_index
+			INSERT INTO "trex" (
+				hash, number, cipher, account_id, trex_type, release_block_num, difficulty, release_block_difficulty_index
 			) VALUES
 			"#,
 			r#"
 			ON CONFLICT DO NOTHING
 			"#,
 		);
-		for capsule in self.into_iter() {
+		for trex in self.into_iter() {
 			batch.reserve(6)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
 			}
 			batch.append("(");
-			batch.bind(capsule.hash)?;
+			batch.bind(trex.hash)?;
 			batch.append(",");
-			batch.bind(capsule.number)?;
+			batch.bind(trex.number)?;
 			batch.append(",");
-			batch.bind(capsule.cipher)?;
+			batch.bind(trex.cipher)?;
 			batch.append(",");
-			batch.bind(capsule.account_id)?;
+			batch.bind(trex.account_id)?;
 			batch.append(",");
-			batch.bind(capsule.capsule_type)?;
+			batch.bind(trex.trex_type)?;
 			batch.append(",");
-			batch.bind(capsule.release_number)?;
+			batch.bind(trex.release_number)?;
 			batch.append(",");
-			batch.bind(capsule.difficulty)?;
+			batch.bind(trex.difficulty)?;
 			batch.append(",");
-			let release_block_difficulty_index = capsule.release_number.unwrap_or(0u32).to_string() + &"_".to_string() + &capsule.difficulty.to_string();
+			let release_block_difficulty_index = trex.release_number.unwrap_or(0u32).to_string() + &"_".to_string() + &trex.difficulty.to_string();
 			batch.bind(release_block_difficulty_index)?;
 			batch.append(")");
 		}

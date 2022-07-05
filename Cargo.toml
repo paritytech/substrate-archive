@@ -8,6 +8,6 @@ members = [
   "test-common",
   "test-common/test-wasm",
   "bin/polkadot-archive",
-  "bin/node-template-archive"
+    "bin/trex-archive"
 ]
 

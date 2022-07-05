@@ -28,9 +28,9 @@ use crate::{
 		workers::database::{DatabaseActor, GetState},
 		SystemConfig,
 	},
-	database::{models::CapsuleModel, models::ExtrinsicsModel, queries},
+	database::{models::TrexModel, models::ExtrinsicsModel, queries},
 	error::{ArchiveError, Result},
-	types::{BatchCapsules, BatchExtrinsics},
+	types::{BatchTrexes, BatchExtrinsics},
 };
 
 use serde::Deserialize;
@@ -124,9 +124,9 @@ impl ExtrinsicsDecoder {
 		let extrinsics = extrinsics_tuple.0;
 		self.addr.send(BatchExtrinsics::new(extrinsics)).await?;
 
-		//send batch capsules to DatabaseActor
-		let capsules = extrinsics_tuple.1;
-		self.addr.send(BatchCapsules::new(capsules)).await?;
+		//send batch trexes to DatabaseActor
+		let trexes = extrinsics_tuple.1;
+		self.addr.send(BatchTrexes::new(trexes)).await?;
 
 		Ok(())
 	}
@@ -135,9 +135,9 @@ impl ExtrinsicsDecoder {
 		decoder: &Decoder,
 		blocks: Vec<(u32, Vec<u8>, Vec<u8>, u32)>,
 		upgrades: &HashMap<u32, u32>,
-	) -> Result<(Vec<ExtrinsicsModel>, Vec<CapsuleModel>)> {
+	) -> Result<(Vec<ExtrinsicsModel>, Vec<TrexModel>)> {
 		let mut extrinsics = Vec::new();
-		let mut capsules = Vec::new();
+		let mut trexes = Vec::new();
 		if blocks.len() > 2 {
 			let first = blocks.first().expect("Checked len; qed");
 			let last = blocks.last().expect("Checked len; qed");
@@ -162,21 +162,21 @@ impl ExtrinsicsDecoder {
 				let ext1 = decoder.decode_extrinsics(*previous, ext.as_slice())?;
 				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
 
-				//construct capsule list for batch
-				Self::construct_capsules(&number, &hash, &ext1, &mut capsules);
+				//construct trex list for batch
+				Self::construct_trexes(&number, &hash, &ext1, &mut trexes);
 			} else {
 				let ext1 = decoder.decode_extrinsics(spec, ext.as_slice())?;
 				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
 
-				//construct capsule list for batch
-				Self::construct_capsules(&number, &hash, &ext1, &mut capsules);
+				//construct trex list for batch
+				Self::construct_trexes(&number, &hash, &ext1, &mut trexes);
 			}
 		}
-		Ok((extrinsics, capsules))
+		Ok((extrinsics, trexes))
 	}
 
 	//construct capsule list for batch
-	fn construct_capsules(number: &u32, hash: &Vec<u8>, ext: &Value, capsules: &mut Vec<CapsuleModel>) {
+	fn construct_trexes(number: &u32, hash: &Vec<u8>, ext: &Value, trexes: &mut Vec<TrexModel>) {
 		if ext.is_array() {
 			let extrinsics = ext.as_array().unwrap();
 			for extrinsic in extrinsics {
@@ -226,13 +226,13 @@ impl ExtrinsicsDecoder {
 								}
 							};
 
-							//Traverse the vector and construct the CapsuleModel
+							//Traverse the vector and construct the TrexModel
 							for cipher in cipher_vector{
 								let cipher_text = cipher.cipher_text;
 								let release_block_number = cipher.release_block_num;
 								let difficulty = cipher.difficulty;
 
-								let capsule_model_result = CapsuleModel::new(
+								let trex_model_result = TrexModel::new(
 									hash.to_vec(),
 									number.to_owned(),
 									Option::from(cipher_text),
@@ -241,9 +241,9 @@ impl ExtrinsicsDecoder {
 									Option::from(release_block_number),
 									difficulty
 								);
-								match capsule_model_result {
-									Ok(capsule_model) => {
-										capsules.push(capsule_model);
+								match trex_model_result {
+									Ok(trex_model) => {
+										trexes.push(trex_model);
 									}
 									Err(_) => {
 										log::debug! {"Construct capsule model failed!"};

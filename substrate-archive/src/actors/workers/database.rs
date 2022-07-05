@@ -21,7 +21,7 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 
 use xtra::prelude::*;
 
-use crate::types::BatchCapsules;
+use crate::types::BatchTrexes;
 use crate::{
 	database::{models::StorageModel, queries, Database, DbConn},
 	error::Result,
@@ -218,14 +218,14 @@ impl Handler<BatchExtrinsics> for DatabaseActor {
 }
 
 #[async_trait::async_trait]
-impl Handler<BatchCapsules> for DatabaseActor {
-	async fn handle(&mut self, capsules: BatchCapsules, _: &mut Context<Self>) {
-		let len = capsules.len();
+impl Handler<BatchTrexes> for DatabaseActor {
+	async fn handle(&mut self, trexes: BatchTrexes, _: &mut Context<Self>) {
+		let len = trexes.len();
 		let now = std::time::Instant::now();
-		if let Err(e) = self.db.insert(capsules.inner()).await {
+		if let Err(e) = self.db.insert(trexes.inner()).await {
 			log::error!("{}", e.to_string());
 		}
-		log::debug!("took {:?} to insert {} capsules", now.elapsed(), len);
+		log::debug!("took {:?} to insert {} trexes", now.elapsed(), len);
 	}
 }
 

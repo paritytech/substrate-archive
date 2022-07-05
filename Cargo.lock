@@ -4500,21 +4500,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "node-template-archive"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "argh",
- "ctrlc",
- "log",
- "node-template-runtime",
- "sc-chain-spec",
- "serde",
- "substrate-archive",
- "toml",
-]
-
-[[package]]
 name = "node-template-runtime"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#28819000207c9bcdf37e31d7d167cd1d420faa7e"
@@ -10794,6 +10779,21 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-serde",
+]
+
+[[package]]
+name = "trex-archive"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "argh",
+ "ctrlc",
+ "log",
+ "node-template-runtime",
+ "sc-chain-spec",
+ "serde",
+ "substrate-archive",
+ "toml",
 ]
 
 [[package]]

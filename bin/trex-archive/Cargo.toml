@@ -1,5 +1,5 @@
 [package]
-name = "node-template-archive"
+name = "trex-archive"
 version = "0.3.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"

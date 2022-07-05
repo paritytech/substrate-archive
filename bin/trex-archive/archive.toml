@@ -2,7 +2,8 @@
 # Must be an absolute path to chain data db (no ~/)
 # Can also be specified via the `CHAIN_DATA_DB` environment variable
 #data_path = "/Users/yindan/Capsule/my-chain-state/chains/dev/db/full"
-data_path = "/Users/yindan/Capsule/my-chain-state/chains/dev/db/full"
+#data_path = "/Users/yindan/Capsule/my-chain-state/chains/dev/db/full"
+data_path = "/Users/yindan/Capsule/my-chain-state/chains/testnet2022/db/full"
 
 # How much should the read-only database keep in cache (MB)
 # Optional, default: 128
@@ -31,7 +32,7 @@ wasm_pages = 2048
 # Can also be specified via the `DATABASE_URL` environment variable.
 # For production use, using `DATABASE_URL` is preferable.
 # More info on the wiki: https://github.com/paritytech/substrate-archive/wiki/1.)-Requirements.
-url = "postgres://postgres:123456@127.0.0.1:5433/capsule"
+url = "postgres://postgres:123456@127.0.0.1:5433/trex"
 
 [log]
 # Optional log level of stdout, default: "DEBUG"

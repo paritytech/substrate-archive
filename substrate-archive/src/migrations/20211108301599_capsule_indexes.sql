@@ -1,1 +1,0 @@
-CREATE INDEX release_block_num_difficulty ON capsules (release_block_difficulty_index);

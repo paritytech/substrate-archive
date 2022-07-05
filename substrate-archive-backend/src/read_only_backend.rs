@@ -97,7 +97,7 @@ where
 	/// gets storage for some block hash
 	pub fn storage(&self, hash: Block::Hash, key: &[u8]) -> Option<Vec<u8>> {
 		match self.state_at(hash) {
-			Some(state) => state.storage(key).unwrap_or_else(|_| panic!("No storage found for {:?}", hash)),
+			Some(state) => state.storage(key).unwrap_or_else(|_| panic!("No storage found for {:?} key {:?}", hash, key)),
 			None => None,
 		}
 	}

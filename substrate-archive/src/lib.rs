@@ -27,7 +27,7 @@
 //! #### Setup
 //! The simplest possible setup for archive is described in the `simple` example [`examples/simple.rs`].
 //! Most important is passing the correct `RuntimeApi`, `Block`, and `ReadOnlyDb` trait generics to the builder.
-//! A more complicated setup may be observed in the `polkadot-archive` and `node-template-archive` binary projects.
+//! A more complicated setup may be observed in the `polkadot-archive` and `trex-archive` binary projects.
 //! The trickiest part is setting up the Postgres and RabbitMq seperately and configuring those services.
 //! A [Docker Compose
 //! Config](https://github.com/paritytech/substrate-archive/blob/master/docker-compose.yaml) exists

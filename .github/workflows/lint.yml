@@ -42,13 +42,13 @@ jobs:
           command: fmt
           args: --all -- --check
 
-      - name: Check Code Format For `node-template-archive`
+      - name: Check Code Format For `trex-archive`
         uses: actions-rs/cargo@v1
         env:
           SKIP_WASM_BUILD: 1
         with:
           command: fmt
-          args: --manifest-path bin/node-template-archive/Cargo.toml -- --check
+          args: --manifest-path bin/trex-archive/Cargo.toml -- --check
 
       - name: Check Code Format For `polkadot-archive`
         uses: actions-rs/cargo@v1

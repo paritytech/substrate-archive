@@ -1,6 +1,6 @@
 <div align="center">
 
-# Capsule Archive
+# Trex Archive
 ### (Fork from Substrate Archive)
 
 ### Blockchain Indexing Engine
@@ -45,15 +45,15 @@ The node-template CLI (in /bin/node-template-archive) is provided as an example 
 ### Quick Start Custom Config
 
 ```bash
-git clone https://github.com/NexTokenTech/capsule-archive.git
+git clone https://github.com/NexTokenTech/trex-archive.git
 # Set up the databases
-cd capsule-archive/bin/node-template-archive/
-# Start the normal capsule node with `pruning` set to `archive`,Set the specified database storage path.
-RUST_BACKTRACE=1 ./capsule-node --pruning=archive -ldebug --dev --base-path ./my-chain-state/
-# build the capsule-archive node.
-cargo build --release --bin node-template-archive
-# run the capsule-archive node.
-./target/release/node-template-archive -c ./bin/node-template-archive/archive.toml
+cd trex-archive/bin/trex-archive/
+# Start the normal trex node with `pruning` set to `archive`,Set the specified database storage path.
+RUST_BACKTRACE=1 ./trex-node --pruning=archive -ldebug --dev --base-path ./my-chain-state/
+# build the trex-archive node.
+cargo build --release --bin trex-archive
+# run the trex-archive node.
+./target/release/trex-archive -c ./bin/trex-archive/archive.toml
 ```
 
 You can access the help dialog via `cargo run --release -- --help`. Note that `up` and `down` scripts are meant for convenience and are not meant to be complete. Look in the [wiki](https://github.com/paritytech/substrate-archive/wiki) for more information about the database setup.

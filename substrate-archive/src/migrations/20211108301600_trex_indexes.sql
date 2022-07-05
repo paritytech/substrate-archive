@@ -1,0 +1,1 @@
+CREATE INDEX release_block_num_difficulty ON trex (release_block_difficulty_index);

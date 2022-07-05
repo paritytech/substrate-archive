@@ -157,31 +157,31 @@ impl ExtrinsicsModel {
 }
 
 #[derive(Debug, Serialize, FromRow)]
-pub struct CapsuleModel {
+pub struct TrexModel {
 	pub id: Option<i32>,
 	pub hash: Vec<u8>,
 	pub number: u32,
 	pub cipher: Option<Vec<u8>>,
 	pub account_id: Option<Vec<Vec<u8>>>,
-	pub capsule_type: String,
+	pub trex_type: String,
 	pub release_number: Option<u32>,
 	pub difficulty:u32
 }
 
-impl CapsuleModel {
+impl TrexModel {
 	pub fn new(
 		block_id: Vec<u8>,
 		block_num: u32,
 		cipher: Option<Vec<u8>>,
 		account_id: Option<Vec<Vec<u8>>>,
-		capsule_type: &str,
+		trex_type: &str,
 		release_number: Option<u32>,
 		difficulty: u32
 	) -> Result<Self> {
 		let block_id = block_id.try_into().unwrap_or(vec![]);
 		let block_num = block_num.try_into().unwrap_or(0u32);
-		let capsule_type = capsule_type.to_string();
-		Ok(Self { id: None, hash: block_id, number: block_num, cipher, account_id, capsule_type, release_number, difficulty})
+		let trex_type = trex_type.to_string();
+		Ok(Self { id: None, hash: block_id, number: block_num, cipher, account_id, trex_type, release_number, difficulty})
 	}
 }
 

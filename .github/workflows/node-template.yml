@@ -38,8 +38,8 @@ jobs:
             bin/node-template-archive/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Check Code For `node-template-archive`
+      - name: Check Code For `trex-archive`
         uses: actions-rs/cargo@v1
         with:
           command: check
-          args: --bin node-template-archive
+          args: --bin trex-archive
