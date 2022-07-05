@@ -175,7 +175,7 @@ impl ExtrinsicsDecoder {
 		Ok((extrinsics, trexes))
 	}
 
-	//construct capsule list for batch
+	//construct trex list for batch
 	fn construct_trexes(number: &u32, hash: &Vec<u8>, ext: &Value, trexes: &mut Vec<TrexModel>) {
 		if ext.is_array() {
 			let extrinsics = ext.as_array().unwrap();
@@ -190,7 +190,7 @@ impl ExtrinsicsDecoder {
 						"Timestamp" => {
 							// TODO:Extrinsic of timestamp type to be determined,If is needed.
 						}
-						"CapsuleModule" => {
+						"TrexModule" => {
 							// get account_id from arguments[0]
 							let account_id_struct: Option<AccountId> =
 								serde_json::from_value(arguments[0].to_owned()).unwrap_or(None);
@@ -246,7 +246,7 @@ impl ExtrinsicsDecoder {
 										trexes.push(trex_model);
 									}
 									Err(_) => {
-										log::debug! {"Construct capsule model failed!"};
+										log::debug! {"Construct trex model failed!"};
 									}
 								}
 							}
