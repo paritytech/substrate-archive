@@ -117,6 +117,10 @@ impl<Block: BlockT, D: ReadOnlyDb + 'static> Backend<Block> for ReadOnlyBackend<
 		panic!("No lock exists for read-only backend");
 	}
 
+	fn requires_full_sync(&self) -> bool {
+		true
+	}
+
 	fn append_justification(&self, _: BlockId<Block>, _: Justification) -> sp_blockchain::Result<()> {
 		log::warn!("Appending Justifications not supported for Read-Only backends.");
 		Ok(())

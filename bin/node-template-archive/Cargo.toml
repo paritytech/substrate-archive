@@ -14,7 +14,7 @@ serde = "1.0"
 toml = "0.5"
 argh = "0.1.6"
 
-node-template-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+node-template-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
 
 substrate-archive = { path = "../../substrate-archive" }

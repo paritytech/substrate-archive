@@ -41,7 +41,7 @@ use tracing_subscriber::{
 use crate::error::{Result, TracingError};
 
 /// The Event a tracing subscriber collects before sending data to the TracingActor.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EventMessage {
 	pub name: String,
 	pub target: String,
@@ -69,7 +69,7 @@ pub struct SpanMessage {
 }
 
 /// Finished Trace Data Format. Ready for insertion into a relational database.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Traces {
 	block_num: u32,
 	hash: Vec<u8>,
@@ -327,7 +327,7 @@ mod tests {
 		let mut ext = ext.ext();
 
 		let executor =
-			WasmExecutor::<sp_io::SubstrateHostFunctions>::new(WasmExecutionMethod::Compiled, Some(1024), 8, None, 128);
+			WasmExecutor::<sp_io::SubstrateHostFunctions>::new(WasmExecutionMethod::Compiled{instantiation_strategy: sc_executor_wasmtime::InstantiationStrategy::PoolingCopyOnWrite}, Some(1024), 8, None, 128);
 
 		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
 		let handler = TraceHandler::new(TARGETS, span_events);

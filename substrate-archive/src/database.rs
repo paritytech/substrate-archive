@@ -345,9 +345,9 @@ impl Insert for Traces {
 		);
 
 		for span in self.spans.iter() {
-			let id = i32::try_from(span.id.into_u64())?;
-			let parent_id: Option<i32> =
-				if let Some(id) = &span.parent_id { Some(i32::try_from(id.into_u64())?) } else { None };
+			let id = i64::try_from(span.id.into_u64())?;
+			let parent_id: Option<i64> =
+				if let Some(id) = &span.parent_id { Some(i64::try_from(id.into_u64())?) } else { None };
 			let overall_time: i64 = time_to_std(span.overall_time)?.as_nanos().try_into()?;
 			batch.reserve(12)?;
 			if batch.current_num_arguments() > 0 {
@@ -381,7 +381,7 @@ impl Insert for Traces {
 		}
 
 		for event in self.events.iter() {
-			let parent_id = event.parent_id.as_ref().map(|id| i32::try_from(id.into_u64())).transpose()?;
+			let parent_id = event.parent_id.as_ref().map(|id| i64::try_from(id.into_u64())).transpose()?;
 			batch.reserve(12)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
@@ -401,7 +401,7 @@ impl Insert for Traces {
 			batch.append(",");
 			batch.bind(event.line)?; // line
 			batch.append(",");
-			batch.bind(Option::<i32>::None)?; // Event has no ID
+			batch.bind(Option::<i64>::None)?; // Event has no ID
 			batch.append(",");
 			batch.bind(parent_id)?; // parent ikd
 			batch.append(",");

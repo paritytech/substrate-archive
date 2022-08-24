@@ -18,7 +18,6 @@
 
 use codec::{Decode, Encode};
 
-use sc_service::TransactionStorageMode;
 use sp_blockchain::{
 	Backend as BlockchainBackend, BlockStatus, CachedHeaderMetadata, Error as BlockchainError, HeaderBackend,
 	HeaderMetadata, Info,
@@ -43,29 +42,78 @@ struct ExtrinsicHeader {
 	data: Vec<u8>,
 }
 
+/// Hash type that this backend uses for the database.
+pub type DbHash = sp_core::H256;
+
+/// An extrinsic entry in the database.
+#[derive(Debug, Encode, Decode)]
+enum DbExtrinsic<B: BlockT> {
+	/// Extrinsic that contains indexed data.
+	Indexed {
+		/// Hash of the indexed part.
+		hash: DbHash,
+		/// Extrinsic header.
+		header: Vec<u8>,
+	},
+	/// Complete extrinsic data.
+	Full(B::Extrinsic),
+}
+
+pub(crate) struct JoinInput<'a, 'b>(&'a [u8], &'b [u8]);
+
+pub(crate) fn join_input<'a, 'b>(i1: &'a [u8], i2: &'b [u8]) -> JoinInput<'a, 'b> {
+	JoinInput(i1, i2)
+}
+
+impl<'a, 'b> codec::Input for JoinInput<'a, 'b> {
+	fn remaining_len(&mut self) -> Result<Option<usize>, codec::Error> {
+		Ok(Some(self.0.len() + self.1.len()))
+	}
+
+	fn read(&mut self, into: &mut [u8]) -> Result<(), codec::Error> {
+		let mut read = 0;
+		if self.0.len() > 0 {
+			read = std::cmp::min(self.0.len(), into.len());
+			self.0.read(&mut into[..read])?;
+		}
+		if read < into.len() {
+			self.1.read(&mut into[read..])?;
+		}
+		Ok(())
+	}
+}
+
 impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<Block, D> {
-	fn body(&self, id: BlockId<Block>) -> ChainResult<Option<Vec<<Block as BlockT>::Extrinsic>>> {
-		let body = match read_db(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
+	fn body(&self, id: BlockId<Block>) -> ChainResult<Option<Vec<Block::Extrinsic>>> {
+		if let Some(body) = read_db(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
 			.map_err(|e| BlockchainError::Backend(e.to_string()))?
 		{
-			Some(body) => body,
-			None => return Ok(None),
-		};
-		match self.storage_mode {
-			TransactionStorageMode::BlockBody => match Decode::decode(&mut &body[..]) {
-				Ok(body) => Ok(Some(body)),
+			// Plain body
+			match Decode::decode(&mut &body[..]) {
+				Ok(body) => return Ok(Some(body)),
 				Err(err) => return Err(BlockchainError::Backend(format!("Error decoding body: {}", err))),
-			},
-			TransactionStorageMode::StorageChain => match Vec::<ExtrinsicHeader>::decode(&mut &body[..]) {
+			}
+		}
+
+		if let Some(index) = read_db(&*self.db, columns::KEY_LOOKUP, columns::BODY_INDEX, id)
+			.map_err(|e| BlockchainError::Backend(e.to_string()))?
+		{
+			match Vec::<DbExtrinsic<Block>>::decode(&mut &index[..]) {
 				Ok(index) => {
-					let extrinsics: ChainResult<Vec<Block::Extrinsic>> = index
-						.into_iter()
-						.map(|ExtrinsicHeader { hash, data }| {
-							let decode_result = if hash != Default::default() {
+					let mut body = Vec::new();
+					for ex in index {
+						match ex {
+							DbExtrinsic::Indexed { hash, header } => {
 								match self.db.get(columns::TRANSACTION, hash.as_ref()) {
 									Some(t) => {
-										let input = [&data[..], &t[..]].concat();
-										Block::Extrinsic::decode(&mut input.as_slice())
+										let mut input = join_input(header.as_ref(), t.as_ref());
+										let ex = Block::Extrinsic::decode(&mut input).map_err(|err| {
+											sp_blockchain::Error::Backend(format!(
+												"Error decoding indexed extrinsic: {}",
+												err
+											))
+										})?;
+										body.push(ex);
 									}
 									None => {
 										return Err(BlockchainError::Backend(format!(
@@ -73,29 +121,30 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<
 											hash
 										)))
 									}
-								}
-							} else {
-								Block::Extrinsic::decode(&mut data.as_ref())
-							};
-							decode_result
-								.map_err(|err| BlockchainError::Backend(format!("Error decoding extrinsic: {}", err)))
-						})
-						.collect();
-					Ok(Some(extrinsics?))
+								};
+							}
+							DbExtrinsic::Full(ex) => {
+								body.push(ex);
+							}
+						}
+					}
+					return Ok(Some(body));
 				}
 				Err(err) => return Err(BlockchainError::Backend(format!("Error decoding body list: {}", err))),
-			},
+			}
 		}
+		Ok(None)
 	}
 
 	fn justifications(&self, id: BlockId<Block>) -> ChainResult<Option<Justifications>> {
-		let res = util::read_db::<Block, D>(&*self.db, columns::KEY_LOOKUP, columns::JUSTIFICATION, id)
-			.map_err(|e| BlockchainError::Backend(e.to_string()))?;
-
-		match res {
-			Some(justification) => match Decode::decode(&mut &justification[..]) {
-				Ok(justification) => Ok(Some(justification)),
-				Err(_) => Err(BlockchainError::JustificationDecode),
+		match read_db(&*self.db, columns::KEY_LOOKUP, columns::JUSTIFICATIONS, id)
+			.map_err(|e| BlockchainError::Backend(e.to_string()))?
+		{
+			Some(justifications) => match Decode::decode(&mut &justifications[..]) {
+				Ok(justifications) => Ok(Some(justifications)),
+				Err(err) => {
+					return Err(sp_blockchain::Error::Backend(format!("Error decoding justifications: {}", err)))
+				}
 			},
 			None => Ok(None),
 		}
@@ -112,6 +161,10 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<
 		unimplemented!()
 	}
 
+	fn displaced_leaves_after_finalizing(&self, _block_number: NumberFor<Block>) -> ChainResult<Vec<Block::Hash>> {
+		unimplemented!()
+	}
+
 	/// Return hashes of all blocks that are children of the block with `parent_hash`.
 	fn children(&self, _parent_hash: Block::Hash) -> ChainResult<Vec<Block::Hash>> {
 		unimplemented!()
@@ -124,36 +177,31 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<
 	}
 
 	fn block_indexed_body(&self, id: BlockId<Block>) -> ChainResult<Option<Vec<Vec<u8>>>> {
-		match self.storage_mode {
-			TransactionStorageMode::BlockBody => Ok(None),
-			TransactionStorageMode::StorageChain => {
-				let body = match read_db(&*self.db, columns::KEY_LOOKUP, columns::BODY, id)
-					.map_err(|e| BlockchainError::Backend(e.to_string()))?
-				{
-					Some(body) => body,
-					None => return Ok(None),
-				};
-				match Vec::<ExtrinsicHeader>::decode(&mut &body[..]) {
-					Ok(index) => {
-						let mut transactions = Vec::new();
-						for ExtrinsicHeader { hash, .. } in index.into_iter() {
-							if hash != Default::default() {
-								match self.db.get(columns::TRANSACTION, hash.as_ref()) {
-									Some(t) => transactions.push(t),
-									None => {
-										return Err(BlockchainError::Backend(format!(
-											"Missing indexed transaction {:?}",
-											hash
-										)))
-									}
-								}
+		let body = match read_db(&*self.db, columns::KEY_LOOKUP, columns::BODY_INDEX, id)
+			.map_err(|e| BlockchainError::Backend(e.to_string()))?
+		{
+			Some(body) => body,
+			None => return Ok(None),
+		};
+		match Vec::<DbExtrinsic<Block>>::decode(&mut &body[..]) {
+			Ok(index) => {
+				let mut transactions = Vec::new();
+				for ex in index.into_iter() {
+					if let DbExtrinsic::Indexed { hash, .. } = ex {
+						match self.db.get(columns::TRANSACTION, hash.as_ref()) {
+							Some(t) => transactions.push(t),
+							None => {
+								return Err(sp_blockchain::Error::Backend(format!(
+									"Missing indexed transaction {:?}",
+									hash
+								)))
 							}
 						}
-						Ok(Some(transactions))
 					}
-					Err(err) => return Err(BlockchainError::Backend(format!("Error decoding body list: {}", err))),
 				}
+				Ok(Some(transactions))
 			}
+			Err(err) => Err(sp_blockchain::Error::Backend(format!("Error decoding body list: {}", err))),
 		}
 	}
 }

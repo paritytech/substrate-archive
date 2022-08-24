@@ -35,7 +35,6 @@ use hash_db::Prefix;
 use kvdb::DBValue;
 
 use sc_client_api::backend::StateBackend;
-use sc_service::TransactionStorageMode;
 use sp_blockchain::{Backend as _, HeaderBackend as _};
 use sp_runtime::{
 	generic::{BlockId, SignedBlock},
@@ -50,7 +49,6 @@ use crate::{database::ReadOnlyDb, error::Result, util::columns};
 pub struct ReadOnlyBackend<Block, D> {
 	db: Arc<D>,
 	storage: Arc<StateVault<Block, D>>,
-	storage_mode: TransactionStorageMode,
 }
 
 impl<Block, D> ReadOnlyBackend<Block, D>
@@ -59,9 +57,9 @@ where
 	Block::Header: HeaderT,
 	D: ReadOnlyDb + 'static,
 {
-	pub fn new(db: Arc<D>, prefix_keys: bool, storage_mode: TransactionStorageMode) -> Self {
+	pub fn new(db: Arc<D>, prefix_keys: bool) -> Self {
 		let vault = Arc::new(StateVault::new(db.clone(), prefix_keys));
-		Self { db, storage: vault, storage_mode }
+		Self { db, storage: vault }
 	}
 
 	/// get a reference to the backing database
@@ -97,7 +95,7 @@ where
 	/// gets storage for some block hash
 	pub fn storage(&self, hash: Block::Hash, key: &[u8]) -> Option<Vec<u8>> {
 		match self.state_at(hash) {
-			Some(state) => state.storage(key).unwrap_or_else(|_| panic!("No storage found for {:?}", hash)),
+			Some(state) => state.storage(key).unwrap_or_else(|_| panic!("No storage key: {:?} found for {:?}", key, hash)),
 			None => None,
 		}
 	}
@@ -145,7 +143,7 @@ where
 						.get(super::util::columns::BODY, &value)
 						.and_then(|bytes| Decode::decode(&mut &bytes[..]).ok());
 					let justif: Option<Justifications> = readable_db
-						.get(super::util::columns::JUSTIFICATION, &value)
+						.get(super::util::columns::JUSTIFICATIONS, &value)
 						.and_then(|bytes| Decode::decode(&mut &bytes[..]).ok());
 					construct_block(head, body, justif)
 				} else {

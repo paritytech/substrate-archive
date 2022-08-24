@@ -35,25 +35,20 @@ pub type NumberIndexKey = [u8; 4];
 
 #[allow(unused)]
 pub(crate) mod columns {
-	/// Metadata about chain
 	pub const META: u32 = 0;
 	pub const STATE: u32 = 1;
 	pub const STATE_META: u32 = 2;
-	/// maps hashes -> lookup keys and numbers to canon hashes
+	/// maps hashes to lookup keys and numbers to canon hashes.
 	pub const KEY_LOOKUP: u32 = 3;
-	/// Part of Block
 	pub const HEADER: u32 = 4;
-	/// Part of Block
 	pub const BODY: u32 = 5;
-	/// Part of Block
-	pub const JUSTIFICATION: u32 = 6;
-	/// Stores the changes tries for querying changed storage of a block
-	pub const CHANGES_TRIE: u32 = 7;
+	pub const JUSTIFICATIONS: u32 = 6;
 	pub const AUX: u32 = 8;
-	/// Off Chain workers local storage
+	/// Offchain workers local storage
 	pub const OFFCHAIN: u32 = 9;
-	pub const CACHE: u32 = 10;
+	/// Transactions
 	pub const TRANSACTION: u32 = 11;
+	pub const BODY_INDEX: u32 = 12;
 }
 
 /// Keys of entries in COLUMN_META.

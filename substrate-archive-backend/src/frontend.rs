@@ -30,7 +30,7 @@ use sc_client_api::{
 	ExecutionStrategy,
 };
 use sc_executor::{WasmExecutionMethod, WasmExecutor};
-use sc_service::{ChainSpec, ClientConfig, LocalCallExecutor, TransactionStorageMode};
+use sc_service::{ChainSpec, ClientConfig, LocalCallExecutor};
 use sp_api::ConstructRuntimeApi;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT, NumberFor};
@@ -61,7 +61,9 @@ impl From<ExecutionMethod> for WasmExecutionMethod {
 	fn from(method: ExecutionMethod) -> Self {
 		match method {
 			ExecutionMethod::Interpreted => Self::Interpreted,
-			ExecutionMethod::Compiled => Self::Compiled,
+			ExecutionMethod::Compiled => Self::Compiled {
+				instantiation_strategy: sc_executor_wasmtime::InstantiationStrategy::PoolingCopyOnWrite,
+			},
 		}
 	}
 }
@@ -87,9 +89,6 @@ pub struct RuntimeConfig {
 	/// If both are in use, the `wasm_runtime_overrides` takes precedence.
 	#[serde(skip)]
 	code_substitutes: BTreeMap<String, Vec<u8>>,
-	/// Method of storing and retrieving transactions(extrinsics).
-	#[serde(skip, default = "default_storage_mode")]
-	pub storage_mode: TransactionStorageMode,
 }
 
 impl RuntimeConfig {
@@ -107,7 +106,6 @@ impl Default for RuntimeConfig {
 			wasm_pages: None,
 			wasm_runtime_overrides: None,
 			code_substitutes: Default::default(),
-			storage_mode: TransactionStorageMode::BlockBody,
 		}
 	}
 }
@@ -115,10 +113,6 @@ impl Default for RuntimeConfig {
 // the number of logical cpus in the system
 fn default_block_workers() -> usize {
 	num_cpus::get()
-}
-
-const fn default_storage_mode() -> TransactionStorageMode {
-	TransactionStorageMode::BlockBody
 }
 
 impl<B> TryFrom<RuntimeConfig> for ClientConfig<B>

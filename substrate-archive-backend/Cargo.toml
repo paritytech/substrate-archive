@@ -12,30 +12,31 @@ futures = "0.3"
 hashbrown = { version = "0.11", features = ["inline-more"] }
 log = "0.4"
 num_cpus = "1.13"
-parking_lot = "0.11"
+parking_lot = "0.12"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
 
 # Parity
-codec = { package = "parity-scale-codec", version = "2.0", default-features = false, features = ["derive", "full"] }
+codec = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive", "full"] }
 hash-db = "0.15"
-kvdb = "0.10"
-kvdb-rocksdb = "0.14"
-parity-util-mem = "0.10"
+kvdb = "0.11"
+kvdb-rocksdb = "0.15"
+parity-util-mem = "0.11"
 
 # Substrate
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", features = ["wasmtime"] , branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-database = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-version = {  git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-wasm-interface = {  git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1", features = ["wasmtime"] }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-database = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-version = {  git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+sp-wasm-interface = {  git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }

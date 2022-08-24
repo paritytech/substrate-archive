@@ -197,8 +197,8 @@ impl Message for Traces {
 impl Handler<Traces> for DatabaseActor {
 	async fn handle(&mut self, traces: Traces, _: &mut Context<Self>) {
 		let now = std::time::Instant::now();
-		if let Err(e) = self.db.insert(traces).await {
-			log::error!("{}", e.to_string());
+		if let Err(e) = self.db.insert(traces.clone()).await {
+			log::error!("{}, traces: {:?}", e.to_string(), traces);
 		}
 		log::debug!("took {:?} to insert traces", now.elapsed());
 	}
