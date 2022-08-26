@@ -1,8 +1,8 @@
 <div align="center">
 
-# HELP WANTED: Looking for Maintainers
+# Maintainance status: currently unmmaintained; please fork.
 	
-Please leave a message on https://github.com/paritytech/substrate-archive/issues/464 if you're interested in helping to maintain this project going forwards.
+Have a look at https://github.com/paritytech/substrate-archive/issues/464 for more information.
 	
 # Substrate Archive
 
