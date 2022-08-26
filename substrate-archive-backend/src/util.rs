@@ -97,7 +97,7 @@ pub fn read_db<Block: BlockT, D: ReadOnlyDb>(
 	col: u32,
 	id: BlockId<Block>,
 ) -> Result<Option<DBValue>> {
-	block_id_to_lookup_key(&*db, col_index, id).map(|key| key.and_then(|key| db.get(col, key.as_ref())))
+	block_id_to_lookup_key(db, col_index, id).map(|key| key.and_then(|key| db.get(col, key.as_ref())))
 }
 
 pub fn block_id_to_lookup_key<Block, D>(db: &D, key_lookup_col: u32, id: BlockId<Block>) -> Result<Option<Vec<u8>>>
@@ -150,7 +150,7 @@ pub fn read_meta<Block: BlockT, D: ReadOnlyDb>(
 where
 	Block: BlockT,
 {
-	let genesis_hash: Block::Hash = match read_genesis_hash(&*db)? {
+	let genesis_hash: Block::Hash = match read_genesis_hash(db)? {
 		Some(genesis_hash) => genesis_hash,
 		None => {
 			return Ok(Meta {

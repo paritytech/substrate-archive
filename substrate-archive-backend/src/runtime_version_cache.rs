@@ -123,7 +123,7 @@ impl<Block: BlockT, Db: ReadOnlyDb + 'static> RuntimeVersionCache<Block, Db> {
 	}
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct VersionRange<B: BlockT> {
 	pub start: NumberFor<B>,
 	pub end: NumberFor<B>,

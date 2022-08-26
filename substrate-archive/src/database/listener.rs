@@ -36,7 +36,7 @@ use sqlx::{
 use crate::error::{ArchiveError, Result};
 
 /// A notification from Postgres about a new row
-#[derive(PartialEq, Debug, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize)]
 pub struct Notif {
 	pub table: Table,
 	pub action: Action,
@@ -63,14 +63,14 @@ where
 	}
 }
 
-#[derive(PartialEq, Debug, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Table {
 	Blocks,
 	Storage,
 }
 
-#[derive(PartialEq, Debug, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Action {
 	Insert,

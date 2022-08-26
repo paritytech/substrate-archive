@@ -72,7 +72,7 @@ impl<'a, 'b> codec::Input for JoinInput<'a, 'b> {
 
 	fn read(&mut self, into: &mut [u8]) -> Result<(), codec::Error> {
 		let mut read = 0;
-		if self.0.len() > 0 {
+		if !self.0.is_empty() {
 			read = std::cmp::min(self.0.len(), into.len());
 			self.0.read(&mut into[..read])?;
 		}
@@ -142,9 +142,7 @@ impl<Block: BlockT, D: ReadOnlyDb> BlockchainBackend<Block> for ReadOnlyBackend<
 		{
 			Some(justifications) => match Decode::decode(&mut &justifications[..]) {
 				Ok(justifications) => Ok(Some(justifications)),
-				Err(err) => {
-					return Err(sp_blockchain::Error::Backend(format!("Error decoding justifications: {}", err)))
-				}
+				Err(err) => Err(sp_blockchain::Error::Backend(format!("Error decoding justifications: {}", err))),
 			},
 			None => Ok(None),
 		}

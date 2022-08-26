@@ -326,8 +326,15 @@ mod tests {
 		let mut ext = TestExternalities::default();
 		let mut ext = ext.ext();
 
-		let executor =
-			WasmExecutor::<sp_io::SubstrateHostFunctions>::new(WasmExecutionMethod::Compiled{instantiation_strategy: sc_executor_wasmtime::InstantiationStrategy::PoolingCopyOnWrite}, Some(1024), 8, None, 128);
+		let executor = WasmExecutor::<sp_io::SubstrateHostFunctions>::new(
+			WasmExecutionMethod::Compiled {
+				instantiation_strategy: sc_executor_wasmtime::InstantiationStrategy::PoolingCopyOnWrite,
+			},
+			Some(1024),
+			8,
+			None,
+			128,
+		);
 
 		let span_events = Arc::new(Mutex::new(SpansAndEvents { spans: Vec::new(), events: Vec::new() }));
 		let handler = TraceHandler::new(TARGETS, span_events);

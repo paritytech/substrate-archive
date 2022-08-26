@@ -75,7 +75,7 @@ pub type PerformError = Box<dyn std::error::Error + Send + Sync>;
 
 #[doc(hidden)]
 #[cfg(any(test, feature = "test_components"))]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FailedJobsError {
 	/// Jobs that failed to run
 	JobsFailed(

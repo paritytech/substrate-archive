@@ -169,7 +169,7 @@ impl Message for BatchExtrinsics {
 	type Result = ();
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Die;
 impl Message for Die {
 	type Result = ();

@@ -18,6 +18,7 @@
 //! Only some types implemented, for convenience most types are already in their database model
 //! equivalents
 
+use std::fmt::Write as _;
 use std::{convert::TryInto, marker::PhantomData};
 
 use chrono::{DateTime, Utc};
@@ -39,7 +40,7 @@ use crate::{
 };
 
 /// Struct modeling data returned from database when querying for a block
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, FromRow)]
 pub struct BlockModel {
 	pub id: i32,
 	pub parent_hash: Vec<u8>,
@@ -73,7 +74,7 @@ pub struct BlockModelDecoder<B: BlockT> {
 	_marker: PhantomData<B>,
 }
 
-impl<'a, B: BlockT> BlockModelDecoder<B> {
+impl<B: BlockT> BlockModelDecoder<B> {
 	/// With a vector of BlockModel
 	pub fn with_vec(blocks: Vec<BlockModel>) -> Result<Vec<Block<B>>, DecodeError> {
 		blocks
@@ -222,7 +223,7 @@ impl PersistentConfig {
 			// queue name is a combination of: database name, "-queue" and the current UTC timestamp.
 			// This is to ensure some level of uniqueness if one server is running multiple
 			// instances of archive for different chains.
-			task_queue.push_str(&format!("-queue-{}", Utc::now().timestamp()));
+			let _ = write!(task_queue, "-queue-{}", Utc::now().timestamp());
 			let id = sqlx::query_as::<Postgres, Id>(
 				r#"INSERT INTO _sa_config (task_queue, last_run, major, minor, patch, chain, genesis_hash) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id"#,
 			)

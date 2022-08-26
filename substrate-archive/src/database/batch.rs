@@ -100,6 +100,7 @@ pub struct Batch {
 	name: &'static str,
 	leading: String,
 	trailing: String,
+	#[allow(clippy::type_complexity)]
 	with: Option<Box<dyn Fn(&mut Chunk) -> Result<()> + Send>>,
 	chunks: Vec<Chunk>,
 	index: usize,
