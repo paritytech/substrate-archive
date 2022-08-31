@@ -18,11 +18,17 @@
 //! Will try catching up with primary database on every `get()`.
 
 use std::{collections::HashMap, fmt, io, path::PathBuf};
+use std::thread::sleep;
 
 use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 
 use sp_database::{ColumnId, Database as DatabaseTrait, Transaction};
+
+use crate::util::{
+	columns::META,
+	meta_keys::GENESIS_HASH
+};
 
 const NUM_COLUMNS: u32 = 11;
 
@@ -59,7 +65,30 @@ impl fmt::Debug for SecondaryRocksDb {
 impl SecondaryRocksDb {
 	pub fn open(config: DatabaseConfig, path: &str) -> io::Result<Self> {
 		let inner = Database::open(&config, path)?;
+		// First call try_catch_up_with_primary once
 		inner.try_catch_up_with_primary()?;
+		// Get the value of GENESIS_HASH to determine whether it is successful
+		let try_catch_up_result = || -> bool {
+			let value = match inner.get(META, GENESIS_HASH).unwrap() {
+				Some(_) => {
+					log::debug!("Failed to get genesis_hash,retry...");
+					true
+				},
+				None => {
+					log::debug!("Get genesis_hash successfully,next!!!");
+					false
+				},
+			};
+
+			value
+		};
+		// If it is unsuccessful, the try_catch_up_with_primary method is called in a loop until GENESIS_HASH is obtained successfully
+		while try_catch_up_result() == false {
+			inner.try_catch_up_with_primary()?;
+			//TODO: need to sleep for 1 secs
+			sleep(core::time::Duration::from_millis(300));
+		}
+		// The inner returned here is the successful Database.
 		Ok(Self { inner })
 	}
 
