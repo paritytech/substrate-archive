@@ -118,6 +118,7 @@ where
 		Self { task: f, channels: Vec::new(), pg_url: url.to_string(), queue_handle }
 	}
 
+	#[must_use]
 	pub fn listen_on(mut self, channel: Channel) -> Self {
 		self.channels.push(channel);
 		self

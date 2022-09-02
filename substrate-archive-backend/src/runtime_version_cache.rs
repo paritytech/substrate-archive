@@ -26,7 +26,7 @@ use arc_swap::ArcSwap;
 use codec::Decode;
 use hashbrown::HashMap;
 
-use sc_executor::{WasmExecutionMethod, WasmExecutor};
+use sc_executor::WasmExecutor;
 use sp_core::traits::ReadRuntimeVersion;
 use sp_runtime::{
 	generic::SignedBlock,
@@ -39,6 +39,7 @@ use sp_version::RuntimeVersion;
 use crate::{
 	database::ReadOnlyDb,
 	error::{BackendError, Result},
+	frontend::RuntimeConfig,
 	read_only_backend::ReadOnlyBackend,
 };
 
@@ -50,12 +51,12 @@ pub struct RuntimeVersionCache<Block, Db> {
 }
 
 impl<Block: BlockT, Db: ReadOnlyDb + 'static> RuntimeVersionCache<Block, Db> {
-	pub fn new(backend: Arc<ReadOnlyBackend<Block, Db>>) -> Self {
+	pub fn new(backend: Arc<ReadOnlyBackend<Block, Db>>, config: RuntimeConfig) -> Self {
 		// TODO: https://github.com/paritytech/substrate-archive/issues/247
 		let exec = WasmExecutor::<sp_io::SubstrateHostFunctions>::new(
-			WasmExecutionMethod::Interpreted,
-			Some(128),
-			1,
+			config.exec_method.into(),
+			config.wasm_pages,
+			config.block_workers,
 			None,
 			128,
 		);

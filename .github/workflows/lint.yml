@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install Rust Stable Toolchain
         uses: actions-rs/toolchain@v1
@@ -24,7 +24,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache Dependencies & Build Outputs
-        uses: actions/cache@v2.1.7
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/registry
