@@ -1,13 +1,12 @@
 [chain]
 # Must be an absolute path to chain data db (no ~/)
 # Can also be specified via the `CHAIN_DATA_DB` environment variable
-#data_path = "/Users/yindan/Capsule/my-chain-state/chains/dev/db/full"
-#data_path = "/Users/yindan/Capsule/my-chain-state/chains/dev/db/full"
-data_path = "/Users/yindan/Capsule/my-chain-state/chains/testnet2022/db/full"
+# e.g. data_path = "/.local/share/polkadot/chains/polkadot/db/full"
+data_path = ""
 
 # How much should the read-only database keep in cache (MB)
 # Optional, default: 128
-cache_size = 128
+cache_size = 4096
 
 # RocksDB secondary directory
 # Optional, default: /<local>/substrate_archive/rocksdb_secondary/
@@ -16,7 +15,7 @@ rocksdb_secondary_path = "./substrate_archive/rocksdb_secondary"
 [runtime]
 # Specification of different methods of executing the runtime Wasm code.
 # Optional, "Interpreted" or "Compiled", default: "Interpreted".
-#exec_method = "Interpreted"
+exec_method = "Interpreted"
 
 # Number of threads to dedicate for executing blocks
 # Optional, default: the number of logical system threads.
@@ -32,7 +31,8 @@ wasm_pages = 2048
 # Can also be specified via the `DATABASE_URL` environment variable.
 # For production use, using `DATABASE_URL` is preferable.
 # More info on the wiki: https://github.com/paritytech/substrate-archive/wiki/1.)-Requirements.
-url = "postgres://postgres:123456@127.0.0.1:5433/trex"
+# e.g. url = "postgres://postgres:123@localhost:5432/polkadot-archive"
+url = "postgres://postgres:123@localhost:5432/polkadot-archive"
 
 [log]
 # Optional log level of stdout, default: "DEBUG"
@@ -52,7 +52,7 @@ std = "DEBUG"
 # Changing these may lead to unexpected results.
 [control]
 # Whether to index storage via re-executing historical blocks.
-# storage_indexing = true
+storage_indexing = true
 
 # Timeout to wait for a task to start execution.
 # Optional, default: 20 seconds
@@ -62,6 +62,13 @@ task_timeout = 20
 # Useful for controlling memory usage.
 # Optional, defaults: 100,000
 max_block_load = 100000
+
+# Amqp url
+# Each chain needs it's own Rabbitmq
+# Can also be specified via the `AMQP_URL` environment variable.
+# For production use, using `AMQP_URL` is preferable.
+# Optional, defaults: amqp://localhost:5672
+#task_url = "amqp://localhost:5672"
 
 [wasm_tracing]
 # Targets for tracing.

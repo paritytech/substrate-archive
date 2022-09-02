@@ -315,9 +315,12 @@ where
 			let runner = self.start_queue(&actors, &persistent_config.task_queue)?;
 			let handle = runner.unique_handle()?;
 			let mut listener = self.init_listeners(handle.clone()).await?;
+			// TODO:// need to replace QueueHandle with new queue name.
+			let mut stradegy_listener = self.init_stradegy_listeners(handle.clone()).await?;
 			let task_loop = self.storage_index(runner, pool);
 			futures::try_join!(task_loop, actors_future)?;
 			listener.kill().await?;
+			stradegy_listener.kill().await?;
 		} else {
 			actors_future.await?
 		};
@@ -395,6 +398,19 @@ where
 		.listen_on(Channel::Blocks)
 		.spawn()
 		.await
+	}
+
+	async fn init_stradegy_listeners(&self, handle: QueueHandle) -> Result<Listener> {
+		Listener::builder(self.config.pg_url(), handle, move |notif, conn, handle| {
+			async move {
+				// TODO:// push new tradegy message to rabbigmq.
+				Ok(())
+			}
+				.boxed()
+		})
+			.listen_on(Channel::Trexes)
+			.spawn()
+			.await
 	}
 
 	/// Checks if any blocks that should be executed are missing
