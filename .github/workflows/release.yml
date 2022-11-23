@@ -45,7 +45,7 @@ jobs:
 
       - name: Get Archive changelog
         id: changelog_reader
-        uses: mindsers/changelog-reader-action@5bfb30f7871d5c4cde50cd897314f37578043394 # v2.1.1
+        uses: mindsers/changelog-reader-action@b97ce03a10d9bdbb07beb491c76a5a01d78cd3ef # v2.2.2
         with:
           validation_depth: 2
           path: ./CHANGELOG.md
@@ -53,7 +53,7 @@ jobs:
 
       - name: Get Polkadot Archive changelog
         id: changelog_reader_polkadot
-        uses: mindsers/changelog-reader-action@5bfb30f7871d5c4cde50cd897314f37578043394 # v2.1.1
+        uses: mindsers/changelog-reader-action@b97ce03a10d9bdbb07beb491c76a5a01d78cd3ef # v2.2.2
         with:
           validation_depth: 2
           path: ./bin/polkadot-archive/CHANGELOG.md
