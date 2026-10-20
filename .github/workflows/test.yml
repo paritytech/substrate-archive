@@ -37,7 +37,7 @@ jobs:
           - 5672:5672
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
